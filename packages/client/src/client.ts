@@ -94,7 +94,21 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       telemetry ?? defaultTelemetryProvider,
     );
 
-    return client.waitForConnectionReady().mapOk(() => client);
+    return client.waitForConnectionReady().flatMap((result) =>
+      result.match({
+        Ok: () => Future.value(Result.Ok<TypedAmqpClient<TContract>, TechnicalError>(client)),
+        // Release the AmqpClient's connection ref-count so a failed create() does not leak.
+        Error: (error) =>
+          client
+            .close()
+            .tapError((closeError) => {
+              logger?.warn("Failed to close client after connection failure", {
+                error: closeError,
+              });
+            })
+            .map(() => Result.Error<TypedAmqpClient<TContract>, TechnicalError>(error)),
+      }),
+    );
   }
 
   /**

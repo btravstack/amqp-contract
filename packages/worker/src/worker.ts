@@ -255,7 +255,22 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     return worker
       .waitForConnectionReady()
       .flatMapOk(() => worker.consumeAll())
-      .mapOk(() => worker);
+      .flatMap((result) =>
+        result.match({
+          Ok: () => Future.value(Result.Ok<TypedAmqpWorker<TContract>, TechnicalError>(worker)),
+          // Release the AmqpClient's connection ref-count and cancel any consumers
+          // that registered before the failure, so a failed create() does not leak.
+          Error: (error) =>
+            worker
+              .close()
+              .tapError((closeError) => {
+                logger?.warn("Failed to close worker after setup failure", {
+                  error: closeError,
+                });
+              })
+              .map(() => Result.Error<TypedAmqpWorker<TContract>, TechnicalError>(error)),
+        }),
+      );
   }
 
   /**
