@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/contract",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "Contract builder for amqp-contract",
   "keywords": [
     "amqp",
