@@ -138,14 +138,36 @@ describe("TypedAmqpClient RPC", () => {
   });
 
   it("returns RpcCancelledError for in-flight calls when the client is closed", async ({
+    workerFactory,
     clientFactory,
   }) => {
     const contract = buildContract("rpc.calculate.cancel");
+
+    // The worker uses a never-resolving Future so the request reaches the
+    // broker and the handler starts, but no reply is ever published. Closing
+    // the client mid-flight is the only way out.
+    let handlerStarted: () => void = () => undefined;
+    const handlerStartedPromise = new Promise<void>((resolve) => {
+      handlerStarted = resolve;
+    });
+    await workerFactory(contract, {
+      calculate: () => {
+        handlerStarted();
+        // Future that never resolves — the worker holds the message until the
+        // channel is torn down by the test fixture cleanup.
+        return Future.make<Result<{ sum: number }, never>>(() => undefined);
+      },
+    });
+
     const client = await clientFactory(contract);
 
     const callFuture = client.call("calculate", { a: 1, b: 1 }, { timeoutMs: 10_000 });
-    // Close while the call is in-flight.
-    void client.close().resultToPromise();
+
+    // Wait until the request has reached the worker — at that point we know
+    // the publish has completed and the pending-call entry is registered.
+    await handlerStartedPromise;
+
+    await client.close().resultToPromise();
 
     const result = await callFuture.toPromise();
     expect(result.isError()).toBe(true);
