@@ -34,8 +34,13 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: pnpm version
-          publish: pnpm release
+          # Use `pnpm run …` so we invoke the package.json scripts. Bare
+          # `pnpm version` collides with pnpm's built-in `version` command and
+          # silently prints `process.versions` instead of running the changeset
+          # version script, leaving package.json files untouched and the
+          # release stuck.
+          version: pnpm run version
+          publish: pnpm run release
           commit: "chore: release packages"
           title: "chore: release packages"
         env:
