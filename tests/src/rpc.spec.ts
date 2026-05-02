@@ -13,10 +13,10 @@ import {
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
+import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { Future, Result } from "@swan-io/boxed";
 import { describe, expect } from "vitest";
 import { z } from "zod";
-import { TypedAmqpWorker } from "../worker.js";
 
 const it = baseIt.extend<{
   workerFactory: <TContract extends ContractDefinition>(

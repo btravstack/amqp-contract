@@ -569,9 +569,6 @@ importers:
         specifier: 'catalog:'
         version: 3.2.1(typescript@6.0.3)
     devDependencies:
-      '@amqp-contract/client':
-        specifier: workspace:*
-        version: link:../client
       '@amqp-contract/testing':
         specifier: workspace:*
         version: link:../testing
@@ -623,6 +620,9 @@ importers:
       '@amqp-contract/contract':
         specifier: workspace:*
         version: link:../packages/contract
+      '@amqp-contract/core':
+        specifier: workspace:*
+        version: link:../packages/core
       '@amqp-contract/testing':
         specifier: workspace:*
         version: link:../packages/testing

@@ -64,7 +64,6 @@
     "@swan-io/boxed": "catalog:"
   },
   "devDependencies": {
-    "@amqp-contract/client": "workspace:*",
     "@amqp-contract/testing": "workspace:*",
     "@amqp-contract/tsconfig": "workspace:*",
     "@amqp-contract/typedoc": "workspace:*",

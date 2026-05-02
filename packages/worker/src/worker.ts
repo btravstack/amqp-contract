@@ -222,17 +222,19 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   /**
    * Build a `ConsumerDefinition`-shaped view for a handler name, regardless
    * of whether it came from `contract.consumers` or `contract.rpcs`. The
-   * dispatch path treats both uniformly — the only difference is whether
-   * `responseMessage` is set, which signals `processMessage` to validate and
-   * publish a reply.
+   * dispatch path treats both uniformly; the returned `isRpc` flag (and the
+   * accompanying `responseSchema`) tells `processMessage` whether to validate
+   * the handler return value and publish a reply.
    */
   private resolveConsumerView(name: HandlerName<TContract>): {
     consumer: ConsumerDefinition;
     isRpc: boolean;
     responseSchema?: StandardSchemaV1;
   } {
+    // Use `Object.hasOwn` rather than `key in rpcs` so prototype properties
+    // (e.g. "toString") on a plain object are not misclassified as RPC names.
     const rpcs = this.contract.rpcs;
-    if (rpcs && (name as string) in rpcs) {
+    if (rpcs && Object.hasOwn(rpcs, name as string)) {
       const rpc = rpcs[name as string]!;
       return {
         consumer: { queue: rpc.queue, message: rpc.request },
@@ -377,7 +379,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    */
   private consume(name: HandlerName<TContract>): Future<Result<void, TechnicalError>> {
     const view = this.resolveConsumerView(name);
-    // Non-null assertion safe: constructor validates handlers match contract names.
+    // Non-null assertion safe: `WorkerInferHandlers<TContract>` requires every
+    // consumers / rpcs key to have a handler, so by the time we reach this
+    // dispatch path the entry exists in `actualHandlers`. Enforced by the type
+    // system at the public API boundary, not by a runtime check.
     const handler = this.actualHandlers[name]!;
 
     return this.consumeSingle(name, view, handler);
