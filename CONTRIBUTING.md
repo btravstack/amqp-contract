@@ -161,7 +161,51 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 4. Ensure all tests pass: `pnpm test`
 5. Ensure code is formatted: `pnpm format`
 6. Ensure code passes linting: `pnpm lint`
-7. Submit a pull request
+7. **Add a changeset** describing your change (see below)
+8. Submit a pull request
+
+## Releasing
+
+This project uses [Changesets](https://github.com/changesets/changesets) for version management and publishing. Every change that affects a published package needs a changeset; the release workflow turns those into version bumps, changelogs, and npm releases.
+
+### Adding a changeset (every PR)
+
+```bash
+pnpm changeset
+```
+
+The CLI is interactive:
+
+1. Pick the affected packages.
+2. Choose a bump level (`patch` / `minor` / `major`) per package, following [Semantic Versioning](https://semver.org/).
+3. Write a short, user-facing summary — this becomes the changelog entry.
+
+The result is a new file under `.changeset/`. Commit it alongside your code changes. PRs without a changeset (when one is needed) won't be released even if merged.
+
+If your PR doesn't change anything published — e.g. tests, docs, repo tooling — you don't need one.
+
+### Release workflow
+
+Releases are driven by GitHub Actions:
+
+- **On every push to `main`**: the [release workflow](.github/workflows/release.yml) runs `changeset version` against the accumulated changesets. It opens (or updates) a "Version Packages" PR that bumps `package.json` versions and updates each package's `CHANGELOG.md`.
+- **When the Version Packages PR is merged**: the same workflow runs `changeset publish`, tagging the release and pushing the bumped packages to npm.
+
+Manual steps to release locally (rarely needed):
+
+```bash
+pnpm changeset version  # consume changesets, bump versions, update changelogs
+pnpm release            # builds and publishes via `changeset publish`
+```
+
+Both require write access to the npm org and the appropriate `RELEASE_PAT` for tagging.
+
+### Versioning policy
+
+- Public APIs follow SemVer.
+- Breaking changes to the contract type system count as `major`. Be conservative.
+- Bug fixes that change behavior in a way users could rely on (even unintentionally) deserve at least a `minor` and a changelog note explaining the change.
+- Internal refactors with no surface change can ship as `patch`.
 
 ## Questions?
 

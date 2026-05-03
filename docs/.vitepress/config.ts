@@ -98,6 +98,8 @@ export default withMermaid(
               { text: "Defining Contracts", link: "/guide/defining-contracts" },
               { text: "Client Usage", link: "/guide/client-usage" },
               { text: "Worker Usage", link: "/guide/worker-usage" },
+              { text: "Error Model", link: "/guide/error-model" },
+              { text: "Retry Strategies", link: "/guide/retry-strategies" },
               { text: "Testing", link: "/guide/testing" },
             ],
           },
@@ -106,6 +108,7 @@ export default withMermaid(
             items: [
               { text: "Connection Sharing", link: "/guide/connection-sharing" },
               { text: "Channel Configuration", link: "/guide/channel-configuration" },
+              { text: "Bridge Exchanges", link: "/guide/bridge-exchanges" },
               { text: "Message Compression", link: "/guide/message-compression" },
               { text: "Schema Libraries", link: "/guide/schema-libraries" },
               { text: "Performance Tuning", link: "/guide/performance" },
@@ -152,6 +155,10 @@ export default withMermaid(
               {
                 text: "Basic Order Processing",
                 link: "/examples/basic-order-processing",
+              },
+              {
+                text: "Command Pattern",
+                link: "/examples/command-pattern",
               },
               {
                 text: "AsyncAPI Generation",

@@ -2,9 +2,42 @@
 
 Learn how to use the type-safe AMQP worker to consume messages.
 
-## Creating a Worker
+## Recommended pattern: `defineHandler`
 
-Create a worker with type-safe message handlers:
+The library encourages defining handlers with `defineHandler` (or `defineHandlers` for a batch). It pulls full type inference from the contract — payload type, headers type, and (for RPCs) the response type — and gives you a single point to test the handler in isolation.
+
+```typescript
+import {
+  TypedAmqpWorker,
+  defineHandler,
+  RetryableError,
+  NonRetryableError,
+} from "@amqp-contract/worker";
+import { Future, Result } from "@swan-io/boxed";
+import { contract } from "./contract";
+
+const processOrder = defineHandler(contract, "processOrder", ({ payload }) =>
+  Future.fromPromise(saveOrder(payload))
+    .mapOk(() => undefined)
+    .mapError((error) => new RetryableError("Database unavailable", error)),
+);
+
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: { processOrder },
+  urls: ["amqp://localhost"],
+}).resultToPromise();
+
+console.log("✅ Worker ready!");
+```
+
+The worker connects and starts consuming all queues defined in the contract.
+
+> See [Error Model](./error-model.md) for the difference between `RetryableError` and `NonRetryableError`, and [Retry Strategies](./retry-strategies.md) for how the queue's retry mode interacts with handler errors.
+
+## Inline handlers (quick scripts)
+
+For one-file demos, you can inline the handler. The signature and types are identical; you just lose the named, externally-testable function:
 
 ```typescript
 import { TypedAmqpWorker } from "@amqp-contract/worker";
@@ -16,7 +49,6 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ payload }) => {
       console.log("Processing:", payload.orderId);
-      // Your business logic here
       return Future.value(Result.Ok(undefined));
     },
     notifyOrder: ({ payload }) => {
@@ -26,11 +58,9 @@ const worker = await TypedAmqpWorker.create({
   },
   urls: ["amqp://localhost"],
 }).resultToPromise();
-
-console.log("✅ Worker ready!");
 ```
 
-The worker automatically connects and starts consuming messages from all queues.
+In production code, prefer `defineHandler` so handler logic lives in its own module and can be unit-tested.
 
 ## Message Handlers
 
