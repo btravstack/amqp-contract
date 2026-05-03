@@ -122,17 +122,17 @@ const processOrder = defineHandler(contract, "processOrder", ({ payload }) =>
 
 ## Inspecting retry state
 
-The worker writes useful headers on every retry:
+The worker enriches messages with diagnostic headers **only on retry paths that re-publish the message** — that is, classic queues in `immediate-requeue` mode, and any queue in `ttl-backoff` mode. Direct-DLQ paths (`nack(requeue=false)`: `NonRetryableError`, validation/parse failures, quorum queues in `immediate-requeue`) do not modify headers, so the DLQ message looks exactly like the broker delivered it. Plan your DLQ tooling accordingly.
 
-| Header                           | Meaning                                                               |
-| -------------------------------- | --------------------------------------------------------------------- |
-| `x-retry-count`                  | Number of retries attempted (classic queues; ttl-backoff mode)        |
-| `x-delivery-count`               | RabbitMQ-native attempt count (quorum queues, immediate-requeue mode) |
-| `x-last-error`                   | Error message from the most recent attempt                            |
-| `x-first-failure-timestamp`      | Epoch ms of the first failure                                         |
-| `x-wait-queue` / `x-retry-queue` | Used by the ttl-backoff routing (internal)                            |
+| Header                           | Meaning                                                 | When the worker sets it                                       |
+| -------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| `x-delivery-count`               | RabbitMQ-native attempt count                           | Set by the broker (quorum queues only); never re-written      |
+| `x-retry-count`                  | Worker-managed attempt count                            | Republish paths only (classic immediate-requeue, ttl-backoff) |
+| `x-last-error`                   | Error message from the most recent attempt              | Republish paths only                                          |
+| `x-first-failure-timestamp`      | Epoch ms of the first failure                           | Republish paths only                                          |
+| `x-wait-queue` / `x-retry-queue` | Internal routing pointers used by the ttl-backoff dance | ttl-backoff republish only                                    |
 
-A poison message in the DLQ carries all of these — you can build dashboards or replay tooling against them.
+If you need the failure context to be visible on poison messages too, prefer a queue configured with `ttl-backoff` (which always republishes) or pass `maxRetries: 1` so a single republish stamps the headers before the message goes to DLQ.
 
 ## Pitfalls
 

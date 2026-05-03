@@ -101,7 +101,7 @@ result.match({
 
 A Standard Schema validation failed (incoming payload, incoming headers, or RPC response shape). Carries the source identifier (consumer/publisher name) and the schema's `issues` array.
 
-On the worker side, validation failures route directly to the DLQ — they never enter the retry pipeline because retrying a malformed payload cannot succeed. The original message is preserved with `x-last-error` and other diagnostic headers.
+On the worker side, validation failures route directly to the DLQ via `nack(requeue=false)` — they never enter the retry pipeline because retrying a malformed payload cannot succeed. The message body is preserved exactly as the broker delivered it; the worker does not republish, so it does not stamp diagnostic headers like `x-last-error` on this path. The error details (consumer name, schema `issues`) live in the worker's logs. See [Retry Strategies → Inspecting retry state](./retry-strategies.md#inspecting-retry-state) for the full breakdown of which DLQ paths add headers.
 
 On the client side (publisher input or RPC response validation), `MessageValidationError` is returned in the `Result.Error` channel of `publish()` / `call()` so you can decide how to react before sending.
 

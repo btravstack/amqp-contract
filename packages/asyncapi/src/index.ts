@@ -353,6 +353,20 @@ export class AsyncAPIGenerator {
     queue: QueueDefinition,
     bindings: QueueBindingDefinition[] = [],
   ): ChannelObject {
+    // Merge user-provided arguments with derived RabbitMQ args. User
+    // arguments win on collision so consumers can override the derived ones
+    // if they really need to. The DLX description below is then built from the
+    // merged result so the human-readable summary cannot drift from the
+    // structured `arguments` if the user overrode them.
+    const derivedArgs: Record<string, unknown> = {};
+    if (queue.deadLetter?.exchange) {
+      derivedArgs["x-dead-letter-exchange"] = queue.deadLetter.exchange.name;
+      if (queue.deadLetter.routingKey) {
+        derivedArgs["x-dead-letter-routing-key"] = queue.deadLetter.routingKey;
+      }
+    }
+    const mergedArgs = { ...derivedArgs, ...queue.arguments };
+
     let description = `AMQP Queue: ${queue.name}`;
     if (bindings.length > 0) {
       const bindingDescriptions = bindings
@@ -367,10 +381,12 @@ export class AsyncAPIGenerator {
       description += ` (${bindingDescriptions})`;
     }
 
-    if (queue.deadLetter?.exchange) {
-      description += `. Dead-letters to '${queue.deadLetter.exchange.name}'`;
-      if (queue.deadLetter.routingKey) {
-        description += ` (routing key '${queue.deadLetter.routingKey}')`;
+    const effectiveDlx = mergedArgs["x-dead-letter-exchange"];
+    if (typeof effectiveDlx === "string" && effectiveDlx.length > 0) {
+      description += `. Dead-letters to '${effectiveDlx}'`;
+      const effectiveDlxRoutingKey = mergedArgs["x-dead-letter-routing-key"];
+      if (typeof effectiveDlxRoutingKey === "string" && effectiveDlxRoutingKey.length > 0) {
+        description += ` (routing key '${effectiveDlxRoutingKey}')`;
       }
       description += ".";
     }
@@ -388,18 +404,6 @@ export class AsyncAPIGenerator {
         description += ".";
       }
     }
-
-    // Merge user-provided arguments with derived RabbitMQ args. User
-    // arguments win on collision so consumers can override the derived ones
-    // if they really need to.
-    const derivedArgs: Record<string, unknown> = {};
-    if (queue.deadLetter?.exchange) {
-      derivedArgs["x-dead-letter-exchange"] = queue.deadLetter.exchange.name;
-      if (queue.deadLetter.routingKey) {
-        derivedArgs["x-dead-letter-routing-key"] = queue.deadLetter.routingKey;
-      }
-    }
-    const mergedArgs = { ...derivedArgs, ...queue.arguments };
 
     const result: Record<string, unknown> = {
       address: queue.name,

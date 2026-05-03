@@ -39,11 +39,25 @@ function callSetupFunc(
  * Default time `waitForConnect` will wait for the broker before erroring out.
  * Defaulting to a finite value (rather than waiting forever) means a fail-fast
  * developer experience: a misconfigured URL, a down broker, or wrong
- * credentials surface as a Result.Error within 30 seconds. Pass `null` (or
- * `Number.POSITIVE_INFINITY`) explicitly to keep the legacy "retry forever"
- * behaviour.
+ * credentials surface as a Result.Error within 30 seconds. Pass `null`
+ * explicitly to disable the timeout — `Infinity` and other non-finite values
+ * are also coerced to "no timeout" because Node's `setTimeout` clamps large
+ * delays to ~24.8 days and silently fires near-immediately on `Infinity`.
  */
 export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+
+/**
+ * Normalise the user-supplied connect timeout to either a positive finite
+ * number of milliseconds, or `null` (no timeout). `Infinity`, `NaN`, and
+ * non-positive values all map to `null` rather than being passed to
+ * `setTimeout` — see {@link DEFAULT_CONNECT_TIMEOUT_MS}.
+ */
+function resolveConnectTimeoutMs(input: number | null | undefined): number | null {
+  if (input === null) return null;
+  if (input === undefined) return DEFAULT_CONNECT_TIMEOUT_MS;
+  if (!Number.isFinite(input) || input <= 0) return null;
+  return input;
+}
 
 /**
  * Options for creating an AMQP client.
@@ -141,13 +155,12 @@ export class AmqpClient {
       this.connectionOptions = options.connectionOptions;
     }
     // Resolve connect timeout: explicit null disables it; undefined (the common
-    // case) gets the fail-fast default; numbers pass through.
-    this.connectTimeoutMs =
-      options.connectTimeoutMs === null
-        ? null
-        : options.connectTimeoutMs === undefined
-          ? DEFAULT_CONNECT_TIMEOUT_MS
-          : options.connectTimeoutMs;
+    // case) gets the fail-fast default. Finite positive numbers pass through;
+    // any other numeric value (Infinity, NaN, ≤ 0) is coerced to null because
+    // Node's `setTimeout` clamps large delays to ~24.8 days and silently fires
+    // near-immediately on Infinity — neither is what a caller asking for "no
+    // timeout" expects.
+    this.connectTimeoutMs = resolveConnectTimeoutMs(options.connectTimeoutMs);
 
     // Always use singleton to get/create connection
     const singleton = ConnectionManagerSingleton.getInstance();
