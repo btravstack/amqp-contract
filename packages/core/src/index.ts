@@ -3,9 +3,13 @@ export {
   type AmqpClientOptions,
   type ConsumeCallback,
   type ConsumerOptions,
+  DEFAULT_CONNECT_TIMEOUT_MS,
   type PublishOptions,
 } from "./amqp-client.js";
-export { ConnectionManagerSingleton } from "./connection-manager.js";
+export {
+  _getConnectionCountForTesting,
+  _resetConnectionsForTesting,
+} from "./connection-manager.js";
 export { MessageValidationError, TechnicalError } from "./errors.js";
 export type { Logger, LoggerContext } from "./logger.js";
 export { setupAmqpTopology } from "./setup.js";
@@ -16,6 +20,7 @@ export {
   endSpanSuccess,
   MessagingSemanticConventions,
   recordConsumeMetric,
+  recordLateRpcReply,
   recordPublishMetric,
   startConsumeSpan,
   startPublishSpan,

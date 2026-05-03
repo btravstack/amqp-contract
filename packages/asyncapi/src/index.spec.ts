@@ -1722,4 +1722,126 @@ describe("AsyncAPIGenerator", () => {
       );
     });
   });
+
+  describe("DLX, retry, and bridge surfacing", () => {
+    it("emits DLX arguments and retry summary on the queue channel", async () => {
+      const dlx = defineExchange("orders-dlx", { type: "direct" });
+      const exchange = defineExchange("orders");
+      const queue = defineQueue("orders-q", {
+        deadLetter: { exchange: dlx, routingKey: "orders.dead" },
+        retry: { mode: "ttl-backoff", maxRetries: 5, initialDelayMs: 1000 },
+      });
+      const message = defineMessage(z.object({ id: z.string() }));
+      const consumer = defineConsumer(queue, message);
+
+      const generator = new AsyncAPIGenerator({
+        schemaConverters: [new ZodToJsonSchemaConverter()],
+      });
+
+      const doc = await generator.generate(
+        defineContract({
+          publishers: { sent: definePublisher(exchange, message, { routingKey: "order.created" }) },
+          consumers: { processOrder: consumer },
+        }) as unknown as ContractDefinition,
+        { info: { title: "DLX Test", version: "1.0.0" } },
+      );
+
+      const queueChannel = doc.channels?.["orders-q"] as unknown as Record<string, unknown>;
+      const queueBinding = (queueChannel["bindings"] as Record<string, unknown>)["amqp"] as Record<
+        string,
+        unknown
+      >;
+      const queueMeta = queueBinding["queue"] as Record<string, unknown>;
+      const args = queueMeta["arguments"] as Record<string, unknown>;
+
+      expect(args["x-dead-letter-exchange"]).toBe("orders-dlx");
+      expect(args["x-dead-letter-routing-key"]).toBe("orders.dead");
+      expect(queueChannel["description"]).toMatch(/Dead-letters to 'orders-dlx'/);
+      expect(queueChannel["description"]).toMatch(/Retry: ttl-backoff, max 5 attempts/);
+      expect(queueChannel["x-amqp-retry"]).toMatchObject({
+        mode: "ttl-backoff",
+        maxRetries: 5,
+        initialDelayMs: 1000,
+      });
+
+      const parser = new Parser();
+      await expect(parser.parse(JSON.stringify(doc))).resolves.toEqual(
+        expect.objectContaining({ diagnostics: [] }),
+      );
+    });
+
+    it("represents exchange-to-exchange bindings in source and destination channels", async () => {
+      const orders = defineExchange("orders");
+      const billing = defineExchange("billing");
+      const billingQueue = defineQueue("billing-orders");
+      const message = defineMessage(z.object({ id: z.string() }));
+
+      // Build a contract by hand to avoid pulling in defineEventConsumer's
+      // bridge wiring — we just want a binding of type "exchange" between
+      // the two exchanges.
+      const contract = defineContract({
+        publishers: { sent: definePublisher(orders, message, { routingKey: "order.created" }) },
+        consumers: {
+          process: defineConsumer(billingQueue, message),
+        },
+      }) as unknown as ContractDefinition;
+      // Inject the e2e binding manually.
+      contract.bindings = {
+        ...contract.bindings,
+        ordersToBilling: {
+          type: "exchange",
+          source: orders,
+          destination: billing,
+          routingKey: "order.#",
+        } as never,
+      };
+      contract.exchanges = { ...contract.exchanges, billing };
+
+      const generator = new AsyncAPIGenerator({
+        schemaConverters: [new ZodToJsonSchemaConverter()],
+      });
+
+      const doc = await generator.generate(contract, {
+        info: { title: "Bridge Test", version: "1.0.0" },
+      });
+
+      const ordersChannel = doc.channels?.["orders"] as unknown as Record<string, unknown>;
+      const billingChannel = doc.channels?.["billing"] as unknown as Record<string, unknown>;
+
+      expect(ordersChannel["description"]).toMatch(/forwards to 'billing'/);
+      expect(ordersChannel["x-amqp-exchange-bindings"]).toMatchObject({
+        forwardsTo: [{ destination: "billing", routingKey: "order.#" }],
+      });
+
+      expect(billingChannel["description"]).toMatch(/receives from 'orders'/);
+      expect(billingChannel["x-amqp-exchange-bindings"]).toMatchObject({
+        receivesFrom: [{ source: "orders", routingKey: "order.#" }],
+      });
+
+      const parser = new Parser();
+      await expect(parser.parse(JSON.stringify(doc))).resolves.toEqual(
+        expect.objectContaining({ diagnostics: [] }),
+      );
+    });
+  });
+
+  describe("strict converter mode", () => {
+    it("throws when a payload schema cannot be converted and failOnMissingConverter=true", async () => {
+      const exchange = defineExchange("orders");
+      const message = defineMessage(z.object({ id: z.string() }));
+      const generator = new AsyncAPIGenerator({
+        schemaConverters: [],
+        failOnMissingConverter: true,
+      });
+
+      await expect(
+        generator.generate(
+          defineContract({
+            publishers: { sent: definePublisher(exchange, message, { routingKey: "x" }) },
+          }),
+          { info: { title: "Strict", version: "1.0.0" } },
+        ),
+      ).rejects.toThrow(/No schema converter matched/);
+    });
+  });
 });

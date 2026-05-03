@@ -1,11 +1,11 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
-import { ConnectionManagerSingleton } from "@amqp-contract/core";
+import { _getConnectionCountForTesting, _resetConnectionsForTesting } from "@amqp-contract/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TypedAmqpClient } from "./client.js";
 
 describe("TypedAmqpClient.create cleanup", () => {
   beforeEach(async () => {
-    await ConnectionManagerSingleton.getInstance()._resetForTesting();
+    await _resetConnectionsForTesting();
   });
 
   it("releases the pooled connection when waitForConnect times out", async () => {
@@ -20,6 +20,6 @@ describe("TypedAmqpClient.create cleanup", () => {
     }).toPromise();
 
     expect(result.isError()).toBe(true);
-    expect(ConnectionManagerSingleton.getInstance()._getConnectionCountForTesting()).toBe(0);
+    expect(_getConnectionCountForTesting()).toBe(0);
   });
 });

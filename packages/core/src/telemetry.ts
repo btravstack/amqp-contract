@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import {
   type Attributes,
   type Counter,
@@ -80,13 +81,36 @@ export type TelemetryProvider = {
    * Returns undefined if OpenTelemetry is not available.
    */
   getConsumeLatencyHistogram: () => Histogram | undefined;
+
+  /**
+   * Get a counter for RPC replies that arrive after the caller has gone away
+   * (timeout, cancellation, or unknown correlationId). Returns undefined if
+   * OpenTelemetry is not available.
+   */
+  getLateRpcReplyCounter: () => Counter | undefined;
 };
 
 /**
  * Instrumentation scope name for amqp-contract.
  */
 const INSTRUMENTATION_SCOPE_NAME = "@amqp-contract";
-const INSTRUMENTATION_SCOPE_VERSION = "0.1.0";
+
+/**
+ * Instrumentation scope version, sourced from this package's package.json so
+ * the OTel meter version always tracks the released library version. We use
+ * `createRequire` rather than a JSON import attribute so the same source builds
+ * to ESM, CJS, and runs under bundlers that don't yet understand
+ * `import … with { type: "json" }`.
+ */
+const INSTRUMENTATION_SCOPE_VERSION: string = (() => {
+  try {
+    const localRequire = createRequire(import.meta.url);
+    const pkg = localRequire("../package.json") as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 // Cache for OpenTelemetry API module and instruments
 let otelApi: typeof import("@opentelemetry/api") | null | undefined;
@@ -95,6 +119,7 @@ let cachedPublishCounter: Counter | undefined;
 let cachedConsumeCounter: Counter | undefined;
 let cachedPublishLatencyHistogram: Histogram | undefined;
 let cachedConsumeLatencyHistogram: Histogram | undefined;
+let cachedLateRpcReplyCounter: Counter | undefined;
 
 /**
  * Try to load the OpenTelemetry API module.
@@ -138,6 +163,7 @@ function getMeterInstruments(): {
   consumeCounter: Counter | undefined;
   publishLatencyHistogram: Histogram | undefined;
   consumeLatencyHistogram: Histogram | undefined;
+  lateRpcReplyCounter: Counter | undefined;
 } {
   if (cachedPublishCounter !== undefined) {
     return {
@@ -145,6 +171,7 @@ function getMeterInstruments(): {
       consumeCounter: cachedConsumeCounter,
       publishLatencyHistogram: cachedPublishLatencyHistogram,
       consumeLatencyHistogram: cachedConsumeLatencyHistogram,
+      lateRpcReplyCounter: cachedLateRpcReplyCounter,
     };
   }
 
@@ -155,6 +182,7 @@ function getMeterInstruments(): {
       consumeCounter: undefined,
       publishLatencyHistogram: undefined,
       consumeLatencyHistogram: undefined,
+      lateRpcReplyCounter: undefined,
     };
   }
 
@@ -180,11 +208,18 @@ function getMeterInstruments(): {
     unit: "ms",
   });
 
+  cachedLateRpcReplyCounter = meter.createCounter("amqp.client.rpc.late_reply", {
+    description:
+      "RPC replies received after the caller stopped waiting (timeout, cancellation, or unknown correlationId)",
+    unit: "{message}",
+  });
+
   return {
     publishCounter: cachedPublishCounter,
     consumeCounter: cachedConsumeCounter,
     publishLatencyHistogram: cachedPublishLatencyHistogram,
     consumeLatencyHistogram: cachedConsumeLatencyHistogram,
+    lateRpcReplyCounter: cachedLateRpcReplyCounter,
   };
 }
 
@@ -197,6 +232,7 @@ export const defaultTelemetryProvider: TelemetryProvider = {
   getConsumeCounter: () => getMeterInstruments().consumeCounter,
   getPublishLatencyHistogram: () => getMeterInstruments().publishLatencyHistogram,
   getConsumeLatencyHistogram: () => getMeterInstruments().consumeLatencyHistogram,
+  getLateRpcReplyCounter: () => getMeterInstruments().lateRpcReplyCounter,
 };
 
 /**
@@ -352,6 +388,29 @@ export function recordConsumeMetric(
 }
 
 /**
+ * Record an RPC reply that arrived after the caller stopped waiting.
+ *
+ * @param reason - Why the reply was orphaned. `"unknown-correlation-id"` is
+ *   the typical "caller already timed out" case; `"missing-correlation-id"`
+ *   means the broker delivered a reply with no correlationId at all (a
+ *   protocol violation by the responder).
+ */
+export function recordLateRpcReply(
+  provider: TelemetryProvider,
+  reason: "unknown-correlation-id" | "missing-correlation-id",
+): void {
+  const counter = provider.getLateRpcReplyCounter();
+
+  const attributes: Attributes = {
+    [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+      MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+    reason,
+  };
+
+  counter?.add(1, attributes);
+}
+
+/**
  * Reset the cached OpenTelemetry API module and instruments.
  * For testing purposes only.
  * @internal
@@ -363,4 +422,5 @@ export function _resetTelemetryCacheForTesting(): void {
   cachedConsumeCounter = undefined;
   cachedPublishLatencyHistogram = undefined;
   cachedConsumeLatencyHistogram = undefined;
+  cachedLateRpcReplyCounter = undefined;
 }

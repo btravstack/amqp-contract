@@ -15,6 +15,7 @@ import {
   defaultTelemetryProvider,
   endSpanError,
   endSpanSuccess,
+  recordLateRpcReply,
   recordPublishMetric,
   startPublishSpan,
 } from "@amqp-contract/core";
@@ -90,11 +91,11 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
   defaultPublishOptions?: PublishOptions | undefined;
   /**
    * Maximum time in ms to wait for the AMQP connection to become ready before
-   * `create()` resolves to `Result.Error<TechnicalError>`. Without this option,
-   * `create()` waits forever — the underlying amqp-connection-manager retries
-   * indefinitely.
+   * `create()` resolves to `Result.Error<TechnicalError>`. Defaults to 30s
+   * (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null` to
+   * disable the timeout and let amqp-connection-manager retry indefinitely.
    */
-  connectTimeoutMs?: number | undefined;
+  connectTimeoutMs?: number | null | undefined;
 };
 
 /**
@@ -210,8 +211,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   /**
    * Demultiplex an RPC reply by `correlationId`, validate the body against the
    * call's response schema, and resolve the awaiting caller. Replies with no
-   * matching pending call (e.g. arriving after the call timed out) are dropped
-   * with a debug log.
+   * matching pending call (the call already timed out, was cancelled, or the
+   * correlationId is unknown) are logged at warn — a non-zero rate of these
+   * usually indicates a tuning problem (handler latency exceeds caller
+   * timeout). The `messaging.rpc.late_reply` counter lets dashboards alert on
+   * sustained drift without parsing logs.
    */
   private handleRpcReply(msg: Parameters<Parameters<AmqpClient["consume"]>[1]>[0]): void {
     if (!msg) return;
@@ -220,11 +224,16 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       this.logger?.warn("Received RPC reply without correlationId; dropping", {
         deliveryTag: msg.fields.deliveryTag,
       });
+      recordLateRpcReply(this.telemetry, "missing-correlation-id");
       return;
     }
     const pending = this.pendingCalls.get(correlationId);
     if (!pending) {
-      this.logger?.debug("Received RPC reply for unknown correlationId", { correlationId });
+      this.logger?.warn(
+        "Received RPC reply for unknown correlationId (caller already timed out or cancelled)",
+        { correlationId },
+      );
+      recordLateRpcReply(this.telemetry, "unknown-correlation-id");
       return;
     }
     this.pendingCalls.delete(correlationId);

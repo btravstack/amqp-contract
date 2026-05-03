@@ -180,3 +180,24 @@ export class ConnectionManagerSingleton {
     this.refCounts.clear();
   }
 }
+
+/**
+ * Number of active pooled connections. Test-only helper — exposed in lieu of
+ * the underlying singleton, which is intentionally not part of the public API
+ * (mutating it from outside the library can break in-flight clients sharing a
+ * connection).
+ *
+ * @internal
+ */
+export function _getConnectionCountForTesting(): number {
+  return ConnectionManagerSingleton.getInstance()._getConnectionCountForTesting();
+}
+
+/**
+ * Close every pooled connection and clear ref-counts. Test-only helper.
+ *
+ * @internal
+ */
+export function _resetConnectionsForTesting(): Promise<void> {
+  return ConnectionManagerSingleton.getInstance()._resetForTesting();
+}

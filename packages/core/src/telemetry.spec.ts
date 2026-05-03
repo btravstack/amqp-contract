@@ -18,6 +18,7 @@ const noopProvider: TelemetryProvider = {
   getConsumeCounter: () => undefined,
   getPublishLatencyHistogram: () => undefined,
   getConsumeLatencyHistogram: () => undefined,
+  getLateRpcReplyCounter: () => undefined,
 };
 
 function createMockSpan() {

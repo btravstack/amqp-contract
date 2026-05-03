@@ -36,19 +36,31 @@ function callSetupFunc(
 }
 
 /**
+ * Default time `waitForConnect` will wait for the broker before erroring out.
+ * Defaulting to a finite value (rather than waiting forever) means a fail-fast
+ * developer experience: a misconfigured URL, a down broker, or wrong
+ * credentials surface as a Result.Error within 30 seconds. Pass `null` (or
+ * `Number.POSITIVE_INFINITY`) explicitly to keep the legacy "retry forever"
+ * behaviour.
+ */
+export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+
+/**
  * Options for creating an AMQP client.
  *
  * @property urls - AMQP broker URL(s). Multiple URLs provide failover support.
  * @property connectionOptions - Optional connection configuration (heartbeat, reconnect settings, etc.).
  * @property channelOptions - Optional channel configuration options.
- * @property connectTimeoutMs - Maximum time in ms to wait for the channel to become ready
- *   in `waitForConnect`. If unset, waits forever (amqp-connection-manager retries indefinitely).
+ * @property connectTimeoutMs - Maximum time in ms to wait for the channel to
+ *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
+ *   Pass `null` to disable the timeout entirely (amqp-connection-manager will
+ *   retry indefinitely).
  */
 export type AmqpClientOptions = {
   urls: ConnectionUrl[];
   connectionOptions?: AmqpConnectionManagerOptions | undefined;
   channelOptions?: Partial<CreateChannelOpts> | undefined;
-  connectTimeoutMs?: number | undefined;
+  connectTimeoutMs?: number | null | undefined;
 };
 
 /**
@@ -105,7 +117,8 @@ export class AmqpClient {
   private readonly channelWrapper: ChannelWrapper;
   private readonly urls: ConnectionUrl[];
   private readonly connectionOptions?: AmqpConnectionManagerOptions;
-  private readonly connectTimeoutMs?: number;
+  /** Resolved timeout in ms; `null` means "wait forever". */
+  private readonly connectTimeoutMs: number | null;
 
   /**
    * Create a new AMQP client instance.
@@ -127,9 +140,14 @@ export class AmqpClient {
     if (options.connectionOptions !== undefined) {
       this.connectionOptions = options.connectionOptions;
     }
-    if (options.connectTimeoutMs !== undefined) {
-      this.connectTimeoutMs = options.connectTimeoutMs;
-    }
+    // Resolve connect timeout: explicit null disables it; undefined (the common
+    // case) gets the fail-fast default; numbers pass through.
+    this.connectTimeoutMs =
+      options.connectTimeoutMs === null
+        ? null
+        : options.connectTimeoutMs === undefined
+          ? DEFAULT_CONNECT_TIMEOUT_MS
+          : options.connectTimeoutMs;
 
     // Always use singleton to get/create connection
     const singleton = ConnectionManagerSingleton.getInstance();
@@ -192,12 +210,12 @@ export class AmqpClient {
    */
   waitForConnect(): Future<Result<void, TechnicalError>> {
     const connectPromise = this.channelWrapper.waitForConnect();
+    const timeoutMs = this.connectTimeoutMs;
 
     const racedPromise =
-      this.connectTimeoutMs === undefined
+      timeoutMs === null
         ? connectPromise
         : new Promise<void>((resolve, reject) => {
-            const timeoutMs = this.connectTimeoutMs!;
             const handle = setTimeout(() => {
               reject(new Error(`Timed out waiting for AMQP connection after ${timeoutMs}ms`));
             }, timeoutMs);

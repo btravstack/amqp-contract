@@ -8,7 +8,9 @@ import {
 } from "@asyncapi/parser/esm/spec-types/v3.js";
 import { ConditionalSchemaConverter, JSONSchema } from "@orpc/openapi";
 import type {
+  BindingDefinition,
   ContractDefinition,
+  ExchangeBindingDefinition,
   ExchangeDefinition,
   MessageDefinition,
   QueueBindingDefinition,
@@ -40,6 +42,15 @@ export type AsyncAPIGeneratorOptions = {
    * Optional logger for warnings during generation (e.g. unmatched schema converters).
    */
   logger?: { warn: (message: string) => void };
+  /**
+   * If true, the generator throws when a payload schema cannot be converted by
+   * any of the configured `schemaConverters` instead of falling back to a
+   * generic `{ type: "object" }` placeholder. Recommended for CI pipelines
+   * that depend on the generated spec being faithful (e.g. for codegen).
+   *
+   * Defaults to `false` for backwards compatibility.
+   */
+  failOnMissingConverter?: boolean;
 };
 
 /**
@@ -100,6 +111,7 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
 export class AsyncAPIGenerator {
   private readonly converters: ConditionalSchemaConverter[];
   private readonly logger?: { warn: (message: string) => void } | undefined;
+  private readonly failOnMissingConverter: boolean;
 
   /**
    * Create a new AsyncAPI generator instance.
@@ -109,6 +121,7 @@ export class AsyncAPIGenerator {
   constructor(options: AsyncAPIGeneratorOptions = {}) {
     this.converters = options.schemaConverters ?? [];
     this.logger = options.logger;
+    this.failOnMissingConverter = options.failOnMissingConverter ?? false;
   }
 
   /**
@@ -213,7 +226,7 @@ export class AsyncAPIGenerator {
         }
 
         const channel: ChannelObject = {
-          ...this.exchangeToChannel(exchange),
+          ...this.exchangeToChannel(exchange, contract),
         };
 
         if (Object.keys(channelMessages).length > 0) {
@@ -325,13 +338,21 @@ export class AsyncAPIGenerator {
   }
 
   /**
-   * Convert a queue definition to AsyncAPI ChannelObject
+   * Convert a queue definition to AsyncAPI ChannelObject.
+   *
+   * The AMQP binding spec doesn't have first-class fields for dead-lettering
+   * or retry policy, so we surface them in two places:
+   *
+   * 1. The `arguments` map carries the canonical RabbitMQ keys
+   *    (`x-dead-letter-exchange`, `x-dead-letter-routing-key`) — these are
+   *    what a consumer of the spec would actually use to recreate the queue.
+   * 2. The channel description summarises DLX + retry policy in human-readable
+   *    form so the topology is visible without reading the binding details.
    */
   private queueToChannel(
     queue: QueueDefinition,
     bindings: QueueBindingDefinition[] = [],
   ): ChannelObject {
-    // Build description with binding information
     let description = `AMQP Queue: ${queue.name}`;
     if (bindings.length > 0) {
       const bindingDescriptions = bindings
@@ -345,6 +366,40 @@ export class AsyncAPIGenerator {
         .join(", ");
       description += ` (${bindingDescriptions})`;
     }
+
+    if (queue.deadLetter?.exchange) {
+      description += `. Dead-letters to '${queue.deadLetter.exchange.name}'`;
+      if (queue.deadLetter.routingKey) {
+        description += ` (routing key '${queue.deadLetter.routingKey}')`;
+      }
+      description += ".";
+    }
+
+    if (queue.retry && queue.retry.mode !== "none") {
+      const retry = queue.retry;
+      if (retry.mode === "immediate-requeue") {
+        description += ` Retry: immediate-requeue, max ${retry.maxRetries} attempts.`;
+      } else if (retry.mode === "ttl-backoff") {
+        const initial = retry.initialDelayMs;
+        description += ` Retry: ttl-backoff, max ${retry.maxRetries} attempts`;
+        if (initial !== undefined) {
+          description += `, initial delay ${initial}ms`;
+        }
+        description += ".";
+      }
+    }
+
+    // Merge user-provided arguments with derived RabbitMQ args. User
+    // arguments win on collision so consumers can override the derived ones
+    // if they really need to.
+    const derivedArgs: Record<string, unknown> = {};
+    if (queue.deadLetter?.exchange) {
+      derivedArgs["x-dead-letter-exchange"] = queue.deadLetter.exchange.name;
+      if (queue.deadLetter.routingKey) {
+        derivedArgs["x-dead-letter-routing-key"] = queue.deadLetter.routingKey;
+      }
+    }
+    const mergedArgs = { ...derivedArgs, ...queue.arguments };
 
     const result: Record<string, unknown> = {
       address: queue.name,
@@ -360,7 +415,7 @@ export class AsyncAPIGenerator {
             ...(queue.exclusive !== undefined && { exclusive: queue.exclusive }),
             ...(queue.autoDelete !== undefined && { autoDelete: queue.autoDelete }),
             ...(queue.maxPriority !== undefined && { maxPriority: queue.maxPriority }),
-            ...(queue.arguments !== undefined && { arguments: queue.arguments }),
+            ...(Object.keys(mergedArgs).length > 0 ? { arguments: mergedArgs } : {}),
             vhost: "/",
           },
           bindingVersion: "0.3.0",
@@ -368,17 +423,80 @@ export class AsyncAPIGenerator {
       },
     };
 
+    if (queue.retry && queue.retry.mode !== "none") {
+      // Spec extension: retry policy is non-standard but useful for tooling
+      // that wants to inspect it programmatically. Prefixing with `x-` keeps
+      // the spec valid for strict parsers.
+      (result as Record<string, unknown>)["x-amqp-retry"] = {
+        mode: queue.retry.mode,
+        ...("maxRetries" in queue.retry && queue.retry.maxRetries !== undefined
+          ? { maxRetries: queue.retry.maxRetries }
+          : {}),
+        ...(queue.retry.mode === "ttl-backoff"
+          ? {
+              ...(queue.retry.initialDelayMs !== undefined
+                ? { initialDelayMs: queue.retry.initialDelayMs }
+                : {}),
+              ...(queue.retry.maxDelayMs !== undefined
+                ? { maxDelayMs: queue.retry.maxDelayMs }
+                : {}),
+              ...(queue.retry.backoffMultiplier !== undefined
+                ? { backoffMultiplier: queue.retry.backoffMultiplier }
+                : {}),
+              ...(queue.retry.jitter !== undefined ? { jitter: queue.retry.jitter } : {}),
+            }
+          : {}),
+      };
+    }
+
     return result as ChannelObject;
   }
 
   /**
-   * Convert an exchange definition to AsyncAPI ChannelObject
+   * Convert an exchange definition to AsyncAPI ChannelObject.
+   *
+   * Exchange-to-exchange bindings — used for bridge exchanges, fanout
+   * fan-in/out, and other cross-domain routing — are surfaced both as a
+   * line in the description and via the non-standard `x-amqp-exchange-bindings`
+   * extension so tooling can recreate the topology.
    */
-  private exchangeToChannel(exchange: ExchangeDefinition): ChannelObject {
+  private exchangeToChannel(
+    exchange: ExchangeDefinition,
+    contract: ContractDefinition,
+  ): ChannelObject {
+    const sourceBindings = this.getExchangeBindingsBySource(exchange, contract);
+    const destinationBindings = this.getExchangeBindingsByDestination(exchange, contract);
+
+    let description = `AMQP Exchange: ${exchange.name} (${exchange.type})`;
+    if (sourceBindings.length > 0) {
+      const summaries = sourceBindings
+        .map((binding) => {
+          const target = binding.destination.name;
+          const routingKey = "routingKey" in binding ? binding.routingKey : undefined;
+          return routingKey
+            ? `forwards to '${target}' (routing key '${routingKey}')`
+            : `forwards to '${target}'`;
+        })
+        .join(", ");
+      description += `. ${summaries}.`;
+    }
+    if (destinationBindings.length > 0) {
+      const summaries = destinationBindings
+        .map((binding) => {
+          const source = binding.source.name;
+          const routingKey = "routingKey" in binding ? binding.routingKey : undefined;
+          return routingKey
+            ? `receives from '${source}' (routing key '${routingKey}')`
+            : `receives from '${source}'`;
+        })
+        .join(", ");
+      description += ` ${summaries}.`;
+    }
+
     const result: Record<string, unknown> = {
       address: exchange.name,
       title: exchange.name,
-      description: `AMQP Exchange: ${exchange.name} (${exchange.type})`,
+      description,
       bindings: {
         amqp: {
           is: "routingKey",
@@ -396,7 +514,51 @@ export class AsyncAPIGenerator {
       },
     };
 
+    if (sourceBindings.length > 0 || destinationBindings.length > 0) {
+      const e2eBindings: Record<string, unknown> = {};
+      if (sourceBindings.length > 0) {
+        e2eBindings["forwardsTo"] = sourceBindings.map((b) => ({
+          destination: b.destination.name,
+          ...("routingKey" in b && b.routingKey !== undefined ? { routingKey: b.routingKey } : {}),
+          ...(b.arguments !== undefined ? { arguments: b.arguments } : {}),
+        }));
+      }
+      if (destinationBindings.length > 0) {
+        e2eBindings["receivesFrom"] = destinationBindings.map((b) => ({
+          source: b.source.name,
+          ...("routingKey" in b && b.routingKey !== undefined ? { routingKey: b.routingKey } : {}),
+          ...(b.arguments !== undefined ? { arguments: b.arguments } : {}),
+        }));
+      }
+      (result as Record<string, unknown>)["x-amqp-exchange-bindings"] = e2eBindings;
+    }
+
     return result as ChannelObject;
+  }
+
+  private getExchangeBindingsBySource(
+    exchange: ExchangeDefinition,
+    contract: ContractDefinition,
+  ): ExchangeBindingDefinition[] {
+    return this.exchangeBindings(contract).filter((b) => b.source.name === exchange.name);
+  }
+
+  private getExchangeBindingsByDestination(
+    exchange: ExchangeDefinition,
+    contract: ContractDefinition,
+  ): ExchangeBindingDefinition[] {
+    return this.exchangeBindings(contract).filter((b) => b.destination.name === exchange.name);
+  }
+
+  private exchangeBindings(contract: ContractDefinition): ExchangeBindingDefinition[] {
+    if (!contract.bindings) return [];
+    const result: ExchangeBindingDefinition[] = [];
+    for (const binding of Object.values(contract.bindings) as BindingDefinition[]) {
+      if (binding.type === "exchange") {
+        result.push(binding);
+      }
+    }
+    return result;
   }
 
   /**
@@ -464,11 +626,17 @@ export class AsyncAPIGenerator {
       }
     }
 
+    const message =
+      `No schema converter matched for schema. ` +
+      `Configure schemaConverters (e.g. zodToJsonSchema) to generate accurate schemas.`;
+
+    if (this.failOnMissingConverter) {
+      throw new Error(`AsyncAPIGenerator: ${message}`);
+    }
+
     // No converter matched — the output will contain a generic { type: "object" } placeholder.
     this.logger?.warn(
-      `No schema converter matched for schema. ` +
-        `The generated spec will use a generic { type: "object" } placeholder. ` +
-        `Configure schemaConverters (e.g. zodToJsonSchema) to generate accurate schemas.`,
+      `${message} The generated spec will use a generic { type: "object" } placeholder.`,
     );
     return { type: "object" };
   }
