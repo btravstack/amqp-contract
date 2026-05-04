@@ -7,7 +7,7 @@
 [![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/contract.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/contract)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/contract.svg)](https://www.npmjs.com/package/@amqp-contract/contract)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [**Documentation**](https://btravers.github.io/amqp-contract) · [**Get Started**](https://btravers.github.io/amqp-contract/guide/getting-started) · [**Examples**](https://btravers.github.io/amqp-contract/examples/)
@@ -35,7 +35,7 @@ import {
 } from "@amqp-contract/contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { Future, Result } from "@swan-io/boxed";
+import { okAsync } from "neverthrow";
 import { z } from "zod";
 
 // 1. Define resources with Dead Letter Exchange and retry configuration
@@ -71,10 +71,12 @@ const contract = defineContract({
 });
 
 // 6. Type-safe publishing with validation
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-}).resultToPromise();
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -82,16 +84,18 @@ await client.publish("orderCreated", {
 });
 
 // 7. Type-safe consuming with automatic retry (configured at queue level)
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      console.log(payload.orderId); // ✅ TypeScript knows!
-      return Future.value(Result.Ok(undefined));
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        console.log(payload.orderId); // ✅ TypeScript knows!
+        return okAsync(undefined);
+      },
     },
-  },
-  urls: ["amqp://localhost"],
-}).resultToPromise();
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 ## Installation

@@ -5,7 +5,7 @@
 [![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/core.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/core)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/core.svg)](https://www.npmjs.com/package/@amqp-contract/core)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This package provides centralized functionality for establishing AMQP topology (exchanges, queues, and bindings) from contract definitions, and defines the `Logger` interface used across amqp-contract packages.

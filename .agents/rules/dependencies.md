@@ -40,7 +40,7 @@ This project uses pnpm's catalog feature for dependency management. All shared d
 // Bad — hardcoded version in package.json
 "devDependencies": {
   "vitest": "^4.0.0",
-  "typescript": "^5.9.0"
+  "typescript": "^6.0.0"
 }
 ```
 
