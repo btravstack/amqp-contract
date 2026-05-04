@@ -1,18 +1,6 @@
 # Code Style
 
-## TypeScript Rules
-
-- **No `any` types** — enforced by oxlint. Use `unknown` for dynamic data, then narrow.
-- **Type aliases over interfaces** — use `type Foo = {}` not `interface Foo {}`
-- **`.js` extensions required** — all imports must include `.js` extension (ESM requirement)
-- **Standard Schema v1** — for runtime validation (Zod, Valibot, ArkType supported)
-- **Catalog dependencies** — use `pnpm-workspace.yaml` catalog, not hardcoded versions
-- **ResultAsync/Result handlers** — always use `ResultAsync<void, HandlerError>`, not `async`
-- **Conventional commits** — required; use conventional commit types (for example: feat, fix, docs, chore, test, refactor)
-- **Strict mode** — enabled in tsconfig.json
-- Prefer `readonly` arrays and properties where appropriate
-- Prefer `const` over `let`
-- Use nullish coalescing (`?? {}`) for optional object parameters, not `||`
+The cross-cutting language and tooling rules ("no `any`", "ResultAsync handlers", catalog dependencies, etc.) live in [`AGENTS.md` → Key Constraints](../../AGENTS.md). This file covers the patterns that aren't enforced by the linter or commit hooks.
 
 ## Composition Pattern
 
@@ -53,11 +41,14 @@ processOrder: async ({ payload }) => {
   await process(payload);
 };
 
-// Good — use ResultAsync/Result pattern
+// Good — use the ResultAsync pattern from neverthrow.
+// fromPromise REQUIRES the error mapper as the second argument; chaining
+// .mapErr afterwards is a type error since fromPromise has no `unknown` overload.
 processOrder: ({ payload }) =>
-  ResultAsync.fromPromise(process(payload))
-    .map(() => undefined)
-    .mapErr((e) => new RetryableError("Failed", e));
+  ResultAsync.fromPromise(
+    process(payload),
+    (e) => new RetryableError("Failed", e),
+  ).map(() => undefined);
 
 // Bad — accessing message directly
 processOrder: (message) => {
@@ -78,7 +69,7 @@ defineQueue("orders", {
   retry: { mode: "immediate-requeue", maxRetries: 3 },
 });
 
-// Bad — accessing .name directly on TTL-backoff queue
+// Bad — accessing .name directly on a TTL-backoff queue
 const queue = defineQueue("orders", {
   deadLetter: { exchange: dlx },
   retry: { mode: "ttl-backoff" },
@@ -137,11 +128,13 @@ function process(options) {
 }
 ```
 
-## Additional Rules
+## Additional Guidance
 
-- Never use `@ts-ignore` or `@ts-expect-error` without explanation — fix the root cause
-- Public APIs should have JSDoc comments
-- Explain "why" not "what" in inline comments
-- Use Standard Schema v1 for validation — don't create custom validation logic
-- Choose the right exchange type for the use case — don't use topic when direct suffices
-- Quorum queues are the default — only use classic queues with good reason
+- Avoid `@ts-ignore` and `@ts-expect-error`. Fix the root cause when you can; if you genuinely can't, leave a comment explaining why and link the upstream issue.
+- Public APIs need JSDoc.
+- Comments explain _why_, not _what_ — well-named identifiers already say what.
+- Use Standard Schema v1 for validation; don't roll your own.
+- Pick the narrowest exchange type that fits — don't reach for `topic` when `direct` would do.
+- `quorum` queues are the default. Reach for `classic` only when you need a feature quorum doesn't support (`exclusive`, `autoDelete`, `maxPriority`).
+- Prefer `readonly` arrays and properties where it doesn't hurt ergonomics.
+- Prefer `const` over `let`.

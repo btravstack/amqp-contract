@@ -29,7 +29,13 @@ export default defineConfig({
 
 ## Test Fixtures
 
-Import `it` from `@amqp-contract/testing/extension` for fixtures. Available fixtures: `vhost`, `amqpConnectionUrl`, `amqpConnection`, `amqpChannel`.
+Import `it` from `@amqp-contract/testing/extension` for fixtures. Available fixtures:
+
+- `vhost` — isolated RabbitMQ vhost (one per test)
+- `amqpConnectionUrl` — connection URL pointing at that vhost
+- `amqpConnection` / `amqpChannel` — opened connection + channel for direct broker calls
+- `publishMessage(exchange, routingKey, content, options?)` — publish a JSON-serialised message
+- `initConsumer(exchange, routingKey)` — returns a `(opts?) => Promise<ConsumeMessage[]>` waiter that you call to await N messages
 
 ```typescript
 import { describe, expect } from "vitest";

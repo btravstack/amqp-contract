@@ -1,20 +1,22 @@
 # Handler Patterns
 
-## Handler Signature
+This project uses [neverthrow](https://github.com/supermacro/neverthrow) for explicit, value-based error handling. Handlers return a `ResultAsync<T, E>` rather than throwing or using `async/await`.
 
-Handlers receive `({ payload, headers }, rawMessage)` and return `ResultAsync<void, HandlerError>`:
+## Regular consumer handler
+
+A consumer handler receives `({ payload, headers }, rawMessage)` and returns `ResultAsync<void, HandlerError>`:
 
 ```typescript
 import { okAsync, ResultAsync } from "neverthrow";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
-// Handler signature: (message, rawMessage) => ResultAsync<void, HandlerError>
+// Sync OK case
 const handler = ({ payload }, rawMessage) => {
   console.log(payload.orderId);
   return okAsync(undefined);
 };
 
-// For async operations, use ResultAsync.fromPromise(promise, errorMapper)
+// Async case — fromPromise REQUIRES the error mapper as the second arg
 const asyncHandler = ({ payload }) =>
   ResultAsync.fromPromise(
     processPayment(payload),
@@ -22,19 +24,52 @@ const asyncHandler = ({ payload }) =>
   ).map(() => undefined);
 ```
 
-## Handler Parameters
+### Parameters
 
-1. **`message`**: Object containing `{ payload, headers }`
-   - `payload`: Validated message data (typed from schema)
-   - `headers`: Validated headers (if schema defines them)
+1. **`message`** — `{ payload, headers }`
+   - `payload`: validated against the message's payload schema
+   - `headers`: validated against the message's optional headers schema (otherwise `undefined`)
+2. **`rawMessage`** — the raw amqplib `ConsumeMessage` (e.g. `msg.fields.deliveryTag`, `msg.properties.messageId`)
 
-2. **`rawMessage`**: Raw AMQP `ConsumeMessage` with full metadata
-   - `fields.deliveryTag`, `fields.routingKey`, `fields.exchange`
-   - `properties.messageId`, `properties.timestamp`, etc.
+## RPC handler
 
-## Using defineHandler
+`defineRpc` creates a request-reply slot. Handlers return `ResultAsync<TResponse, HandlerError>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
-Use `defineHandler` for all new code to get full type inference from the contract:
+```typescript
+import { okAsync, ResultAsync } from "neverthrow";
+import { defineHandler, RetryableError } from "@amqp-contract/worker";
+
+const calculateHandler = defineHandler(contract, "calculate", ({ payload }) =>
+  okAsync({ sum: payload.a + payload.b }),
+);
+
+const lookupUserHandler = defineHandler(contract, "lookupUser", ({ payload }) =>
+  ResultAsync.fromPromise(
+    db.users.findById(payload.userId),
+    (error) => new RetryableError("DB unavailable", error),
+  ).map((user) => ({ id: user.id, name: user.name })),
+);
+```
+
+The matching client-side call:
+
+```typescript
+const result = await client.call("calculate", { a: 2, b: 3 }, { timeoutMs: 5_000 });
+if (result.isOk()) {
+  console.log(result.value.sum); // 5
+}
+```
+
+RPC error semantics worth knowing:
+
+- **Missing `replyTo` / `correlationId`** on the inbound message → `NonRetryableError` (request goes to DLQ — retrying can't recover the lost reply path).
+- **Response fails the response schema** → `NonRetryableError` (handler returned the wrong shape; retrying won't help).
+- **Client-side timeout** → call resolves to `err(RpcTimeoutError)`; pending state is cleared so a late reply is dropped silently.
+- **Client closed mid-call** → call resolves to `err(RpcCancelledError)`.
+
+## Using `defineHandler` / `defineHandlers`
+
+Use `defineHandler` (single) or `defineHandlers` (object) for full type inference from the contract. Both also validate at construction time that the name exists in `contract.consumers` ∪ `contract.rpcs`:
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
@@ -47,7 +82,7 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
   ).map(() => undefined),
 );
 
-// For permanent failures
+// Permanent failures use NonRetryableError → DLQ, never retried
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount < 1) {
     return errAsync(new NonRetryableError("Invalid amount"));
@@ -56,110 +91,62 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 });
 ```
 
-## Error Types
+## Error types
 
-- **`RetryableError`**: Transient failures — message retried
-- **`NonRetryableError`**: Permanent failures — message sent to DLQ (if configured) or dropped
-- Both extend `HandlerError` base class
-- Factory functions: `retryable()`, `nonRetryable()` (shorthand)
-- Type guards: `isRetryableError()`, `isNonRetryableError()`, `isHandlerError()`
+| Error                    | Behaviour                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `RetryableError`         | Transient. Worker requeues per the queue's `retry` mode (immediate or backoff).  |
+| `NonRetryableError`      | Permanent. Worker `nack`s without requeue, sending to DLQ if configured.         |
+| `MessageValidationError` | Inbound payload/headers failed schema validation. Routes to DLQ — never retried. |
+| `TechnicalError`         | Transport-level failure (connection, channel, broker). Returned by core helpers. |
+
+Helpers and type guards: `retryable()`, `nonRetryable()` factory functions; `isRetryableError`, `isNonRetryableError`, `isHandlerError` for narrowing. Both `RetryableError` and `NonRetryableError` extend the `HandlerError` union type.
 
 ```typescript
-// Conditional error handling
+// Conditional error mapping inside fromPromise
 ({ payload }) =>
   ResultAsync.fromPromise(process(payload), (error) => {
-    if (error instanceof ValidationError) {
-      return new NonRetryableError("Invalid data");
-    }
+    if (error instanceof ValidationError) return new NonRetryableError("Invalid data");
     return new RetryableError("Temporary failure", error);
   }).map(() => undefined);
 ```
 
-## Handler Options
+## Per-handler options
+
+Handler entries accept an `[handler, options]` tuple to override `defaultConsumerOptions` for a single consumer:
 
 ```typescript
 const handlers = {
-  processOrder: [
-    processOrderHandler,
-    { prefetch: 10 }, // Process up to 10 messages concurrently
-  ],
+  processOrder: [processOrderHandler, { prefetch: 10 }],
 };
 ```
 
-## neverthrow API Reference
+## neverthrow API quick reference
 
-This project uses [neverthrow](https://github.com/supermacro/neverthrow) for functional error handling.
+`ResultAsync<T, E>`:
 
-### ResultAsync<A, E> Key Methods
+| Method                                 | Description                                                           |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| `okAsync(value)` / `errAsync(error)`   | Construct a resolved `ResultAsync`                                    |
+| `ResultAsync.fromPromise(promise, fn)` | Wrap a `Promise`; `fn` maps the rejection reason. Mapper is required. |
+| `.map(f)`                              | Transform the OK value                                                |
+| `.mapErr(f)`                           | Transform the error                                                   |
+| `.andThen(f)`                          | Chain another `Result` / `ResultAsync`                                |
+| `.orElse(f)`                           | Recover from an error with another `Result` / `ResultAsync`           |
+| `.andTee(f)` / `.orTee(f)`             | Side effect on OK / error without changing the value                  |
+| `await resultAsync`                    | Resolves to a `Result<T, E>` — no exception, even on `Err`            |
 
-| Method                                 | Description                                                    | Example                                                      |
-| -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
-| `okAsync(value)` / `errAsync(error)`   | Create a resolved ResultAsync                                  | `okAsync(undefined)` / `errAsync(new Error("x"))`            |
-| `ResultAsync.fromPromise(promise, fn)` | Convert Promise to ResultAsync; `fn` maps the rejection reason | `ResultAsync.fromPromise(fetch(url), (e) => new TechErr(e))` |
-| `.map(f)`                              | Transform Ok value                                             | `.map(() => undefined)`                                      |
-| `.mapErr(f)`                           | Transform Error value                                          | `.mapErr((e) => new RetryableError(e))`                      |
-| `.andThen(f)`                          | Chain with another Result/ResultAsync                          | `.andThen((v) => okAsync(v))`                                |
-| `await resultAsync`                    | Resolves to a `Result<T, E>` (does not throw on `Err`)         | `const r = await future; if (r.isErr()) { ... }`             |
+`Result<T, E>` (sync):
 
-### Result<Ok, Error> Key Methods
+| Method                 | Description                                                                 |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `ok(value)`            | Construct a successful `Result`                                             |
+| `err(error)`           | Construct a failed `Result`                                                 |
+| `.isOk()` / `.isErr()` | Narrowing type guards (read `.value` / `.error` after)                      |
+| `.match(okFn, errFn)`  | Positional pattern match (boxed-style `{ Ok, Error }` is **not** supported) |
+| `.unwrapOr(default)`   | Extract the value or fall back                                              |
+| `._unsafeUnwrap()`     | Throw on `Err`. Use sparingly — prefer matching.                            |
 
-| Method                 | Description                          | Example                             |
-| ---------------------- | ------------------------------------ | ----------------------------------- |
-| `ok(value)`            | Create success                       | `ok(undefined)`                     |
-| `err(error)`           | Create failure                       | `err(new RetryableError("failed"))` |
-| `.isOk()` / `.isErr()` | Type guards                          | `if (result.isOk()) { ... }`        |
-| `.map(f)`              | Transform Ok                         | `result.map(x => x * 2)`            |
-| `.mapErr(f)`           | Transform Error                      | `result.mapErr(e => new Error(e))`  |
-| `.getOr(default)`      | Extract with fallback                | `result.getOr(0)`                   |
-| `.match(okFn, errFn)`  | Pattern match (positional callbacks) | `result.match(v => v, () => 0)`     |
+## Public exports
 
-### Common Patterns
-
-```typescript
-// Simple sync handler
-({ payload }) => okAsync(undefined);
-
-// Async with error mapping
-({ payload }) =>
-  ResultAsync.fromPromise(
-    asyncOperation(payload),
-    (error) => new RetryableError("Failed", error),
-  ).map(() => undefined);
-```
-
-## Worker Package Exports
-
-```typescript
-// Worker class
-export { TypedAmqpWorker } from "@amqp-contract/worker";
-
-// Handler definition
-export { defineHandler, defineHandlers } from "@amqp-contract/worker";
-
-// Error classes and factory functions
-export {
-  RetryableError,
-  NonRetryableError,
-  TechnicalError,
-  MessageValidationError,
-  // Factory functions (shorthand)
-  retryable,
-  nonRetryable,
-  // Type guards
-  isRetryableError,
-  isNonRetryableError,
-  isHandlerError,
-} from "@amqp-contract/worker";
-
-// Types
-export type {
-  HandlerError,
-  WorkerInferConsumerHandler,
-  WorkerInferConsumerHandlers,
-  WorkerInferConsumedMessage,
-} from "@amqp-contract/worker";
-
-// Retry types and helpers (from contract package)
-export type { TtlBackoffRetryOptions, ImmediateRequeueRetryOptions } from "@amqp-contract/contract";
-export { extractQueue } from "@amqp-contract/contract";
-```
+For the authoritative list of what's exported from `@amqp-contract/worker`, read [`packages/worker/src/index.ts`](../../packages/worker/src/index.ts). Notable types: `WorkerInferHandlers<TContract>` (full handlers object — covers `consumers` ∪ `rpcs`), `WorkerInferConsumerHandler`, `WorkerInferRpcHandler`, `WorkerInferConsumedMessage`, `WorkerInferRpcConsumedMessage`. The legacy `WorkerInferConsumerHandlers` alias is `@deprecated` and still re-exported for one cycle — new code should use `WorkerInferHandlers`.

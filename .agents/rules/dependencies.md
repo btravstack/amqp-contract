@@ -2,17 +2,19 @@
 
 ## Key Dependencies
 
-| Package                   | Version | Purpose                                |
-| ------------------------- | ------- | -------------------------------------- |
-| `neverthrow`              | 8.2.0   | ResultAsync/Result functional types    |
-| `amqplib`                 | 0.10.9  | AMQP 0.9.1 client                      |
-| `amqp-connection-manager` | 5.0.0   | Connection management                  |
-| `zod`                     | 4.4.3   | Schema validation (Standard Schema v1) |
-| `valibot`                 | 1.3.1   | Schema validation alternative          |
-| `arktype`                 | 2.2.0   | Schema validation alternative          |
-| `@standard-schema/spec`   | 1.1.0   | Universal schema interface             |
-| `vitest`                  | 4.1.5   | Test framework                         |
-| `testcontainers`          | 11.14.0 | Docker containers for tests            |
+Versions live in [`pnpm-workspace.yaml`](../../pnpm-workspace.yaml) — that file is the single source of truth, so this doc only describes purpose:
+
+| Package                   | Purpose                                  |
+| ------------------------- | ---------------------------------------- |
+| `neverthrow`              | `ResultAsync` / `Result` types           |
+| `amqplib`                 | AMQP 0.9.1 client                        |
+| `amqp-connection-manager` | Connection management + reconnect        |
+| `zod`                     | Schema validation (Standard Schema v1)   |
+| `valibot`                 | Schema validation alternative            |
+| `arktype`                 | Schema validation alternative            |
+| `@standard-schema/spec`   | Universal schema interface               |
+| `vitest`                  | Test framework                           |
+| `testcontainers`          | RabbitMQ container for integration tests |
 
 ## Monorepo Tooling
 

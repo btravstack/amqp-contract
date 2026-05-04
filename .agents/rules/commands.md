@@ -24,10 +24,10 @@ pnpm format --check       # Check formatting only
 pnpm test                 # Run unit tests (no Docker required)
 pnpm test:integration     # Run integration tests (requires Docker)
 
-# Run specific package tests
-pnpm test:integration --filter @amqp-contract/core
-pnpm test:integration --filter @amqp-contract/client
-pnpm test:integration --filter @amqp-contract/worker
+# Run a single package's tests via pnpm's filter
+pnpm --filter @amqp-contract/core test:integration
+pnpm --filter @amqp-contract/client test:integration
+pnpm --filter @amqp-contract/worker test:integration
 ```
 
 ## Versioning
@@ -40,10 +40,7 @@ pnpm release              # Publish packages
 
 ## Pre-Commit Checklist
 
-Before submitting code, ensure:
+Lefthook runs `oxfmt` and `oxlint` on every `git commit`, and commitlint on `commit-msg`, so format / lint / message-format breakage is caught automatically. Before pushing, also run:
 
-- TypeScript compiles without errors (`pnpm typecheck`)
-- All tests pass (`pnpm test`)
-- Code is properly formatted (`pnpm format`)
-- No linting errors (`pnpm lint`)
-- Commit message follows conventional commits format
+- `pnpm typecheck` — type errors are not in the pre-commit hook
+- `pnpm test` — unit tests (integration tests run in CI)

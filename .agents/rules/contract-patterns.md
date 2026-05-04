@@ -104,7 +104,7 @@ const priorityQueue = defineQueue("priority-tasks", {
 
 - Queue-to-exchange bindings are **auto-generated** by `defineEventConsumer` and `defineCommandConsumer`
 - Exchange-to-exchange bindings are **auto-generated** when using `bridgeExchange` (see Bridge Exchange below)
-- For other exchange-to-exchange routing, set up manually via `AmqpClient` channel setup
+- For other exchange-to-exchange routing, declare them explicitly with `defineExchangeBinding` and add the result to `bindings`
 - For fanout exchanges, routing keys are optional
 
 ```typescript
@@ -262,9 +262,13 @@ const queueName = extractQueue(queue).name;
 
 ## Type Inference Helpers
 
-The `Infer*` naming pattern indicates type inference helpers that extract types from a contract at compile time:
+The `Infer*` naming pattern indicates type inference helpers that extract types from a contract at compile time. The full set lives in the package `index.ts` files; the most common ones:
 
-- `ClientInferPublisherInput<Contract, "publisherName">` — Publisher input type
-- `WorkerInferConsumerInput<Contract, "consumerName">` — Consumer input type
-- `WorkerInferConsumerHandler<Contract, "consumerName">` — Handler type
-- `WorkerInferConsumedMessage<Contract, "consumerName">` — Full message type (payload + headers)
+- `ClientInferPublisherInput<Contract, "publisherName">` — input shape for `client.publish(...)`
+- `ClientInferRpcRequestInput<Contract, "rpcName">` — input shape for `client.call(...)`
+- `ClientInferRpcResponseOutput<Contract, "rpcName">` — typed response from `client.call(...)`
+- `WorkerInferConsumedMessage<Contract, "consumerName">` — `{ payload, headers }` envelope for a regular consumer
+- `WorkerInferRpcConsumedMessage<Contract, "rpcName">` — `{ payload, headers }` envelope for an RPC handler
+- `WorkerInferConsumerHandler<Contract, "consumerName">` — handler signature for a regular consumer
+- `WorkerInferRpcHandler<Contract, "rpcName">` — handler signature for an RPC
+- `WorkerInferHandlers<Contract>` — full handlers object expected by `TypedAmqpWorker.create`
