@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/testing",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Testing utilities for AMQP contracts with testcontainers",
   "keywords": [
     "amqp",
