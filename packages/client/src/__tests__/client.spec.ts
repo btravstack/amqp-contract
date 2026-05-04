@@ -132,10 +132,10 @@ describe("AmqpClient Integration", () => {
       });
 
       // THEN
-      expect(result).toMatchObject({
-        tag: "Error",
-        error: { name: "MessageValidationError" },
-      });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error).toMatchObject({ name: "MessageValidationError" });
+      }
     });
 
     it("should publish messages with default values", async ({ clientFactory, initConsumer }) => {

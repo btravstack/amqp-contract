@@ -155,19 +155,23 @@ const customTelemetryProvider: TelemetryProvider = {
 };
 
 // Use in client
-const client = await TypedAmqpClient.create({
-  contract,
-  connection,
-  telemetry: customTelemetryProvider,
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    connection,
+    telemetry: customTelemetryProvider,
+  })
+)._unsafeUnwrap();
 
 // Use in worker
-const worker = await TypedAmqpWorker.create({
-  contract,
-  connection,
-  handlers,
-  telemetry: customTelemetryProvider,
-});
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    connection,
+    handlers,
+    telemetry: customTelemetryProvider,
+  })
+)._unsafeUnwrap();
 ```
 
 ## Best Practices
@@ -200,9 +204,9 @@ const processOrder = ({ payload }) => {
   span?.setAttribute("order.id", payload.orderId);
   span?.setAttribute("order.amount", payload.amount);
 
-  return ResultAsync.fromPromise(process(payload))
-    .map(() => undefined)
-    .mapErr((e) => new RetryableError("Failed", e));
+  return ResultAsync.fromPromise(process(payload), (e) => new RetryableError("Failed", e)).map(
+    () => undefined,
+  );
 };
 ```
 

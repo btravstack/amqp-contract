@@ -184,10 +184,12 @@ async function main() {
   console.log("🚀 Starting publisher...");
 
   // Create client
-  const client = await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  });
+  const client = (
+    await TypedAmqpClient.create({
+      contract,
+      urls: ["amqp://localhost"],
+    })
+  )._unsafeUnwrap();
 
   console.log("✅ Connected to RabbitMQ");
 
@@ -198,10 +200,10 @@ async function main() {
     body: "This is a type-safe message from amqp-contract.",
   });
 
-  result.match({
-    Ok: () => console.log("📧 Email message published!"),
-    Error: (error) => console.error("❌ Failed:", error.message),
-  });
+  result.match(
+    () => console.log("📧 Email message published!"),
+    (error) => console.error("❌ Failed:", error.message),
+  );
 
   // Clean up
   await client.close();
@@ -225,27 +227,29 @@ async function main() {
   console.log("⚙️ Starting worker...");
 
   // Create worker with handlers
-  const worker = await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processEmail: ({ payload }) => {
-        // Payload is fully typed!
-        console.log("\n📬 Received email:");
-        console.log(`  To: ${payload.to}`);
-        console.log(`  Subject: ${payload.subject}`);
-        console.log(`  Body: ${payload.body}`);
+  const worker = (
+    await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        processEmail: ({ payload }) => {
+          // Payload is fully typed!
+          console.log("\n📬 Received email:");
+          console.log(`  To: ${payload.to}`);
+          console.log(`  Subject: ${payload.subject}`);
+          console.log(`  Body: ${payload.body}`);
 
-        // Simulate sending email
-        return ResultAsync.fromPromise(new Promise((resolve) => setTimeout(resolve, 1000))).map(
-          () => {
-            console.log("✅ Email sent successfully!");
-            return undefined;
-          },
-        );
+          // Simulate sending email
+          return ResultAsync.fromPromise(new Promise((resolve) => setTimeout(resolve, 1000))).map(
+            () => {
+              console.log("✅ Email sent successfully!");
+              return undefined;
+            },
+          );
+        },
       },
-    },
-    urls: ["amqp://localhost"],
-  });
+      urls: ["amqp://localhost"],
+    })
+  )._unsafeUnwrap();
 
   console.log("✅ Worker ready, waiting for messages...\n");
   console.log("Press Ctrl+C to stop\n");

@@ -306,10 +306,12 @@ The client is in a separate package (`@amqp-contract-examples/basic-order-proces
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 
-const client = await TypedAmqpClient.create({
-  contract: orderContract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract: orderContract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 // Publish new order with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -320,13 +322,13 @@ const result = await client.publish("orderCreated", {
   createdAt: new Date().toISOString(),
 });
 
-result.match({
-  Ok: () => console.log("Order published successfully"),
-  Error: (error) => {
+result.match(
+  () => console.log("Order published successfully"),
+  (error) => {
     console.error("Failed to publish:", error.message);
     // Handle error appropriately
   },
-});
+);
 
 // Publish status update
 const updateResult = await client.publish("orderUpdated", {
@@ -335,10 +337,10 @@ const updateResult = await client.publish("orderUpdated", {
   updatedAt: new Date().toISOString(),
 });
 
-updateResult.match({
-  Ok: () => console.log("Status update published"),
-  Error: (error) => console.error("Failed:", error),
-});
+updateResult.match(
+  () => console.log("Status update published"),
+  (error) => console.error("Failed:", error),
+);
 ```
 
 ## Worker Implementation
@@ -352,33 +354,35 @@ import { orderContract } from "@amqp-contract-examples/basic-order-processing-co
 
 const connection = await connect("amqp://localhost");
 
-const worker = await TypedAmqpWorker.create({
-  contract: orderContract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      console.log(`[PROCESSING] Order ${payload.orderId}`);
-      console.log(`  Customer: ${payload.customerId}`);
-      console.log(`  Total: $${payload.totalAmount}`);
-      return okAsync(undefined);
-    },
+const worker = (
+  await TypedAmqpWorker.create({
+    contract: orderContract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        console.log(`[PROCESSING] Order ${payload.orderId}`);
+        console.log(`  Customer: ${payload.customerId}`);
+        console.log(`  Total: $${payload.totalAmount}`);
+        return okAsync(undefined);
+      },
 
-    notifyOrder: ({ payload }) => {
-      console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-      return okAsync(undefined);
-    },
+      notifyOrder: ({ payload }) => {
+        console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
+        return okAsync(undefined);
+      },
 
-    shipOrder: ({ payload }) => {
-      console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-      return okAsync(undefined);
-    },
+      shipOrder: ({ payload }) => {
+        console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
+        return okAsync(undefined);
+      },
 
-    handleUrgentOrder: ({ payload }) => {
-      console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-      return okAsync(undefined);
+      handleUrgentOrder: ({ payload }) => {
+        console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
+        return okAsync(undefined);
+      },
     },
-  },
-  connection,
-});
+    connection,
+  })
+)._unsafeUnwrap();
 ```
 
 ## Message Routing Table

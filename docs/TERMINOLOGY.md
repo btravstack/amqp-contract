@@ -80,21 +80,23 @@ When implementing the contract, we use our terms:
 
 ```typescript
 // Client = runtime publisher
-const client = await TypedAmqpClient.create({ contract, urls });
+const client = (await TypedAmqpClient.create({ contract, urls }))._unsafeUnwrap();
 
 await client.publish("orderCreated", message);
 
 // Worker = runtime consumer
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      // Handle message
-      return okAsync(undefined);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        // Handle message
+        return okAsync(undefined);
+      },
     },
-  },
-  urls,
-});
+    urls,
+  })
+)._unsafeUnwrap();
 ```
 
 These terms (`TypedAmqpClient`, `TypedAmqpWorker`) describe the **runtime components** that implement the contract.
@@ -150,15 +152,17 @@ await publisher.publish(exchange, routingKey, message);
 const consumer = await createConsumer(queue, handler);
 
 // amqp-contract uses:
-const client = await TypedAmqpClient.create({ contract, urls });
+const client = (await TypedAmqpClient.create({ contract, urls }))._unsafeUnwrap();
 
 await client.publish("orderCreated", message);
 
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: { processOrder: handler },
-  urls,
-});
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: { processOrder: handler },
+    urls,
+  })
+)._unsafeUnwrap();
 ```
 
 The functionality is identical; only the naming differs.

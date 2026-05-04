@@ -27,20 +27,22 @@ Handlers are defined directly in the worker creation. This approach is suitable 
 - When handlers don't need to be reused
 
 ```typescript
-const worker = await TypedAmqpWorker.create({
-  contract: orderContract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      // Handler logic here
-      return okAsync(undefined);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract: orderContract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        // Handler logic here
+        return okAsync(undefined);
+      },
+      notifyOrder: ({ payload }) => {
+        // Handler logic here
+        return okAsync(undefined);
+      },
     },
-    notifyOrder: ({ payload }) => {
-      // Handler logic here
-      return okAsync(undefined);
-    },
-  },
-  urls: [env.AMQP_URL],
-});
+    urls: [env.AMQP_URL],
+  })
+)._unsafeUnwrap();
 ```
 
 ### External Handlers (src/handlers.ts)
@@ -62,14 +64,16 @@ export const processOrderHandler = defineHandler(orderContract, "processOrder", 
 // index.ts - to use external handlers, import them:
 import { processOrderHandler /* other handlers */ } from "./handlers.js";
 
-const worker = await TypedAmqpWorker.create({
-  contract: orderContract,
-  handlers: {
-    processOrder: processOrderHandler,
-    // ... other handlers
-  },
-  urls: [env.AMQP_URL],
-});
+const worker = (
+  await TypedAmqpWorker.create({
+    contract: orderContract,
+    handlers: {
+      processOrder: processOrderHandler,
+      // ... other handlers
+    },
+    urls: [env.AMQP_URL],
+  })
+)._unsafeUnwrap();
 ```
 
 The main `src/index.ts` file uses inline handlers for simplicity, while `src/handlers.ts` provides an example of how to organize handlers externally for better maintainability.

@@ -55,10 +55,12 @@ const contract = defineContract({
 });
 
 // 5. Client knows exact types
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -66,10 +68,10 @@ const result = await client.publish("orderCreated", {
   // invalid: true,     // ❌ TypeScript error!
 });
 
-result.match({
-  Ok: () => console.log("Published"),
-  Error: (error) => console.error("Failed:", error),
-});
+result.match(
+  () => console.log("Published"),
+  (error) => console.error("Failed:", error),
+);
 ```
 
 ## Automatic Validation
@@ -88,13 +90,13 @@ const result = await client.publish("orderCreated", {
   amount: "not-a-number", // ❌ Validation error!
 });
 
-result.match({
-  Ok: () => console.log("Published"),
-  Error: (error) => {
+result.match(
+  () => console.log("Published"),
+  (error) => {
     // Handle MessageValidationError or TechnicalError
     console.error("Failed:", error.message);
   },
-});
+);
 ```
 
 ## Schema Libraries

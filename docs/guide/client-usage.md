@@ -4,16 +4,18 @@ Learn how to use the type-safe AMQP client to publish messages.
 
 ## Creating a Client
 
-Create a type-safe client from your contract. The `create` method returns a `ResultAsync<Result<...>>` that must be awaited:
+Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `ResultAsync<TypedAmqpClient, TechnicalError>` — `await` yields a `Result`, which you unwrap (`_unsafeUnwrap()`) or pattern-match before using:
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 ### Default Publish Options
@@ -21,14 +23,16 @@ const client = await TypedAmqpClient.create({
 Configure default publish options that apply to all messages published by the client:
 
 ```typescript
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-  defaultPublishOptions: {
-    priority: 5,
-    headers: { "x-app-version": "1.0.0" },
-  },
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+    defaultPublishOptions: {
+      priority: 5,
+      headers: { "x-app-version": "1.0.0" },
+    },
+  })
+)._unsafeUnwrap();
 ```
 
 Default publish options can be overridden by options passed to individual `publish` calls.
@@ -47,10 +51,10 @@ const result = await client.publish("orderCreated", {
   items: [{ productId: "PROD-A", quantity: 2 }],
 });
 
-result.match({
-  Ok: () => console.log("✅ Published"),
-  Error: (error) => console.error("❌ Failed:", error.message),
-});
+result.match(
+  () => console.log("✅ Published"),
+  (error) => console.error("❌ Failed:", error.message),
+);
 ```
 
 ### Type Safety
@@ -78,10 +82,10 @@ const result = await client.publish('orderCreated', {
   amount: 99.99,
 });
 
-result.match({
-  Ok: () => console.log('Published'),
-  Error: (error) => console.error('Validation failed:', error),
-});
+result.match(
+  () => console.log('Published'),
+  (error) => console.error('Validation failed:', error),
+  );
 ```
 
 ## Publishing Options
@@ -157,16 +161,16 @@ const result = await client.publish("orderCreated", {
   amount: 99.99,
 });
 
-result.match({
-  Ok: () => console.log("✅ Published"),
-  Error: (error) =>
+result.match(
+  () => console.log("✅ Published"),
+  (error) =>
     match(error)
       .with(P.instanceOf(MessageValidationError), (err) =>
         console.error("Validation failed:", err.issues),
       )
       .with(P.instanceOf(TechnicalError), (err) => console.error("Technical error:", err.message))
       .exhaustive(),
-});
+);
 ```
 
 **Error Types:**
@@ -188,10 +192,12 @@ async function main() {
   let client;
 
   try {
-    client = await TypedAmqpClient.create({
-      contract,
-      urls: ["amqp://localhost"],
-    });
+    client = (
+      await TypedAmqpClient.create({
+        contract,
+        urls: ["amqp://localhost"],
+      })
+    )._unsafeUnwrap();
 
     const result = await client.publish("orderCreated", {
       orderId: "ORD-123",
@@ -199,9 +205,9 @@ async function main() {
       amount: 99.99,
       items: [{ productId: "PROD-A", quantity: 2 }],
     });
-    result.match({
-      Ok: () => console.log("✅ Message published"),
-      Error: (error) =>
+    result.match(
+      () => console.log("✅ Message published"),
+      (error) =>
         match(error)
           .with(P.instanceOf(MessageValidationError), (err) =>
             console.error("❌ Validation failed:", err.issues),
@@ -210,7 +216,7 @@ async function main() {
             console.error("❌ Technical error:", err.message),
           )
           .exhaustive(),
-    });
+    );
   } catch (error) {
     console.error("Unexpected error:", error);
   } finally {

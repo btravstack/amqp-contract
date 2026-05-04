@@ -68,10 +68,12 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "@org/payment-contract";
 import { randomUUID } from "node:crypto";
 
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 await client.publish("chargeCustomer", {
   customerId: "cust_123",
@@ -106,25 +108,24 @@ const chargeHandler = defineHandler(contract, "chargeCustomer", ({ payload }) =>
       currency: payload.currency,
       idempotencyKey: payload.idempotencyKey,
     }),
-  )
-    .map(() => undefined)
-    .mapErr((error) => {
+  , (error) => {
       // Card declined / fraud / closed account — won't change with retry.
       if (error instanceof PermanentDeclineError) {
         return new NonRetryableError(`Charge declined: ${error.code}`, error);
       }
       // 5xx, network, timeout — let the queue retry with backoff.
       return new RetryableError("Payment provider unavailable", error);
-    }),
+    })
+    .map(() => undefined),
 );
 
-const worker = await TypedAmqpWorker.create({
+const worker = (await TypedAmqpWorker.create({
   contract,
   handlers: {
     chargeCustomer: [chargeHandler, { prefetch: 5 }],
   },
   urls: ["amqp://localhost"],
-});
+}))._unsafeUnwrap();
 
 process.on("SIGINT", async () => {
   await worker.close();

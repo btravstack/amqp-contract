@@ -5,7 +5,7 @@
 Handlers receive `({ payload, headers }, rawMessage)` and return `ResultAsync<void, HandlerError>`:
 
 ```typescript
-import { ResultAsync, Result } from "neverthrow";
+import { okAsync, ResultAsync } from "neverthrow";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
 // Handler signature: (message, rawMessage) => ResultAsync<void, HandlerError>
@@ -14,11 +14,12 @@ const handler = ({ payload }, rawMessage) => {
   return okAsync(undefined);
 };
 
-// For async operations, use ResultAsync.fromPromise
+// For async operations, use ResultAsync.fromPromise(promise, errorMapper)
 const asyncHandler = ({ payload }) =>
-  ResultAsync.fromPromise(processPayment(payload))
-    .map(() => undefined)
-    .mapErr((error) => new RetryableError("Payment failed", error));
+  ResultAsync.fromPromise(
+    processPayment(payload),
+    (error) => new RetryableError("Payment failed", error),
+  ).map(() => undefined);
 ```
 
 ## Handler Parameters
@@ -37,12 +38,13 @@ Use `defineHandler` for all new code to get full type inference from the contrac
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { ResultAsync, Result } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(processPayment(payload.orderId))
-    .map(() => undefined)
-    .mapErr((error) => new RetryableError("Payment service unavailable", error)),
+  ResultAsync.fromPromise(
+    processPayment(payload.orderId),
+    (error) => new RetryableError("Payment service unavailable", error),
+  ).map(() => undefined),
 );
 
 // For permanent failures
@@ -65,14 +67,12 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 ```typescript
 // Conditional error handling
 ({ payload }) =>
-  ResultAsync.fromPromise(process(payload))
-    .map(() => undefined)
-    .mapErr((error) => {
-      if (error instanceof ValidationError) {
-        return new NonRetryableError("Invalid data");
-      }
-      return new RetryableError("Temporary failure", error);
-    });
+  ResultAsync.fromPromise(process(payload), (error) => {
+    if (error instanceof ValidationError) {
+      return new NonRetryableError("Invalid data");
+    }
+    return new RetryableError("Temporary failure", error);
+  }).map(() => undefined);
 ```
 
 ## Handler Options
@@ -92,26 +92,26 @@ This project uses [neverthrow](https://github.com/supermacro/neverthrow) for fun
 
 ### ResultAsync<A, E> Key Methods
 
-| Method                             | Description                            | Example                                 |
-| ---------------------------------- | -------------------------------------- | --------------------------------------- |
-| `ResultAsync.value(result)`        | Create resolved ResultAsync            | `okAsync(undefined)`                    |
-| `ResultAsync.fromPromise(promise)` | Convert Promise to ResultAsync<Result> | `ResultAsync.fromPromise(fetch(url))`   |
-| `.map(f)`                          | Transform Ok value                     | `.map(() => undefined)`                 |
-| `.mapErr(f)`                       | Transform Error value                  | `.mapErr((e) => new RetryableError(e))` |
-| `.andThen(f)`                      | Chain with another ResultAsync         | `.andThen((v) => okAsync(v))`           |
-| ``                                 | Convert to Promise (rejects on Error)  | `await future`                          |
+| Method                                 | Description                                                    | Example                                                      |
+| -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `okAsync(value)` / `errAsync(error)`   | Create a resolved ResultAsync                                  | `okAsync(undefined)` / `errAsync(new Error("x"))`            |
+| `ResultAsync.fromPromise(promise, fn)` | Convert Promise to ResultAsync; `fn` maps the rejection reason | `ResultAsync.fromPromise(fetch(url), (e) => new TechErr(e))` |
+| `.map(f)`                              | Transform Ok value                                             | `.map(() => undefined)`                                      |
+| `.mapErr(f)`                           | Transform Error value                                          | `.mapErr((e) => new RetryableError(e))`                      |
+| `.andThen(f)`                          | Chain with another Result/ResultAsync                          | `.andThen((v) => okAsync(v))`                                |
+| `await resultAsync`                    | Resolves to a `Result<T, E>` (does not throw on `Err`)         | `const r = await future; if (r.isErr()) { ... }`             |
 
 ### Result<Ok, Error> Key Methods
 
-| Method                  | Description           | Example                                        |
-| ----------------------- | --------------------- | ---------------------------------------------- |
-| `ok(value)`             | Create success        | `ok(undefined)`                                |
-| `err(error)`            | Create failure        | `err(new RetryableError("failed"))`            |
-| `.isOk()` / `.isErr()`  | Type guards           | `if (result.isOk()) { ... }`                   |
-| `.map(f)`               | Transform Ok          | `result.map(x => x * 2)`                       |
-| `.mapErr(f)`            | Transform Error       | `result.mapErr(e => new Error(e))`             |
-| `.getOr(default)`       | Extract with fallback | `result.getOr(0)`                              |
-| `.match({ Ok, Error })` | Pattern match         | `result.match({ Ok: v => v, Error: () => 0 })` |
+| Method                 | Description                          | Example                             |
+| ---------------------- | ------------------------------------ | ----------------------------------- |
+| `ok(value)`            | Create success                       | `ok(undefined)`                     |
+| `err(error)`           | Create failure                       | `err(new RetryableError("failed"))` |
+| `.isOk()` / `.isErr()` | Type guards                          | `if (result.isOk()) { ... }`        |
+| `.map(f)`              | Transform Ok                         | `result.map(x => x * 2)`            |
+| `.mapErr(f)`           | Transform Error                      | `result.mapErr(e => new Error(e))`  |
+| `.getOr(default)`      | Extract with fallback                | `result.getOr(0)`                   |
+| `.match(okFn, errFn)`  | Pattern match (positional callbacks) | `result.match(v => v, () => 0)`     |
 
 ### Common Patterns
 
@@ -121,9 +121,10 @@ This project uses [neverthrow](https://github.com/supermacro/neverthrow) for fun
 
 // Async with error mapping
 ({ payload }) =>
-  ResultAsync.fromPromise(asyncOperation(payload))
-    .map(() => undefined)
-    .mapErr((error) => new RetryableError("Failed", error));
+  ResultAsync.fromPromise(
+    asyncOperation(payload),
+    (error) => new RetryableError("Failed", error),
+  ).map(() => undefined);
 ```
 
 ## Worker Package Exports

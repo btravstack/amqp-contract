@@ -66,10 +66,12 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract.js";
 
 // Create client once
-const client = await TypedAmqpClient.create({
-  contract, // Resources declared automatically!
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract, // Resources declared automatically!
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 // Publish - fully typed and validated!
 const result = await client.publish("orderCreated", {
@@ -78,10 +80,10 @@ const result = await client.publish("orderCreated", {
   customerId: "CUST-456", // ✅ Required fields enforced!
 });
 
-result.match({
-  Ok: () => console.log("✅ Published"),
-  Error: (error) => console.error("❌ Failed:", error),
-}); // ✅ Automatic validation!
+result.match(
+  () => console.log("✅ Published"),
+  (error) => console.error("❌ Failed:", error),
+); // ✅ Automatic validation!
 
 // Cleanup managed for you
 await client.close();
@@ -116,22 +118,24 @@ channel.consume("order-processing", (msg) => {
 
 ```typescript [✅ amqp-contract - Fully typed]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { ResultAsync, Result } from "neverthrow";
+import { okAsync, ResultAsync, Result } from "neverthrow";
 import { contract } from "./contract.js";
 
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      // ✅ Payload is fully typed!
-      console.log(payload.orderId); // ✅ Full autocomplete!
-      console.log(payload.amount); // ✅ Type-safe!
-      // ✅ Automatic validation - invalid messages rejected!
-      return okAsync(undefined);
-    }, // ✅ Auto-acknowledgment on success!
-  },
-  urls: ["amqp://localhost"],
-});
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        // ✅ Payload is fully typed!
+        console.log(payload.orderId); // ✅ Full autocomplete!
+        console.log(payload.amount); // ✅ Type-safe!
+        // ✅ Automatic validation - invalid messages rejected!
+        return okAsync(undefined);
+      }, // ✅ Auto-acknowledgment on success!
+    },
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 :::

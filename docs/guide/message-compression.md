@@ -39,10 +39,10 @@ Compression is specified in the publish options:
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = await TypedAmqpClient.create({
+const client = (await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-});
+}))._unsafeUnwrap();
 
 // Publish with gzip compression
 await client
@@ -56,7 +56,6 @@ await client
       compression: "gzip",
     },
   )
-  ;
 
 // Publish with deflate compression
 await client
@@ -70,7 +69,6 @@ await client
       compression: "deflate",
     },
   )
-  ;
 
 // Publish without compression
 await client
@@ -78,7 +76,6 @@ await client
     orderId: "ORD-125",
     items: [],
   })
-  ;
 ```
 
 ### Consuming Compressed Messages
@@ -89,18 +86,20 @@ await client
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { contract } from "./contract";
 
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      // Message is automatically decompressed
-      console.log("Processing order:", payload.orderId);
-      console.log("Items:", payload.items); // Already decompressed
-      return okAsync(undefined);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        // Message is automatically decompressed
+        console.log("Processing order:", payload.orderId);
+        console.log("Items:", payload.items); // Already decompressed
+        return okAsync(undefined);
+      },
     },
-  },
-  urls: ["amqp://localhost"],
-});
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 The worker automatically:

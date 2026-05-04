@@ -125,10 +125,12 @@ Now use the contract to create a type-safe client:
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 // ✅ Fully typed! TypeScript knows exactly what fields are required
 const result = await client.publish("orderCreated", {
@@ -149,13 +151,13 @@ const result = await client.publish("orderCreated", {
 });
 
 // Explicit error handling with Result type
-result.match({
-  Ok: () => console.log("✅ Order published successfully"),
-  Error: (error) => {
+result.match(
+  () => console.log("✅ Order published successfully"),
+  (error) => {
     console.error("❌ Failed to publish order:", error);
     // error is either TechnicalError or MessageValidationError
   },
-});
+);
 ```
 
 ### 3. Type-Safe Consuming
@@ -166,27 +168,29 @@ And create a type-safe worker for consuming messages:
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { contract } from "./contract";
 
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    // ✅ payload is fully typed based on your schema
-    processOrder: ({ payload }) => {
-      console.log(`Processing order: ${payload.orderId}`);
-      console.log(`Customer: ${payload.customerId}`);
-      console.log(`Total: $${payload.totalAmount}`);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      // ✅ payload is fully typed based on your schema
+      processOrder: ({ payload }) => {
+        console.log(`Processing order: ${payload.orderId}`);
+        console.log(`Customer: ${payload.customerId}`);
+        console.log(`Total: $${payload.totalAmount}`);
 
-      // ✅ Full autocomplete for all fields
-      payload.items.forEach((item) => {
-        console.log(`- ${item.quantity}x Product ${item.productId}`);
-      });
+        // ✅ Full autocomplete for all fields
+        payload.items.forEach((item) => {
+          console.log(`- ${item.quantity}x Product ${item.productId}`);
+        });
 
-      // ✅ TypeScript catches typos and wrong field names
-      // console.log(payload.ordreId); // ❌ TypeScript error!
-      return okAsync(undefined);
+        // ✅ TypeScript catches typos and wrong field names
+        // console.log(payload.ordreId); // ❌ TypeScript error!
+        return okAsync(undefined);
+      },
     },
-  },
-  urls: ["amqp://localhost"],
-});
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 console.log("✅ Worker ready");
 ```
@@ -211,14 +215,14 @@ const result = await client.publish("orderCreated", {
   status: "invalid", // ❌ Validation error - must be pending/processing/completed
 });
 
-result.match({
-  Ok: () => {},
-  Error: (error) => {
+result.match(
+  () => {},
+  (error) => {
     if (error instanceof MessageValidationError) {
       console.log("Validation issues:", error.issues);
     }
   },
-});
+);
 ```
 
 ### 🛠️ Compile-Time Checks

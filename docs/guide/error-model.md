@@ -30,9 +30,10 @@ The failure is transient. The queue's [retry mode](./retry-strategies.md) decide
 import { RetryableError } from "@amqp-contract/worker";
 
 ({ payload }) =>
-  ResultAsync.fromPromise(callExternalApi(payload))
-    .map(() => undefined)
-    .mapErr((error) => new RetryableError("API unavailable", error));
+  ResultAsync.fromPromise(
+    callExternalApi(payload),
+    (error) => new RetryableError("API unavailable", error),
+  ).map(() => undefined);
 ```
 
 ### `NonRetryableError`
@@ -87,14 +88,14 @@ Any failure of the AMQP transport itself: connection lost, channel closed, broke
 import { TechnicalError } from "@amqp-contract/core";
 
 const result = await client.publish("orderCreated", { orderId: "1" }).toPromise();
-result.match({
-  Ok: () => console.log("ok"),
-  Error: (err) => {
+result.match(
+  () => console.log("ok"),
+  (err) => {
     if (err instanceof TechnicalError) {
       // err.cause holds the original amqplib / amqp-connection-manager error
     }
   },
-});
+);
 ```
 
 ### `MessageValidationError`
@@ -119,15 +120,15 @@ The client was closed (`client.close()`) while a call was still pending. All in-
 import { RpcTimeoutError, RpcCancelledError } from "@amqp-contract/client";
 
 const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000 }).toPromise();
-result.match({
-  Ok: (response) => /* ... */,
-  Error: (err) => {
+result.match(
+  (response) => /* ... */,
+  (err) => {
     if (err instanceof RpcTimeoutError) /* retry, or fall back */;
     if (err instanceof RpcCancelledError) /* shutting down */;
     if (err instanceof MessageValidationError) /* response shape wrong */;
     if (err instanceof TechnicalError) /* transport problem */;
   },
-});
+  );
 ```
 
 ## Why not just throw?
@@ -136,7 +137,7 @@ Two reasons:
 
 1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a ResultAsync chain would normally crash the consume loop. Returning `err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
 
-2. **Type-safe error union.** `ResultAsync<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match({ Ok, Error })`. A thrown `unknown` gives no such guarantees.
+2. **Type-safe error union.** `ResultAsync<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match(okFn, errFn)`. A thrown `unknown` gives no such guarantees.
 
 ## Defensive guards
 

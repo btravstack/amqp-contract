@@ -145,10 +145,12 @@ const contract = defineContract({
 });
 
 // 4. Publisher gets full type safety
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows these fields!
@@ -157,18 +159,20 @@ await client.publish("orderCreated", {
 });
 
 // 5. Consumer gets fully typed payloads
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      console.log(payload.orderId); // ✅ Fully typed!
-      console.log(payload.customerId); // ✅ Autocomplete!
-      console.log(payload.amount); // ✅ Type safe!
-      return okAsync(undefined);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        console.log(payload.orderId); // ✅ Fully typed!
+        console.log(payload.customerId); // ✅ Autocomplete!
+        console.log(payload.amount); // ✅ Type safe!
+        return okAsync(undefined);
+      },
     },
-  },
-  urls: ["amqp://localhost"],
-});
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 ### 2. Automatic Validation
@@ -183,10 +187,10 @@ const result = await client.publish("orderCreated", {
   amount: -10, // ❌ Validation error: amount must be positive
 });
 
-result.match({
-  Ok: () => console.log("Published"),
-  Error: (error) => console.error("Validation failed:", error),
-});
+result.match(
+  () => console.log("Published"),
+  (error) => console.error("Validation failed:", error),
+);
 ```
 
 ### 3. Compile-Time Checks

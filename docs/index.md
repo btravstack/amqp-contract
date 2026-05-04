@@ -88,10 +88,12 @@ export const contract = defineContract({
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -101,19 +103,21 @@ await client.publish("orderCreated", {
 
 ```typescript [3. Consume]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { ResultAsync, Result } from "neverthrow";
+import { okAsync, ResultAsync, Result } from "neverthrow";
 import { contract } from "./contract";
 
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      console.log(payload.orderId); // ✅ Fully typed!
-      return okAsync(undefined);
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processOrder: ({ payload }) => {
+        console.log(payload.orderId); // ✅ Fully typed!
+        return okAsync(undefined);
+      },
     },
-  },
-  urls: ["amqp://localhost"],
-});
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 ```
 
 :::

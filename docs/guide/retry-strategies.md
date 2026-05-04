@@ -95,16 +95,14 @@ import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract
 import { ResultAsync, Result } from "neverthrow";
 
 const processOrder = defineHandler(contract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(callPaymentApi(payload))
-    .map(() => undefined)
-    .mapErr((error) => {
-      // 4xx from a payment provider: retrying won't help.
-      if (error instanceof PaymentValidationError) {
-        return new NonRetryableError("Invalid payment details", error);
-      }
-      // 5xx, timeout, network blip: try again.
-      return new RetryableError("Payment provider unavailable", error);
-    }),
+  ResultAsync.fromPromise(callPaymentApi(payload), (error) => {
+    // 4xx from a payment provider: retrying won't help.
+    if (error instanceof PaymentValidationError) {
+      return new NonRetryableError("Invalid payment details", error);
+    }
+    // 5xx, timeout, network blip: try again.
+    return new RetryableError("Payment provider unavailable", error);
+  }).map(() => undefined),
 );
 ```
 

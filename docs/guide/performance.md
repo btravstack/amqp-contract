@@ -82,8 +82,8 @@ amqp-contract automatically shares connections across clients and workers with t
 
 ```typescript
 // These share the same underlying connection
-const client = await TypedAmqpClient.create({ contract, urls });
-const worker = await TypedAmqpWorker.create({ contract, handlers, urls });
+const client = (await TypedAmqpClient.create({ contract, urls }))._unsafeUnwrap();
+const worker = (await TypedAmqpWorker.create({ contract, handlers, urls }))._unsafeUnwrap();
 ```
 
 ### Connection Pool Sizing
@@ -92,27 +92,31 @@ For high-throughput scenarios, you may want separate connections:
 
 ```typescript
 // Separate connection for publishing
-const client = await TypedAmqpClient.create({
-  contract,
-  urls,
-  connectionOptions: {
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls,
     connectionOptions: {
-      clientProperties: { connection_name: "publisher" },
+      connectionOptions: {
+        clientProperties: { connection_name: "publisher" },
+      },
     },
-  },
-});
+  })
+)._unsafeUnwrap();
 
 // Separate connection for consuming
-const worker = await TypedAmqpWorker.create({
-  contract,
-  handlers,
-  urls,
-  connectionOptions: {
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    handlers,
+    urls,
     connectionOptions: {
-      clientProperties: { connection_name: "consumer" },
+      connectionOptions: {
+        clientProperties: { connection_name: "consumer" },
+      },
     },
-  },
-});
+  })
+)._unsafeUnwrap();
 ```
 
 ### Heartbeat Configuration
@@ -120,13 +124,15 @@ const worker = await TypedAmqpWorker.create({
 Heartbeats detect dead connections but add overhead:
 
 ```typescript
-const client = await TypedAmqpClient.create({
-  contract,
-  urls,
-  connectionOptions: {
-    heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
-  },
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls,
+    connectionOptions: {
+      heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
+    },
+  })
+)._unsafeUnwrap();
 ```
 
 **Recommendations:**

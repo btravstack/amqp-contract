@@ -23,17 +23,22 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
 // Create client from contract (automatically connects and waits for connection)
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-});
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+)._unsafeUnwrap();
 
 // Publish message with explicit error handling
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
   amount: 99.99,
 });
-console.log("Published successfully");
+result.match(
+  () => console.log("Published successfully"),
+  (error) => console.error("Publish failed:", error),
+);
 
 // Clean up
 await client.close();
