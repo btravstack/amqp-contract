@@ -1,3 +1,17 @@
+autoInstallPeers: false
+
+dedupePeerDependents: true
+
+engineStrict: true
+
+saveExact: true
+
+strictPeerDependencies: true
+
+peerDependencyRules:
+  ignoreMissing:
+    - search-insights
+
 packages:
   - packages/*
   - examples/*
@@ -8,22 +22,22 @@ packages:
 catalog:
   "@asyncapi/parser": 3.6.0
   "@changesets/cli": 2.31.0
-  "@commitlint/cli": 20.5.2
-  "@commitlint/config-conventional": 20.5.0
+  "@commitlint/cli": 20.5.3
+  "@commitlint/config-conventional": 20.5.3
   "@opentelemetry/api": 1.9.1
-  "@orpc/arktype": 1.14.0
-  "@orpc/openapi": 1.14.0
-  "@orpc/valibot": 1.14.0
-  "@orpc/zod": 1.14.0
+  "@orpc/arktype": 1.14.1
+  "@orpc/openapi": 1.14.1
+  "@orpc/valibot": 1.14.1
+  "@orpc/zod": 1.14.1
   "@standard-schema/spec": 1.1.0
   "@swan-io/boxed": 3.2.1
   "@types/amqplib": 0.10.8
   "@types/node": 24.12.2
   "@vitest/coverage-v8": 4.1.5
   amqp-connection-manager: 5.0.0
-  amqplib: 1.0.3
+  amqplib: 0.10.9
   arktype: 2.2.0
-  knip: 6.7.0
+  knip: 6.11.0
   lefthook: 2.1.6
   mermaid: 11.14.0
   oxfmt: 0.47.0
@@ -34,7 +48,7 @@ catalog:
   ts-pattern: 5.9.0
   tsdown: 0.21.10
   tsx: 4.21.0
-  turbo: 2.9.6
+  turbo: 2.9.8
   typedoc: 0.28.19
   typedoc-plugin-markdown: 4.11.0
   typescript: 6.0.3
@@ -42,11 +56,5 @@ catalog:
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
   vitest: 4.1.5
-  yaml: 2.8.3
-  zod: 4.3.6
-
-settings:
-  autoInstallPeers: false
-  engineStrict: true
-  saveExact: true
-  strictPeerDependencies: true
+  yaml: 2.8.4
+  zod: 4.4.3
