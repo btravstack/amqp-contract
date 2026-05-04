@@ -26,6 +26,8 @@ Pinned versions live in [`pnpm-workspace.yaml`](../../pnpm-workspace.yaml) — t
 | `@amqp-contract/asyncapi` | AsyncAPI 3.0 specification generator                         |
 | `@amqp-contract/testing`  | Testcontainers setup and Vitest fixtures                     |
 
+`@amqp-contract/asyncapi` is purely a code-generation aid: feed it a contract and it emits an AsyncAPI 3.0 document for catalogues, doc sites, or other tooling. Entry point is the `AsyncAPIGenerator` class exported from the package — instantiate, call `.generate(contract, { info, ... })`, get a JSON spec back. It has no runtime dependency on the broker.
+
 ## Monorepo Structure
 
 ```

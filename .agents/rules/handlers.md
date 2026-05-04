@@ -93,6 +93,8 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 
 ## Error types
 
+### Worker-side (returned from handlers)
+
 | Error                    | Behaviour                                                                        |
 | ------------------------ | -------------------------------------------------------------------------------- |
 | `RetryableError`         | Transient. Worker requeues per the queue's `retry` mode (immediate or backoff).  |
@@ -101,6 +103,18 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 | `TechnicalError`         | Transport-level failure (connection, channel, broker). Returned by core helpers. |
 
 Helpers and type guards: `retryable()`, `nonRetryable()` factory functions; `isRetryableError`, `isNonRetryableError`, `isHandlerError` for narrowing. Both `RetryableError` and `NonRetryableError` extend the `HandlerError` union type.
+
+### Client-side (returned from `client.publish` / `client.call`)
+
+| Error                    | When you get it                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `MessageValidationError` | Outbound payload failed the request/publisher schema before the message hit the broker.                         |
+| `TechnicalError`         | Publish failed at the broker (channel buffer full, connection lost, etc.).                                      |
+| `RpcTimeoutError`        | RPC call's `timeoutMs` elapsed before a reply arrived. Pending state cleared; a late reply is dropped silently. |
+| `RpcCancelledError`      | RPC was in flight when `client.close()` was called. All pending calls fail with this so callers don't hang.     |
+
+`publish()` returns `ResultAsync<void, TechnicalError | MessageValidationError>`.
+`call()` returns `ResultAsync<TResponse, TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError>`.
 
 ```typescript
 // Conditional error mapping inside fromPromise
