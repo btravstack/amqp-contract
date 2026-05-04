@@ -619,13 +619,17 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * Process a single consumed message: validate, invoke handler, optionally
    * publish the RPC response, record telemetry, and route errors.
    *
-   * The success-vs-failure telemetry decision is data-driven: the chain
-   * resolves to `ok(undefined)` only on handler success (and reply publish
-   * success for RPC). Handler failures — even when {@link handleError} routes
-   * them successfully to retry/DLQ — are still classified as failures for
-   * metrics, by re-failing the chain with a `TechnicalError` whose `cause`
-   * is the original `HandlerError`. The terminal `orTee` unwraps the cause
-   * before recording the span exception so traces keep the original
+   * The caller-supplied `state` is mutated as the message is ack'd/nack'd so
+   * the consume callback's catch-all guard can tell whether a defensive nack
+   * is still needed (see {@link consumeSingle}).
+   *
+   * Success-vs-failure telemetry is data-driven: the chain resolves to
+   * `ok(undefined)` only on handler success (and reply-publish success for
+   * RPC). Handler failures — even when {@link handleError} routes them
+   * successfully to retry/DLQ — are classified as failures for metrics by
+   * re-failing the chain with a `TechnicalError` whose `cause` is the
+   * original `HandlerError`. The terminal `orTee` unwraps the cause before
+   * recording the span exception so traces keep the original
    * `RetryableError` / `NonRetryableError` class as the exception type.
    */
   private processMessage(
@@ -633,6 +637,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
     name: HandlerName<TContract>,
     handler: StoredHandler,
+    state: { messageHandled: boolean },
   ): ResultAsync<void, TechnicalError> {
     const { consumer } = view;
     const queueName = extractQueue(consumer.queue).name;
@@ -648,6 +653,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           queueName,
           error: parseError,
         });
+        // parseAndValidateOrNack already nacked; mark handled so the
+        // catch-all in consumeSingle does not double-act.
+        state.messageHandled = true;
       })
       .andThen<void, TechnicalError>((validatedMessage) =>
         this.runHandler(handler, validatedMessage, msg)
@@ -658,6 +666,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                 queueName,
               });
               this.amqpClient.ack(msg);
+              state.messageHandled = true;
             }),
           )
           .orElse((handlerError: HandlerError) => {
@@ -672,41 +681,83 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               error: handlerError.message,
             });
 
-            // Route the failure to retry / DLQ via handleError. Regardless of
-            // whether routing succeeds, the *handler* failed — re-fail the
-            // chain with the original handlerError so the failure telemetry
-            // path fires. Routing-internal errors (e.g. a TTL-backoff
-            // misconfiguration) take precedence: they surface as the chain's
-            // error and still produce failure telemetry.
+            // Route the failure to retry / DLQ via handleError. On its
+            // success paths (retry republish, immediate-requeue nack, DLQ
+            // nack) the message has been ack'd or nack'd, so mark it
+            // handled. On its failure paths (e.g. TTL-backoff misconfig)
+            // no ack/nack happens and the message will be redelivered —
+            // leave messageHandled false so the consume catch-all can
+            // defensive-nack if needed.
+            //
+            // Either way, re-fail the chain with the original handlerError
+            // as `cause` so the failure-telemetry path fires; routing-
+            // internal errors (TechnicalError) take precedence and surface
+            // as the chain's error directly.
             return handleError(
               { amqpClient: this.amqpClient, logger: this.logger },
               handlerError,
               msg,
               String(name),
               consumer,
-            ).andThen(() =>
-              errAsync<void, TechnicalError>(
-                new TechnicalError(
-                  `Handler "${String(name)}" failed: ${handlerError.message}`,
-                  handlerError,
+            )
+              .andTee(() => {
+                state.messageHandled = true;
+              })
+              .andThen(() =>
+                errAsync<void, TechnicalError>(
+                  new TechnicalError(
+                    `Handler "${String(name)}" failed: ${handlerError.message}`,
+                    handlerError,
+                  ),
                 ),
-              ),
-            );
+              );
           }),
       )
       .andTee(() => {
-        endSpanSuccess(span);
-        recordConsumeMetric(this.telemetry, queueName, String(name), true, Date.now() - startTime);
+        // Telemetry must never throw out of the consume loop — wrap each
+        // call so an instrumentation bug cannot poison the dispatch path
+        // (which would land us in the catch-all in consumeSingle, racing
+        // with the ack we already issued above).
+        try {
+          endSpanSuccess(span);
+          recordConsumeMetric(
+            this.telemetry,
+            queueName,
+            String(name),
+            true,
+            Date.now() - startTime,
+          );
+        } catch (telemetryError: unknown) {
+          this.logger?.warn("Telemetry recording threw; ignoring", {
+            consumerName: String(name),
+            queueName,
+            error: telemetryError,
+          });
+        }
       })
       .orTee((error) => {
         // Routed handler failures arrive here wrapped in a `TechnicalError`
-        // (so the chain's error type stays uniform), with the original
-        // `HandlerError` carried via `cause`. Surface the original to the span
-        // so the recorded `exception.type` is the discriminating subclass
-        // (`RetryableError` / `NonRetryableError`) rather than the wrapper.
+        // with the original `HandlerError` carried via `cause`. Surface the
+        // original to the span so the recorded `exception.type` is the
+        // discriminating subclass (`RetryableError` / `NonRetryableError`)
+        // rather than the wrapper.
         const reportedError = error.cause instanceof Error ? error.cause : error;
-        endSpanError(span, reportedError);
-        recordConsumeMetric(this.telemetry, queueName, String(name), false, Date.now() - startTime);
+        try {
+          endSpanError(span, reportedError);
+          recordConsumeMetric(
+            this.telemetry,
+            queueName,
+            String(name),
+            false,
+            Date.now() - startTime,
+          );
+        } catch (telemetryError: unknown) {
+          this.logger?.warn("Telemetry recording threw; ignoring", {
+            consumerName: String(name),
+            queueName,
+            error: telemetryError,
+          });
+        }
       });
   }
 
@@ -738,9 +789,27 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           // the message neither acked nor nacked, and amqp-connection-manager
           // would not redeliver it until the channel closes. nack(requeue=false)
           // routes it via DLX if configured.
+          //
+          // The `state.messageHandled` flag guards the catch-block nack: if
+          // an exception is thrown *after* the message was already ack'd or
+          // nack'd (e.g. from the telemetry chain in processMessage's tail),
+          // a second nack would target the same delivery tag and close the
+          // channel with 406 PRECONDITION_FAILED.
+          const state = { messageHandled: false };
           try {
-            await this.processMessage(msg, view, name, handler);
+            await this.processMessage(msg, view, name, handler, state);
           } catch (error: unknown) {
+            if (state.messageHandled) {
+              this.logger?.error(
+                "Uncaught error in consume callback after message was already handled; not nacking",
+                {
+                  consumerName: String(name),
+                  queueName,
+                  error,
+                },
+              );
+              return;
+            }
             this.logger?.error("Uncaught error in consume callback; nacking message", {
               consumerName: String(name),
               queueName,

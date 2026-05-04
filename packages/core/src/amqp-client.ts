@@ -7,7 +7,7 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import { err, ok, Result, ResultAsync } from "neverthrow";
+import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -83,18 +83,30 @@ export type AmqpClientOptions = {
 export type ConsumeCallback = (msg: ConsumeMessage | null) => void | Promise<void>;
 
 /**
- * Publish options that extend amqplib's Options.Publish with optional timeout support.
+ * Publish options for `AmqpClient.publish` / `AmqpClient.sendToQueue`.
+ *
+ * Currently a re-export of amqplib's `Options.Publish`. A previous version of
+ * this type also exposed a `timeout` field, but that field never had a
+ * meaningful AMQP-level effect in this codebase and has been removed to avoid
+ * suggesting behaviour we do not provide. (`amqp-connection-manager`'s own
+ * `publishTimeout` channel option is unrelated and is configured at channel
+ * creation, not per-publish.)
  */
-export type PublishOptions = Options.Publish & {
-  /** Message will be rejected after timeout ms */
-  timeout?: number;
-};
+export type PublishOptions = Options.Publish;
 
 /**
- * Consume options that extend amqplib's Options.Consume with optional prefetch support.
+ * Consume options that extend amqplib's `Options.Consume` with an optional
+ * per-consumer prefetch count.
+ *
+ * `prefetch` is intercepted by {@link AmqpClient.consume}: it is stripped from
+ * the options handed to the underlying `channelWrapper.consume(...)` call
+ * (since amqplib's `Options.Consume` does not include it) and applied via
+ * `channel.prefetch(count, false)` registered through `addSetup` *before* the
+ * consume so the value is in effect when the consumer starts and is reapplied
+ * automatically on channel reconnect.
  */
 export type ConsumerOptions = Options.Consume & {
-  /** Number of messages to prefetch */
+  /** Per-consumer prefetch count. Applied before `channel.consume(...)`. */
   prefetch?: number;
 };
 
@@ -133,6 +145,15 @@ export class AmqpClient {
   private readonly connectionOptions?: AmqpConnectionManagerOptions;
   /** Resolved timeout in ms; `null` means "wait forever". */
   private readonly connectTimeoutMs: number | null;
+  /**
+   * Per-consumer prefetch setup functions registered via `addSetup` so they
+   * can be removed in {@link cancel} once the consumer is gone — otherwise
+   * the channel wrapper would replay the cancelled consumer's QoS on every
+   * reconnect and silently apply it to subsequent consumers.
+   *
+   * @internal
+   */
+  private readonly prefetchSetups: Map<string, (channel: Channel) => Promise<void>> = new Map();
 
   /**
    * Create a new AMQP client instance.
@@ -283,6 +304,18 @@ export class AmqpClient {
   /**
    * Start consuming messages from a queue.
    *
+   * If `options.prefetch` is set, a per-consumer prefetch count is applied via
+   * `channel.prefetch(count, false)` registered as a setup function on the
+   * channel wrapper *before* the underlying `consume` call. Registering it via
+   * `addSetup` ensures the prefetch is reapplied automatically on channel
+   * reconnect; using `global=false` scopes it to subsequent consumers on the
+   * channel (RabbitMQ semantics — opposite of intuition: `false` is per-
+   * consumer, `true` is channel-wide).
+   *
+   * `prefetch` is stripped from the options handed to `channelWrapper.consume`
+   * because it is not a valid `amqplib` `Options.Consume` field — leaving it
+   * in would just travel as a no-op key-value pair on the consume frame.
+   *
    * @returns ResultAsync resolving to the consumer tag.
    */
   consume(
@@ -290,8 +323,68 @@ export class AmqpClient {
     callback: ConsumeCallback,
     options?: ConsumerOptions,
   ): ResultAsync<string, TechnicalError> {
+    // Split prefetch out of the options that go to consume(...).
+    const { prefetch, ...consumeOptions } = options ?? {};
+
+    // Validate the prefetch value before forwarding to RabbitMQ. AMQP
+    // basic.qos prefetch-count is an unsigned 16-bit short (0–65535); 0
+    // means unlimited. NaN, negatives, fractions, and out-of-range numbers
+    // were silently dropped by the previous implementation — now they'd
+    // travel to the broker, which either rejects or interprets unexpectedly.
+    if (prefetch !== undefined) {
+      if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
+        return errAsync(
+          new TechnicalError(
+            `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
+          ),
+        );
+      }
+    }
+
+    // Capture the prefetch setup function so it can be removed when the
+    // consumer is cancelled. Otherwise the channel wrapper would replay
+    // it on every reconnect, applying the cancelled consumer's QoS to
+    // subsequent consumers (RabbitMQ's `basic.qos(global=false)` semantics
+    // affect every later consumer on the channel until another `qos`).
+    const prefetchSetup =
+      typeof prefetch === "number"
+        ? async (channel: Channel) => {
+            await channel.prefetch(prefetch, false);
+          }
+        : undefined;
+
+    const consumePromise = (async () => {
+      if (prefetchSetup) {
+        // Register prefetch as a channel setup so it is (re)applied on every
+        // reconnect, then start consuming. addSetup() also runs the function
+        // immediately if a channel is already up, so the prefetch is in
+        // effect by the time consume() starts the new consumer.
+        await this.channelWrapper.addSetup(prefetchSetup);
+      }
+      let reply: { consumerTag: string };
+      try {
+        reply = await this.channelWrapper.consume(queue, callback, consumeOptions);
+      } catch (error) {
+        // Roll back the prefetch setup. If consume failed (e.g. queue is
+        // gone), the setup is registered but tied to no consumer; without
+        // this rollback every reconnect would replay it, silently changing
+        // QoS for unrelated consumers on the channel.
+        if (prefetchSetup) {
+          await this.channelWrapper.removeSetup(prefetchSetup).catch(() => {
+            // Best-effort cleanup; swallow so we propagate the original
+            // consume error instead of masking it.
+          });
+        }
+        throw error;
+      }
+      if (prefetchSetup) {
+        this.prefetchSetups.set(reply.consumerTag, prefetchSetup);
+      }
+      return reply;
+    })();
+
     return ResultAsync.fromPromise(
-      this.channelWrapper.consume(queue, callback, options),
+      consumePromise,
       (error: unknown) => new TechnicalError("Failed to start consuming messages", error),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
   }
@@ -301,7 +394,25 @@ export class AmqpClient {
    */
   cancel(consumerTag: string): ResultAsync<void, TechnicalError> {
     return ResultAsync.fromPromise(
-      this.channelWrapper.cancel(consumerTag),
+      (async () => {
+        // Drop the prefetch setup whether or not the cancel itself succeeds.
+        // If `cancel` rejects (consumer already gone, tag unknown), keeping
+        // the setup registered means every reconnect replays a stale
+        // `basic.qos`, silently changing QoS for unrelated consumers on the
+        // channel. Best-effort cleanup runs in `finally`.
+        const setup = this.prefetchSetups.get(consumerTag);
+        this.prefetchSetups.delete(consumerTag);
+        try {
+          await this.channelWrapper.cancel(consumerTag);
+        } finally {
+          if (setup !== undefined) {
+            await this.channelWrapper.removeSetup(setup).catch(() => {
+              // Best-effort cleanup; swallow so the original cancel error
+              // (if any) propagates unchanged.
+            });
+          }
+        }
+      })(),
       (error: unknown) => new TechnicalError("Failed to cancel consumer", error),
     ).map(() => undefined);
   }

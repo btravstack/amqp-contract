@@ -227,14 +227,19 @@ function handleErrorTtlBackoff(
 function calculateRetryDelay(retryCount: number, config: ResolvedTtlBackoffRetryOptions): number {
   const { initialDelayMs, maxDelayMs, backoffMultiplier, jitter } = config;
 
-  let delay = Math.min(initialDelayMs * Math.pow(backoffMultiplier, retryCount), maxDelayMs);
+  let delay = initialDelayMs * Math.pow(backoffMultiplier, retryCount);
 
   if (jitter) {
-    // Add jitter: random value between 50% and 100% of calculated delay
-    delay = delay * (0.5 + Math.random() * 0.5);
+    // ± 50% jitter, centred on the calculated delay (range: [0.5x, 1.5x],
+    // mean 1.0x). The previous formula `0.5 + Math.random() * 0.5` produced
+    // [0.5x, 1.0x] (mean 0.75x) and never overshot — that's a one-sided bias,
+    // not real jitter.
+    delay = delay * (0.5 + Math.random());
   }
 
-  return Math.floor(delay);
+  // Clamp AFTER jitter so the upper jitter bound cannot push the delay past
+  // `maxDelayMs`.
+  return Math.floor(Math.min(delay, maxDelayMs));
 }
 
 /**
@@ -309,12 +314,17 @@ function publishForRetry(
   const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
   const newRetryCount = retryCount + 1;
 
-  // Acknowledge original message
-  ctx.amqpClient.ack(msg);
-
   const content = parseMessageContentForRetry(ctx, msg, queueName);
 
-  // Publish message with incremented x-retry-count header and original error info
+  // Publish FIRST, then ack the original only if the publish succeeded.
+  //
+  // Acking before publishing would lose the message if the publish then fails:
+  // the broker has already discarded the original delivery and the retry copy
+  // never made it out. By publishing first and acking on success, we ensure the
+  // message is not lost on a publish failure — leaving the original un-ack'd
+  // makes amqp-connection-manager redeliver it (or, on channel close, the
+  // broker re-enqueues), so we either get the retry through or get another
+  // chance at the original.
   return ctx.amqpClient
     .publish(exchange, routingKey, content, {
       ...msg.properties,
@@ -335,6 +345,9 @@ function publishForRetry(
     })
     .andThen((published) => {
       if (!published) {
+        // Publish was rejected (channel buffer full / channel error). Do NOT
+        // ack the original — leave it un-ack'd so the broker / channel manager
+        // can redeliver it once the channel recovers.
         ctx.logger?.error("Failed to publish message for retry (write buffer full)", {
           queueName,
           retryCount: newRetryCount,
@@ -343,12 +356,26 @@ function publishForRetry(
         return err(new TechnicalError("Failed to publish message for retry (write buffer full)"));
       }
 
+      // Publish confirmed by the broker — safe to ack the original now.
+      ctx.amqpClient.ack(msg);
+
       ctx.logger?.info("Message published for retry", {
         queueName,
         retryCount: newRetryCount,
         ...(delayMs !== undefined ? { delayMs } : {}),
       });
       return ok<void, TechnicalError>(undefined);
+    })
+    .orElse((publishError) => {
+      // Publish threw (network error, channel close, etc.). Same policy: do
+      // not ack the original; the redelivery path is the recovery mechanism.
+      ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
+        queueName,
+        retryCount: newRetryCount,
+        ...(delayMs !== undefined ? { delayMs } : {}),
+        error: publishError,
+      });
+      return err(publishError);
     });
 }
 
@@ -375,3 +402,13 @@ function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDef
   // Nack without requeue - relies on DLX configuration
   ctx.amqpClient.nack(msg, false, false);
 }
+
+/**
+ * Internal helpers exposed for unit testing only. Not part of the public API.
+ *
+ * @internal
+ */
+export const _internalForTesting = {
+  calculateRetryDelay,
+  publishForRetry,
+};

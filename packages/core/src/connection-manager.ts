@@ -113,8 +113,17 @@ export class ConnectionManagerSingleton {
     urls: ConnectionUrl[],
     connectionOptions?: AmqpConnectionManagerOptions,
   ): string {
-    // Create a deterministic key from URLs and options
-    // Use JSON.stringify for URLs to avoid ambiguity (e.g., ['a,b'] vs ['a', 'b'])
+    // Create a deterministic key from URLs and options.
+    // Use JSON.stringify for URLs to avoid ambiguity (e.g., ['a,b'] vs ['a', 'b']).
+    //
+    // INTENTIONAL: URL order is part of the connection key — `['a','b']` and
+    // `['b','a']` get *different* pooled connections. amqp-connection-manager
+    // treats the URL list as a failover list where the first entry is the
+    // preferred broker, so two callers passing the same set of URLs in
+    // different orders are asking for semantically different connections (one
+    // prefers `a`, the other prefers `b`). Do not "fix" this by sorting — it
+    // would silently merge those two connections and pin one caller's failover
+    // preference onto the other.
     const urlsStr = JSON.stringify(urls);
     // Sort object keys for deterministic serialization of connection options
     const optsStr = connectionOptions ? this.serializeOptions(connectionOptions) : "";
