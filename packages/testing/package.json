@@ -55,7 +55,6 @@
   "devDependencies": {
     "@amqp-contract/tsconfig": "workspace:*",
     "@amqp-contract/typedoc": "workspace:*",
-    "@types/amqplib": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",

@@ -33,10 +33,10 @@ export async function setupAmqpTopology(
   const exchangeResults = await Promise.allSettled(
     exchanges.map((exchange) =>
       channel.assertExchange(exchange.name, exchange.type, {
-        durable: exchange.durable,
-        autoDelete: exchange.autoDelete,
-        internal: exchange.internal,
-        arguments: exchange.arguments,
+        ...(exchange.durable !== undefined && { durable: exchange.durable }),
+        ...(exchange.autoDelete !== undefined && { autoDelete: exchange.autoDelete }),
+        ...(exchange.internal !== undefined && { internal: exchange.internal }),
+        ...(exchange.arguments !== undefined && { arguments: exchange.arguments }),
       }),
     ),
   );
@@ -104,9 +104,9 @@ export async function setupAmqpTopology(
 
       // Classic queue
       return channel.assertQueue(queue.name, {
-        durable: queue.durable,
-        exclusive: queue.exclusive,
-        autoDelete: queue.autoDelete,
+        ...(queue.durable !== undefined && { durable: queue.durable }),
+        ...(queue.exclusive !== undefined && { exclusive: queue.exclusive }),
+        ...(queue.autoDelete !== undefined && { autoDelete: queue.autoDelete }),
         arguments: queueArguments,
       });
     }),

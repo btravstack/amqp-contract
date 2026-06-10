@@ -2,6 +2,9 @@ autoInstallPeers: false
 
 dedupePeerDependents: true
 
+publicHoistPattern:
+  - "@types/*"
+
 engineStrict: true
 
 saveExact: true
@@ -30,11 +33,10 @@ catalog:
   "@orpc/valibot": 1.14.5
   "@orpc/zod": 1.14.5
   "@standard-schema/spec": 1.1.0
-  "@types/amqplib": 0.10.8
   "@types/node": 24.13.1
   "@vitest/coverage-v8": 4.1.8
   amqp-connection-manager: 5.0.0
-  amqplib: 0.10.9
+  amqplib: 2.0.1
   arktype: 2.2.0
   knip: 6.16.1
   lefthook: 2.1.9
