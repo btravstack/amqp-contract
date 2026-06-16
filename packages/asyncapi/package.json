@@ -77,5 +77,8 @@
     "valibot": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.19"
   }
 }
