@@ -83,5 +83,8 @@
     "@opentelemetry/api": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22.19"
   }
 }

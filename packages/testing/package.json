@@ -64,5 +64,8 @@
   },
   "peerDependencies": {
     "vitest": "^4"
+  },
+  "engines": {
+    "node": ">=22.19"
   }
 }
