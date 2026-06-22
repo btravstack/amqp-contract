@@ -49,8 +49,8 @@ catalogs:
       specifier: 2.0.1
       version: 2.0.1
     arktype:
-      specifier: 2.2.0
-      version: 2.2.0
+      specifier: 2.2.1
+      version: 2.2.1
     knip:
       specifier: 6.16.1
       version: 6.16.1
@@ -334,7 +334,7 @@ importers:
         version: 3.6.0
       '@orpc/arktype':
         specifier: 'catalog:'
-        version: 1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.0)
+        version: 1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.1)
       '@orpc/valibot':
         specifier: 'catalog:'
         version: 1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.1(typescript@6.0.3))
@@ -349,7 +349,7 @@ importers:
         version: 4.1.8(vitest@4.1.8)
       arktype:
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.2.1
       tsdown:
         specifier: 'catalog:'
         version: 0.22.2(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
@@ -2829,11 +2829,11 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
-  arkregex@0.0.5:
-    resolution: {integrity: sha512-ncYjBdLlh5/QnVsAA8De16Tc9EqmYM7y/WU9j+236KcyYNUXogpz3sC4ATIZYzzLxwI+0sEOaQLEmLmRleaEXw==}
+  arkregex@0.0.6:
+    resolution: {integrity: sha512-9mvuMKQuibfWhBrsNYhsKhNb6k9oEHoAJ/FvDiqe8h+E9Siwe0/cro1WVOGgpajXQ9ZHd24yCOf2k35Q/QqUQw==}
 
-  arktype@2.2.0:
-    resolution: {integrity: sha512-t54MZ7ti5BhOEvzEkgKnWvqj+UbDfWig+DHr5I34xatymPusKLS0lQpNJd8M6DzmIto2QGszHfNKoFIT8tMCZQ==}
+  arktype@2.2.1:
+    resolution: {integrity: sha512-CWPJxNoSxrS+NYGB3ufwc/blFonESEW5vBQyYPVS0rf4STu8VWoAWfKJSl5vVVm56h4yxpwbODeYwy6XFKvojA==}
 
   array-buffer-byte-length@1.0.2:
     resolution: {integrity: sha512-LHE+8BuR7RYGDKvnrmcuSq3tDcKv9OFEXQt/HpbZhY7V6h0zlUXutnAD82GiFx9rdieCMjkvtcsPqBwgUl1Iiw==}
@@ -6088,12 +6088,12 @@ snapshots:
 
   '@opentelemetry/api@1.9.1': {}
 
-  '@orpc/arktype@1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.0)':
+  '@orpc/arktype@1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.1)':
     dependencies:
       '@ark/schema': 0.56.0
       '@orpc/contract': 1.14.6(@opentelemetry/api@1.9.1)
       '@orpc/openapi': 1.14.6(@opentelemetry/api@1.9.1)
-      arktype: 2.2.0
+      arktype: 2.2.1
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - crossws
@@ -7387,15 +7387,15 @@ snapshots:
 
   argparse@2.0.1: {}
 
-  arkregex@0.0.5:
+  arkregex@0.0.6:
     dependencies:
       '@ark/util': 0.56.0
 
-  arktype@2.2.0:
+  arktype@2.2.1:
     dependencies:
       '@ark/schema': 0.56.0
       '@ark/util': 0.56.0
-      arkregex: 0.0.5
+      arkregex: 0.0.6
 
   array-buffer-byte-length@1.0.2:
     dependencies:
