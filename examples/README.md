@@ -2,7 +2,7 @@
 
 Example implementations demonstrating amqp-contract features.
 
-📖 **[Full documentation and examples →](https://btravers.github.io/amqp-contract/examples/)**
+📖 **[Full documentation and examples →](https://btravstack.github.io/amqp-contract/examples/)**
 
 ## Quick Start
 
@@ -43,4 +43,4 @@ pnpm --filter @amqp-contract-examples/basic-order-processing-client dev
 | [Basic Order Processing - Client](./basic-order-processing-client)     | Plain TypeScript client for publishing orders   |
 | [Basic Order Processing - Worker](./basic-order-processing-worker)     | Plain TypeScript worker for consuming orders    |
 
-For detailed documentation, examples, and tutorials, visit the **[amqp-contract website](https://btravers.github.io/amqp-contract/)**.
+For detailed documentation, examples, and tutorials, visit the **[amqp-contract website](https://btravstack.github.io/amqp-contract/)**.

@@ -2,13 +2,13 @@
 
 **Type-safe AMQP worker for consuming messages using amqp-contract with ResultAsync/Result error handling.**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/worker.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/worker)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/worker.svg)](https://www.npmjs.com/package/@amqp-contract/worker)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/api/worker)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/api/worker)**
 
 ## Installation
 
@@ -70,7 +70,7 @@ const worker = (
 
 ### Advanced Features
 
-For advanced features like prefetch configuration and **automatic retry**, see the [Worker Usage Guide](https://btravers.github.io/amqp-contract/guide/worker-usage).
+For advanced features like prefetch configuration and **automatic retry**, see the [Worker Usage Guide](https://btravstack.github.io/amqp-contract/guide/worker-usage).
 
 #### Retry configuration
 
@@ -117,11 +117,11 @@ const worker = (
 )._unsafeUnwrap();
 ```
 
-See the [Error Handling and Retry](https://btravers.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.
+See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.
 
 ## Defining Handlers Externally
 
-You can define handlers outside of the worker creation using `defineHandler` and `defineHandlers` for better code organization. See the [Worker API documentation](https://btravers.github.io/amqp-contract/api/worker) for details.
+You can define handlers outside of the worker creation using `defineHandler` and `defineHandlers` for better code organization. See the [Worker API documentation](https://btravstack.github.io/amqp-contract/api/worker) for details.
 
 ## Error Handling
 
@@ -156,11 +156,11 @@ Worker defines error classes:
 
 ## API
 
-For complete API documentation, see the [Worker API Reference](https://btravers.github.io/amqp-contract/api/worker).
+For complete API documentation, see the [Worker API Reference](https://btravstack.github.io/amqp-contract/api/worker).
 
 ## Documentation
 
-📖 **[Read the full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
 ## License
 

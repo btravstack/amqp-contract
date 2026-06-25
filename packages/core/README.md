@@ -2,7 +2,7 @@
 
 **Core utilities for AMQP setup and management in amqp-contract.**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/core.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/core)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/core.svg)](https://www.npmjs.com/package/@amqp-contract/core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -10,7 +10,7 @@
 
 This package provides centralized functionality for establishing AMQP topology (exchanges, queues, and bindings) from contract definitions, and defines the `Logger` interface used across amqp-contract packages.
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract)**
 
 ## Installation
 
@@ -68,7 +68,7 @@ const amqpClient = new AmqpClient(contract, {
 await amqpClient.close();
 ```
 
-For advanced channel configuration options (custom setup, prefetch, publisher confirms), see the [Channel Configuration Guide](https://btravers.github.io/amqp-contract/guide/channel-configuration).
+For advanced channel configuration options (custom setup, prefetch, publisher confirms), see the [Channel Configuration Guide](https://btravstack.github.io/amqp-contract/guide/channel-configuration).
 
 ### Logger Interface
 
@@ -98,11 +98,11 @@ const client = (
 
 ## API
 
-For complete API documentation, see the [@amqp-contract/core API Reference](https://btravers.github.io/amqp-contract/api/core).
+For complete API documentation, see the [@amqp-contract/core API Reference](https://btravstack.github.io/amqp-contract/api/core).
 
 ## Documentation
 
-📖 **[Read the full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
 ## License
 

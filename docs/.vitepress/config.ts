@@ -23,7 +23,7 @@ export default withMermaid(
     ],
 
     sitemap: {
-      hostname: "https://btravers.github.io/amqp-contract/",
+      hostname: "https://btravstack.github.io/amqp-contract/",
     },
 
     // Inject canonical URLs and dynamic meta tags for each page to prevent duplicate content issues
@@ -36,7 +36,7 @@ export default withMermaid(
       // VitePress provides relativePath without leading slash (e.g., "guide/getting-started.md")
       // Normalize the path by removing any leading slashes just in case
       const normalizedPath = pageData.relativePath.replace(/^\/+/, "");
-      const canonicalUrl = `https://btravers.github.io/amqp-contract/${normalizedPath}`
+      const canonicalUrl = `https://btravstack.github.io/amqp-contract/${normalizedPath}`
         .replace(/index\.md$/, "")
         .replace(/\.md$/, ".html");
 
@@ -169,7 +169,7 @@ export default withMermaid(
       },
 
       socialLinks: [
-        { icon: "github", link: "https://github.com/btravers/amqp-contract" },
+        { icon: "github", link: "https://github.com/btravstack/amqp-contract" },
         {
           icon: "npm",
           link: "https://www.npmjs.com/package/@amqp-contract/contract",
@@ -186,7 +186,7 @@ export default withMermaid(
       },
 
       editLink: {
-        pattern: "https://github.com/btravers/amqp-contract/edit/main/docs/:path",
+        pattern: "https://github.com/btravstack/amqp-contract/edit/main/docs/:path",
         text: "Edit this page on GitHub",
       },
     },
@@ -215,14 +215,14 @@ export default withMermaid(
       ["meta", { property: "og:locale", content: "en_US" }],
       [
         "meta",
-        { property: "og:image", content: "https://btravers.github.io/amqp-contract/logo.svg" },
+        { property: "og:image", content: "https://btravstack.github.io/amqp-contract/logo.svg" },
       ],
       ["meta", { property: "og:image:alt", content: "amqp-contract logo" }],
       // Twitter Card meta tags
       ["meta", { name: "twitter:card", content: "summary" }],
       [
         "meta",
-        { name: "twitter:image", content: "https://btravers.github.io/amqp-contract/logo.svg" },
+        { name: "twitter:image", content: "https://btravstack.github.io/amqp-contract/logo.svg" },
       ],
       ["meta", { name: "twitter:image:alt", content: "amqp-contract logo" }],
       // Additional SEO meta tags
@@ -251,7 +251,7 @@ export default withMermaid(
             price: "0",
             priceCurrency: "USD",
           },
-          url: "https://btravers.github.io/amqp-contract/",
+          url: "https://btravstack.github.io/amqp-contract/",
           author: {
             "@type": "Person",
             name: "Benoit TRAVERS",
@@ -272,7 +272,7 @@ export default withMermaid(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "amqp-contract",
-          url: "https://btravers.github.io/amqp-contract/",
+          url: "https://btravstack.github.io/amqp-contract/",
         }),
       ],
       // Organization JSON-LD for logo display in Google search
@@ -283,12 +283,12 @@ export default withMermaid(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "amqp-contract",
-          url: "https://btravers.github.io/amqp-contract/",
+          url: "https://btravstack.github.io/amqp-contract/",
           logo: {
             "@type": "ImageObject",
-            url: "https://btravers.github.io/amqp-contract/logo.svg",
+            url: "https://btravstack.github.io/amqp-contract/logo.svg",
           },
-          sameAs: ["https://github.com/btravers/amqp-contract"],
+          sameAs: ["https://github.com/btravstack/amqp-contract"],
         }),
       ],
     ],

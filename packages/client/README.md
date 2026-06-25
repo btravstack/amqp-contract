@@ -2,13 +2,13 @@
 
 **Type-safe AMQP client for publishing messages using amqp-contract with explicit error handling via `Result` types.**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/client.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/client)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/client.svg)](https://www.npmjs.com/package/@amqp-contract/client)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/api/client)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/api/client)**
 
 ## Installation
 
@@ -61,11 +61,11 @@ publish(): Result<boolean, TechnicalError | MessageValidationError>
 
 ## API
 
-For complete API documentation, see the [Client API Reference](https://btravers.github.io/amqp-contract/api/client).
+For complete API documentation, see the [Client API Reference](https://btravstack.github.io/amqp-contract/api/client).
 
 ## Documentation
 
-📖 **[Read the full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
 ## License
 

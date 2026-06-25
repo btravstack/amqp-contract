@@ -566,7 +566,7 @@ flowchart TB
 
 The complete source code is available in the repository:
 
-- [AsyncAPI Generation Example](https://github.com/btravers/amqp-contract/tree/main/examples/asyncapi-generation)
+- [AsyncAPI Generation Example](https://github.com/btravstack/amqp-contract/tree/main/examples/asyncapi-generation)
 
 ## Next Steps
 

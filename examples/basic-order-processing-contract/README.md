@@ -2,7 +2,7 @@
 
 Shared contract definition demonstrating **Publisher-First** and **Consumer-First** patterns with AMQP.
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**
 
 ## Overview
 
@@ -54,4 +54,4 @@ await client.publish("orderCreated", {
 pnpm --filter @amqp-contract-examples/basic-order-processing-contract test
 ```
 
-For detailed documentation about patterns and routing keys, visit the **[website](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**.
+For detailed documentation about patterns and routing keys, visit the **[website](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**.

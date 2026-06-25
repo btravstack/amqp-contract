@@ -318,5 +318,5 @@ Ready to get started?
 - **[Examples →](/examples/)** - See real-world usage
 
 ::: tip Questions?
-Check out the [Troubleshooting Guide](/guide/troubleshooting) or [open an issue](https://github.com/btravers/amqp-contract/issues) on GitHub!
+Check out the [Troubleshooting Guide](/guide/troubleshooting) or [open an issue](https://github.com/btravstack/amqp-contract/issues) on GitHub!
 :::

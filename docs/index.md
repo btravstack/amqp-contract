@@ -19,7 +19,7 @@ hero:
       link: /guide/why-amqp-contract
     - theme: alt
       text: GitHub
-      link: https://github.com/btravers/amqp-contract
+      link: https://github.com/btravstack/amqp-contract
 
 features:
   - icon: 🔒

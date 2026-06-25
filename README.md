@@ -4,13 +4,13 @@
 
 **Type-safe contracts for [AMQP](https://www.amqp.org/)/[RabbitMQ](https://www.rabbitmq.com/) messaging with [TypeScript](https://www.typescriptlang.org/)**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/contract.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/contract)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/contract.svg)](https://www.npmjs.com/package/@amqp-contract/contract)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[**Documentation**](https://btravers.github.io/amqp-contract) · [**Get Started**](https://btravers.github.io/amqp-contract/guide/getting-started) · [**Examples**](https://btravers.github.io/amqp-contract/examples/)
+[**Documentation**](https://btravstack.github.io/amqp-contract) · [**Get Started**](https://btravstack.github.io/amqp-contract/guide/getting-started) · [**Examples**](https://btravstack.github.io/amqp-contract/examples/)
 
 </div>
 
@@ -108,11 +108,11 @@ pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker nev
 
 ## Documentation
 
-📖 **[Full Documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Full Documentation →](https://btravstack.github.io/amqp-contract)**
 
-- [Get Started](https://btravers.github.io/amqp-contract/guide/getting-started) — Get running in 5 minutes
-- [Core Concepts](https://btravers.github.io/amqp-contract/guide/core-concepts) — Understand the fundamentals
-- [Examples](https://btravers.github.io/amqp-contract/examples/) — Real-world usage patterns
+- [Get Started](https://btravstack.github.io/amqp-contract/guide/getting-started) — Get running in 5 minutes
+- [Core Concepts](https://btravstack.github.io/amqp-contract/guide/core-concepts) — Understand the fundamentals
+- [Examples](https://btravstack.github.io/amqp-contract/examples/) — Real-world usage patterns
 
 ## Packages
 

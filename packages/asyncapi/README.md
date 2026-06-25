@@ -2,13 +2,13 @@
 
 **AsyncAPI 3.0.0 specification generator for amqp-contract.**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/asyncapi.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/asyncapi)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/asyncapi.svg)](https://www.npmjs.com/package/@amqp-contract/asyncapi)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/api/asyncapi)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/api/asyncapi)**
 
 ## Installation
 
@@ -65,15 +65,15 @@ writeFileSync("asyncapi.json", JSON.stringify(asyncAPISpec, null, 2));
 - ✅ **Queue-exchange binding documentation** in channel descriptions
 - ✅ **Type-safe** with full TypeScript support
 
-For examples and detailed guides, see the [documentation](https://btravers.github.io/amqp-contract/api/asyncapi).
+For examples and detailed guides, see the [documentation](https://btravstack.github.io/amqp-contract/api/asyncapi).
 
 ## API
 
-For complete API documentation, see the [AsyncAPI API Reference](https://btravers.github.io/amqp-contract/api/asyncapi).
+For complete API documentation, see the [AsyncAPI API Reference](https://btravstack.github.io/amqp-contract/api/asyncapi).
 
 ## Documentation
 
-📖 **[Read the full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
 ## License
 

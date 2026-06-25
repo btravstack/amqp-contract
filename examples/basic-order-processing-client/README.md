@@ -2,7 +2,7 @@
 
 Publisher application demonstrating type-safe AMQP message publishing.
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**
 
 ## Quick Start
 
@@ -21,4 +21,4 @@ pnpm --filter @amqp-contract-examples/basic-order-processing-client dev
 | `AMQP_URL`  | `amqp://localhost:5672` | RabbitMQ connection URL       |
 | `LOG_LEVEL` | `info`                  | Log level (info, debug, etc.) |
 
-For detailed documentation, visit the **[website](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**.
+For detailed documentation, visit the **[website](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**.

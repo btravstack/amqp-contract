@@ -42,7 +42,7 @@ If you're spinning up a new `@amqp-contract/*` package:
    - **Multi-entry, ESM-only** (like `testing`): pass each entry as a positional and use `--format esm`.
      If `ResultAsync` (or any other dep) appears in your public types, mark that dep `external` to prevent its types being inlined.
 4. Add the package to the `fixed` group in [`.changeset/config.json`](../../.changeset/config.json) so it versions with the rest.
-5. Configure the npmjs Trusted Publisher for the new package (npm UI → package settings → trusted publishing → point at `.github/workflows/release.yml` in `btravers/amqp-contract`). Until this is done, the publish will fail with `ENEEDAUTH`.
+5. Configure the npmjs Trusted Publisher for the new package (npm UI → package settings → trusted publishing → point at `.github/workflows/release.yml` in `btravstack/amqp-contract`). Until this is done, the publish will fail with `ENEEDAUTH`.
 6. `pnpm install` to update the lockfile and turbo's package graph.
 7. Initial release — add a changeset documenting the package, merge through the normal flow.
 

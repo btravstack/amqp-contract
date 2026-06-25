@@ -453,4 +453,4 @@ For complete API documentation, see [@amqp-contract/testing API Reference](/api/
 
 ## Examples
 
-Check out the [examples directory](https://github.com/btravers/amqp-contract/tree/main/examples) in the repository for more testing examples.
+Check out the [examples directory](https://github.com/btravstack/amqp-contract/tree/main/examples) in the repository for more testing examples.
