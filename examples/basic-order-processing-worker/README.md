@@ -2,7 +2,7 @@
 
 Consumer application demonstrating type-safe AMQP message consumption with multiple handlers.
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**
 
 ## Quick Start
 
@@ -85,4 +85,4 @@ The main `src/index.ts` file uses inline handlers for simplicity, while `src/han
 | `AMQP_URL`  | `amqp://localhost:5672` | RabbitMQ connection URL       |
 | `LOG_LEVEL` | `info`                  | Log level (info, debug, etc.) |
 
-For detailed documentation, visit the **[website](https://btravers.github.io/amqp-contract/examples/basic-order-processing)**.
+For detailed documentation, visit the **[website](https://btravstack.github.io/amqp-contract/examples/basic-order-processing)**.

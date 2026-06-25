@@ -440,9 +440,9 @@ sequenceDiagram
 
 The complete source code is available in the repository:
 
-- [Contract](https://github.com/btravers/amqp-contract/tree/main/examples/basic-order-processing-contract)
-- [Client](https://github.com/btravers/amqp-contract/tree/main/examples/basic-order-processing-client)
-- [Worker](https://github.com/btravers/amqp-contract/tree/main/examples/basic-order-processing-worker)
+- [Contract](https://github.com/btravstack/amqp-contract/tree/main/examples/basic-order-processing-contract)
+- [Client](https://github.com/btravstack/amqp-contract/tree/main/examples/basic-order-processing-client)
+- [Worker](https://github.com/btravstack/amqp-contract/tree/main/examples/basic-order-processing-worker)
 
 ## Next Steps
 

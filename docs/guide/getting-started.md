@@ -425,6 +425,6 @@ Now that you have amqp-contract working, explore more:
 ::: tip Need Help?
 
 - Check the [Troubleshooting Guide](/guide/troubleshooting)
-- Browse [GitHub Issues](https://github.com/btravers/amqp-contract/issues)
+- Browse [GitHub Issues](https://github.com/btravstack/amqp-contract/issues)
 - Read more [Examples](/examples/)
   :::

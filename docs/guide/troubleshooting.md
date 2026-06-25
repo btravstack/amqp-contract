@@ -687,8 +687,8 @@ Error: PRECONDITION_FAILED - inequivalent arg 'durable' for exchange 'orders'
 If your problem isn't listed here:
 
 1. **Check GitHub Issues:**
-   - [Search existing issues](https://github.com/btravers/amqp-contract/issues)
-   - [Open a new issue](https://github.com/btravers/amqp-contract/issues/new)
+   - [Search existing issues](https://github.com/btravstack/amqp-contract/issues)
+   - [Open a new issue](https://github.com/btravstack/amqp-contract/issues/new)
 
 2. **Review Documentation:**
    - [Core Concepts](/guide/core-concepts)

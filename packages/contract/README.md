@@ -2,13 +2,13 @@
 
 **Contract builder for amqp-contract - Define type-safe AMQP messaging contracts.**
 
-[![CI](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravers/amqp-contract/actions/workflows/ci.yml)
+[![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/contract.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/contract)
 [![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/contract.svg)](https://www.npmjs.com/package/@amqp-contract/contract)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📖 **[Full documentation →](https://btravers.github.io/amqp-contract/api/contract)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/api/contract)**
 
 ## Installation
 
@@ -115,12 +115,12 @@ const contract = defineContract({
 
 ## Documentation
 
-📖 **[Read the full documentation →](https://btravers.github.io/amqp-contract)**
+📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
-- [Getting Started Guide](https://btravers.github.io/amqp-contract/guide/defining-contracts)
-- [Event Pattern](https://btravers.github.io/amqp-contract/guide/defining-contracts#event-pattern)
-- [Command Pattern](https://btravers.github.io/amqp-contract/guide/defining-contracts#command-pattern)
-- [Complete API Reference](https://btravers.github.io/amqp-contract/api/contract)
+- [Getting Started Guide](https://btravstack.github.io/amqp-contract/guide/defining-contracts)
+- [Event Pattern](https://btravstack.github.io/amqp-contract/guide/defining-contracts#event-pattern)
+- [Command Pattern](https://btravstack.github.io/amqp-contract/guide/defining-contracts#command-pattern)
+- [Complete API Reference](https://btravstack.github.io/amqp-contract/api/contract)
 
 ## License
 
