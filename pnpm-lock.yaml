@@ -39,6 +39,9 @@ catalogs:
     '@types/node':
       specifier: 24.13.2
       version: 24.13.2
+    '@unthrown/vitest':
+      specifier: 0.2.0
+      version: 0.2.0
     '@vitest/coverage-v8':
       specifier: 4.1.8
       version: 4.1.8
@@ -97,8 +100,8 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     unthrown:
-      specifier: 0.1.0
-      version: 0.1.0
+      specifier: 0.2.0
+      version: 0.2.0
     valibot:
       specifier: 1.4.1
       version: 1.4.1
@@ -230,7 +233,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.8)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -285,7 +288,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -389,7 +392,7 @@ importers:
         version: 5.9.0
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -403,6 +406,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
+      '@unthrown/vitest':
+        specifier: 'catalog:'
+        version: 0.2.0(vitest@4.1.8)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.8(vitest@4.1.8)
@@ -481,7 +487,7 @@ importers:
         version: 2.0.1
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -498,6 +504,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
+      '@unthrown/vitest':
+        specifier: 'catalog:'
+        version: 0.2.0(vitest@4.1.8)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.8(vitest@4.1.8)
@@ -564,7 +573,7 @@ importers:
         version: 1.1.0
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -578,6 +587,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
+      '@unthrown/vitest':
+        specifier: 'catalog:'
+        version: 0.2.0(vitest@4.1.8)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.8(vitest@4.1.8)
@@ -625,7 +637,7 @@ importers:
         version: link:../packages/worker
       unthrown:
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2617,6 +2629,12 @@ packages:
 
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
+
+  '@unthrown/vitest@0.2.0':
+    resolution: {integrity: sha512-0IavcCbccDw5l6NI9Y8EkF+7tDZkz7mYfYalzsYdPMW5z7f/mTRiaUJkZ6qgd4bVPuD1TiQmKTyK3CFZXGi76Q==}
+    engines: {node: '>=22.19'}
+    peerDependencies:
+      vitest: ^4
 
   '@upsetjs/venn.js@2.0.0':
     resolution: {integrity: sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==}
@@ -5047,8 +5065,8 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  unthrown@0.1.0:
-    resolution: {integrity: sha512-UkSp74t10tusRkbYJ1N+TMrGJHSVlfgNgdftUZnmf60StSl/MnujHOKH9vZnvnFq8uUg+vlN/9s4lWXq2Lix7w==}
+  unthrown@0.2.0:
+    resolution: {integrity: sha512-scackbGqniNj2OhQvsr+3x1HaVqcG7NWDrEViTZgtXcalayTl40DDB/0Ck3xkZay/Z8+oGWnFhqZD3RmpqHLUQ==}
     engines: {node: '>=22.19'}
 
   urijs@1.19.11:
@@ -7137,6 +7155,11 @@ snapshots:
   '@types/web-bluetooth@0.0.21': {}
 
   '@ungap/structured-clone@1.3.1': {}
+
+  '@unthrown/vitest@0.2.0(vitest@4.1.8)':
+    dependencies:
+      unthrown: 0.2.0
+      vitest: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.8)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
 
   '@upsetjs/venn.js@2.0.0':
     optionalDependencies:
@@ -9872,7 +9895,7 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  unthrown@0.1.0: {}
+  unthrown@0.2.0: {}
 
   urijs@1.19.11: {}
 

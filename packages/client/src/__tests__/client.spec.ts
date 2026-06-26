@@ -9,11 +9,9 @@ import {
   defineQueue,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
-import { err, isErr, ok } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 import { CreateClientOptions, TypedAmqpClient } from "../client.js";
-import { MessageValidationError } from "../errors.js";
 
 const it = baseIt.extend<{
   clientFactory: <TContract extends ContractDefinition>(
@@ -95,7 +93,7 @@ describe("AmqpClient Integration", () => {
       });
 
       // THEN
-      expect(result).toEqual(ok(undefined));
+      expect(result).toBeOkWith(undefined);
 
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
@@ -132,10 +130,7 @@ describe("AmqpClient Integration", () => {
       });
 
       // THEN
-      expect(result.isErr()).toBe(true);
-      if (isErr(result)) {
-        expect(result.error).toMatchObject({ name: "MessageValidationError" });
-      }
+      expect(result).toBeErrTagged("@amqp-contract/MessageValidationError");
     });
 
     it("should publish messages with default values", async ({ clientFactory, initConsumer }) => {
@@ -171,7 +166,7 @@ describe("AmqpClient Integration", () => {
       });
 
       // THEN
-      expect(result).toEqual(ok(undefined));
+      expect(result).toBeOkWith(undefined);
 
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
@@ -216,7 +211,7 @@ describe("AmqpClient Integration", () => {
       );
 
       // THEN
-      expect(result).toEqual(ok(undefined));
+      expect(result).toBeOkWith(undefined);
 
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
@@ -258,7 +253,7 @@ describe("AmqpClient Integration", () => {
       const result = await client.publish("testPublisher", { content: "default publish" });
 
       // THEN
-      expect(result).toEqual(ok(undefined));
+      expect(result).toBeOkWith(undefined);
 
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
@@ -311,7 +306,7 @@ describe("AmqpClient Integration", () => {
       );
 
       // THEN
-      expect(result).toEqual(ok(undefined));
+      expect(result).toBeOkWith(undefined);
 
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
@@ -496,7 +491,7 @@ describe("AmqpClient Integration", () => {
       const closeResult = await client.close();
 
       // THEN
-      expect(closeResult.isOk()).toBe(true);
+      expect(closeResult).toBeOk();
     });
 
     it("should handle multiple close calls gracefully", async ({ clientFactory }) => {
@@ -516,7 +511,7 @@ describe("AmqpClient Integration", () => {
       const secondCloseResult = await client.close();
 
       // THEN
-      expect(secondCloseResult.isOk()).toBe(true);
+      expect(secondCloseResult).toBeOk();
     });
 
     it("should publish after connection", async ({ clientFactory, initConsumer }) => {
@@ -541,7 +536,7 @@ describe("AmqpClient Integration", () => {
       const result = await client.publish("testPublisher", { value: 42 });
 
       // THEN
-      expect(result.isOk()).toBe(true);
+      expect(result).toBeOk();
       await expect(pendingMessages()).resolves.toEqual([
         expect.objectContaining({
           content: Buffer.from(JSON.stringify({ value: 42 })),
@@ -580,7 +575,10 @@ describe("AmqpClient Integration", () => {
       });
 
       // THEN
-      expect(result).toEqual(err(new MessageValidationError("testPublisher", expect.any(Array))));
+      expect(result).toBeErrTagged(
+        "@amqp-contract/MessageValidationError",
+        expect.objectContaining({ source: "testPublisher", issues: expect.any(Array) }),
+      );
     });
   });
 });

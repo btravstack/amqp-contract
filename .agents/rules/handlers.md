@@ -34,7 +34,7 @@ const asyncHandler = ({ payload }) =>
 
 `defineRpc` creates a request-reply slot. RPC handlers return `AsyncResult<TResponse, HandlerError>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
-> **Important:** `defineHandler` / `defineHandlers` are not RPC-aware today. Both helpers are typed against `InferConsumerNames<TContract>` and the runtime `validateConsumerExists` only inspects `contract.consumers`. Passing an RPC name throws _"Consumer X not found in contract"_ and won't type-check. For RPC handlers, write them inline inside `TypedAmqpWorker.create({ handlers: { … } })` — the `handlers` parameter is typed against `WorkerInferHandlers<TContract>` internally, so each name (consumer or RPC) gets the correct signature inferred:
+You can define RPC handlers either with `defineHandler` / `defineHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
 import { fromPromise, ok } from "unthrown";
@@ -78,9 +78,9 @@ RPC error semantics worth knowing:
 - **Client-side timeout** → call resolves to `err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
 - **Client closed mid-call** → call resolves to `err(RpcCancelledError)`.
 
-## Using `defineHandler` / `defineHandlers` (regular consumers only)
+## Using `defineHandler` / `defineHandlers`
 
-Use `defineHandler` (single) or `defineHandlers` (object) for full type inference and a runtime check that the name exists in `contract.consumers`. Neither helper handles RPC names today (see the warning above).
+Use `defineHandler` (single) or `defineHandlers` (object) for full type inference and a runtime check that the name exists in the contract. Both helpers accept consumer **and** RPC names — they're overloaded against `InferConsumerNames` and `InferRpcNames`, and `validateHandlerTargetExists` inspects both `contract.consumers` and `contract.rpcs` (an unknown name throws _"Handler target X not found in contract"_).
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
@@ -173,14 +173,14 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 `Result<T, E>` (sync; a union of `Ok` / `Err` / `Defect`):
 
-| Method / function                       | Description                                                                                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok(value)` / `err(error)`              | Construct a successful / failed `Result`                                                                                                                |
-| `isOk(r)` / `isErr(r)` / `isDefect(r)`  | Standalone type-guard functions (read `.value` / `.error` / `.cause` after). The `.isOk()` / `.isErr()` **methods** return `boolean` and do not narrow. |
-| `.match({ ok, err, defect })`           | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                          |
-| `matchTags(r, { Ok, Defect, ...tags })` | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                    |
-| `.unwrapOr(default)`                    | Extract the value or fall back                                                                                                                          |
-| `.unwrap()` / `.unwrapErr()`            | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                |
+| Method / function                         | Description                                                                                                                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok(value)` / `err(error)`                | Construct a successful / failed `Result`                                                                                                                                                                            |
+| `r.isOk()` / `r.isErr()` / `r.isDefect()` | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here. |
+| `.match({ ok, err, defect })`             | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                                                                                      |
+| `matchTags(r, { Ok, Defect, ...tags })`   | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                                                                                |
+| `.unwrapOr(default)`                      | Extract the value or fall back                                                                                                                                                                                      |
+| `.unwrap()` / `.unwrapErr()`              | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
 
 ## Public exports
 

@@ -7,15 +7,7 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import {
-  err,
-  fromPromise,
-  fromSafePromise,
-  isErr,
-  ok,
-  type AsyncResult,
-  type Result,
-} from "unthrown";
+import { err, fromPromise, fromSafePromise, ok, type AsyncResult, type Result } from "unthrown";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -497,7 +489,7 @@ export class AmqpClient {
         (error: unknown) => new TechnicalError("Failed to release connection", error),
       );
 
-      if (isErr(channelResult) && isErr(releaseResult)) {
+      if (channelResult.isErr() && releaseResult.isErr()) {
         return err(
           new TechnicalError(
             "Failed to close channel and release connection",
@@ -509,8 +501,8 @@ export class AmqpClient {
         );
       }
 
-      if (isErr(channelResult)) return channelResult;
-      if (isErr(releaseResult)) return releaseResult;
+      if (channelResult.isErr()) return channelResult;
+      if (releaseResult.isErr()) return releaseResult;
       return ok(undefined);
     })();
 

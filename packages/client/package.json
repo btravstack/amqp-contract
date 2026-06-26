@@ -69,6 +69,7 @@
     "@amqp-contract/tsconfig": "workspace:*",
     "@amqp-contract/typedoc": "workspace:*",
     "@types/node": "catalog:",
+    "@unthrown/vitest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "amqp-connection-manager": "catalog:",
     "amqplib": "catalog:",

@@ -22,16 +22,7 @@ import {
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
-import {
-  err,
-  fromPromise,
-  fromSafePromise,
-  isErr,
-  isOk,
-  ok,
-  type AsyncResult,
-  type Result,
-} from "unthrown";
+import { err, fromPromise, fromSafePromise, ok, type AsyncResult, type Result } from "unthrown";
 import { randomUUID } from "node:crypto";
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -185,9 +176,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, TechnicalError>> => {
       const setupResult = await setup;
-      if (!isOk(setupResult)) {
+      if (!setupResult.isOk()) {
         const closeResult = await client.close();
-        if (isErr(closeResult)) {
+        if (closeResult.isErr()) {
           logger?.warn("Failed to close client after connection failure", {
             error: closeResult.error,
           });
@@ -256,10 +247,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       (error) =>
         new TechnicalError(`Failed to parse RPC reply JSON for "${pending.rpcName}"`, error),
     );
-    if (!isOk(parseResult)) {
+    if (!parseResult.isOk()) {
       pending.resolve(
         err(
-          isErr(parseResult)
+          parseResult.isErr()
             ? parseResult.error
             : new TechnicalError(
                 `Failed to parse RPC reply JSON for "${pending.rpcName}"`,

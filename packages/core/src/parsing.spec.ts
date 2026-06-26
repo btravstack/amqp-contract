@@ -7,7 +7,7 @@ describe("safeJsonParse", () => {
     const buffer = Buffer.from(JSON.stringify({ a: 1, b: "two" }));
     const result = safeJsonParse(buffer, () => new TechnicalError("unused"));
 
-    expect(result.isOk()).toBe(true);
+    expect(result).toBeOk();
     expect(result.unwrap()).toEqual({ a: 1, b: "two" });
   });
 
@@ -25,7 +25,7 @@ describe("safeJsonParse", () => {
       return new TechnicalError("Failed to parse JSON", raw);
     });
 
-    expect(result.isErr()).toBe(true);
+    expect(result).toBeErr();
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBeInstanceOf(SyntaxError);
     const err = result.unwrapErr();
@@ -42,7 +42,7 @@ describe("safeJsonParse", () => {
     }
 
     const result = safeJsonParse(Buffer.from("oops"), (raw) => new CustomError(raw));
-    expect(result.isErr()).toBe(true);
+    expect(result).toBeErr();
     expect(result.unwrapErr()).toBeInstanceOf(CustomError);
   });
 });

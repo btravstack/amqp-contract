@@ -7,11 +7,15 @@ import { TaggedError } from "unthrown";
  * and other runtime errors. This error is shared across core, worker, and client packages.
  *
  * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
- * `"TechnicalError"` for exhaustive dispatch via `matchTags`, and remains a real
- * `Error` (and a *modeled* error — it lives in the `E` channel of a `Result`,
- * never the `Defect` channel).
+ * `"@amqp-contract/TechnicalError"` for exhaustive dispatch via `matchTags`. The
+ * tag is namespaced to avoid colliding with other libraries' tags in a shared
+ * `matchTags`; the human-facing `Error.name` is kept bare (`"TechnicalError"`).
+ * Remains a real `Error` (and a *modeled* error — it lives in the `E` channel of
+ * a `Result`, never the `Defect` channel).
  */
-export class TechnicalError extends TaggedError("TechnicalError")<{
+export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError", {
+  name: "TechnicalError",
+})<{
   message: string;
   cause?: unknown;
 }> {
@@ -25,12 +29,15 @@ export class TechnicalError extends TaggedError("TechnicalError")<{
  *
  * Used by both the client (publish-time payload validation) and the worker
  * (consume-time payload and headers validation). Carries a `_tag` of
- * `"MessageValidationError"`.
+ * `"@amqp-contract/MessageValidationError"` (namespaced to avoid collisions);
+ * the `Error.name` is kept bare (`"MessageValidationError"`).
  *
  * @param source - The name of the publisher or consumer that triggered the validation
  * @param issues - The validation issues from the Standard Schema validation
  */
-export class MessageValidationError extends TaggedError("MessageValidationError")<{
+export class MessageValidationError extends TaggedError("@amqp-contract/MessageValidationError", {
+  name: "MessageValidationError",
+})<{
   message: string;
   source: string;
   issues: unknown;

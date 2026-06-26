@@ -92,14 +92,16 @@ describe("HandlerError tagged union", () => {
     const error = new RetryableError("test");
     expect(isHandlerError(error)).toBe(true);
     expect(error).toBeInstanceOf(Error);
-    expect(error._tag).toBe("RetryableError");
+    expect(error._tag).toBe("@amqp-contract/RetryableError");
+    expect(error.name).toBe("RetryableError");
   });
 
   it("NonRetryableError is a handler error and a real Error", () => {
     const error = new NonRetryableError("test");
     expect(isHandlerError(error)).toBe(true);
     expect(error).toBeInstanceOf(Error);
-    expect(error._tag).toBe("NonRetryableError");
+    expect(error._tag).toBe("@amqp-contract/NonRetryableError");
+    expect(error.name).toBe("NonRetryableError");
   });
 
   it("HandlerError narrows by name discriminator", () => {

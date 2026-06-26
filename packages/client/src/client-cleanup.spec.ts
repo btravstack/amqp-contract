@@ -19,7 +19,7 @@ describe("TypedAmqpClient.create cleanup", () => {
       connectTimeoutMs: 200,
     });
 
-    expect(result.isErr()).toBe(true);
+    expect(result).toBeErr();
     expect(_getConnectionCountForTesting()).toBe(0);
   });
 });

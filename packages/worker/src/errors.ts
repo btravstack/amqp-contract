@@ -9,11 +9,14 @@ export { MessageValidationError } from "@amqp-contract/core";
  * Use this error type when the operation might succeed if retried.
  * The worker will apply exponential backoff and retry the message.
  *
- * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
- * `"RetryableError"` (its `name` is the same) for exhaustive dispatch via
- * `matchTags`.
+ * Built on unthrown's {@link TaggedError}, so it carries a namespaced `_tag` of
+ * `"@amqp-contract/RetryableError"` (to avoid colliding with other libraries'
+ * tags in a shared `matchTags`) for exhaustive dispatch; the `Error.name` is
+ * kept bare (`"RetryableError"`).
  */
-export class RetryableError extends TaggedError("RetryableError")<{
+export class RetryableError extends TaggedError("@amqp-contract/RetryableError", {
+  name: "RetryableError",
+})<{
   message: string;
   cause?: unknown;
 }> {
@@ -28,9 +31,12 @@ export class RetryableError extends TaggedError("RetryableError")<{
  *
  * Use this error type when retrying would not help - the message will be
  * immediately sent to the dead letter queue (DLQ) if configured. Carries a
- * `_tag` of `"NonRetryableError"`.
+ * namespaced `_tag` of `"@amqp-contract/NonRetryableError"`; the `Error.name` is
+ * kept bare (`"NonRetryableError"`).
  */
-export class NonRetryableError extends TaggedError("NonRetryableError")<{
+export class NonRetryableError extends TaggedError("@amqp-contract/NonRetryableError", {
+  name: "NonRetryableError",
+})<{
   message: string;
   cause?: unknown;
 }> {
@@ -41,8 +47,9 @@ export class NonRetryableError extends TaggedError("NonRetryableError")<{
 
 /**
  * Any handler-signalled error — the union a handler may put in the `Err`
- * channel of its `AsyncResult`. Discriminate on `_tag` (`"RetryableError"` /
- * `"NonRetryableError"`), e.g. with `matchTags`.
+ * channel of its `AsyncResult`. Discriminate on `_tag`
+ * (`"@amqp-contract/RetryableError"` / `"@amqp-contract/NonRetryableError"`),
+ * e.g. with `matchTags`.
  *
  * Previously an abstract base class; now a tagged union, because unthrown's
  * `TaggedError` mints a distinct base class per tag. Use {@link isHandlerError}

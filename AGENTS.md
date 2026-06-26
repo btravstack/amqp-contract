@@ -36,7 +36,7 @@ This is the canonical list — sub-files reference these rather than restating t
 - `result.match({ ok, err, defect })` is **boxed and has three branches**. Positional `match(okFn, errFn)` is the old neverthrow shape and is not supported.
 - Build async results with `ok(value).toAsync()` / `err(error).toAsync()` — there is no `okAsync` / `errAsync`.
 - Wrap promises with the free function `fromPromise(promise, qualify)` (not a static `ResultAsync.fromPromise`); `qualify` maps the rejection reason to `E | defect(cause)` and is required.
-- `.isOk()` / `.isErr()` return `boolean` and do **not** narrow — use the standalone `isOk(result)` / `isErr(result)` guards to access `.value` / `.error`.
+- `.isOk()` / `.isErr()` / `.isDefect()` are type guards that **narrow `this`** (since unthrown 0.2.0), so `if (result.isErr()) result.error` works. **Prefer the method form** — the standalone `isOk(result)` / `isErr(result)` / `isDefect(result)` functions narrow identically but are not used in this codebase.
 
 ### Topology and contract authoring
 
@@ -75,7 +75,6 @@ These have been re-introduced more than once across recent migrations / reviews 
 - **Calling `fromPromise(p)` without the `qualify` mapper.** The mapper is a required second argument and must return `E | defect(cause)`. The fix to the opaque "expected 2 arguments, got 1" error is always: pass the mapper.
 - **Using positional `result.match(okFn, errFn)`.** That's the old neverthrow shape. unthrown's `match` is boxed with three branches: `result.match({ ok, err, defect })`.
 - **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `ok(v).toAsync()` / `err(e).toAsync()`, the `AsyncResult` type, and `.unwrap()`.
-- **Using `.isOk()` / `.isErr()` as type guards.** They return `boolean` in unthrown — narrow with the standalone `isOk(r)` / `isErr(r)` before touching `.value` / `.error`.
 - **Adding a publishable package without `repository`, `homepage`, `bugs`, `author`, `license`** — npm will reject with a 422 on provenance validation under Trusted Publishing.
 - **Hardcoding a dep version in a `package.json`.** Use `"catalog:"` and add the actual version once in `pnpm-workspace.yaml`.
 - **Forgetting to add a changeset** when changing public API. The release will silently skip your change.
