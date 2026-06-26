@@ -1,70 +1,8 @@
 /**
- * Customize default theme styling by overriding CSS variables:
- * https://github.com/vuejs/vitepress/blob/main/src/client/theme-default/styles/vars.css
+ * btravstack shared design system.
+ * Keeps these docs in visual sync with the landing page and the other
+ * btravstack projects. Source of truth:
+ *   https://github.com/btravstack/btravstack.github.io/tree/main/theme
+ * Change tokens upstream and bump the @ref below — do not fork colors here.
  */
-
-/**
- * Colors
- * -------------------------------------------------------------------------- */
-
-:root {
-  /* Brand colors - Orange theme matching the logo */
-  --vp-c-brand-1: #ff9900;
-  --vp-c-brand-2: #ff8800;
-  --vp-c-brand-3: #ff6600;
-  --vp-c-brand-soft: rgba(255, 102, 0, 0.14);
-
-  /* Background colors */
-  --vp-c-bg-soft: #f6f6f7;
-}
-
-.dark {
-  /* Dark mode brand colors */
-  --vp-c-brand-1: #ffb347;
-  --vp-c-brand-2: #ff9a1a;
-  --vp-c-brand-3: #ff7a1a;
-  --vp-c-brand-soft: rgba(255, 153, 0, 0.24);
-
-  /* Dark mode background colors */
-  --vp-c-bg-soft: #202127;
-}
-
-/**
- * Component: Button
- * -------------------------------------------------------------------------- */
-
-:root {
-  --vp-button-brand-border: transparent;
-  --vp-button-brand-text: var(--vp-c-white);
-  --vp-button-brand-bg: var(--vp-c-brand-3);
-  --vp-button-brand-hover-border: transparent;
-  --vp-button-brand-hover-text: var(--vp-c-white);
-  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
-  --vp-button-brand-active-border: transparent;
-  --vp-button-brand-active-text: var(--vp-c-white);
-  --vp-button-brand-active-bg: var(--vp-c-brand-1);
-}
-
-/**
- * Component: Home
- * -------------------------------------------------------------------------- */
-
-:root {
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #ff6600 30%, #ff9900);
-
-  --vp-home-hero-image-background-image: linear-gradient(-45deg, #ff660066 50%, #ff990066 50%);
-  --vp-home-hero-image-filter: blur(44px);
-}
-
-@media (min-width: 640px) {
-  :root {
-    --vp-home-hero-image-filter: blur(56px);
-  }
-}
-
-@media (min-width: 960px) {
-  :root {
-    --vp-home-hero-image-filter: blur(68px);
-  }
-}
+@import "https://cdn.jsdelivr.net/gh/btravstack/btravstack.github.io@main/theme/vitepress.css";
