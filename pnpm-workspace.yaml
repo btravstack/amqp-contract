@@ -63,6 +63,8 @@ minimumReleaseAgeStrict: true
 overrides:
   tsx>esbuild: ^0.28.1
   vite@>=6>esbuild: ^0.28.1
+  # Force patched undici (testcontainers pulls in <8.5.0, vulnerable to WebSocket DoS)
+  undici: ^8.5.0
 
 auditConfig:
   ignoreGhsas:
