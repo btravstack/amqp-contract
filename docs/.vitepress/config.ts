@@ -72,7 +72,7 @@ export default withMermaid(
 
     themeConfig: {
       // https://vitepress.dev/reference/default-theme-config
-      logo: "/logo.svg",
+      logo: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
 
       nav: [
         { text: "Guides", link: "/guide/getting-started" },
