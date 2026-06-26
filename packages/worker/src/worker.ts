@@ -23,12 +23,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import {
-  all,
+  allAsync,
   err,
   fromPromise,
   fromSafePromise,
-  isErr,
-  isOk,
   ok,
   type AsyncResult,
   type Result,
@@ -38,26 +36,6 @@ import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
 import { handleError } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
-
-/**
- * Combine a homogeneous list of {@link AsyncResult}s into a single
- * `AsyncResult` of the array of success values.
- *
- * unthrown ships a synchronous {@link all} for tuples of `Result`s but no
- * async combinator, so we resolve each `AsyncResult` to its `Result` (the
- * internal promise never rejects) and fold them with `all`, which short-circuits
- * on the first `Err` and lets any `Defect` dominate.
- */
-function combineAsync<T, E>(results: readonly AsyncResult<T, E>[]): AsyncResult<T[], E> {
-  const resolveAll = (async () => {
-    const resolved: Result<T, E>[] = [];
-    for (const result of results) {
-      resolved.push(await result);
-    }
-    return resolved;
-  })();
-  return fromSafePromise(resolveAll).flatMap((resolved) => all(resolved) as Result<T[], E>);
-}
 
 /**
  * Either a regular consumer name or an RPC name from the contract.
@@ -202,8 +180,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
  *   urls: ['amqp://localhost'],
  * });
  *
- * if (result.isErr()) throw result.error;
- * const worker = result.value;
+ * const worker = result.unwrap();
  *
  * // Close when done
  * await worker.close();
@@ -340,9 +317,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     // does not leak.
     const inner = (async (): Promise<Result<TypedAmqpWorker<TContract>, TechnicalError>> => {
       const setupResult = await setup;
-      if (!isOk(setupResult)) {
+      if (!setupResult.isOk()) {
         const closeResult = await worker.close();
-        if (isErr(closeResult)) {
+        if (closeResult.isErr()) {
           logger?.warn("Failed to close worker after setup failure", {
             error: closeResult.error,
           });
@@ -380,7 +357,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       }),
     );
 
-    return combineAsync(cancellations)
+    return allAsync(cancellations)
       .tap(() => {
         this.consumerTags.clear();
       })
@@ -398,7 +375,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     const rpcNames = Object.keys(this.contract.rpcs ?? {}) as InferRpcNames<TContract>[];
     const allNames = [...consumerNames, ...rpcNames] as HandlerName<TContract>[];
 
-    return combineAsync(allNames.map((name) => this.consume(name))).map(() => undefined);
+    return allAsync(allNames.map((name) => this.consume(name))).map(() => undefined);
   }
 
   private waitForConnectionReady(): AsyncResult<void, TechnicalError> {
@@ -485,7 +462,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         )
       : ok(undefined).toAsync();
 
-    return combineAsync([parsePayload, parseHeaders]).map(([payload, headers]) => ({
+    return allAsync([parsePayload, parseHeaders]).map(([payload, headers]) => ({
       payload,
       headers,
     }));

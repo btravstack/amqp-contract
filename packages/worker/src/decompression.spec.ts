@@ -47,16 +47,11 @@ describe("Decompression utilities", () => {
 
       const result = await decompressBuffer(testData, "brotli");
 
-      expect(result.isErr()).toBe(true);
-      result.match({
-        ok: () => expect.fail("Expected error"),
-        err: (error) => {
-          expect(error.message).toContain('Unsupported content-encoding: "brotli"');
-          expect(error.message).toContain("Supported encodings are: gzip, deflate");
-          expect(error.message).toContain("Please check your publisher configuration");
-        },
-        defect: (cause) => expect.fail(`Unexpected defect: ${String(cause)}`),
-      });
+      expect(result).toBeErr();
+      const error = result.unwrapErr();
+      expect(error.message).toContain('Unsupported content-encoding: "brotli"');
+      expect(error.message).toContain("Supported encodings are: gzip, deflate");
+      expect(error.message).toContain("Please check your publisher configuration");
     });
 
     it("should decompress large data correctly", async () => {

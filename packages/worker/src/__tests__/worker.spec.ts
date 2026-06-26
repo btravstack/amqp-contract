@@ -487,7 +487,7 @@ describe("AmqpWorker Integration", () => {
     publishMessage(exchange.name, "close.test", { id: "after-close" });
 
     // THEN
-    expect(closeResult.isOk()).toBe(true);
+    expect(closeResult).toBeOk();
     expect(messages).toHaveLength(1);
     expect(messages[0]).toEqual({ id: "before-close" });
 

@@ -8,9 +8,13 @@ export { MessageValidationError } from "@amqp-contract/core";
  *
  * The pending call is removed from the in-memory correlation map; if a reply
  * arrives after the timeout it is dropped (and a debug log is emitted by the
- * client if a logger is configured). Carries a `_tag` of `"RpcTimeoutError"`.
+ * client if a logger is configured). Carries a namespaced `_tag` of
+ * `"@amqp-contract/RpcTimeoutError"`; the `Error.name` is kept bare
+ * (`"RpcTimeoutError"`).
  */
-export class RpcTimeoutError extends TaggedError("RpcTimeoutError")<{
+export class RpcTimeoutError extends TaggedError("@amqp-contract/RpcTimeoutError", {
+  name: "RpcTimeoutError",
+})<{
   message: string;
   rpcName: string;
   timeoutMs: number;
@@ -27,10 +31,13 @@ export class RpcTimeoutError extends TaggedError("RpcTimeoutError")<{
 /**
  * Returned from any in-flight RPC call when the client is closed before the
  * reply is received. The correlation map is cleared on close and every pending
- * caller's promise resolves with `err(RpcCancelledError)`. Carries a `_tag` of
- * `"RpcCancelledError"`.
+ * caller's promise resolves with `err(RpcCancelledError)`. Carries a namespaced
+ * `_tag` of `"@amqp-contract/RpcCancelledError"`; the `Error.name` is kept bare
+ * (`"RpcCancelledError"`).
  */
-export class RpcCancelledError extends TaggedError("RpcCancelledError")<{
+export class RpcCancelledError extends TaggedError("@amqp-contract/RpcCancelledError", {
+  name: "RpcCancelledError",
+})<{
   message: string;
   rpcName: string;
 }> {

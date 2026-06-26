@@ -179,7 +179,7 @@ describe("publishForRetry", () => {
       },
     );
 
-    expect(result.isOk()).toBe(true);
+    expect(result).toBeOk();
     expect(publish).toHaveBeenCalledTimes(1);
     expect(ack).toHaveBeenCalledTimes(1);
     // Critical ordering: publish must complete before ack runs.
@@ -202,7 +202,7 @@ describe("publishForRetry", () => {
       },
     );
 
-    expect(result.isErr()).toBe(true);
+    expect(result).toBeErr();
     expect(publish).toHaveBeenCalledTimes(1);
     // The whole point of the fix: the original message must remain un-ack'd
     // so amqp-connection-manager / the broker can redeliver it instead of
@@ -231,7 +231,7 @@ describe("publishForRetry", () => {
       },
     );
 
-    expect(result.isErr()).toBe(true);
+    expect(result).toBeErr();
     expect(publish).toHaveBeenCalledTimes(1);
     expect(ack).not.toHaveBeenCalled();
     expect(nack).not.toHaveBeenCalled();
