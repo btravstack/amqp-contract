@@ -8,13 +8,13 @@ describe("safeJsonParse", () => {
     const result = safeJsonParse(buffer, () => new TechnicalError("unused"));
 
     expect(result.isOk()).toBe(true);
-    expect(result._unsafeUnwrap()).toEqual({ a: 1, b: "two" });
+    expect(result.unwrap()).toEqual({ a: 1, b: "two" });
   });
 
   it("parses primitive JSON values", () => {
-    expect(safeJsonParse(Buffer.from("42"), () => new Error())._unsafeUnwrap()).toBe(42);
-    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error())._unsafeUnwrap()).toBe("hello");
-    expect(safeJsonParse(Buffer.from("null"), () => new Error())._unsafeUnwrap()).toBeNull();
+    expect(safeJsonParse(Buffer.from("42"), () => new Error()).unwrap()).toBe(42);
+    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error()).unwrap()).toBe("hello");
+    expect(safeJsonParse(Buffer.from("null"), () => new Error()).unwrap()).toBeNull();
   });
 
   it("invokes the error mapper with the underlying parse error and returns Err", () => {
@@ -28,7 +28,7 @@ describe("safeJsonParse", () => {
     expect(result.isErr()).toBe(true);
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBeInstanceOf(SyntaxError);
-    const err = result._unsafeUnwrapErr();
+    const err = result.unwrapErr();
     expect(err).toBeInstanceOf(TechnicalError);
     expect(err.message).toBe("Failed to parse JSON");
     expect(err.cause).toBeInstanceOf(SyntaxError);
@@ -43,6 +43,6 @@ describe("safeJsonParse", () => {
 
     const result = safeJsonParse(Buffer.from("oops"), (raw) => new CustomError(raw));
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr()).toBeInstanceOf(CustomError);
+    expect(result.unwrapErr()).toBeInstanceOf(CustomError);
   });
 });

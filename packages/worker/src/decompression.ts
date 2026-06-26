@@ -1,5 +1,5 @@
 import { TechnicalError } from "@amqp-contract/core";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { err, fromPromise, ok, type AsyncResult } from "unthrown";
 import { gunzip, inflate } from "node:zlib";
 import { promisify } from "node:util";
 
@@ -28,38 +28,38 @@ function isSupportedEncoding(encoding: string): encoding is SupportedEncoding {
  *
  * @param buffer - The buffer to decompress
  * @param contentEncoding - The content-encoding header value (e.g., 'gzip', 'deflate')
- * @returns A ResultAsync resolving to the decompressed buffer or a TechnicalError
+ * @returns An AsyncResult resolving to the decompressed buffer or a TechnicalError
  *
  * @internal
  */
 export function decompressBuffer(
   buffer: Buffer,
   contentEncoding: string | undefined,
-): ResultAsync<Buffer, TechnicalError> {
+): AsyncResult<Buffer, TechnicalError> {
   if (!contentEncoding) {
-    return okAsync(buffer);
+    return ok(buffer).toAsync();
   }
 
   const normalizedEncoding = contentEncoding.toLowerCase();
 
   if (!isSupportedEncoding(normalizedEncoding)) {
-    return errAsync(
+    return err(
       new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
           `Supported encodings are: ${SUPPORTED_ENCODINGS.join(", ")}. ` +
           `Please check your publisher configuration.`,
       ),
-    );
+    ).toAsync();
   }
 
   switch (normalizedEncoding) {
     case "gzip":
-      return ResultAsync.fromPromise(
+      return fromPromise(
         gunzipAsync(buffer),
         (error) => new TechnicalError("Failed to decompress gzip", error),
       );
     case "deflate":
-      return ResultAsync.fromPromise(
+      return fromPromise(
         inflateAsync(buffer),
         (error) => new TechnicalError("Failed to decompress deflate", error),
       );

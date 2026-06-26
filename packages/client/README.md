@@ -28,17 +28,20 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Publish message with explicit error handling
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
   amount: 99.99,
 });
-result.match(
-  () => console.log("Published successfully"),
-  (error) => console.error("Publish failed:", error),
-);
+result.match({
+  ok: () => console.log("Published successfully"),
+  err: (error) => console.error("Publish failed:", error),
+  defect: (cause) => {
+    throw cause;
+  },
+});
 
 // Clean up
 await client.close();
@@ -46,7 +49,7 @@ await client.close();
 
 ## Error Handling
 
-The client uses `Result` types from [neverthrow](https://github.com/supermacro/neverthrow) for explicit error handling. Runtime errors are part of the type signature:
+The client uses `Result` types from [unthrown](https://github.com/btravstack/unthrown) for explicit error handling. Runtime errors are part of the type signature:
 
 ```typescript
 publish(): Result<boolean, TechnicalError | MessageValidationError>

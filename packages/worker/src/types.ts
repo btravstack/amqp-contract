@@ -9,7 +9,7 @@ import type {
 } from "@amqp-contract/contract";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
-import type { ResultAsync } from "neverthrow";
+import type { AsyncResult } from "unthrown";
 import type { HandlerError } from "./errors.js";
 import { ConsumerOptions } from "./worker.js";
 
@@ -118,7 +118,7 @@ export type WorkerInferRpcHeaders<
 
 /**
  * Infer the response payload type for an RPC. The handler must return a
- * `ResultAsync<TResponse, HandlerError>` matching this shape.
+ * `AsyncResult<TResponse, HandlerError>` matching this shape.
  */
 export type WorkerInferRpcResponse<
   TContract extends ContractDefinition,
@@ -149,7 +149,7 @@ export type WorkerInferRpcResponse<
  *   console.log(message.payload.orderId);  // Typed payload
  *   console.log(message.headers?.priority); // Typed headers (if defined)
  *   console.log(rawMessage.fields.deliveryTag); // Raw AMQP message
- *   return okAsync(undefined);
+ *   return ok(undefined).toAsync();
  * });
  * ```
  */
@@ -186,13 +186,13 @@ export type WorkerInferRpcConsumedMessage<
 // =============================================================================
 // Handler Types
 // =============================================================================
-// All handlers return `ResultAsync<TResponse, HandlerError>` for explicit
+// All handlers return `AsyncResult<TResponse, HandlerError>` for explicit
 // error handling. Regular consumers return `void`; RPC handlers return the
 // response payload. RetryableError → exponential backoff retry; NonRetryableError → DLQ.
 
 /**
  * Handler signature for a regular consumer (event/command). Returns
- * `ResultAsync<void, HandlerError>` — there is no response message.
+ * `AsyncResult<void, HandlerError>` — there is no response message.
  */
 export type WorkerInferConsumerHandler<
   TContract extends ContractDefinition,
@@ -200,11 +200,11 @@ export type WorkerInferConsumerHandler<
 > = (
   message: WorkerInferConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
-) => ResultAsync<void, HandlerError>;
+) => AsyncResult<void, HandlerError>;
 
 /**
  * Handler signature for an RPC. Returns
- * `ResultAsync<TResponse, HandlerError>` where `TResponse` is the inferred
+ * `AsyncResult<TResponse, HandlerError>` where `TResponse` is the inferred
  * response payload. The worker validates the response against the RPC's
  * response schema and publishes it back to `msg.properties.replyTo` with the
  * same `correlationId`.
@@ -215,7 +215,7 @@ export type WorkerInferRpcHandler<
 > = (
   message: WorkerInferRpcConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
-) => ResultAsync<WorkerInferRpcResponse<TContract, TName>, HandlerError>;
+) => AsyncResult<WorkerInferRpcResponse<TContract, TName>, HandlerError>;
 
 /**
  * Handler entry for a regular consumer — function or `[handler, options]`.
@@ -246,11 +246,11 @@ export type WorkerInferRpcHandlerEntry<
  * ```typescript
  * const handlers: WorkerInferHandlers<typeof contract> = {
  *   processOrder: ({ payload }) =>
- *     ResultAsync.fromPromise(
+ *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => okAsync({ sum: payload.a + payload.b }),
+ *   calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
  * };
  * ```
  */

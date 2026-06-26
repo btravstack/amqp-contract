@@ -38,7 +38,7 @@ const client = (
     urls: ["amqp://localhost"],
     logger, // [!code highlight]
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## Usage with Worker
@@ -55,7 +55,7 @@ const worker = (
     handlers,
     logger, // [!code highlight]
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## What Gets Logged

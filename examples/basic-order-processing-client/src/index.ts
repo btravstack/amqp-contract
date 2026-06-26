@@ -26,8 +26,8 @@ async function main() {
     await TypedAmqpClient.create({
       contract: orderContract,
       urls: [env.AMQP_URL],
-    }).orTee((error) => logger.error({ error }, "Failed to create client"))
-  )._unsafeUnwrap();
+    }).tapErr((error) => logger.error({ error }, "Failed to create client"))
+  ).unwrap();
 
   logger.info("Client ready");
   logger.info("=".repeat(60));
@@ -45,9 +45,9 @@ async function main() {
     (
       await client
         .publish(publisherName, message, options)
-        .orTee((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
-        .andTee(() => logger.debug(`Successfully published to ${publisherName}`))
-    )._unsafeUnwrap();
+        .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
+        .tap(() => logger.debug(`Successfully published to ${publisherName}`))
+    ).unwrap();
   };
 
   // 1. Publish a new order (routing key: order.created)
@@ -123,7 +123,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Clean up
-  (await client.close())._unsafeUnwrap();
+  (await client.close()).unwrap();
   logger.info("Publisher stopped");
   process.exit(0);
 }

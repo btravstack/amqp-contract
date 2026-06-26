@@ -9,7 +9,7 @@ import {
   defineQueue,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
-import { err, ok } from "neverthrow";
+import { err, isErr, ok } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 import { CreateClientOptions, TypedAmqpClient } from "../client.js";
@@ -36,7 +36,7 @@ const it = baseIt.extend<{
               urls: [amqpConnectionUrl],
               ...options,
             })
-          )._unsafeUnwrap();
+          ).unwrap();
 
           clients.push(client);
           return client;
@@ -47,7 +47,7 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            (await client.close())._unsafeUnwrap();
+            (await client.close()).unwrap();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -133,7 +133,7 @@ describe("AmqpClient Integration", () => {
 
       // THEN
       expect(result.isErr()).toBe(true);
-      if (result.isErr()) {
+      if (isErr(result)) {
         expect(result.error).toMatchObject({ name: "MessageValidationError" });
       }
     });
@@ -270,7 +270,7 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close())._unsafeUnwrap();
+      (await client.close()).unwrap();
     });
 
     it("should override default publish options with publish-specific options", async ({
@@ -324,7 +324,7 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close())._unsafeUnwrap();
+      (await client.close()).unwrap();
     });
   });
 

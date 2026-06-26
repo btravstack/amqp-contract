@@ -13,14 +13,13 @@ import {
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const processOrder = defineHandler(contract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(
-    saveOrder(payload),
-    (error) => new RetryableError("Database unavailable", error),
-  ).map(() => undefined),
+  fromPromise(saveOrder(payload), (error) => new RetryableError("Database unavailable", error)).map(
+    () => undefined,
+  ),
 );
 
 const worker = (
@@ -29,7 +28,7 @@ const worker = (
     handlers: { processOrder },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 console.log("✅ Worker ready!");
 ```
@@ -44,7 +43,7 @@ For one-file demos, you can inline the handler. The signature and types are iden
 
 ```typescript
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const worker = (
@@ -53,16 +52,16 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         console.log("Processing:", payload.orderId);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
       notifyOrder: ({ payload }) => {
         console.log("Notifying:", payload.orderId);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 In production code, prefer `defineHandler` so handler logic lives in its own module and can be unit-tested.
@@ -72,7 +71,7 @@ In production code, prefer `defineHandler` so handler logic lives in its own mod
 Handlers receive validated, fully-typed messages with `{ payload, headers }`:
 
 ```typescript
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -87,12 +86,12 @@ const worker = (
         for (const item of payload.items) {
           console.log(`${item.productId}: ${item.quantity}`);
         }
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     connection,
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### Type Safety
@@ -112,7 +111,7 @@ const workerResult = (await TypedAmqpWorker.create({
     // Missing processOrder handler!
   },
   urls: ['amqp://localhost'],
-}))._unsafeUnwrap();
+})).unwrap();
 
 // ✅ All handlers present
 const worker = (await TypedAmqpWorker.create({
@@ -122,7 +121,7 @@ const worker = (await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   urls: ['amqp://localhost'],
-}))._unsafeUnwrap();
+})).unwrap();
 
 console.log('✅ All handlers present');
 ```
@@ -133,26 +132,25 @@ For better organization, define handlers separately. The library provides two ty
 
 ### Safe Handlers (Recommended)
 
-Safe handlers return `ResultAsync<void, HandlerError>` for explicit error handling:
+Safe handlers return `AsyncResult<void, HandlerError>` for explicit error handling:
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(
-    saveToDatabase(payload),
-    (error) => new RetryableError("Database error", error),
-  ).map(() => undefined),
+  fromPromise(saveToDatabase(payload), (error) => new RetryableError("Database error", error)).map(
+    () => undefined,
+  ),
 );
 
 // Non-retryable errors go directly to DLQ
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount <= 0) {
-    return errAsync(new NonRetryableError("Invalid order amount"));
+    return err(new NonRetryableError("Invalid order amount")).toAsync();
   }
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 });
 ```
 
@@ -160,21 +158,20 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 
 ```typescript
 import { defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
-// Safe handlers (recommended) - for async operations use ResultAsync.fromPromise
+// Safe handlers (recommended) - for async operations use fromPromise
 const handlers = defineHandlers(contract, {
   processOrder: ({ payload }) =>
-    ResultAsync.fromPromise(
+    fromPromise(
       processPayment(payload),
       (error) => new RetryableError("Payment failed", error),
     ).map(() => undefined),
   notifyOrder: ({ payload }) =>
-    ResultAsync.fromPromise(
-      sendEmail(payload),
-      (error) => new RetryableError("Email failed", error),
-    ).map(() => undefined),
+    fromPromise(sendEmail(payload), (error) => new RetryableError("Email failed", error)).map(
+      () => undefined,
+    ),
 });
 
 const worker = (
@@ -183,7 +180,7 @@ const worker = (
     handlers,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### Benefits
@@ -204,23 +201,21 @@ Create a dedicated module for handlers with explicit error handling:
 ```typescript
 // handlers/order-handlers.ts
 import { defineHandler, defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 import { orderContract } from "../contract";
 import { processPayment } from "../services/payment";
 import { sendEmail } from "../services/email";
 
 export const processOrderHandler = defineHandler(orderContract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(
-    processPayment(payload),
-    (error) => new RetryableError("Payment failed", error),
-  ).map(() => undefined),
+  fromPromise(processPayment(payload), (error) => new RetryableError("Payment failed", error)).map(
+    () => undefined,
+  ),
 );
 
 export const notifyOrderHandler = defineHandler(orderContract, "notifyOrder", ({ payload }) =>
-  ResultAsync.fromPromise(
-    sendEmail(payload),
-    (error) => new RetryableError("Email failed", error),
-  ).map(() => undefined),
+  fromPromise(sendEmail(payload), (error) => new RetryableError("Email failed", error)).map(
+    () => undefined,
+  ),
 );
 
 // Export all handlers together
@@ -242,7 +237,7 @@ const worker = (
     handlers: orderHandlers,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## Starting Consumers
@@ -259,7 +254,7 @@ const worker = (await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   connection,
-}))._unsafeUnwrap();
+})).unwrap();
 // Worker is already consuming messages from all queues
 console.log('Worker ready, waiting for messages...');
 ```
@@ -271,7 +266,7 @@ console.log('Worker ready, waiting for messages...');
 By default, messages are automatically acknowledged after successful processing:
 
 ```typescript
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -280,12 +275,12 @@ const worker = (
       processOrder: ({ payload }) => {
         console.log("Processing:", payload.orderId);
         // Message is automatically acked after this handler completes
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     connection,
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### Manual Acknowledgment
@@ -294,7 +289,7 @@ For more control over acknowledgment, use the raw message parameter and error ty
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -304,7 +299,7 @@ const worker = (
         // Access raw AMQP message properties if needed
         console.log("Delivery tag:", rawMessage.fields.deliveryTag);
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           processOrder(payload),
           (error) => new RetryableError("Processing failed", error), // Failure - will retry
         ).map(() => undefined); // Success - message will be acked
@@ -312,7 +307,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **Acknowledgment behavior:**
@@ -340,7 +335,7 @@ process.on("SIGINT", shutdown);
 
 ```typescript
 import { TypedAmqpWorker, defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 import { contract } from "./contract";
 
 async function main() {
@@ -351,7 +346,7 @@ async function main() {
         processOrder: ({ payload }) => {
           console.log(`Processing order ${payload.orderId}`);
 
-          return ResultAsync.fromPromise(
+          return fromPromise(
             Promise.all([saveToDatabase(payload), sendConfirmation(payload.customerId)]),
           )
             .map(() => undefined)
@@ -363,7 +358,7 @@ async function main() {
 
         notifyOrder: ({ payload }) => {
           console.log(`Sending notification for ${payload.orderId}`);
-          return ResultAsync.fromPromise(
+          return fromPromise(
             sendEmail(payload),
             (error) => new RetryableError("Email failed", error),
           ).map(() => undefined);
@@ -371,7 +366,7 @@ async function main() {
       }),
       urls: ["amqp://localhost"],
     })
-  )._unsafeUnwrap();
+  ).unwrap();
 
   console.log("✅ Worker ready!");
 
@@ -398,7 +393,7 @@ Control the number of unacknowledged messages a consumer can have at once. This 
 Use the tuple syntax `[handler, options]` to configure prefetch per-handler:
 
 ```typescript
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 import { RetryableError } from "@amqp-contract/worker";
 
 const worker = (
@@ -407,7 +402,7 @@ const worker = (
     handlers: {
       processOrder: [
         ({ payload }) =>
-          ResultAsync.fromPromise(
+          fromPromise(
             saveToDatabase(payload),
             (error) => new RetryableError("Failed to save order", error),
           ).map(() => {
@@ -419,7 +414,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### Default Consumer Options
@@ -427,7 +422,7 @@ const worker = (
 If you want to apply a common consumer configuration across all handlers, use `defaultConsumerOptions` when creating the worker:
 
 ```typescript
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 import { RetryableError } from "@amqp-contract/worker";
 
 const worker = (
@@ -435,7 +430,7 @@ const worker = (
     contract,
     handlers: {
       processOrder: ({ payload }) =>
-        ResultAsync.fromPromise(
+        fromPromise(
           processOrder(payload),
           (error) => new RetryableError("Processing failed", error),
         ).map(() => undefined),
@@ -445,7 +440,7 @@ const worker = (
       prefetch: 10,
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 `defaultConsumerOptions` are applied to every consumer handler. When a handler is defined with tuple syntax, per-handler options override these defaults.
@@ -460,7 +455,7 @@ Three configuration patterns are supported:
 handlers: {
   processOrder: ({ payload }) => {
     // Single message processing
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   };
 }
 ```
@@ -472,7 +467,7 @@ handlers: {
   processOrder: [
     ({ payload }) => {
       // Single message processing with prefetch
-      return okAsync(undefined);
+      return ok(undefined).toAsync();
     },
     { prefetch: 10 },
   ];
@@ -503,7 +498,7 @@ A simpler mode that requeues failed messages immediately (no wait queues):
 ```typescript
 import { defineQueue, defineExchange, defineContract } from "@amqp-contract/contract";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 
 // 1. Define queue with immediate-requeue retry
 const dlx = defineExchange("orders-dlx");
@@ -522,14 +517,14 @@ const worker = (
     contract,
     handlers: {
       processOrder: ({ payload }) =>
-        ResultAsync.fromPromise(
+        fromPromise(
           processPayment(payload),
           (error) => new RetryableError("Payment failed", error),
         ).map(() => undefined),
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **How Immediate-Requeue works:**
@@ -560,7 +555,7 @@ import {
   defineMessage,
 } from "@amqp-contract/contract";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 import { z } from "zod";
 
 // 1. Define queue with TTL-backoff retry - infrastructure auto-generated
@@ -591,14 +586,14 @@ const worker = (
     contract,
     handlers: {
       processOrder: ({ payload }) =>
-        ResultAsync.fromPromise(
+        fromPromise(
           processPayment(payload),
           (error) => new RetryableError("Payment failed", error),
         ).map(() => undefined),
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **How TTL-Backoff works:**
@@ -708,7 +703,7 @@ Use `RetryableError` for transient failures that may succeed on retry:
 
 ```typescript
 import { RetryableError, defineHandler } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok, type AsyncResult } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -716,7 +711,7 @@ const worker = (
     handlers: {
       processOrder: [
         defineHandler(contract, "processOrder", ({ payload }) =>
-          ResultAsync.fromPromise(
+          fromPromise(
             externalApiCall(payload),
             (error) =>
               // Explicitly signal this should be retried
@@ -733,7 +728,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 #### NonRetryableError
@@ -742,7 +737,7 @@ Use `NonRetryableError` for permanent failures that should NOT be retried:
 
 ```typescript
 import { NonRetryableError, RetryableError, defineHandler } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -751,9 +746,9 @@ const worker = (
       processOrder: defineHandler(contract, "processOrder", ({ payload }) => {
         // Validation errors should not be retried
         if (payload.amount <= 0) {
-          return errAsync(new NonRetryableError("Invalid order amount"));
+          return err(new NonRetryableError("Invalid order amount")).toAsync();
         }
-        return ResultAsync.fromPromise(
+        return fromPromise(
           processPayment(payload),
           (error) => new RetryableError("Payment failed", error),
         ).map(() => undefined);
@@ -761,7 +756,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **NonRetryableError behavior:**
@@ -772,11 +767,11 @@ const worker = (
 
 #### Using Safe Handlers for Better Error Control
 
-For the most explicit error handling, use safe handlers that return `ResultAsync<Result>`:
+For the most explicit error handling, use safe handlers that return `AsyncResult<Result>`:
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { match } from "ts-pattern";
 
 const worker = (
@@ -786,24 +781,23 @@ const worker = (
       processOrder: defineHandler(contract, "processOrder", ({ payload }) => {
         // Validation - non-retryable
         if (payload.amount <= 0) {
-          return errAsync(new NonRetryableError("Invalid amount"));
+          return err(new NonRetryableError("Invalid amount")).toAsync();
         }
 
-        return ResultAsync.fromPromise(processPayment(payload))
-          .map(() => undefined)
-          .mapErr((error) =>
-            match(error)
-              .when(
-                (e) => e instanceof PaymentDeclinedError,
-                () => new NonRetryableError("Payment declined", error),
-              )
-              .otherwise(() => new RetryableError("Payment failed", error)),
-          );
+        // Qualify the rejection at the boundary into a modeled HandlerError.
+        return fromPromise(processPayment(payload), (error) =>
+          match(error)
+            .when(
+              (e) => e instanceof PaymentDeclinedError,
+              () => new NonRetryableError("Payment declined", error),
+            )
+            .otherwise(() => new RetryableError("Payment failed", error)),
+        ).map(() => undefined);
       }),
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **When to use which error type:**
@@ -854,7 +848,7 @@ import {
   defineConsumer,
   defineMessage,
 } from "@amqp-contract/contract";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { z } from "zod";
 
 // Define exchanges
@@ -906,11 +900,11 @@ const worker = (
       processOrder: ({ payload }) => {
         // Validate before processing (don't retry validation errors)
         if (!payload.amount || payload.amount <= 0) {
-          return errAsync(new NonRetryableError("Invalid order amount"));
+          return err(new NonRetryableError("Invalid order amount")).toAsync();
         }
 
         // Process with external service (retry on failure based on queue config)
-        return ResultAsync.fromPromise(
+        return fromPromise(
           Promise.all([
             paymentService.charge(payload),
             inventoryService.reserve(payload),
@@ -923,7 +917,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 console.log("✅ Worker ready with retry enabled!");
 ```

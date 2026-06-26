@@ -1,5 +1,10 @@
 {
   "extends": "@amqp-contract/typedoc/base.json",
   "entryPoints": ["src/index.ts"],
-  "out": "docs"
+  "out": "docs",
+  "externalSymbolLinkMappings": {
+    "unthrown": {
+      "TaggedError": "https://github.com/btravstack/unthrown"
+    }
+  }
 }

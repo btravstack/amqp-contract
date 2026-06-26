@@ -5,6 +5,9 @@
   "externalSymbolLinkMappings": {
     "@amqp-contract/core": {
       "AmqpClient": "https://btravstack.github.io/amqp-contract/api/core#amqpclient"
+    },
+    "unthrown": {
+      "TaggedError": "https://github.com/btravstack/unthrown"
     }
   }
 }

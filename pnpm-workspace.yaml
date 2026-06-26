@@ -38,7 +38,6 @@ catalog:
   knip: 6.16.1
   lefthook: 2.1.9
   mermaid: 11.15.0
-  neverthrow: 8.2.0
   oxfmt: 0.54.0
   oxlint: 1.69.0
   pino: 10.3.1
@@ -51,6 +50,7 @@ catalog:
   typedoc: 0.28.19
   typedoc-plugin-markdown: 4.12.0
   typescript: 6.0.3
+  unthrown: 0.1.0
   valibot: 1.4.1
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
@@ -59,6 +59,11 @@ catalog:
   zod: 4.4.3
 
 minimumReleaseAgeStrict: true
+
+# unthrown is a first-party (btravstack) package; exempt it from the release-age
+# maturity gate so freshly published versions can be adopted immediately.
+minimumReleaseAgeExclude:
+  - unthrown
 
 overrides:
   tsx>esbuild: ^0.28.1

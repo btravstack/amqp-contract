@@ -13,7 +13,7 @@
     "@amqp-contract/core": "workspace:*",
     "@amqp-contract/testing": "workspace:*",
     "@amqp-contract/worker": "workspace:*",
-    "neverthrow": "catalog:"
+    "unthrown": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -60,7 +60,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -68,10 +68,13 @@ const result = await client.publish("orderCreated", {
   // invalid: true,     // ❌ TypeScript error!
 });
 
-result.match(
-  () => console.log("Published"),
-  (error) => console.error("Failed:", error),
-);
+result.match({
+  ok: () => console.log("Published"),
+  err: (error) => console.error("Failed:", error),
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ## Automatic Validation
@@ -90,13 +93,16 @@ const result = await client.publish("orderCreated", {
   amount: "not-a-number", // ❌ Validation error!
 });
 
-result.match(
-  () => console.log("Published"),
-  (error) => {
+result.match({
+  ok: () => console.log("Published"),
+  err: (error) => {
     // Handle MessageValidationError or TechnicalError
     console.error("Failed:", error.message);
   },
-);
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ## Schema Libraries

@@ -161,7 +161,7 @@ const client = (
     connection,
     telemetry: customTelemetryProvider,
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Use in worker
 const worker = (
@@ -171,7 +171,7 @@ const worker = (
     handlers,
     telemetry: customTelemetryProvider,
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## Best Practices
@@ -204,9 +204,7 @@ const processOrder = ({ payload }) => {
   span?.setAttribute("order.id", payload.orderId);
   span?.setAttribute("order.amount", payload.amount);
 
-  return ResultAsync.fromPromise(process(payload), (e) => new RetryableError("Failed", e)).map(
-    () => undefined,
-  );
+  return fromPromise(process(payload), (e) => new RetryableError("Failed", e)).map(() => undefined);
 };
 ```
 

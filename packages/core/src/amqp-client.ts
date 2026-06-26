@@ -7,7 +7,15 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import { err, errAsync, ok, Result, ResultAsync } from "neverthrow";
+import {
+  err,
+  fromPromise,
+  fromSafePromise,
+  isErr,
+  ok,
+  type AsyncResult,
+  type Result,
+} from "unthrown";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -119,7 +127,7 @@ export type ConsumerOptions = Options.Consume & {
  * - Automatic AMQP topology setup (exchanges, queues, bindings) from contract
  * - Channel creation with JSON serialization enabled by default
  *
- * All operations return `ResultAsync<T, TechnicalError>` for consistent error handling.
+ * All operations return `AsyncResult<T, TechnicalError>` for consistent error handling.
  *
  * @example
  * ```typescript
@@ -128,7 +136,7 @@ export type ConsumerOptions = Options.Consume & {
  *   connectionOptions: { heartbeatIntervalInSeconds: 30 }
  * });
  *
- * // Wait for connection (ResultAsync is thenable)
+ * // Wait for connection (AsyncResult is thenable)
  * await client.waitForConnect();
  *
  * // Publish a message
@@ -229,7 +237,7 @@ export class AmqpClient {
    * Wait for the channel to be connected and ready.
    *
    * If `connectTimeoutMs` was provided in the constructor options, the returned
-   * ResultAsync resolves to `err(TechnicalError)` once the timeout elapses.
+   * AsyncResult resolves to `err(TechnicalError)` once the timeout elapses.
    * Without a timeout, this waits forever — amqp-connection-manager retries
    * connections indefinitely and never errors on its own.
    *
@@ -239,7 +247,7 @@ export class AmqpClient {
    * path to release the connection — `waitForConnect` does not do this
    * automatically. The typed factories handle this cleanup for you.
    */
-  waitForConnect(): ResultAsync<void, TechnicalError> {
+  waitForConnect(): AsyncResult<void, TechnicalError> {
     const connectPromise = this.channelWrapper.waitForConnect();
     const timeoutMs = this.connectTimeoutMs;
 
@@ -262,7 +270,7 @@ export class AmqpClient {
             );
           });
 
-    return ResultAsync.fromPromise(
+    return fromPromise(
       racedPromise,
       (error: unknown) => new TechnicalError("Failed to connect to AMQP broker", error),
     );
@@ -271,15 +279,15 @@ export class AmqpClient {
   /**
    * Publish a message to an exchange.
    *
-   * @returns ResultAsync resolving to `true` if the message was sent, `false` if the channel buffer is full.
+   * @returns AsyncResult resolving to `true` if the message was sent, `false` if the channel buffer is full.
    */
   publish(
     exchange: string,
     routingKey: string,
     content: Buffer | unknown,
     options?: PublishOptions,
-  ): ResultAsync<boolean, TechnicalError> {
-    return ResultAsync.fromPromise(
+  ): AsyncResult<boolean, TechnicalError> {
+    return fromPromise(
       this.channelWrapper.publish(exchange, routingKey, content, options),
       (error: unknown) => new TechnicalError("Failed to publish message", error),
     );
@@ -288,14 +296,14 @@ export class AmqpClient {
   /**
    * Publish a message directly to a queue.
    *
-   * @returns ResultAsync resolving to `true` if the message was sent, `false` if the channel buffer is full.
+   * @returns AsyncResult resolving to `true` if the message was sent, `false` if the channel buffer is full.
    */
   sendToQueue(
     queue: string,
     content: Buffer | unknown,
     options?: PublishOptions,
-  ): ResultAsync<boolean, TechnicalError> {
-    return ResultAsync.fromPromise(
+  ): AsyncResult<boolean, TechnicalError> {
+    return fromPromise(
       this.channelWrapper.sendToQueue(queue, content, options),
       (error: unknown) => new TechnicalError("Failed to publish message to queue", error),
     );
@@ -316,13 +324,13 @@ export class AmqpClient {
    * because it is not a valid `amqplib` `Options.Consume` field — leaving it
    * in would just travel as a no-op key-value pair on the consume frame.
    *
-   * @returns ResultAsync resolving to the consumer tag.
+   * @returns AsyncResult resolving to the consumer tag.
    */
   consume(
     queue: string,
     callback: ConsumeCallback,
     options?: ConsumerOptions,
-  ): ResultAsync<string, TechnicalError> {
+  ): AsyncResult<string, TechnicalError> {
     // Split prefetch out of the options that go to consume(...).
     const { prefetch, ...consumeOptions } = options ?? {};
 
@@ -333,11 +341,11 @@ export class AmqpClient {
     // travel to the broker, which either rejects or interprets unexpectedly.
     if (prefetch !== undefined) {
       if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
-        return errAsync(
+        return err(
           new TechnicalError(
             `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
           ),
-        );
+        ).toAsync();
       }
     }
 
@@ -383,7 +391,7 @@ export class AmqpClient {
       return reply;
     })();
 
-    return ResultAsync.fromPromise(
+    return fromPromise(
       consumePromise,
       (error: unknown) => new TechnicalError("Failed to start consuming messages", error),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
@@ -392,8 +400,8 @@ export class AmqpClient {
   /**
    * Cancel a consumer by its consumer tag.
    */
-  cancel(consumerTag: string): ResultAsync<void, TechnicalError> {
-    return ResultAsync.fromPromise(
+  cancel(consumerTag: string): AsyncResult<void, TechnicalError> {
+    return fromPromise(
       (async () => {
         // Drop the prefetch setup whether or not the cancel itself succeeds.
         // If `cancel` rejects (consumer already gone, tag unknown), keeping
@@ -475,13 +483,13 @@ export class AmqpClient {
    * Both steps run regardless of each other's outcome; if both fail, the
    * errors are wrapped in an AggregateError.
    */
-  close(): ResultAsync<void, TechnicalError> {
+  close(): AsyncResult<void, TechnicalError> {
     const inner = (async (): Promise<Result<void, TechnicalError>> => {
-      const channelResult = await ResultAsync.fromPromise(
+      const channelResult = await fromPromise(
         this.channelWrapper.close(),
         (error: unknown) => new TechnicalError("Failed to close channel", error),
       );
-      const releaseResult = await ResultAsync.fromPromise(
+      const releaseResult = await fromPromise(
         ConnectionManagerSingleton.getInstance().releaseConnection(
           this.urls,
           this.connectionOptions,
@@ -489,7 +497,7 @@ export class AmqpClient {
         (error: unknown) => new TechnicalError("Failed to release connection", error),
       );
 
-      if (channelResult.isErr() && releaseResult.isErr()) {
+      if (isErr(channelResult) && isErr(releaseResult)) {
         return err(
           new TechnicalError(
             "Failed to close channel and release connection",
@@ -501,12 +509,14 @@ export class AmqpClient {
         );
       }
 
-      if (channelResult.isErr()) return channelResult;
-      if (releaseResult.isErr()) return releaseResult;
+      if (isErr(channelResult)) return channelResult;
+      if (isErr(releaseResult)) return releaseResult;
       return ok(undefined);
     })();
 
-    return new ResultAsync(inner);
+    // `inner` is structured to never reject, so lift it with `fromSafePromise`
+    // and collapse the nested `Result` it resolves to back into the channel.
+    return fromSafePromise(inner).flatMap((result) => result);
   }
 
   /**

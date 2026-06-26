@@ -7,7 +7,7 @@ import {
   defineQueue,
 } from "@amqp-contract/contract";
 import type { TelemetryProvider } from "@amqp-contract/core";
-import { okAsync } from "neverthrow";
+import { ok } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 import { TypedAmqpWorker } from "../worker.js";
@@ -76,13 +76,13 @@ describe("Worker defensive nack guard", () => {
         handlers: {
           testConsumer: ({ payload }) => {
             processed.push(payload.id);
-            return okAsync(undefined);
+            return ok(undefined).toAsync();
           },
         },
         urls: [amqpConnectionUrl],
         telemetry: provider,
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     try {
       // WHEN we publish two messages back to back. The first triggers the
@@ -113,7 +113,7 @@ describe("Worker defensive nack guard", () => {
       // channel.
       expect(processed.length).toBe(2);
     } finally {
-      (await worker.close())._unsafeUnwrap();
+      (await worker.close()).unwrap();
     }
   }, 15_000);
 });

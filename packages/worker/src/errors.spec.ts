@@ -1,5 +1,4 @@
 import {
-  HandlerError,
   NonRetryableError,
   RetryableError,
   isHandlerError,
@@ -8,6 +7,7 @@ import {
   nonRetryable,
   retryable,
 } from "./errors.js";
+import type { HandlerError } from "./errors.js";
 import { describe, expect, it } from "vitest";
 
 describe("Type Guards", () => {
@@ -87,17 +87,19 @@ describe("Type Guards", () => {
   });
 });
 
-describe("HandlerError class hierarchy", () => {
-  it("RetryableError is an instance of HandlerError", () => {
+describe("HandlerError tagged union", () => {
+  it("RetryableError is a handler error and a real Error", () => {
     const error = new RetryableError("test");
-    expect(error).toBeInstanceOf(HandlerError);
+    expect(isHandlerError(error)).toBe(true);
     expect(error).toBeInstanceOf(Error);
+    expect(error._tag).toBe("RetryableError");
   });
 
-  it("NonRetryableError is an instance of HandlerError", () => {
+  it("NonRetryableError is a handler error and a real Error", () => {
     const error = new NonRetryableError("test");
-    expect(error).toBeInstanceOf(HandlerError);
+    expect(isHandlerError(error)).toBe(true);
     expect(error).toBeInstanceOf(Error);
+    expect(error._tag).toBe("NonRetryableError");
   });
 
   it("HandlerError narrows by name discriminator", () => {

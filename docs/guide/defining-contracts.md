@@ -444,7 +444,7 @@ const handlers = defineHandlers(contract, {
       `Processing order ${message.payload.orderId} for tenant ${message.headers.tenantId}`,
     );
 
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   },
 });
 ```

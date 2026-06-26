@@ -73,7 +73,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 await client.publish("chargeCustomer", {
   customerId: "cust_123",
@@ -97,11 +97,11 @@ import {
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
-import { ResultAsync, Result } from "neverthrow";
+import { fromPromise, type AsyncResult, type Result } from "unthrown";
 import { contract } from "@org/payment-contract";
 
 const chargeHandler = defineHandler(contract, "chargeCustomer", ({ payload }) =>
-  ResultAsync.fromPromise(
+  fromPromise(
     chargeProvider({
       customerId: payload.customerId,
       amount: payload.amountCents,
@@ -127,7 +127,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 process.on("SIGINT", async () => {
   await worker.close();

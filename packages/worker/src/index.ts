@@ -1,8 +1,7 @@
 export { TypedAmqpWorker } from "./worker.js";
 export type { CreateWorkerOptions, ConsumerOptions } from "./worker.js";
 export {
-  // Error classes (HandlerError is an abstract base class)
-  HandlerError,
+  // Error classes
   MessageValidationError,
   NonRetryableError,
   RetryableError,
@@ -14,6 +13,9 @@ export {
   nonRetryable,
   retryable,
 } from "./errors.js";
+// HandlerError is now a tagged union type (RetryableError | NonRetryableError),
+// not a class — re-export it as a type.
+export type { HandlerError } from "./errors.js";
 export { defineHandler, defineHandlers } from "./handlers.js";
 export type {
   WorkerConsumedMessage,

@@ -311,7 +311,7 @@ const client = (
     contract: orderContract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Publish new order with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -322,13 +322,16 @@ const result = await client.publish("orderCreated", {
   createdAt: new Date().toISOString(),
 });
 
-result.match(
-  () => console.log("Order published successfully"),
-  (error) => {
+result.match({
+  ok: () => console.log("Order published successfully"),
+  err: (error) => {
     console.error("Failed to publish:", error.message);
     // Handle error appropriately
   },
-);
+  defect: (cause) => {
+    throw cause;
+  },
+});
 
 // Publish status update
 const updateResult = await client.publish("orderUpdated", {
@@ -337,10 +340,13 @@ const updateResult = await client.publish("orderUpdated", {
   updatedAt: new Date().toISOString(),
 });
 
-updateResult.match(
-  () => console.log("Status update published"),
-  (error) => console.error("Failed:", error),
-);
+updateResult.match({
+  ok: () => console.log("Status update published"),
+  err: (error) => console.error("Failed:", error),
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ## Worker Implementation
@@ -362,27 +368,27 @@ const worker = (
         console.log(`[PROCESSING] Order ${payload.orderId}`);
         console.log(`  Customer: ${payload.customerId}`);
         console.log(`  Total: $${payload.totalAmount}`);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
 
       notifyOrder: ({ payload }) => {
         console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
 
       shipOrder: ({ payload }) => {
         console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
 
       handleUrgentOrder: ({ payload }) => {
         console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     connection,
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## Message Routing Table

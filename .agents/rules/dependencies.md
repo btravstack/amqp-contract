@@ -6,7 +6,7 @@ Versions live in [`pnpm-workspace.yaml`](../../pnpm-workspace.yaml) — that fil
 
 | Package                   | Purpose                                  |
 | ------------------------- | ---------------------------------------- |
-| `neverthrow`              | `ResultAsync` / `Result` types           |
+| `unthrown`                | `AsyncResult` / `Result` types           |
 | `amqplib`                 | AMQP 0.9.1 client                        |
 | `amqp-connection-manager` | Connection management + reconnect        |
 | `zod`                     | Schema validation (Standard Schema v1)   |

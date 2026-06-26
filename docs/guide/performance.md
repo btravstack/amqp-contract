@@ -82,8 +82,8 @@ amqp-contract automatically shares connections across clients and workers with t
 
 ```typescript
 // These share the same underlying connection
-const client = (await TypedAmqpClient.create({ contract, urls }))._unsafeUnwrap();
-const worker = (await TypedAmqpWorker.create({ contract, handlers, urls }))._unsafeUnwrap();
+const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
+const worker = (await TypedAmqpWorker.create({ contract, handlers, urls })).unwrap();
 ```
 
 ### Connection Pool Sizing
@@ -102,7 +102,7 @@ const client = (
       },
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Separate connection for consuming
 const worker = (
@@ -116,7 +116,7 @@ const worker = (
       },
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### Heartbeat Configuration
@@ -132,7 +132,7 @@ const client = (
       heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 **Recommendations:**
@@ -161,7 +161,7 @@ Publisher confirms ensure messages reach RabbitMQ:
 
 ```typescript
 // amqp-contract uses confirms by default
-// Each publish returns a ResultAsync that resolves when confirmed
+// Each publish returns a AsyncResult that resolves when confirmed
 const result = await client.publish("orderCreated", payload);
 ```
 

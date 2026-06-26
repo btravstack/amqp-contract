@@ -14,7 +14,7 @@ import {
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromSafePromise, ok } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -37,7 +37,7 @@ const it = baseIt.extend<{
             handlers,
             urls: [amqpConnectionUrl],
           })
-        )._unsafeUnwrap();
+        ).unwrap();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -46,7 +46,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .then((r) => r._unsafeUnwrap())
+            .then((r) => r.unwrap())
             .catch(() => undefined),
         ),
       );
@@ -61,7 +61,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
           })
-        )._unsafeUnwrap();
+        ).unwrap();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -70,7 +70,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .then((r) => r._unsafeUnwrap())
+            .then((r) => r.unwrap())
             .catch(() => undefined),
         ),
       );
@@ -91,7 +91,7 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) => okAsync({ sum: payload.a + payload.b }),
+      calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
     });
     const client = await clientFactory(contract);
 
@@ -124,7 +124,7 @@ describe("TypedAmqpClient RPC", () => {
     await workerFactory(contract, {
       // Cast through unknown to deliberately return a wrong shape — the worker's
       // response-schema validation drops the reply, so the client times out.
-      calculate: () => okAsync({ wrong: "shape" } as unknown as { sum: number }),
+      calculate: () => ok({ wrong: "shape" } as unknown as { sum: number }).toAsync(),
     });
     const client = await clientFactory(contract);
 
@@ -152,9 +152,9 @@ describe("TypedAmqpClient RPC", () => {
     await workerFactory(contract, {
       calculate: () => {
         handlerStarted();
-        // ResultAsync wrapping a never-resolving promise — the worker holds
+        // AsyncResult wrapping a never-resolving promise — the worker holds
         // the message until the channel is torn down by the test fixture cleanup.
-        return new ResultAsync<{ sum: number }, never>(new Promise(() => undefined));
+        return fromSafePromise<{ sum: number }>(new Promise(() => undefined));
       },
     });
 
@@ -166,7 +166,7 @@ describe("TypedAmqpClient RPC", () => {
     // the publish has completed and the pending-call entry is registered.
     await handlerStartedPromise;
 
-    (await client.close())._unsafeUnwrap();
+    (await client.close()).unwrap();
 
     const result = await callFuture;
     expect(result.isErr()).toBe(true);

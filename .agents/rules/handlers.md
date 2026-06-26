@@ -1,27 +1,26 @@
 # Handler Patterns
 
-This project uses [neverthrow](https://github.com/supermacro/neverthrow) for explicit, value-based error handling. Handlers return a `ResultAsync<T, E>` rather than throwing or using `async/await`.
+This project uses [unthrown](https://github.com/btravstack/unthrown) for explicit, value-based error handling. Handlers return an `AsyncResult<T, E>` rather than throwing or using `async/await`. unthrown adds a third **`Defect`** channel for unexpected throws alongside `Ok` / `Err`.
 
 ## Regular consumer handler
 
-A consumer handler receives `({ payload, headers }, rawMessage)` and returns `ResultAsync<void, HandlerError>`:
+A consumer handler receives `({ payload, headers }, rawMessage)` and returns `AsyncResult<void, HandlerError>`:
 
 ```typescript
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
-// Sync OK case
+// Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
 const handler = ({ payload }, rawMessage) => {
   console.log(payload.orderId);
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 };
 
-// Async case — fromPromise REQUIRES the error mapper as the second arg
+// Async case — fromPromise REQUIRES the qualify mapper as the second arg
 const asyncHandler = ({ payload }) =>
-  ResultAsync.fromPromise(
-    processPayment(payload),
-    (error) => new RetryableError("Payment failed", error),
-  ).map(() => undefined);
+  fromPromise(processPayment(payload), (error) => new RetryableError("Payment failed", error)).map(
+    () => undefined,
+  );
 ```
 
 ### Parameters
@@ -33,26 +32,26 @@ const asyncHandler = ({ payload }) =>
 
 ## RPC handler
 
-`defineRpc` creates a request-reply slot. RPC handlers return `ResultAsync<TResponse, HandlerError>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
+`defineRpc` creates a request-reply slot. RPC handlers return `AsyncResult<TResponse, HandlerError>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
 > **Important:** `defineHandler` / `defineHandlers` are not RPC-aware today. Both helpers are typed against `InferConsumerNames<TContract>` and the runtime `validateConsumerExists` only inspects `contract.consumers`. Passing an RPC name throws _"Consumer X not found in contract"_ and won't type-check. For RPC handlers, write them inline inside `TypedAmqpWorker.create({ handlers: { … } })` — the `handlers` parameter is typed against `WorkerInferHandlers<TContract>` internally, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise, ok } from "unthrown";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
 
 const result = await TypedAmqpWorker.create({
   contract,
   handlers: {
     // Regular consumer — `payload` typed from the consumer's message schema
-    processOrder: ({ payload }) => okAsync(undefined),
+    processOrder: ({ payload }) => ok(undefined).toAsync(),
 
     // RPC handler — must return the typed response payload
-    calculate: ({ payload }) => okAsync({ sum: payload.a + payload.b }),
+    calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
 
     // RPC with async work
     lookupUser: ({ payload }) =>
-      ResultAsync.fromPromise(
+      fromPromise(
         db.users.findById(payload.userId),
         (error) => new RetryableError("DB unavailable", error),
       ).map((user) => ({ id: user.id, name: user.name })),
@@ -61,13 +60,15 @@ const result = await TypedAmqpWorker.create({
 });
 ```
 
-The matching client-side call:
+The matching client-side call (`match` is boxed with three branches):
 
 ```typescript
 const result = await client.call("calculate", { a: 2, b: 3 }, { timeoutMs: 5_000 });
-if (result.isOk()) {
-  console.log(result.value.sum); // 5
-}
+result.match({
+  ok: (value) => console.log(value.sum), // 5
+  err: (error) => console.error(error),
+  defect: (cause) => console.error(cause),
+});
 ```
 
 RPC error semantics worth knowing:
@@ -83,10 +84,10 @@ Use `defineHandler` (single) or `defineHandlers` (object) for full type inferenc
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { err, fromPromise, ok } from "unthrown";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
-  ResultAsync.fromPromise(
+  fromPromise(
     processPayment(payload.orderId),
     (error) => new RetryableError("Payment service unavailable", error),
   ).map(() => undefined),
@@ -95,9 +96,9 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
 // Permanent failures use NonRetryableError → DLQ, never retried
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount < 1) {
-    return errAsync(new NonRetryableError("Invalid amount"));
+    return err(new NonRetryableError("Invalid amount")).toAsync();
   }
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 });
 ```
 
@@ -130,13 +131,13 @@ Helpers and type guards: `retryable()`, `nonRetryable()` factory functions; `isR
 | `RpcTimeoutError`        | RPC call's `timeoutMs` elapsed before a reply arrived. Pending state is cleared. A reply that arrives later is logged at `warn` and counted via `recordLateRpcReply` (it isn't retried). |
 | `RpcCancelledError`      | RPC was in flight when `client.close()` was called. All pending calls fail with this so callers don't hang.                                                                              |
 
-`publish()` returns `ResultAsync<void, TechnicalError | MessageValidationError>`.
-`call()` returns `ResultAsync<TResponse, TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError>`.
+`publish()` returns `AsyncResult<void, TechnicalError | MessageValidationError>`.
+`call()` returns `AsyncResult<TResponse, TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError>`.
 
 ```typescript
-// Conditional error mapping inside fromPromise
+// Conditional error mapping inside fromPromise's qualify
 ({ payload }) =>
-  ResultAsync.fromPromise(process(payload), (error) => {
+  fromPromise(process(payload), (error) => {
     if (error instanceof ValidationError) return new NonRetryableError("Invalid data");
     return new RetryableError("Temporary failure", error);
   }).map(() => undefined);
@@ -152,37 +153,40 @@ const handlers = {
 };
 ```
 
-## neverthrow API quick reference
+## unthrown API quick reference
 
-`ResultAsync<T, E>`:
+For the authoritative API read unthrown's type definitions; the subset this project uses:
 
-| Method                                 | Description                                                           |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| `okAsync(value)` / `errAsync(error)`   | Construct a resolved `ResultAsync`                                    |
-| `ResultAsync.fromPromise(promise, fn)` | Wrap a `Promise`; `fn` maps the rejection reason. Mapper is required. |
-| `.map(f)`                              | Transform the OK value                                                |
-| `.mapErr(f)`                           | Transform the error                                                   |
-| `.andThen(f)`                          | Chain another `Result` / `ResultAsync`                                |
-| `.orElse(f)`                           | Recover from an error with another `Result` / `ResultAsync`           |
-| `.andTee(f)` / `.orTee(f)`             | Side effect on OK / error without changing the value                  |
-| `await resultAsync`                    | Resolves to a `Result<T, E>` — no exception, even on `Err`            |
+`AsyncResult<T, E>` (async; `await` resolves to a `Result<T, E>`):
 
-`Result<T, E>` (sync):
+| Method                          | Description                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| `ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                             |
+| `err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                 |
+| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify` maps the rejection to `E \| defect(cause)`. Required. |
+| `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).    |
+| `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                |
+| `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)             |
+| `.orElse(f)`                    | Recover from an error with another `Result` / `AsyncResult`                       |
+| `.tap(f)` / `.tapErr(f)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`)   |
+| `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                        |
 
-| Method                 | Description                                                                 |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `ok(value)`            | Construct a successful `Result`                                             |
-| `err(error)`           | Construct a failed `Result`                                                 |
-| `.isOk()` / `.isErr()` | Narrowing type guards (read `.value` / `.error` after)                      |
-| `.match(okFn, errFn)`  | Positional pattern match (boxed-style `{ Ok, Error }` is **not** supported) |
-| `.unwrapOr(default)`   | Extract the value or fall back                                              |
-| `._unsafeUnwrap()`     | Throw on `Err`. Use sparingly — prefer matching.                            |
+`Result<T, E>` (sync; a union of `Ok` / `Err` / `Defect`):
+
+| Method / function                       | Description                                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok(value)` / `err(error)`              | Construct a successful / failed `Result`                                                                                                                |
+| `isOk(r)` / `isErr(r)` / `isDefect(r)`  | Standalone type-guard functions (read `.value` / `.error` / `.cause` after). The `.isOk()` / `.isErr()` **methods** return `boolean` and do not narrow. |
+| `.match({ ok, err, defect })`           | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                          |
+| `matchTags(r, { Ok, Defect, ...tags })` | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                    |
+| `.unwrapOr(default)`                    | Extract the value or fall back                                                                                                                          |
+| `.unwrap()` / `.unwrapErr()`            | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                |
 
 ## Public exports
 
 For the authoritative list, read [`packages/worker/src/index.ts`](../../packages/worker/src/index.ts). What's currently re-exported:
 
-- Classes: `TypedAmqpWorker`, `HandlerError` (abstract base), `RetryableError`, `NonRetryableError`, `MessageValidationError`
+- Classes: `TypedAmqpWorker`, `RetryableError`, `NonRetryableError`, `MessageValidationError` (the error classes are unthrown `TaggedError`s). `HandlerError` is a **type** (`RetryableError | NonRetryableError`), not a class.
 - Factories / guards: `retryable`, `nonRetryable`, `isRetryableError`, `isNonRetryableError`, `isHandlerError`
 - Helpers: `defineHandler`, `defineHandlers` (both accept consumer **and** RPC names)
 - Types: `CreateWorkerOptions`, `ConsumerOptions`, `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`

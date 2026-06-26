@@ -57,11 +57,11 @@ describe("Order Processing", () => {
 
 ## Handler Testing
 
-Handlers return `okAsync(undefined)` in mocks:
+Handlers return `ok(undefined).toAsync()` in mocks:
 
 ```typescript
 // Test handler mock
-const mockHandler = vi.fn().mockReturnValue(okAsync(undefined));
+const mockHandler = vi.fn().mockReturnValue(ok(undefined).toAsync());
 
 // Assertion pattern
 expect(mockHandler).toHaveBeenCalledWith(

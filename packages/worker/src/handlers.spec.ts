@@ -1,4 +1,4 @@
-import { errAsync, okAsync } from "neverthrow";
+import { err, ok } from "unthrown";
 import { NonRetryableError, RetryableError } from "./errors.js";
 import {
   defineConsumer,
@@ -72,7 +72,7 @@ describe("handlers", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       };
 
       // WHEN
@@ -86,7 +86,7 @@ describe("handlers", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       };
 
       // WHEN
@@ -99,7 +99,7 @@ describe("handlers", () => {
     it("should create an RPC handler returning a typed response", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { a: number; b: number } }) =>
-        okAsync({ sum: payload.a + payload.b });
+        ok({ sum: payload.a + payload.b }).toAsync();
 
       // WHEN
       const result = defineHandler(testContract, "calculate", handler);
@@ -111,7 +111,7 @@ describe("handlers", () => {
     it("should create an RPC handler with options", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { a: number; b: number } }) =>
-        okAsync({ sum: payload.a + payload.b });
+        ok({ sum: payload.a + payload.b }).toAsync();
 
       // WHEN
       const result = defineHandler(testContract, "calculate", handler, { prefetch: 5 });
@@ -124,7 +124,7 @@ describe("handlers", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       };
 
       // WHEN/THEN
@@ -143,14 +143,14 @@ describe("handlers", () => {
       const handlers = {
         testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.id);
-          return okAsync(undefined);
+          return ok(undefined).toAsync();
         },
         anotherConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
-          return okAsync(undefined);
+          return ok(undefined).toAsync();
         },
         calculate: ({ payload }: { payload: { a: number; b: number } }) =>
-          okAsync({ sum: payload.a + payload.b }),
+          ok({ sum: payload.a + payload.b }).toAsync(),
       };
 
       // WHEN
@@ -165,17 +165,17 @@ describe("handlers", () => {
       const handlers = {
         testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.id);
-          return okAsync(undefined);
+          return ok(undefined).toAsync();
         },
         anotherConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
-          return okAsync(undefined);
+          return ok(undefined).toAsync();
         },
         calculate: ({ payload }: { payload: { a: number; b: number } }) =>
-          okAsync({ sum: payload.a + payload.b }),
+          ok({ sum: payload.a + payload.b }).toAsync(),
         nonExistent: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
-          return okAsync(undefined);
+          return ok(undefined).toAsync();
         },
       };
 
@@ -195,7 +195,7 @@ describe("handlers", () => {
         _message: { payload: { id: string; data: string } },
         _rawMessage: ConsumeMessage,
       ) => {
-        return errAsync(new RetryableError("Transient failure"));
+        return err(new RetryableError("Transient failure")).toAsync();
       };
 
       // WHEN
@@ -218,7 +218,7 @@ describe("handlers", () => {
         _message: { payload: { id: string; data: string } },
         _rawMessage: ConsumeMessage,
       ) => {
-        return errAsync(new NonRetryableError("Invalid message"));
+        return err(new NonRetryableError("Invalid message")).toAsync();
       };
 
       // WHEN

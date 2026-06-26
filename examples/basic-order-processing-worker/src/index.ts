@@ -1,6 +1,6 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { RetryableError, TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "unthrown";
 import pino from "pino";
 import { z } from "zod";
 
@@ -43,7 +43,7 @@ async function main() {
           "[PROCESSING] New order received",
         );
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 500)),
           (e) => new RetryableError("Processing failed", e),
         ).map(() => {
@@ -78,7 +78,7 @@ async function main() {
           );
         }
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 300)),
           (e) => new RetryableError("Notification failed", e),
         ).map(() => {
@@ -97,7 +97,7 @@ async function main() {
           "[SHIPPING] Shipment notification received",
         );
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 400)),
           (e) => new RetryableError("Shipping failed", e),
         ).map(() => {
@@ -116,7 +116,7 @@ async function main() {
           "[URGENT] Priority order update received!",
         );
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 200)),
           (e) => new RetryableError("Urgent handling failed", e),
         ).map(() => {
@@ -136,7 +136,7 @@ async function main() {
           "[DLX] Failed order received from dead letter exchange",
         );
 
-        return ResultAsync.fromPromise(
+        return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 200)),
           (e) => new RetryableError("Failed order handling failed", e),
         ).map(() => {
@@ -145,8 +145,8 @@ async function main() {
       },
     }),
     urls: [env.AMQP_URL],
-  }).orTee((error) => logger.error({ error }, "Failed to create worker"));
-  const worker = workerResult._unsafeUnwrap();
+  }).tapErr((error) => logger.error({ error }, "Failed to create worker"));
+  const worker = workerResult.unwrap();
 
   logger.info("Worker ready, waiting for messages...");
   logger.info("=".repeat(60));
@@ -164,7 +164,7 @@ async function main() {
   // Handle graceful shutdown
   process.on("SIGINT", async () => {
     logger.info("Shutting down worker...");
-    (await worker.close())._unsafeUnwrap();
+    (await worker.close()).unwrap();
     process.exit(0);
   });
 }

@@ -61,7 +61,7 @@
     "@amqp-contract/contract": "workspace:*",
     "amqp-connection-manager": "catalog:",
     "amqplib": "catalog:",
-    "neverthrow": "catalog:"
+    "unthrown": "catalog:"
   },
   "devDependencies": {
     "@amqp-contract/testing": "workspace:*",

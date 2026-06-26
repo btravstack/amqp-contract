@@ -129,13 +129,16 @@ Error: Connection closed: 320 (CONNECTION-FORCED)
    ```typescript
    const result = await client.publish("sendEmail", message);
 
-   result.match(
-     () => console.log("Published"),
-     (error) => {
+   result.match({
+     ok: () => console.log("Published"),
+     err: (error) => {
        console.error("Failed:", error);
        // Don't ignore errors!
      },
-   );
+     defect: (cause) => {
+       throw cause;
+     },
+   });
    ```
 
 4. **Graceful shutdown:**
@@ -216,13 +219,13 @@ Property 'orderId' does not exist on type 'never'.
 3. **Check consumer handler types:**
 
    ```typescript
-   import { okAsync } from "neverthrow";
+   import { ok } from "unthrown";
 
    // ✅ Payload is automatically typed
    handlers: {
      processEmail: ({ payload }) => {
        console.log(payload.to);  // Type-safe!
-       return okAsync(undefined);
+       return ok(undefined).toAsync();
      },
    }
    ```
@@ -413,7 +416,7 @@ const orderMessage = defineMessage(
          contract,
          urls: ["amqp://localhost"],
        })
-     )._unsafeUnwrap();
+     ).unwrap();
      await client.publish("sendEmail", message);
      await client.close();
    }
@@ -424,7 +427,7 @@ const orderMessage = defineMessage(
        contract,
        urls: ["amqp://localhost"],
      })
-   )._unsafeUnwrap();
+   ).unwrap();
 
    async function publishMessage() {
      await client.publish("sendEmail", message);
@@ -464,10 +467,10 @@ const orderMessage = defineMessage(
    // ❌ Blocking operation
    handlers: {
      processOrder: ({ payload }) => {
-       return ResultAsync.fromPromise(fetch("http://slow-api.com/process"))  // Slow!
-         .andThen((result) => ResultAsync.fromPromise(processResult(result)))
-         .map(() => undefined)
-         .mapErr((error) => new RetryableError("Processing failed", error));
+       const qualify = (error: unknown) => new RetryableError("Processing failed", error);
+       return fromPromise(fetch("http://slow-api.com/process"), qualify)  // Slow!
+         .flatMap((result) => fromPromise(processResult(result), qualify))
+         .map(() => undefined);
      },
    }
 
@@ -480,7 +483,7 @@ const orderMessage = defineMessage(
          { prefetch: 10 }, // Process up to 10 messages concurrently
        ],
      },
-   }))._unsafeUnwrap();
+   })).unwrap();
    ```
 
 2. **Heavy computation in handlers:**
@@ -490,7 +493,7 @@ const orderMessage = defineMessage(
    handlers: {
      processImage: ({ payload }) => {
        // Queue heavy work to worker pool
-       return ResultAsync.fromPromise(jobQueue.add("process-image", payload), (error) => new RetryableError("Failed to queue job", error))
+       return fromPromise(jobQueue.add("process-image", payload), (error) => new RetryableError("Failed to queue job", error))
          .map(() => undefined);
      },
    }
@@ -503,15 +506,14 @@ const orderMessage = defineMessage(
    handlers: {
      processOrder: ({ payload }) => {
        // Inefficient - multiple sequential queries
-       return ResultAsync.fromPromise(
+       return fromPromise(
          (async () => {
            for (const item of payload.items) {
              await db.query("SELECT * FROM products WHERE id = ?", [item.id]);
            }
-         })()
-       )
-         .map(() => undefined)
-         .mapErr((error) => new RetryableError("Query failed", error));
+         })(),
+         (error) => new RetryableError("Query failed", error),
+       ).map(() => undefined);
      },
    }
 
@@ -519,9 +521,10 @@ const orderMessage = defineMessage(
    handlers: {
      processOrder: ({ payload }) => {
        const ids = payload.items.map(item => item.id);
-       return ResultAsync.fromPromise(db.query("SELECT * FROM products WHERE id IN (?)", [ids]))
-         .map(() => undefined)
-         .mapErr((error) => new RetryableError("Query failed", error));
+       return fromPromise(
+         db.query("SELECT * FROM products WHERE id IN (?)", [ids]),
+         (error) => new RetryableError("Query failed", error),
+       ).map(() => undefined);
      },
    }
    ```
@@ -551,7 +554,7 @@ Error: Connection timeout
          },
        },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    ```
 
 2. **Use connection pooling:**
@@ -600,7 +603,7 @@ Error: Queue 'order-processing' not found
        contract,
        urls: ["amqp://localhost"],
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    ```
 
 ### Messages not routing
