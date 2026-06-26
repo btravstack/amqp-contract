@@ -7,7 +7,7 @@
 - **TypeScript** — strict type safety
 - **Standard Schema v1** — universal schema validation interface (Zod, Valibot, ArkType)
 - **amqplib** — AMQP 0.9.1 client for Node.js
-- **neverthrow** — `ResultAsync` / `Result` functional error handling
+- **unthrown** — `AsyncResult` / `Result` functional error handling
 - **Vitest** — test framework
 - **Turbo** — monorepo build orchestrator
 - **pnpm** — package manager (catalog-based dependency management)
@@ -56,7 +56,7 @@ The shape varies by package — there's no single template. The pieces that _do_
 
 Where the packages **diverge**:
 
-- **Build config.** `core`, `client`, `worker`, `asyncapi` use a `tsdown.config.ts` (mostly to mark `neverthrow` external). `contract` and `testing` configure tsdown via CLI flags in `package.json`. `testing` is multi-entry (`index`, `global-setup`, `extension`) and ESM-only; the others are dual ESM + CJS.
+- **Build config.** `core`, `client`, `worker`, `asyncapi` use a `tsdown.config.ts` (mostly to mark `unthrown` external). `contract` and `testing` configure tsdown via CLI flags in `package.json`. `testing` is multi-entry (`index`, `global-setup`, `extension`) and ESM-only; the others are dual ESM + CJS.
 - **Test layout.** `core`, `client`, `worker` have a unit / integration split: unit specs sit next to source (`feature.spec.ts`), integration specs under `src/__tests__/`, and `vitest.config.ts` runs them as two named projects. `contract` and `asyncapi` only have unit specs and keep them next to source. `testing` has no tests (it _is_ the testing package — see [Testing](./testing.md)).
 - **Build/test scripts.** Confirm via `package.json` rather than assuming.
 

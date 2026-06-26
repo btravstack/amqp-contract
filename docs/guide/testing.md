@@ -111,7 +111,7 @@ import { describe, expect } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 describe("Order Processing Contract", () => {
@@ -125,7 +125,7 @@ describe("Order Processing Contract", () => {
         contract,
         urls: [amqpConnectionUrl],
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     // Create worker with handler
     const receivedPayloads: unknown[] = [];
@@ -135,12 +135,12 @@ describe("Order Processing Contract", () => {
         handlers: {
           processOrder: ({ payload }) => {
             receivedPayloads.push(payload);
-            return okAsync(undefined);
+            return ok(undefined).toAsync();
           },
         },
         urls: [amqpConnectionUrl],
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     // Publish message
     const result = await client.publish("orderCreated", {

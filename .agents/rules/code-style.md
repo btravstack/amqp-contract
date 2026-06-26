@@ -1,6 +1,6 @@
 # Code Style
 
-The cross-cutting language and tooling rules ("no `any`", "ResultAsync handlers", catalog dependencies, etc.) live in [`AGENTS.md` → Key Constraints](../../AGENTS.md). This file covers the patterns that aren't enforced by the linter or commit hooks.
+The cross-cutting language and tooling rules ("no `any`", "AsyncResult handlers", catalog dependencies, etc.) live in [`AGENTS.md` → Key Constraints](../../AGENTS.md). This file covers the patterns that aren't enforced by the linter or commit hooks.
 
 ## Composition Pattern
 
@@ -41,11 +41,11 @@ processOrder: async ({ payload }) => {
   await process(payload);
 };
 
-// Good — use the ResultAsync pattern from neverthrow.
+// Good — use the AsyncResult pattern from unthrown.
 // fromPromise REQUIRES the error mapper as the second argument; chaining
 // .mapErr afterwards is a type error since fromPromise has no `unknown` overload.
 processOrder: ({ payload }) =>
-  ResultAsync.fromPromise(
+  fromPromise(
     process(payload),
     (e) => new RetryableError("Failed", e),
   ).map(() => undefined);

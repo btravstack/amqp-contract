@@ -150,7 +150,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows these fields!
@@ -167,12 +167,12 @@ const worker = (
         console.log(payload.orderId); // ✅ Fully typed!
         console.log(payload.customerId); // ✅ Autocomplete!
         console.log(payload.amount); // ✅ Type safe!
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### 2. Automatic Validation
@@ -187,10 +187,13 @@ const result = await client.publish("orderCreated", {
   amount: -10, // ❌ Validation error: amount must be positive
 });
 
-result.match(
-  () => console.log("Published"),
-  (error) => console.error("Validation failed:", error),
-);
+result.match({
+  ok: () => console.log("Published"),
+  err: (error) => console.error("Validation failed:", error),
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ### 3. Compile-Time Checks

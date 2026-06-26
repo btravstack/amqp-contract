@@ -39,7 +39,7 @@ const client = (
       heartbeatIntervalInSeconds: 30,
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // 2. Create worker - automatically reuses the same connection!
 const worker = (
@@ -51,7 +51,7 @@ const worker = (
         console.log("Processing order:", payload.orderId);
 
         // Can publish from within consumer — `publish` already returns a
-        // ResultAsync, so we chain its combinators directly.
+        // AsyncResult, so we chain its combinators directly.
         return client
           .publish("orderProcessed", {
             orderId: payload.orderId,
@@ -67,7 +67,7 @@ const worker = (
       },
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Both client and worker automatically share a single connection! ✅
 // Result: 1 connection, 2 channels
@@ -120,7 +120,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"], // ← URLs match
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -130,7 +130,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Result: 1 connection, 2 channels ✅
 // - Less resource usage
@@ -154,14 +154,14 @@ const orderClient = (
     contract: orderContract,
     urls: ["amqp://localhost"], // ← Same URLs
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const notificationClient = (
   await TypedAmqpClient.create({
     contract: notificationContract,
     urls: ["amqp://localhost"], // ← Same URLs
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const orderWorker = (
   await TypedAmqpWorker.create({
@@ -171,7 +171,7 @@ const orderWorker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const notificationWorker = (
   await TypedAmqpWorker.create({
@@ -181,7 +181,7 @@ const notificationWorker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // All automatically share one connection with 4 separate channels
 ```
@@ -197,14 +197,14 @@ const mainClient = (
     contract,
     urls: ["amqp://main-cluster"], // ← Different URLs
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const analyticsClient = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://analytics-cluster"], // ← Different URLs
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Result: 2 separate connections (one per cluster)
 ```
@@ -229,7 +229,7 @@ const client = (
     urls: ["amqp://localhost"],
     connectionOptions, // ← Same options
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -240,7 +240,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // ✅ Also good: Omit options to use defaults
 const client = (
@@ -248,7 +248,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"], // ← No options
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -258,7 +258,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 #### 2. **Extract Shared Configuration**
@@ -281,7 +281,7 @@ const client = (
     contract: orderContract,
     ...AMQP_CONFIG,
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -291,7 +291,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 #### 3. **Understand Configuration Conflicts**
@@ -306,7 +306,7 @@ const client = (
     urls: ["amqp://localhost"],
     connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -317,7 +317,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Result: 2 separate connections (different configurations)
 // This may be intentional if you need different heartbeat settings
@@ -394,7 +394,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"], // ← Connection automatically created
   })
-)._unsafeUnwrap();
+).unwrap();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -404,7 +404,7 @@ const worker = (
       /* ... */
     },
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // No code changes needed - connection sharing just works!
 // Result: 1 connection, 2 channels (automatically managed)
@@ -425,7 +425,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
        contract,
        urls: ["amqp://localhost:5672"],
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    const worker = (
      await TypedAmqpWorker.create({
        contract,
@@ -434,7 +434,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
          /* ... */
        },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
 
    // ✅ Same URLs = shared connection
    const urls = ["amqp://localhost"];
@@ -443,7 +443,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
        contract,
        urls,
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    const worker = (
      await TypedAmqpWorker.create({
        contract,
@@ -452,7 +452,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
          /* ... */
        },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    ```
 
 2. **Check connection options match**:
@@ -465,7 +465,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
        urls: ["amqp://localhost"],
        connectionOptions: { heartbeatIntervalInSeconds: 30 },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    const worker = (
      await TypedAmqpWorker.create({
        contract,
@@ -475,7 +475,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
          /* ... */
        },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
 
    // ✅ Same options = shared connection
    const connectionOptions = { heartbeatIntervalInSeconds: 30 };
@@ -485,7 +485,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
        urls: ["amqp://localhost"],
        connectionOptions,
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    const worker = (
      await TypedAmqpWorker.create({
        contract,
@@ -495,7 +495,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
          /* ... */
        },
      })
-   )._unsafeUnwrap();
+   ).unwrap();
    ```
 
 ### Cleanup in tests

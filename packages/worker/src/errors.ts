@@ -1,29 +1,6 @@
+import { TaggedError } from "unthrown";
+
 export { MessageValidationError } from "@amqp-contract/core";
-
-/**
- * Abstract base class for all handler-signalled errors.
- *
- * Concrete subclasses (`RetryableError`, `NonRetryableError`) discriminate on
- * the `name` property so exhaustive narrowing in user code keeps working.
- * `error instanceof HandlerError` is true for any handler error.
- */
-export abstract class HandlerError extends Error {
-  abstract override readonly name: "RetryableError" | "NonRetryableError";
-
-  constructor(
-    message: string,
-    public override readonly cause?: unknown,
-  ) {
-    super(message);
-    // Node.js specific stack trace capture
-    const ErrorConstructor = Error as unknown as {
-      captureStackTrace?: (target: object, constructor: Function) => void;
-    };
-    if (typeof ErrorConstructor.captureStackTrace === "function") {
-      ErrorConstructor.captureStackTrace(this, this.constructor);
-    }
-  }
-}
 
 /**
  * Retryable errors - transient failures that may succeed on retry
@@ -31,9 +8,18 @@ export abstract class HandlerError extends Error {
  *
  * Use this error type when the operation might succeed if retried.
  * The worker will apply exponential backoff and retry the message.
+ *
+ * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
+ * `"RetryableError"` (its `name` is the same) for exhaustive dispatch via
+ * `matchTags`.
  */
-export class RetryableError extends HandlerError {
-  override readonly name = "RetryableError" as const;
+export class RetryableError extends TaggedError("RetryableError")<{
+  message: string;
+  cause?: unknown;
+}> {
+  constructor(message: string, cause?: unknown) {
+    super({ message, cause });
+  }
 }
 
 /**
@@ -41,11 +27,28 @@ export class RetryableError extends HandlerError {
  * Examples: invalid data, business rule violations, permanent external failures
  *
  * Use this error type when retrying would not help - the message will be
- * immediately sent to the dead letter queue (DLQ) if configured.
+ * immediately sent to the dead letter queue (DLQ) if configured. Carries a
+ * `_tag` of `"NonRetryableError"`.
  */
-export class NonRetryableError extends HandlerError {
-  override readonly name = "NonRetryableError" as const;
+export class NonRetryableError extends TaggedError("NonRetryableError")<{
+  message: string;
+  cause?: unknown;
+}> {
+  constructor(message: string, cause?: unknown) {
+    super({ message, cause });
+  }
 }
+
+/**
+ * Any handler-signalled error — the union a handler may put in the `Err`
+ * channel of its `AsyncResult`. Discriminate on `_tag` (`"RetryableError"` /
+ * `"NonRetryableError"`), e.g. with `matchTags`.
+ *
+ * Previously an abstract base class; now a tagged union, because unthrown's
+ * `TaggedError` mints a distinct base class per tag. Use {@link isHandlerError}
+ * for runtime narrowing instead of `instanceof HandlerError`.
+ */
+export type HandlerError = RetryableError | NonRetryableError;
 
 // =============================================================================
 // Type Guards
@@ -122,7 +125,7 @@ export function isNonRetryableError(error: unknown): error is NonRetryableError 
  * ```
  */
 export function isHandlerError(error: unknown): error is HandlerError {
-  return error instanceof HandlerError;
+  return error instanceof RetryableError || error instanceof NonRetryableError;
 }
 
 // =============================================================================
@@ -142,16 +145,16 @@ export function isHandlerError(error: unknown): error is HandlerError {
  * @example
  * ```typescript
  * import { retryable } from '@amqp-contract/worker';
- * import { ResultAsync } from 'neverthrow';
+ * import { fromPromise } from 'unthrown';
  *
  * const handler = ({ payload }) =>
- *   ResultAsync.fromPromise(
+ *   fromPromise(
  *     processPayment(payload),
  *     (e) => retryable('Payment service unavailable', e),
  *   ).map(() => undefined);
  *
  * // Equivalent to:
- * // ResultAsync.fromPromise(processPayment(payload), (e) => new RetryableError('...', e))
+ * // fromPromise(processPayment(payload), (e) => new RetryableError('...', e))
  * ```
  */
 export function retryable(message: string, cause?: unknown): RetryableError {
@@ -171,17 +174,17 @@ export function retryable(message: string, cause?: unknown): RetryableError {
  * @example
  * ```typescript
  * import { nonRetryable } from '@amqp-contract/worker';
- * import { errAsync, okAsync } from 'neverthrow';
+ * import { err, ok } from 'unthrown';
  *
  * const handler = ({ payload }) => {
  *   if (!isValidPayload(payload)) {
- *     return errAsync(nonRetryable('Invalid payload format'));
+ *     return err(nonRetryable('Invalid payload format')).toAsync();
  *   }
- *   return okAsync(undefined);
+ *   return ok(undefined).toAsync();
  * };
  *
  * // Equivalent to:
- * // return errAsync(new NonRetryableError('Invalid payload format'));
+ * // return err(new NonRetryableError('Invalid payload format')).toAsync();
  * ```
  */
 export function nonRetryable(message: string, cause?: unknown): NonRetryableError {

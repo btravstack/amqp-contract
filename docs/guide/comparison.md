@@ -71,7 +71,7 @@ const client = (
     contract, // Resources declared automatically!
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Publish - fully typed and validated!
 const result = await client.publish("orderCreated", {
@@ -80,10 +80,13 @@ const result = await client.publish("orderCreated", {
   customerId: "CUST-456", // ✅ Required fields enforced!
 });
 
-result.match(
-  () => console.log("✅ Published"),
-  (error) => console.error("❌ Failed:", error),
-); // ✅ Automatic validation!
+result.match({
+  ok: () => console.log("✅ Published"),
+  err: (error) => console.error("❌ Failed:", error),
+  defect: (cause) => {
+    throw cause;
+  },
+}); // ✅ Automatic validation!
 
 // Cleanup managed for you
 await client.close();
@@ -118,7 +121,7 @@ channel.consume("order-processing", (msg) => {
 
 ```typescript [✅ amqp-contract - Fully typed]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { okAsync, ResultAsync, Result } from "neverthrow";
+import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 const worker = (
@@ -130,12 +133,12 @@ const worker = (
         console.log(payload.orderId); // ✅ Full autocomplete!
         console.log(payload.amount); // ✅ Type-safe!
         // ✅ Automatic validation - invalid messages rejected!
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       }, // ✅ Auto-acknowledgment on success!
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 :::

@@ -1,6 +1,6 @@
 # Error Model
 
-amqp-contract uses [`neverthrow`](https://github.com/supermacro/neverthrow)'s `ResultAsync<T, E>` everywhere — there are no thrown exceptions in the public API, no `try/catch` to remember. Errors are values you propagate, transform, and inspect.
+amqp-contract uses [`unthrown`](https://github.com/btravstack/unthrown)'s `AsyncResult<T, E>` everywhere — there are no thrown exceptions in the public API, no `try/catch` to remember. Errors are values you propagate, transform, and inspect. unthrown adds a third **`Defect`** channel for genuinely unexpected failures, so `match` has an `ok` / `err` / `defect` shape.
 
 This page lists every error type the library can produce, where it surfaces, and what you should do with it.
 
@@ -30,7 +30,7 @@ The failure is transient. The queue's [retry mode](./retry-strategies.md) decide
 import { RetryableError } from "@amqp-contract/worker";
 
 ({ payload }) =>
-  ResultAsync.fromPromise(
+  fromPromise(
     callExternalApi(payload),
     (error) => new RetryableError("API unavailable", error),
   ).map(() => undefined);
@@ -45,7 +45,7 @@ import { NonRetryableError } from "@amqp-contract/worker";
 
 ({ payload }) => {
   if (payload.amount < 0) {
-    return errAsync(new NonRetryableError("Negative amount"));
+    return err(new NonRetryableError("Negative amount")).toAsync();
   }
   // ...
 };
@@ -88,14 +88,17 @@ Any failure of the AMQP transport itself: connection lost, channel closed, broke
 import { TechnicalError } from "@amqp-contract/core";
 
 const result = await client.publish("orderCreated", { orderId: "1" });
-result.match(
-  () => console.log("ok"),
-  (err) => {
+result.match({
+  ok: () => console.log("ok"),
+  err: (err) => {
     if (err instanceof TechnicalError) {
       // err.cause holds the original amqplib / amqp-connection-manager error
     }
   },
-);
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ### `MessageValidationError`
@@ -120,28 +123,31 @@ The client was closed (`client.close()`) while a call was still pending. All in-
 import { RpcTimeoutError, RpcCancelledError } from "@amqp-contract/client";
 
 const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000 });
-result.match(
-  (response) => /* ... */,
-  (err) => {
+result.match({
+  ok: (response) => /* ... */,
+  err: (err) => {
     if (err instanceof RpcTimeoutError) /* retry, or fall back */;
     if (err instanceof RpcCancelledError) /* shutting down */;
     if (err instanceof MessageValidationError) /* response shape wrong */;
     if (err instanceof TechnicalError) /* transport problem */;
   },
-  );
+  defect: (cause) => {
+    throw cause;
+  },
+});
 ```
 
 ## Why not just throw?
 
 Two reasons:
 
-1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a ResultAsync chain would normally crash the consume loop. Returning `err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
+1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a AsyncResult chain would normally crash the consume loop. Returning `err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
 
-2. **Type-safe error union.** `ResultAsync<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match(okFn, errFn)`. A thrown `unknown` gives no such guarantees.
+2. **Type-safe error union.** `AsyncResult<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match({ ok, err, defect })`. A thrown `unknown` gives no such guarantees.
 
 ## Defensive guards
 
-The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `errAsync(...)` instead.
+The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `err(...).toAsync()` instead.
 
 ## See also
 

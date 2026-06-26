@@ -22,12 +22,42 @@ import {
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
-import { err, errAsync, ok, okAsync, ResultAsync } from "neverthrow";
+import {
+  all,
+  err,
+  fromPromise,
+  fromSafePromise,
+  isErr,
+  isOk,
+  ok,
+  type AsyncResult,
+  type Result,
+} from "unthrown";
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
 import { handleError } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
+
+/**
+ * Combine a homogeneous list of {@link AsyncResult}s into a single
+ * `AsyncResult` of the array of success values.
+ *
+ * unthrown ships a synchronous {@link all} for tuples of `Result`s but no
+ * async combinator, so we resolve each `AsyncResult` to its `Result` (the
+ * internal promise never rejects) and fold them with `all`, which short-circuits
+ * on the first `Err` and lets any `Defect` dominate.
+ */
+function combineAsync<T, E>(results: readonly AsyncResult<T, E>[]): AsyncResult<T[], E> {
+  const resolveAll = (async () => {
+    const resolved: Result<T, E>[] = [];
+    for (const result of results) {
+      resolved.push(await result);
+    }
+    return resolved;
+  })();
+  return fromSafePromise(resolveAll).flatMap((resolved) => all(resolved) as Result<T[], E>);
+}
 
 /**
  * Either a regular consumer name or an RPC name from the contract.
@@ -45,7 +75,7 @@ type HandlerName<TContract extends ContractDefinition> =
 type StoredHandler = (
   message: { payload: unknown; headers: unknown },
   rawMessage: ConsumeMessage,
-) => ResultAsync<unknown, HandlerError>;
+) => AsyncResult<unknown, HandlerError>;
 
 export type ConsumerOptions = AmqpClientConsumerOptions;
 
@@ -69,13 +99,13 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  *     // Simple handler
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order:', payload.orderId);
- *       return okAsync(undefined);
+ *       return ok(undefined).toAsync();
  *     },
  *     // Handler with prefetch configuration
  *     processPayment: [
  *       ({ payload }) => {
  *         console.log('Processing payment:', payload.paymentId);
- *         return okAsync(undefined);
+ *         return ok(undefined).toAsync();
  *       },
  *       { prefetch: 10 }
  *     ]
@@ -100,8 +130,8 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
   /**
    * Handlers for each `consumers` and `rpcs` entry in the contract.
    *
-   * - Regular consumers return `ResultAsync<void, HandlerError>`.
-   * - RPC handlers return `ResultAsync<TResponse, HandlerError>` where
+   * - Regular consumers return `AsyncResult<void, HandlerError>`.
+   * - RPC handlers return `AsyncResult<TResponse, HandlerError>` where
    *   `TResponse` is inferred from the RPC's response message schema.
    *
    * Use `defineHandler` / `defineHandlers` to create handlers with full type
@@ -146,7 +176,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
  * ```typescript
  * import { TypedAmqpWorker } from '@amqp-contract/worker';
  * import { defineQueue, defineMessage, defineContract, defineConsumer } from '@amqp-contract/contract';
- * import { okAsync } from 'neverthrow';
+ * import { ok } from 'unthrown';
  * import { z } from 'zod';
  *
  * const orderQueue = defineQueue('order-processing');
@@ -166,7 +196,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
  *   handlers: {
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order', payload.orderId);
- *       return okAsync(undefined);
+ *       return ok(undefined).toAsync();
  *     },
  *   },
  *   urls: ['amqp://localhost'],
@@ -265,14 +295,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * Connections are automatically shared across clients and workers with the same
    * URLs and connection options, following RabbitMQ best practices.
    *
-   * @returns A ResultAsync that resolves to the worker or a TechnicalError.
+   * @returns A AsyncResult that resolves to the worker or a TechnicalError.
    *
    * @example
    * ```typescript
    * const result = await TypedAmqpWorker.create({
    *   contract: myContract,
    *   handlers: {
-   *     processOrder: ({ payload }) => okAsync(undefined),
+   *     processOrder: ({ payload }) => ok(undefined).toAsync(),
    *   },
    *   urls: ['amqp://localhost'],
    * });
@@ -287,7 +317,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     logger,
     telemetry,
     connectTimeoutMs,
-  }: CreateWorkerOptions<TContract>): ResultAsync<TypedAmqpWorker<TContract>, TechnicalError> {
+  }: CreateWorkerOptions<TContract>): AsyncResult<TypedAmqpWorker<TContract>, TechnicalError> {
     const worker = new TypedAmqpWorker(
       contract,
       new AmqpClient(contract, {
@@ -303,26 +333,27 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
     // Note: Wait queues are now created by the core package in setupAmqpTopology
     // when the queue's retry mode is "ttl-backoff"
-    const setup = worker.waitForConnectionReady().andThen(() => worker.consumeAll());
+    const setup = worker.waitForConnectionReady().flatMap(() => worker.consumeAll());
 
     // If setup fails, release the AmqpClient's connection ref-count and cancel
     // any consumers that registered before the failure, so a failed create()
     // does not leak.
-    return new ResultAsync<TypedAmqpWorker<TContract>, TechnicalError>(
-      (async () => {
-        const setupResult = await setup;
-        if (setupResult.isOk()) {
-          return ok(worker);
-        }
+    const inner = (async (): Promise<Result<TypedAmqpWorker<TContract>, TechnicalError>> => {
+      const setupResult = await setup;
+      if (!isOk(setupResult)) {
         const closeResult = await worker.close();
-        if (closeResult.isErr()) {
+        if (isErr(closeResult)) {
           logger?.warn("Failed to close worker after setup failure", {
             error: closeResult.error,
           });
         }
-        return err(setupResult.error);
-      })(),
-    );
+      }
+      // `map` runs only on Ok; an Err/Defect passes through with its value type
+      // re-shaped to the worker, so the failure surfaces unchanged.
+      return setupResult.map(() => worker);
+    })();
+
+    return fromSafePromise(inner).flatMap((result) => result);
   }
 
   /**
@@ -339,38 +370,38 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * }
    * ```
    */
-  close(): ResultAsync<void, TechnicalError> {
+  close(): AsyncResult<void, TechnicalError> {
     const cancellations = Array.from(this.consumerTags).map((consumerTag) =>
       // Swallow per-consumer cancel errors during close — they are best-effort
       // cleanup and we still want to release the underlying connection.
       this.amqpClient.cancel(consumerTag).orElse((error) => {
         this.logger?.warn("Failed to cancel consumer during close", { consumerTag, error });
-        return ok<void, TechnicalError>(undefined);
+        return ok(undefined);
       }),
     );
 
-    return ResultAsync.combine(cancellations)
-      .andTee(() => {
+    return combineAsync(cancellations)
+      .tap(() => {
         this.consumerTags.clear();
       })
-      .andThen(() => this.amqpClient.close())
+      .flatMap(() => this.amqpClient.close())
       .map(() => undefined);
   }
 
   /**
    * Start consuming for every entry in `contract.consumers` and `contract.rpcs`.
    */
-  private consumeAll(): ResultAsync<void, TechnicalError> {
+  private consumeAll(): AsyncResult<void, TechnicalError> {
     const consumerNames = Object.keys(
       this.contract.consumers ?? {},
     ) as InferConsumerNames<TContract>[];
     const rpcNames = Object.keys(this.contract.rpcs ?? {}) as InferRpcNames<TContract>[];
     const allNames = [...consumerNames, ...rpcNames] as HandlerName<TContract>[];
 
-    return ResultAsync.combine(allNames.map((name) => this.consume(name))).map(() => undefined);
+    return combineAsync(allNames.map((name) => this.consume(name))).map(() => undefined);
   }
 
-  private waitForConnectionReady(): ResultAsync<void, TechnicalError> {
+  private waitForConnectionReady(): AsyncResult<void, TechnicalError> {
     return this.amqpClient.waitForConnect();
   }
 
@@ -378,7 +409,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * Start consuming messages for a specific handler — either a `consumers`
    * entry (regular event/command consumer) or an `rpcs` entry (RPC server).
    */
-  private consume(name: HandlerName<TContract>): ResultAsync<void, TechnicalError> {
+  private consume(name: HandlerName<TContract>): AsyncResult<void, TechnicalError> {
     const view = this.resolveConsumerView(name);
     // Non-null assertion safe: `WorkerInferHandlers<TContract>` requires every
     // consumers / rpcs key to have a handler, so by the time we reach this
@@ -397,15 +428,15 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     schema: StandardSchemaV1,
     data: unknown,
     context: { consumerName: string; field: string },
-  ): ResultAsync<unknown, TechnicalError> {
+  ): AsyncResult<unknown, TechnicalError> {
     const rawValidation = schema["~standard"].validate(data);
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
 
-    return ResultAsync.fromPromise(
+    return fromPromise(
       validationPromise,
       (error) => new TechnicalError(`Error validating ${context.field}`, error),
-    ).andThen((result) => {
+    ).flatMap((result) => {
       if (result.issues) {
         return err(
           new TechnicalError(
@@ -414,7 +445,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           ),
         );
       }
-      return ok<unknown, TechnicalError>(result.value);
+      return ok(result.value);
     });
   }
 
@@ -429,21 +460,21 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     msg: ConsumeMessage,
     consumer: ConsumerDefinition,
     consumerName: HandlerName<TContract>,
-  ): ResultAsync<{ payload: unknown; headers: unknown }, TechnicalError> {
+  ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
     const context = { consumerName: String(consumerName) };
 
     const parsePayload = decompressBuffer(msg.content, msg.properties.contentEncoding)
-      .andThen((buffer) =>
+      .flatMap((buffer) =>
         safeJsonParse(buffer, (error) => new TechnicalError("Failed to parse JSON", error)),
       )
-      .andThen((parsed) =>
+      .flatMap((parsed) =>
         this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, {
           ...context,
           field: "payload",
         }),
       );
 
-    const parseHeaders: ResultAsync<unknown, TechnicalError> = consumer.message.headers
+    const parseHeaders: AsyncResult<unknown, TechnicalError> = consumer.message.headers
       ? this.validateSchema(
           consumer.message.headers as StandardSchemaV1,
           msg.properties.headers ?? {},
@@ -452,9 +483,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             field: "headers",
           },
         )
-      : okAsync(undefined);
+      : ok(undefined).toAsync();
 
-    return ResultAsync.combine([parsePayload, parseHeaders]).map(([payload, headers]) => ({
+    return combineAsync([parsePayload, parseHeaders]).map(([payload, headers]) => ({
       payload,
       headers,
     }));
@@ -485,7 +516,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     rpcName: HandlerName<TContract>,
     responseSchema: StandardSchemaV1,
     response: unknown,
-  ): ResultAsync<void, HandlerError> {
+  ): AsyncResult<void, HandlerError> {
     const replyTo = msg.properties.replyTo;
     const correlationId = msg.properties.correlationId;
     if (typeof replyTo !== "string" || replyTo.length === 0) {
@@ -493,11 +524,11 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         "RPC handler returned a response but the incoming message has no replyTo",
         { rpcName: String(rpcName), queueName },
       );
-      return errAsync(
+      return err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without replyTo; cannot deliver response`,
         ),
-      );
+      ).toAsync();
     }
     if (typeof correlationId !== "string" || correlationId.length === 0) {
       // Without a correlationId the client cannot match the reply to its
@@ -506,11 +537,11 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         "RPC handler returned a response but the incoming message has no correlationId",
         { rpcName: String(rpcName), queueName, replyTo },
       );
-      return errAsync(
+      return err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without correlationId; cannot deliver response`,
         ),
-      );
+      ).toAsync();
     }
 
     // Wrap the call to `validate` itself in try/catch — a Standard Schema
@@ -520,28 +551,28 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     try {
       rawValidation = responseSchema["~standard"].validate(response);
     } catch (error: unknown) {
-      return errAsync(new NonRetryableError("RPC response schema validation threw", error));
+      return err(new NonRetryableError("RPC response schema validation threw", error)).toAsync();
     }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
 
-    return ResultAsync.fromPromise(
+    return fromPromise(
       validationPromise,
       (error: unknown) =>
         new NonRetryableError("RPC response schema validation threw", error) as HandlerError,
     )
-      .andThen((validation) => {
+      .flatMap((validation) => {
         if (validation.issues) {
-          return err<unknown, HandlerError>(
+          return err<HandlerError>(
             new NonRetryableError(
               `RPC response for "${String(rpcName)}" failed schema validation`,
               new MessageValidationError(String(rpcName), validation.issues),
             ),
           );
         }
-        return ok<unknown, HandlerError>(validation.value);
+        return ok(validation.value);
       })
-      .andThen((validatedResponse) =>
+      .flatMap((validatedResponse) =>
         this.amqpClient
           .publish("", replyTo, validatedResponse, {
             correlationId,
@@ -556,10 +587,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             (error: TechnicalError): HandlerError =>
               new NonRetryableError("Failed to publish RPC response", error),
           )
-          .andThen((published) =>
+          .flatMap((published) =>
             published
-              ? ok<void, HandlerError>(undefined)
-              : err<void, HandlerError>(
+              ? ok(undefined)
+              : err<HandlerError>(
                   new NonRetryableError("Failed to publish RPC response: channel buffer full"),
                 ),
           ),
@@ -576,10 +607,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     msg: ConsumeMessage,
     consumer: ConsumerDefinition,
     name: HandlerName<TContract>,
-  ): ResultAsync<{ payload: unknown; headers: unknown }, TechnicalError> {
+  ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
     return this.parseAndValidateMessage(msg, consumer, name).orElse((parseError) => {
       this.amqpClient.nack(msg, false, false);
-      return errAsync(parseError);
+      return err(parseError).toAsync();
     });
   }
 
@@ -593,23 +624,23 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     handler: StoredHandler,
     validatedMessage: { payload: unknown; headers: unknown },
     msg: ConsumeMessage,
-  ): ResultAsync<unknown, HandlerError> {
+  ): AsyncResult<unknown, HandlerError> {
     return handler(validatedMessage, msg);
   }
 
   /**
    * For RPC handlers, validate and publish the reply on the caller's
    * `replyTo` / `correlationId`. For non-RPC consumers, this is a no-op that
-   * resolves to `okAsync(undefined)`.
+   * resolves to `ok(undefined).toAsync()`.
    */
   private publishReplyIfRpc(
     msg: ConsumeMessage,
     view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
     name: HandlerName<TContract>,
     handlerResponse: unknown,
-  ): ResultAsync<void, HandlerError> {
+  ): AsyncResult<void, HandlerError> {
     if (!view.isRpc || !view.responseSchema) {
-      return okAsync<void, HandlerError>(undefined);
+      return ok(undefined).toAsync();
     }
     const queueName = extractQueue(view.consumer.queue).name;
     return this.publishRpcResponse(msg, queueName, name, view.responseSchema, handlerResponse);
@@ -638,7 +669,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     name: HandlerName<TContract>,
     handler: StoredHandler,
     state: { messageHandled: boolean },
-  ): ResultAsync<void, TechnicalError> {
+  ): AsyncResult<void, TechnicalError> {
     const { consumer } = view;
     const queueName = extractQueue(consumer.queue).name;
     const startTime = Date.now();
@@ -647,7 +678,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     });
 
     return this.parseAndValidateOrNack(msg, consumer, name)
-      .orTee((parseError) => {
+      .tapErr((parseError) => {
         this.logger?.error("Failed to parse/validate message; sending to DLQ", {
           consumerName: String(name),
           queueName,
@@ -657,10 +688,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // catch-all in consumeSingle does not double-act.
         state.messageHandled = true;
       })
-      .andThen<void, TechnicalError>((validatedMessage) =>
+      .flatMap<void, TechnicalError>((validatedMessage) =>
         this.runHandler(handler, validatedMessage, msg)
-          .andThen((handlerResponse) =>
-            this.publishReplyIfRpc(msg, view, name, handlerResponse).andTee(() => {
+          .flatMap((handlerResponse) =>
+            this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
               this.logger?.info("Message consumed successfully", {
                 consumerName: String(name),
                 queueName,
@@ -700,20 +731,20 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               String(name),
               consumer,
             )
-              .andTee(() => {
+              .tap(() => {
                 state.messageHandled = true;
               })
-              .andThen(() =>
-                errAsync<void, TechnicalError>(
+              .flatMap(() =>
+                err(
                   new TechnicalError(
                     `Handler "${String(name)}" failed: ${handlerError.message}`,
                     handlerError,
                   ),
-                ),
+                ).toAsync(),
               );
           }),
       )
-      .andTee(() => {
+      .tap(() => {
         // Telemetry must never throw out of the consume loop — wrap each
         // call so an instrumentation bug cannot poison the dispatch path
         // (which would land us in the catch-all in consumeSingle, racing
@@ -735,7 +766,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           });
         }
       })
-      .orTee((error) => {
+      .tapErr((error) => {
         // Routed handler failures arrive here wrapped in a `TechnicalError`
         // with the original `HandlerError` carried via `cause`. Surface the
         // original to the span so the recorded `exception.type` is the
@@ -768,7 +799,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     name: HandlerName<TContract>,
     view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
     handler: StoredHandler,
-  ): ResultAsync<void, TechnicalError> {
+  ): AsyncResult<void, TechnicalError> {
     const queueName = extractQueue(view.consumer.queue).name;
 
     return this.amqpClient
@@ -782,7 +813,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             });
             return;
           }
-          // The dispatch path is built on `ResultAsync` so handler failures
+          // The dispatch path is built on `AsyncResult` so handler failures
           // are values, not exceptions. Defensively guard the boundary anyway:
           // a handler that violates the contract by throwing synchronously (or
           // any unexpected fault inside processMessage) would otherwise leave
@@ -820,7 +851,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         },
         this.consumerOptions[name],
       )
-      .andTee((consumerTag) => {
+      .tap((consumerTag) => {
         this.consumerTags.add(consumerTag);
       })
       .map(() => undefined)

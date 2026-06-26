@@ -4,18 +4,18 @@ Type-safe contracts for AMQP/RabbitMQ messaging with automatic runtime validatio
 
 ## Rules
 
-| Rule                                                    | Read this when…                                                  |
-| ------------------------------------------------------- | ---------------------------------------------------------------- |
-| [Project Overview](.agents/rules/project-overview.md)   | Orienting yourself in the repo, looking up which package owns X  |
-| [Commands](.agents/rules/commands.md)                   | Running anything (`pnpm`, turbo filters, integration tests)      |
-| [Contract Patterns](.agents/rules/contract-patterns.md) | Defining or modifying a contract (publishers/consumers/RPCs)     |
-| [Handlers](.agents/rules/handlers.md)                   | Writing worker handlers, dealing with `ResultAsync` / neverthrow |
-| [Runtime](.agents/rules/runtime.md)                     | Touching connections, telemetry, compression                     |
-| [Code Style](.agents/rules/code-style.md)               | Reviewing or writing TS — composition, anti-patterns             |
-| [Testing](.agents/rules/testing.md)                     | Adding unit or integration tests, using the testing fixtures     |
-| [Build & Release](.agents/rules/build-and-release.md)   | Adding a package, modifying tsdown config, shipping a release    |
-| [Dependencies](.agents/rules/dependencies.md)           | Adding a dep, picking a schema lib, catalog questions            |
-| [Recipes](.agents/rules/recipes.md)                     | "How do I add a new consumer / RPC / publishable package?"       |
+| Rule                                                    | Read this when…                                                 |
+| ------------------------------------------------------- | --------------------------------------------------------------- |
+| [Project Overview](.agents/rules/project-overview.md)   | Orienting yourself in the repo, looking up which package owns X |
+| [Commands](.agents/rules/commands.md)                   | Running anything (`pnpm`, turbo filters, integration tests)     |
+| [Contract Patterns](.agents/rules/contract-patterns.md) | Defining or modifying a contract (publishers/consumers/RPCs)    |
+| [Handlers](.agents/rules/handlers.md)                   | Writing worker handlers, dealing with `AsyncResult` / unthrown  |
+| [Runtime](.agents/rules/runtime.md)                     | Touching connections, telemetry, compression                    |
+| [Code Style](.agents/rules/code-style.md)               | Reviewing or writing TS — composition, anti-patterns            |
+| [Testing](.agents/rules/testing.md)                     | Adding unit or integration tests, using the testing fixtures    |
+| [Build & Release](.agents/rules/build-and-release.md)   | Adding a package, modifying tsdown config, shipping a release   |
+| [Dependencies](.agents/rules/dependencies.md)           | Adding a dep, picking a schema lib, catalog questions           |
+| [Recipes](.agents/rules/recipes.md)                     | "How do I add a new consumer / RPC / publishable package?"      |
 
 ## Key Constraints
 
@@ -30,10 +30,13 @@ This is the canonical list — sub-files reference these rather than restating t
 
 ### Handlers and error handling
 
-- Handlers return `ResultAsync<void, HandlerError>` (regular consumer) or `ResultAsync<TResponse, HandlerError>` (RPC). No `async`/`await` in handler signatures.
-- `await resultAsync` resolves to a `Result<T, E>` — it does **not** throw on `Err`.
-- `result.match(okFn, errFn)` is **positional**. Boxed-style `match({ Ok, Error })` is not supported.
-- `ResultAsync.fromPromise(promise, errorMapper)` requires the error mapper as the second argument. Chaining `.mapErr(fn)` afterwards instead is a type error.
+- Error handling uses [`unthrown`](https://github.com/btravstack/unthrown) (not neverthrow). It adds a third **`Defect`** channel for unexpected throws alongside `Ok` / `Err`.
+- Handlers return `AsyncResult<void, HandlerError>` (regular consumer) or `AsyncResult<TResponse, HandlerError>` (RPC). No `async`/`await` in handler signatures.
+- `await asyncResult` resolves to a `Result<T, E>` — it does **not** throw on `Err`.
+- `result.match({ ok, err, defect })` is **boxed and has three branches**. Positional `match(okFn, errFn)` is the old neverthrow shape and is not supported.
+- Build async results with `ok(value).toAsync()` / `err(error).toAsync()` — there is no `okAsync` / `errAsync`.
+- Wrap promises with the free function `fromPromise(promise, qualify)` (not a static `ResultAsync.fromPromise`); `qualify` maps the rejection reason to `E | defect(cause)` and is required.
+- `.isOk()` / `.isErr()` return `boolean` and do **not** narrow — use the standalone `isOk(result)` / `isErr(result)` guards to access `.value` / `.error`.
 
 ### Topology and contract authoring
 
@@ -67,10 +70,12 @@ These do **not** need confirmation:
 
 These have been re-introduced more than once across recent migrations / reviews — flag them in self-review:
 
-- **Treating `await TypedAmqp(Client|Worker).create(...)` as a client/worker.** It returns `ResultAsync<Client, TechnicalError>`; `await` gives you a `Result`. Unwrap with `_unsafeUnwrap()` (or pattern-match) before calling instance methods.
-- **Wrapping `client.publish(...)` in `ResultAsync.fromPromise(...)`.** `publish` already returns a `ResultAsync` — wrap it again and you get `ResultAsync<ResultAsync<...>>`. Chain `.map` / `.mapErr` directly.
-- **Calling `ResultAsync.fromPromise(p)` without the error mapper.** The mapper is a required second argument. The TS error is sometimes opaque ("expected 2 arguments, got 1"), but the fix is always: pass the mapper.
-- **Using `result.match({ Ok, Error })`.** That's the boxed shape. neverthrow's `match` is positional: `result.match(okFn, errFn)`.
+- **Treating `await TypedAmqp(Client|Worker).create(...)` as a client/worker.** It returns `AsyncResult<Client, TechnicalError>`; `await` gives you a `Result`. Unwrap with `.unwrap()` (or pattern-match) before calling instance methods.
+- **Wrapping `client.publish(...)` in `fromPromise(...)`.** `publish` already returns an `AsyncResult` — wrap it again and you get `AsyncResult<AsyncResult<...>>`. Chain `.map` / `.mapErr` / `.flatMap` directly.
+- **Calling `fromPromise(p)` without the `qualify` mapper.** The mapper is a required second argument and must return `E | defect(cause)`. The fix to the opaque "expected 2 arguments, got 1" error is always: pass the mapper.
+- **Using positional `result.match(okFn, errFn)`.** That's the old neverthrow shape. unthrown's `match` is boxed with three branches: `result.match({ ok, err, defect })`.
+- **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `ok(v).toAsync()` / `err(e).toAsync()`, the `AsyncResult` type, and `.unwrap()`.
+- **Using `.isOk()` / `.isErr()` as type guards.** They return `boolean` in unthrown — narrow with the standalone `isOk(r)` / `isErr(r)` before touching `.value` / `.error`.
 - **Adding a publishable package without `repository`, `homepage`, `bugs`, `author`, `license`** — npm will reject with a 422 on provenance validation under Trusted Publishing.
 - **Hardcoding a dep version in a `package.json`.** Use `"catalog:"` and add the actual version once in `pnpm-workspace.yaml`.
 - **Forgetting to add a changeset** when changing public API. The release will silently skip your change.

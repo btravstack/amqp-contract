@@ -35,7 +35,7 @@ import {
 } from "@amqp-contract/contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { okAsync } from "neverthrow";
+import { ok } from "unthrown";
 import { z } from "zod";
 
 // 1. Define resources with Dead Letter Exchange and retry configuration
@@ -76,7 +76,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -90,21 +90,21 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         console.log(payload.orderId); // ✅ TypeScript knows!
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ## Installation
 
 ```bash
-pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker neverthrow
+pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown
 ```
 
-`neverthrow` is exposed in the public types (`ResultAsync<void, HandlerError>`), so consumers need it directly to construct handler results.
+[`unthrown`](https://github.com/btravstack/unthrown) is exposed in the public types (`AsyncResult<void, HandlerError>`), so consumers need it directly to construct handler results.
 
 ## Documentation
 

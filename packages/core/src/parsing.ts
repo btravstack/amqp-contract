@@ -1,4 +1,4 @@
-import { Result } from "neverthrow";
+import { fromThrowable, type Result } from "unthrown";
 
 /**
  * Parse a `Buffer` as JSON, mapping any `JSON.parse` exception to the
@@ -22,5 +22,5 @@ import { Result } from "neverthrow";
  * ```
  */
 export function safeJsonParse<E>(buffer: Buffer, errorFn: (raw: unknown) => E): Result<unknown, E> {
-  return Result.fromThrowable(() => JSON.parse(buffer.toString()) as unknown, errorFn)();
+  return fromThrowable(() => JSON.parse(buffer.toString()) as unknown, errorFn)();
 }

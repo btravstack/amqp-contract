@@ -61,7 +61,7 @@
     "@amqp-contract/contract": "workspace:*",
     "@amqp-contract/core": "workspace:*",
     "@standard-schema/spec": "catalog:",
-    "neverthrow": "catalog:"
+    "unthrown": "catalog:"
   },
   "devDependencies": {
     "@amqp-contract/testing": "workspace:*",

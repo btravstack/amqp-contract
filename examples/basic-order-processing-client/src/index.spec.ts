@@ -1,5 +1,5 @@
 import { describe, expect } from "vitest";
-import { ok } from "neverthrow";
+import { ok } from "unthrown";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { it } from "@amqp-contract/testing/extension";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
@@ -12,7 +12,7 @@ describe("Basic Order Processing Client Integration", () => {
         contract: orderContract,
         urls: [amqpConnectionUrl],
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     const newOrder = {
       orderId: "TEST-001",
@@ -32,7 +32,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(ok(undefined));
 
     // CLEANUP
-    (await client.close())._unsafeUnwrap();
+    (await client.close()).unwrap();
   });
 
   it("should publish order status updates", async ({ amqpConnectionUrl }) => {
@@ -42,7 +42,7 @@ describe("Basic Order Processing Client Integration", () => {
         contract: orderContract,
         urls: [amqpConnectionUrl],
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     const orderUpdate = {
       orderId: "TEST-001",
@@ -57,7 +57,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(ok(undefined));
 
     // CLEANUP
-    (await client.close())._unsafeUnwrap();
+    (await client.close()).unwrap();
   });
 
   it("should validate order schema before publishing", async ({ amqpConnectionUrl }) => {
@@ -67,7 +67,7 @@ describe("Basic Order Processing Client Integration", () => {
         contract: orderContract,
         urls: [amqpConnectionUrl],
       })
-    )._unsafeUnwrap();
+    ).unwrap();
 
     const invalidOrder = {
       orderId: "TEST-001",
@@ -86,6 +86,6 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result.isErr()).toBe(true);
 
     // CLEANUP
-    (await client.close())._unsafeUnwrap();
+    (await client.close()).unwrap();
   });
 });

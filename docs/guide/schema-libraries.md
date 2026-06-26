@@ -341,7 +341,7 @@ const handler: WorkerInferConsumerHandler<typeof contract, "processOrder"> = ({ 
   // payload is fully typed based on your schema
   console.log(payload.orderId); // string
   console.log(payload.amount); // number
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 };
 ```
 

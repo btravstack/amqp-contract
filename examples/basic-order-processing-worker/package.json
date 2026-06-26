@@ -11,9 +11,9 @@
   "dependencies": {
     "@amqp-contract-examples/basic-order-processing-contract": "workspace:*",
     "@amqp-contract/worker": "workspace:*",
-    "neverthrow": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
+    "unthrown": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

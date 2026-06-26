@@ -42,7 +42,7 @@ import { contract } from "./contract";
 const client = (await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}))._unsafeUnwrap();
+})).unwrap();
 
 // Publish with gzip compression
 await client
@@ -94,12 +94,12 @@ const worker = (
         // Message is automatically decompressed
         console.log("Processing order:", payload.orderId);
         console.log("Items:", payload.items); // Already decompressed
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 The worker automatically:

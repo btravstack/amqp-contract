@@ -33,16 +33,16 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         // Handler logic here
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
       notifyOrder: ({ payload }) => {
         // Handler logic here
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       },
     },
     urls: [env.AMQP_URL],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 ### External Handlers (src/handlers.ts)
@@ -58,7 +58,7 @@ Handlers can be organized in separate files using `defineHandler` or `defineHand
 // handlers.ts
 export const processOrderHandler = defineHandler(orderContract, "processOrder", ({ payload }) => {
   // Handler logic here
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 });
 
 // index.ts - to use external handlers, import them:
@@ -73,7 +73,7 @@ const worker = (
     },
     urls: [env.AMQP_URL],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 The main `src/index.ts` file uses inline handlers for simplicity, while `src/handlers.ts` provides an example of how to organize handlers externally for better maintainability.

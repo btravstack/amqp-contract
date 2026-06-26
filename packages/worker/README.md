@@ -1,6 +1,6 @@
 # @amqp-contract/worker
 
-**Type-safe AMQP worker for consuming messages using amqp-contract with ResultAsync/Result error handling.**
+**Type-safe AMQP worker for consuming messages using amqp-contract with AsyncResult/Result error handling.**
 
 [![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/worker.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/worker)
@@ -31,7 +31,7 @@ pnpm add @amqp-contract/worker
 ```typescript
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
 import type { Logger } from "@amqp-contract/core";
-import { ResultAsync } from "neverthrow";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { contract } from "./contract";
 
 // Optional: Create a logger implementation
@@ -51,7 +51,7 @@ const worker = (
         console.log("Processing order:", payload.orderId);
 
         // Your business logic here
-        return ResultAsync.fromPromise(
+        return fromPromise(
           Promise.all([processPayment(payload), updateInventory(payload)]),
           (error) => new RetryableError("Order processing failed", error),
         ).map(() => undefined);
@@ -60,7 +60,7 @@ const worker = (
     urls: ["amqp://localhost"],
     logger, // Optional: logs message consumption and errors
   })
-)._unsafeUnwrap();
+).unwrap();
 
 // Worker is already consuming messages
 
@@ -99,7 +99,7 @@ Then use `RetryableError` in your handlers:
 
 ```typescript
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { ResultAsync } from "neverthrow";
+import { fromPromise, type AsyncResult } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -107,14 +107,14 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) =>
         // If this fails with RetryableError, message is automatically retried
-        ResultAsync.fromPromise(
+        fromPromise(
           processPayment(payload),
           (error) => new RetryableError("Payment failed", error),
         ).map(() => undefined),
     },
     urls: ["amqp://localhost"],
   })
-)._unsafeUnwrap();
+).unwrap();
 ```
 
 See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.
@@ -125,21 +125,21 @@ You can define handlers outside of the worker creation using `defineHandler` and
 
 ## Error Handling
 
-Worker handlers return `ResultAsync<void, HandlerError>` for explicit error handling:
+Worker handlers return `AsyncResult<void, HandlerError>` for explicit error handling:
 
 ```typescript
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { errAsync, ResultAsync } from "neverthrow";
+import { err, fromPromise, type AsyncResult } from "unthrown";
 
 handlers: {
   processOrder: ({ payload }) => {
     // Validation errors - non-retryable
     if (payload.amount <= 0) {
-      return errAsync(new NonRetryableError("Invalid amount"));
+      return err(new NonRetryableError("Invalid amount")).toAsync();
     }
 
     // Transient errors - retryable
-    return ResultAsync.fromPromise(process(payload), (error) => new RetryableError("Processing failed", error))
+    return fromPromise(process(payload), (error) => new RetryableError("Processing failed", error))
       .map(() => undefined);
   },
 }

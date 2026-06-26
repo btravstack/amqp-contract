@@ -75,8 +75,8 @@ function validateHandlers<TContract extends ContractDefinition>(
  * Define a type-safe handler for a specific consumer or RPC in a contract.
  *
  * **Recommended:** This function creates handlers that return
- * `ResultAsync<void, HandlerError>` (consumers) or
- * `ResultAsync<TResponse, HandlerError>` (RPCs), providing explicit error
+ * `AsyncResult<void, HandlerError>` (consumers) or
+ * `AsyncResult<TResponse, HandlerError>` (RPCs), providing explicit error
  * handling and better control over retry behavior.
  *
  * Supports two patterns:
@@ -88,21 +88,21 @@ function validateHandlers<TContract extends ContractDefinition>(
  * @param contract - The contract definition containing the consumer or RPC
  * @param name - The name of the consumer or RPC from the contract
  * @param handler - The handler function — for consumers, returns
- *   `ResultAsync<void, HandlerError>`; for RPCs, returns
- *   `ResultAsync<TResponse, HandlerError>`.
+ *   `AsyncResult<void, HandlerError>`; for RPCs, returns
+ *   `AsyncResult<TResponse, HandlerError>`.
  * @param options - Optional consumer options (prefetch)
  * @returns A type-safe handler that can be used with TypedAmqpWorker
  *
  * @example Consumer handler
  * ```typescript
  * import { defineHandler, RetryableError, NonRetryableError } from '@amqp-contract/worker';
- * import { errAsync, okAsync, ResultAsync } from 'neverthrow';
+ * import { fromPromise, ok } from 'unthrown';
  *
  * const processOrderHandler = defineHandler(
  *   orderContract,
  *   'processOrder',
  *   ({ payload }) =>
- *     ResultAsync.fromPromise(
+ *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
@@ -114,7 +114,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const calculateHandler = defineHandler(
  *   rpcContract,
  *   'calculate',
- *   ({ payload }) => okAsync({ sum: payload.a + payload.b }),
+ *   ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
  * );
  * ```
  */
@@ -168,8 +168,8 @@ export function defineHandler<
  * Define multiple type-safe handlers for consumers and RPCs in a contract.
  *
  * **Recommended:** This function creates handlers that return
- * `ResultAsync<void, HandlerError>` (consumers) or
- * `ResultAsync<TResponse, HandlerError>` (RPCs), providing explicit error
+ * `AsyncResult<void, HandlerError>` (consumers) or
+ * `AsyncResult<TResponse, HandlerError>` (RPCs), providing explicit error
  * handling and better control over retry behavior.
  *
  * The handlers object must contain exactly one entry per `consumers` and
@@ -183,15 +183,15 @@ export function defineHandler<
  * @example
  * ```typescript
  * import { defineHandlers, RetryableError } from '@amqp-contract/worker';
- * import { okAsync, ResultAsync } from 'neverthrow';
+ * import { fromPromise, ok } from 'unthrown';
  *
  * const handlers = defineHandlers(orderContract, {
  *   processOrder: ({ payload }) =>
- *     ResultAsync.fromPromise(
+ *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => okAsync({ sum: payload.a + payload.b }),
+ *   calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
  * });
  * ```
  */

@@ -20,9 +20,9 @@
     "@amqp-contract/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "neverthrow": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "unthrown": "catalog:",
     "vitest": "catalog:"
   }
 }

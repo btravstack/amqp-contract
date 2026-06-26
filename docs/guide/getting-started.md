@@ -189,7 +189,7 @@ async function main() {
       contract,
       urls: ["amqp://localhost"],
     })
-  )._unsafeUnwrap();
+  ).unwrap();
 
   console.log("✅ Connected to RabbitMQ");
 
@@ -200,10 +200,13 @@ async function main() {
     body: "This is a type-safe message from amqp-contract.",
   });
 
-  result.match(
-    () => console.log("📧 Email message published!"),
-    (error) => console.error("❌ Failed:", error.message),
-  );
+  result.match({
+    ok: () => console.log("📧 Email message published!"),
+    err: (error) => console.error("❌ Failed:", error.message),
+    defect: (cause) => {
+      throw cause;
+    },
+  });
 
   // Clean up
   await client.close();
@@ -220,7 +223,7 @@ Create `consumer.ts` - processes messages:
 ```typescript
 // consumer.ts
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { ResultAsync, Result } from "neverthrow";
+import { fromSafePromise } from "unthrown";
 import { contract } from "./contract.js";
 
 async function main() {
@@ -238,18 +241,16 @@ async function main() {
           console.log(`  Subject: ${payload.subject}`);
           console.log(`  Body: ${payload.body}`);
 
-          // Simulate sending email
-          return ResultAsync.fromPromise(new Promise((resolve) => setTimeout(resolve, 1000))).map(
-            () => {
-              console.log("✅ Email sent successfully!");
-              return undefined;
-            },
-          );
+          // Simulate sending email (the promise never rejects, so fromSafePromise)
+          return fromSafePromise(new Promise((resolve) => setTimeout(resolve, 1000))).map(() => {
+            console.log("✅ Email sent successfully!");
+            return undefined;
+          });
         },
       },
       urls: ["amqp://localhost"],
     })
-  )._unsafeUnwrap();
+  ).unwrap();
 
   console.log("✅ Worker ready, waiting for messages...\n");
   console.log("Press Ctrl+C to stop\n");

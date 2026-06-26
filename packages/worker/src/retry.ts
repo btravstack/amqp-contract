@@ -7,7 +7,7 @@ import {
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { err, errAsync, ok, okAsync, ResultAsync } from "neverthrow";
+import { err, ok, type AsyncResult } from "unthrown";
 import { NonRetryableError } from "./errors.js";
 
 type RetryContext = {
@@ -39,13 +39,13 @@ export function handleError(
   msg: ConsumeMessage,
   consumerName: string,
   consumer: ConsumerDefinition,
-): ResultAsync<void, TechnicalError> {
+): AsyncResult<void, TechnicalError> {
   // NonRetryableError -> send directly to DLQ without retrying.
   // The caller already logged the original error; we only emit a routing
   // decision log inside `sendToDLQ`.
   if (error instanceof NonRetryableError) {
     sendToDLQ(ctx, msg, consumer);
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   }
 
   // Get retry config from the queue definition in the contract
@@ -70,7 +70,7 @@ export function handleError(
     queueName: extractQueue(consumer.queue).name,
   });
   sendToDLQ(ctx, msg, consumer);
-  return okAsync(undefined);
+  return ok(undefined).toAsync();
 }
 
 /**
@@ -89,7 +89,7 @@ function handleErrorImmediateRequeue(
   consumerName: string,
   consumer: ConsumerDefinition,
   config: ResolvedImmediateRequeueRetryOptions,
-): ResultAsync<void, TechnicalError> {
+): AsyncResult<void, TechnicalError> {
   const queue = extractQueue(consumer.queue);
   const queueName = queue.name;
 
@@ -111,7 +111,7 @@ function handleErrorImmediateRequeue(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   }
 
   ctx.logger?.info("Retrying message (immediate-requeue mode)", {
@@ -124,7 +124,7 @@ function handleErrorImmediateRequeue(
   if (queue.type === "quorum") {
     // For quorum queues, nack with requeue=true to trigger native retry mechanism
     ctx.amqpClient.nack(msg, false, true);
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   } else {
     // For classic queues, re-publish the message to the same exchange / routing key immediately with an incremented x-retry-count header
     return publishForRetry(ctx, {
@@ -170,13 +170,13 @@ function handleErrorTtlBackoff(
   consumerName: string,
   consumer: ConsumerDefinition,
   config: ResolvedTtlBackoffRetryOptions,
-): ResultAsync<void, TechnicalError> {
+): AsyncResult<void, TechnicalError> {
   if (!isQueueWithTtlBackoffInfrastructure(consumer.queue)) {
     ctx.logger?.error("Queue does not have TTL-backoff infrastructure", {
       consumerName,
       queueName: consumer.queue.name,
     });
-    return errAsync(new TechnicalError("Queue does not have TTL-backoff infrastructure"));
+    return err(new TechnicalError("Queue does not have TTL-backoff infrastructure")).toAsync();
   }
 
   const queueEntry = consumer.queue;
@@ -196,7 +196,7 @@ function handleErrorTtlBackoff(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return okAsync(undefined);
+    return ok(undefined).toAsync();
   }
 
   // Retry with exponential backoff
@@ -309,7 +309,7 @@ function publishForRetry(
     delayMs?: number;
     error: Error;
   },
-): ResultAsync<void, TechnicalError> {
+): AsyncResult<void, TechnicalError> {
   // Get retry count from headers
   const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
   const newRetryCount = retryCount + 1;
@@ -343,7 +343,7 @@ function publishForRetry(
           : {}),
       },
     })
-    .andThen((published) => {
+    .flatMap((published) => {
       if (!published) {
         // Publish was rejected (channel buffer full / channel error). Do NOT
         // ack the original — leave it un-ack'd so the broker / channel manager
@@ -364,7 +364,7 @@ function publishForRetry(
         retryCount: newRetryCount,
         ...(delayMs !== undefined ? { delayMs } : {}),
       });
-      return ok<void, TechnicalError>(undefined);
+      return ok(undefined);
     })
     .orElse((publishError) => {
       // Publish threw (network error, channel close, etc.). Same policy: do

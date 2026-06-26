@@ -10,7 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker, type WorkerInferHandlers, defineHandlers } from "@amqp-contract/worker";
-import { ok, okAsync } from "neverthrow";
+import { ok } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 
@@ -33,7 +33,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
           })
-        )._unsafeUnwrap();
+        ).unwrap();
 
         clients.push(client);
         return client;
@@ -43,7 +43,7 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            (await client.close())._unsafeUnwrap();
+            (await client.close()).unwrap();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -67,7 +67,7 @@ const it = baseIt.extend<{
               handlers: defineHandlers(contract, handlers),
               urls: [amqpConnectionUrl],
             })
-          )._unsafeUnwrap();
+          ).unwrap();
 
           workers.push(worker);
           return worker;
@@ -78,7 +78,7 @@ const it = baseIt.extend<{
       await Promise.all(
         workers.map(async (worker) => {
           try {
-            (await worker.close())._unsafeUnwrap();
+            (await worker.close()).unwrap();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -139,7 +139,7 @@ describe("Client and Worker Integration", () => {
       });
 
       // GIVEN
-      const mockHandler = vi.fn().mockReturnValue(okAsync(undefined));
+      const mockHandler = vi.fn().mockReturnValue(ok(undefined).toAsync());
       await workerFactory(contract, {
         processOrder: mockHandler,
       });
@@ -223,7 +223,7 @@ describe("Client and Worker Integration", () => {
       const receivedMessages: unknown[] = [];
       const mockHandler = vi.fn().mockImplementation((message: unknown) => {
         receivedMessages.push(message);
-        return okAsync(undefined);
+        return ok(undefined).toAsync();
       });
       await workerFactory(contract, {
         processEvent: mockHandler,
@@ -289,7 +289,7 @@ describe("Client and Worker Integration", () => {
         },
       });
 
-      const mockHandler = vi.fn().mockReturnValue(okAsync(undefined));
+      const mockHandler = vi.fn().mockReturnValue(ok(undefined).toAsync());
       await workerFactory(contract, {
         processStrict: mockHandler,
       });
@@ -365,8 +365,8 @@ describe("Client and Worker Integration", () => {
       });
 
       // GIVEN
-      const emailHandler = vi.fn().mockReturnValue(okAsync(undefined));
-      const smsHandler = vi.fn().mockReturnValue(okAsync(undefined));
+      const emailHandler = vi.fn().mockReturnValue(ok(undefined).toAsync());
+      const smsHandler = vi.fn().mockReturnValue(ok(undefined).toAsync());
 
       await workerFactory(contract, {
         processEmail: emailHandler,
