@@ -121,6 +121,7 @@ catalogs:
 overrides:
   tsx>esbuild: ^0.28.1
   vite@>=6>esbuild: ^0.28.1
+  undici: ^8.5.0
 
 importers:
 
@@ -3635,6 +3636,7 @@ packages:
   git-raw-commits@5.0.1:
     resolution: {integrity: sha512-Y+csSm2GD/PCSh6Isd/WiMjNAydu0VBiG9J7EdQsNA5P9uXvLayqjmTsNlK5Gs9IhblFZqOU0yid5Il5JPoLiQ==}
     engines: {node: '>=18'}
+    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
     hasBin: true
 
   glob-parent@5.1.2:
@@ -5026,8 +5028,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@8.4.1:
-    resolution: {integrity: sha512-RNHlB4fxZK0IrkhBsxhlbx7s8kFWwr7rzzOqj5nvZugw3ig3RsB7KW3zVlV0eu8POl+rx5d1hmL7rRg0z1owow==}
+  undici@8.5.0:
+    resolution: {integrity: sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg==}
     engines: {node: '>=22.19.0'}
 
   unist-util-is@6.0.1:
@@ -9682,7 +9684,7 @@ snapshots:
       ssh-remote-port-forward: 1.0.4
       tar-fs: 3.1.2
       tmp: 0.2.7
-      undici: 8.4.1
+      undici: 8.5.0
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -9847,7 +9849,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@8.4.1: {}
+  undici@8.5.0: {}
 
   unist-util-is@6.0.1:
     dependencies:
