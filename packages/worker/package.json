@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/worker",
-  "version": "0.25.0",
+  "version": "1.0.0",
   "description": "Worker utilities for consuming messages using amqp-contract",
   "keywords": [
     "amqp",
