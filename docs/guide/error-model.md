@@ -42,6 +42,7 @@ The failure is permanent. The message bypasses the retry mode entirely and goes 
 
 ```ts
 import { NonRetryableError } from "@amqp-contract/worker";
+import { Err } from "unthrown";
 
 ({ payload }) => {
   if (payload.amount < 0) {

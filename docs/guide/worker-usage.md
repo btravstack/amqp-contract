@@ -136,7 +136,7 @@ Safe handlers return `AsyncResult<void, HandlerError>` for explicit error handli
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
@@ -737,7 +737,7 @@ Use `NonRetryableError` for permanent failures that should NOT be retried:
 
 ```typescript
 import { NonRetryableError, RetryableError, defineHandler } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -771,7 +771,7 @@ For the most explicit error handling, use safe handlers that return `AsyncResult
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { match } from "ts-pattern";
 
 const worker = (
@@ -848,7 +848,7 @@ import {
   defineConsumer,
   defineMessage,
 } from "@amqp-contract/contract";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { z } from "zod";
 
 // Define exchanges
