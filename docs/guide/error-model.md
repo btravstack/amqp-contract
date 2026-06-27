@@ -45,7 +45,7 @@ import { NonRetryableError } from "@amqp-contract/worker";
 
 ({ payload }) => {
   if (payload.amount < 0) {
-    return err(new NonRetryableError("Negative amount")).toAsync();
+    return Err(new NonRetryableError("Negative amount")).toAsync();
   }
   // ...
 };
@@ -107,13 +107,13 @@ A Standard Schema validation failed (incoming payload, incoming headers, or RPC 
 
 On the worker side, validation failures route directly to the DLQ via `nack(requeue=false)` — they never enter the retry pipeline because retrying a malformed payload cannot succeed. The message body is preserved exactly as the broker delivered it; the worker does not republish, so it does not stamp diagnostic headers like `x-last-error` on this path. The error details (consumer name, schema `issues`) live in the worker's logs. See [Retry Strategies → Inspecting retry state](./retry-strategies.md#inspecting-retry-state) for the full breakdown of which DLQ paths add headers.
 
-On the client side (publisher input or RPC response validation), `MessageValidationError` is returned via `err(...)` from `publish()` / `call()` so you can decide how to react before sending.
+On the client side (publisher input or RPC response validation), `MessageValidationError` is returned via `Err(...)` from `publish()` / `call()` so you can decide how to react before sending.
 
 ## Client-side RPC errors
 
 ### `RpcTimeoutError`
 
-The reply did not arrive within the configured `timeoutMs` (or the server-side default). The pending call is cleared and the future resolves to `err(RpcTimeoutError)`.
+The reply did not arrive within the configured `timeoutMs` (or the server-side default). The pending call is cleared and the future resolves to `Err(RpcTimeoutError)`.
 
 ### `RpcCancelledError`
 
@@ -141,13 +141,13 @@ result.match({
 
 Two reasons:
 
-1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a AsyncResult chain would normally crash the consume loop. Returning `err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
+1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a AsyncResult chain would normally crash the consume loop. Returning `Err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
 
 2. **Type-safe error union.** `AsyncResult<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match({ ok, err, defect })`. A thrown `unknown` gives no such guarantees.
 
 ## Defensive guards
 
-The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `err(...).toAsync()` instead.
+The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `Err(...).toAsync()` instead.
 
 ## See also
 

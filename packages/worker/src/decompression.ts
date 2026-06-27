@@ -1,5 +1,5 @@
 import { TechnicalError } from "@amqp-contract/core";
-import { err, fromPromise, ok, type AsyncResult } from "unthrown";
+import { Err, fromPromise, Ok, type AsyncResult } from "unthrown";
 import { gunzip, inflate } from "node:zlib";
 import { promisify } from "node:util";
 
@@ -37,13 +37,13 @@ export function decompressBuffer(
   contentEncoding: string | undefined,
 ): AsyncResult<Buffer, TechnicalError> {
   if (!contentEncoding) {
-    return ok(buffer).toAsync();
+    return Ok(buffer).toAsync();
   }
 
   const normalizedEncoding = contentEncoding.toLowerCase();
 
   if (!isSupportedEncoding(normalizedEncoding)) {
-    return err(
+    return Err(
       new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
           `Supported encodings are: ${SUPPORTED_ENCODINGS.join(", ")}. ` +

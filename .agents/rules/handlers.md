@@ -7,13 +7,13 @@ This project uses [unthrown](https://github.com/btravstack/unthrown) for explici
 A consumer handler receives `({ payload, headers }, rawMessage)` and returns `AsyncResult<void, HandlerError>`:
 
 ```typescript
-import { fromPromise, ok } from "unthrown";
+import { fromPromise, Ok } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
 // Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
 const handler = ({ payload }, rawMessage) => {
   console.log(payload.orderId);
-  return ok(undefined).toAsync();
+  return Ok(undefined).toAsync();
 };
 
 // Async case — fromPromise REQUIRES the qualify mapper as the second arg
@@ -37,17 +37,17 @@ const asyncHandler = ({ payload }) =>
 You can define RPC handlers either with `defineHandler` / `defineHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
-import { fromPromise, ok } from "unthrown";
+import { fromPromise, Ok } from "unthrown";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
 
 const result = await TypedAmqpWorker.create({
   contract,
   handlers: {
     // Regular consumer — `payload` typed from the consumer's message schema
-    processOrder: ({ payload }) => ok(undefined).toAsync(),
+    processOrder: ({ payload }) => Ok(undefined).toAsync(),
 
     // RPC handler — must return the typed response payload
-    calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
+    calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
 
     // RPC with async work
     lookupUser: ({ payload }) =>
@@ -75,8 +75,8 @@ RPC error semantics worth knowing:
 
 - **Missing `replyTo` / `correlationId`** on the inbound message → `NonRetryableError`. The request is `nack`ed without requeue, so it routes to the queue's DLQ if configured (poison messages stay visible for inspection rather than being silently ack'd).
 - **Response fails the response schema** → `NonRetryableError` (handler returned the wrong shape; retrying won't help).
-- **Client-side timeout** → call resolves to `err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
-- **Client closed mid-call** → call resolves to `err(RpcCancelledError)`.
+- **Client-side timeout** → call resolves to `Err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
+- **Client closed mid-call** → call resolves to `Err(RpcCancelledError)`.
 
 ## Using `defineHandler` / `defineHandlers`
 
@@ -84,7 +84,7 @@ Use `defineHandler` (single) or `defineHandlers` (object) for full type inferenc
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { err, fromPromise, ok } from "unthrown";
+import { Err, fromPromise, Ok } from "unthrown";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
   fromPromise(
@@ -96,9 +96,9 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
 // Permanent failures use NonRetryableError → DLQ, never retried
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount < 1) {
-    return err(new NonRetryableError("Invalid amount")).toAsync();
+    return Err(new NonRetryableError("Invalid amount")).toAsync();
   }
-  return ok(undefined).toAsync();
+  return Ok(undefined).toAsync();
 });
 ```
 
@@ -161,9 +161,9 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 | Method                          | Description                                                                       |
 | ------------------------------- | --------------------------------------------------------------------------------- |
-| `ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                             |
-| `err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                 |
-| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify` maps the rejection to `E \| defect(cause)`. Required. |
+| `Ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                             |
+| `Err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                 |
+| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify` maps the rejection to `E \| Defect(cause)`. Required. |
 | `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).    |
 | `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                |
 | `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)             |
@@ -175,7 +175,7 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 | Method / function                         | Description                                                                                                                                                                                                         |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ok(value)` / `err(error)`                | Construct a successful / failed `Result`                                                                                                                                                                            |
+| `Ok(value)` / `Err(error)`                | Construct a successful / failed `Result`                                                                                                                                                                            |
 | `r.isOk()` / `r.isErr()` / `r.isDefect()` | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here. |
 | `.match({ ok, err, defect })`             | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                                                                                      |
 | `matchTags(r, { Ok, Defect, ...tags })`   | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                                                                                |

@@ -129,13 +129,13 @@ Worker handlers return `AsyncResult<void, HandlerError>` for explicit error hand
 
 ```typescript
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { err, fromPromise, type AsyncResult } from "unthrown";
+import { Err, fromPromise, type AsyncResult } from "unthrown";
 
 handlers: {
   processOrder: ({ payload }) => {
     // Validation errors - non-retryable
     if (payload.amount <= 0) {
-      return err(new NonRetryableError("Invalid amount")).toAsync();
+      return Err(new NonRetryableError("Invalid amount")).toAsync();
     }
 
     // Transient errors - retryable

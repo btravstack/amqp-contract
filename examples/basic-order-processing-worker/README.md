@@ -33,11 +33,11 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         // Handler logic here
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
       notifyOrder: ({ payload }) => {
         // Handler logic here
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls: [env.AMQP_URL],
@@ -58,7 +58,7 @@ Handlers can be organized in separate files using `defineHandler` or `defineHand
 // handlers.ts
 export const processOrderHandler = defineHandler(orderContract, "processOrder", ({ payload }) => {
   // Handler logic here
-  return ok(undefined).toAsync();
+  return Ok(undefined).toAsync();
 });
 
 // index.ts - to use external handlers, import them:

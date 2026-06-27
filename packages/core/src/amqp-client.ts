@@ -7,7 +7,7 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import { err, fromPromise, fromSafePromise, ok, type AsyncResult, type Result } from "unthrown";
+import { Err, fromPromise, fromSafePromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -229,7 +229,7 @@ export class AmqpClient {
    * Wait for the channel to be connected and ready.
    *
    * If `connectTimeoutMs` was provided in the constructor options, the returned
-   * AsyncResult resolves to `err(TechnicalError)` once the timeout elapses.
+   * AsyncResult resolves to `Err(TechnicalError)` once the timeout elapses.
    * Without a timeout, this waits forever — amqp-connection-manager retries
    * connections indefinitely and never errors on its own.
    *
@@ -333,7 +333,7 @@ export class AmqpClient {
     // travel to the broker, which either rejects or interprets unexpectedly.
     if (prefetch !== undefined) {
       if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
-        return err(
+        return Err(
           new TechnicalError(
             `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
           ),
@@ -490,7 +490,7 @@ export class AmqpClient {
       );
 
       if (channelResult.isErr() && releaseResult.isErr()) {
-        return err(
+        return Err(
           new TechnicalError(
             "Failed to close channel and release connection",
             new AggregateError(
@@ -503,7 +503,7 @@ export class AmqpClient {
 
       if (channelResult.isErr()) return channelResult;
       if (releaseResult.isErr()) return releaseResult;
-      return ok(undefined);
+      return Ok(undefined);
     })();
 
     // `inner` is structured to never reject, so lift it with `fromSafePromise`

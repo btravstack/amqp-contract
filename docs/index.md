@@ -103,7 +103,7 @@ await client.publish("orderCreated", {
 
 ```typescript [3. Consume]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const worker = (
@@ -112,7 +112,7 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         console.log(payload.orderId); // ✅ Fully typed!
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],

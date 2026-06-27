@@ -31,7 +31,7 @@ export class RpcTimeoutError extends TaggedError("@amqp-contract/RpcTimeoutError
 /**
  * Returned from any in-flight RPC call when the client is closed before the
  * reply is received. The correlation map is cleared on close and every pending
- * caller's promise resolves with `err(RpcCancelledError)`. Carries a namespaced
+ * caller's promise resolves with `Err(RpcCancelledError)`. Carries a namespaced
  * `_tag` of `"@amqp-contract/RpcCancelledError"`; the `Error.name` is kept bare
  * (`"RpcCancelledError"`).
  */

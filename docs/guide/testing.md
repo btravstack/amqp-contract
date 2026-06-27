@@ -111,7 +111,7 @@ import { describe, expect } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 describe("Order Processing Contract", () => {
@@ -135,7 +135,7 @@ describe("Order Processing Contract", () => {
         handlers: {
           processOrder: ({ payload }) => {
             receivedPayloads.push(payload);
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
         },
         urls: [amqpConnectionUrl],

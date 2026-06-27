@@ -167,7 +167,7 @@ const worker = (
         console.log(payload.orderId); // ✅ Fully typed!
         console.log(payload.customerId); // ✅ Autocomplete!
         console.log(payload.amount); // ✅ Type safe!
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],

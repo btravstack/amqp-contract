@@ -368,22 +368,22 @@ const worker = (
         console.log(`[PROCESSING] Order ${payload.orderId}`);
         console.log(`  Customer: ${payload.customerId}`);
         console.log(`  Total: $${payload.totalAmount}`);
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
 
       notifyOrder: ({ payload }) => {
         console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
 
       shipOrder: ({ payload }) => {
         console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
 
       handleUrgentOrder: ({ payload }) => {
         console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     connection,

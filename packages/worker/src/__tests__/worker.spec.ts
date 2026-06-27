@@ -7,7 +7,7 @@ import {
   defineQueue,
   extractQueue,
 } from "@amqp-contract/contract";
-import { err, ok } from "unthrown";
+import { Err, Ok } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 import { RetryableError } from "../errors.js";
@@ -44,7 +44,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -95,7 +95,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -152,7 +152,7 @@ describe("AmqpWorker Integration", () => {
         testConsumer: ({ payload, headers }) => {
           messages.push(payload);
           messageHeaders.push(headers);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -219,7 +219,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -270,11 +270,11 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         consumer1: ({ payload }) => {
           messages1.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
         consumer2: ({ payload }) => {
           messages2.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -324,7 +324,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -371,10 +371,10 @@ describe("AmqpWorker Integration", () => {
         testConsumer: ({ payload }) => {
           attemptCount++;
           if (payload.shouldFail && attemptCount === 1) {
-            return err(new RetryableError("Handler error on first attempt")).toAsync();
+            return Err(new RetryableError("Handler error on first attempt")).toAsync();
           }
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -422,7 +422,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         destConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -467,7 +467,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -534,11 +534,11 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         orderConsumer: ({ payload }) => {
           orders.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
         notificationConsumer: ({ payload }) => {
           notifications.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       }),
     );
@@ -641,7 +641,7 @@ describe("AmqpWorker Integration", () => {
       await TypedAmqpWorker.create({
         contract,
         handlers: {
-          testConsumer: defineHandler(contract, "testConsumer", (_msg) => ok(undefined).toAsync()),
+          testConsumer: defineHandler(contract, "testConsumer", (_msg) => Ok(undefined).toAsync()),
         },
         urls: [amqpConnectionUrl],
         logger: mockLogger,

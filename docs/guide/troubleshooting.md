@@ -219,13 +219,13 @@ Property 'orderId' does not exist on type 'never'.
 3. **Check consumer handler types:**
 
    ```typescript
-   import { ok } from "unthrown";
+   import { Ok } from "unthrown";
 
    // ✅ Payload is automatically typed
    handlers: {
      processEmail: ({ payload }) => {
        console.log(payload.to);  // Type-safe!
-       return ok(undefined).toAsync();
+       return Ok(undefined).toAsync();
      },
    }
    ```

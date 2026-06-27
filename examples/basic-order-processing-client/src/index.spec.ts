@@ -1,5 +1,5 @@
 import { describe, expect } from "vitest";
-import { ok } from "unthrown";
+import { Ok } from "unthrown";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { it } from "@amqp-contract/testing/extension";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
@@ -29,7 +29,7 @@ describe("Basic Order Processing Client Integration", () => {
     const result = await client.publish("orderCreated", newOrder);
 
     // THEN
-    expect(result).toEqual(ok(undefined));
+    expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
     (await client.close()).unwrap();
@@ -54,7 +54,7 @@ describe("Basic Order Processing Client Integration", () => {
     const result = await client.publish("orderUpdated", orderUpdate);
 
     // THEN
-    expect(result).toEqual(ok(undefined));
+    expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
     (await client.close()).unwrap();

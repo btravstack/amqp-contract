@@ -79,7 +79,7 @@ These terms (`publishers`, `consumers`) describe the **messaging patterns** in y
 When implementing the contract, we use our terms:
 
 ```typescript
-import { ok } from "unthrown";
+import { Ok } from "unthrown";
 
 // Client = runtime publisher
 const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
@@ -93,7 +93,7 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         // Handle message
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls,

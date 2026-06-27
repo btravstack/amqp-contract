@@ -35,7 +35,7 @@ import {
 } from "@amqp-contract/contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { ok } from "unthrown";
+import { Ok } from "unthrown";
 import { z } from "zod";
 
 // 1. Define resources with Dead Letter Exchange and retry configuration
@@ -90,7 +90,7 @@ const worker = (
     handlers: {
       processOrder: ({ payload }) => {
         console.log(payload.orderId); // ✅ TypeScript knows!
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],

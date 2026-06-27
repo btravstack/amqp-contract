@@ -181,17 +181,17 @@ export function retryable(message: string, cause?: unknown): RetryableError {
  * @example
  * ```typescript
  * import { nonRetryable } from '@amqp-contract/worker';
- * import { err, ok } from 'unthrown';
+ * import { Err, Ok } from 'unthrown';
  *
  * const handler = ({ payload }) => {
  *   if (!isValidPayload(payload)) {
- *     return err(nonRetryable('Invalid payload format')).toAsync();
+ *     return Err(nonRetryable('Invalid payload format')).toAsync();
  *   }
- *   return ok(undefined).toAsync();
+ *   return Ok(undefined).toAsync();
  * };
  *
  * // Equivalent to:
- * // return err(new NonRetryableError('Invalid payload format')).toAsync();
+ * // return Err(new NonRetryableError('Invalid payload format')).toAsync();
  * ```
  */
 export function nonRetryable(message: string, cause?: unknown): NonRetryableError {
