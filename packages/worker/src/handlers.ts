@@ -96,7 +96,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * @example Consumer handler
  * ```typescript
  * import { defineHandler, RetryableError, NonRetryableError } from '@amqp-contract/worker';
- * import { fromPromise, ok } from 'unthrown';
+ * import { fromPromise, Ok } from 'unthrown';
  *
  * const processOrderHandler = defineHandler(
  *   orderContract,
@@ -114,7 +114,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const calculateHandler = defineHandler(
  *   rpcContract,
  *   'calculate',
- *   ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
+ *   ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
  * );
  * ```
  */
@@ -183,7 +183,7 @@ export function defineHandler<
  * @example
  * ```typescript
  * import { defineHandlers, RetryableError } from '@amqp-contract/worker';
- * import { fromPromise, ok } from 'unthrown';
+ * import { fromPromise, Ok } from 'unthrown';
  *
  * const handlers = defineHandlers(orderContract, {
  *   processOrder: ({ payload }) =>
@@ -191,7 +191,7 @@ export function defineHandler<
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
+ *   calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
  * });
  * ```
  */

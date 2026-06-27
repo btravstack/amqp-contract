@@ -7,7 +7,7 @@ import {
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { err, ok, type AsyncResult } from "unthrown";
+import { Err, Ok, type AsyncResult } from "unthrown";
 import { NonRetryableError } from "./errors.js";
 
 type RetryContext = {
@@ -45,7 +45,7 @@ export function handleError(
   // decision log inside `sendToDLQ`.
   if (error instanceof NonRetryableError) {
     sendToDLQ(ctx, msg, consumer);
-    return ok(undefined).toAsync();
+    return Ok(undefined).toAsync();
   }
 
   // Get retry config from the queue definition in the contract
@@ -70,7 +70,7 @@ export function handleError(
     queueName: extractQueue(consumer.queue).name,
   });
   sendToDLQ(ctx, msg, consumer);
-  return ok(undefined).toAsync();
+  return Ok(undefined).toAsync();
 }
 
 /**
@@ -111,7 +111,7 @@ function handleErrorImmediateRequeue(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return ok(undefined).toAsync();
+    return Ok(undefined).toAsync();
   }
 
   ctx.logger?.info("Retrying message (immediate-requeue mode)", {
@@ -124,7 +124,7 @@ function handleErrorImmediateRequeue(
   if (queue.type === "quorum") {
     // For quorum queues, nack with requeue=true to trigger native retry mechanism
     ctx.amqpClient.nack(msg, false, true);
-    return ok(undefined).toAsync();
+    return Ok(undefined).toAsync();
   } else {
     // For classic queues, re-publish the message to the same exchange / routing key immediately with an incremented x-retry-count header
     return publishForRetry(ctx, {
@@ -176,7 +176,7 @@ function handleErrorTtlBackoff(
       consumerName,
       queueName: consumer.queue.name,
     });
-    return err(new TechnicalError("Queue does not have TTL-backoff infrastructure")).toAsync();
+    return Err(new TechnicalError("Queue does not have TTL-backoff infrastructure")).toAsync();
   }
 
   const queueEntry = consumer.queue;
@@ -196,7 +196,7 @@ function handleErrorTtlBackoff(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return ok(undefined).toAsync();
+    return Ok(undefined).toAsync();
   }
 
   // Retry with exponential backoff
@@ -353,7 +353,7 @@ function publishForRetry(
           retryCount: newRetryCount,
           ...(delayMs !== undefined ? { delayMs } : {}),
         });
-        return err(new TechnicalError("Failed to publish message for retry (write buffer full)"));
+        return Err(new TechnicalError("Failed to publish message for retry (write buffer full)"));
       }
 
       // Publish confirmed by the broker — safe to ack the original now.
@@ -364,7 +364,7 @@ function publishForRetry(
         retryCount: newRetryCount,
         ...(delayMs !== undefined ? { delayMs } : {}),
       });
-      return ok(undefined);
+      return Ok(undefined);
     })
     .orElse((publishError) => {
       // Publish threw (network error, channel close, etc.). Same policy: do
@@ -375,7 +375,7 @@ function publishForRetry(
         ...(delayMs !== undefined ? { delayMs } : {}),
         error: publishError,
       });
-      return err(publishError);
+      return Err(publishError);
     });
 }
 

@@ -14,7 +14,7 @@ import {
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromSafePromise, ok } from "unthrown";
+import { fromSafePromise, Ok } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -91,7 +91,7 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync(),
+      calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
     });
     const client = await clientFactory(contract);
 
@@ -124,7 +124,7 @@ describe("TypedAmqpClient RPC", () => {
     await workerFactory(contract, {
       // Cast through unknown to deliberately return a wrong shape — the worker's
       // response-schema validation drops the reply, so the client times out.
-      calculate: () => ok({ wrong: "shape" } as unknown as { sum: number }).toAsync(),
+      calculate: () => Ok({ wrong: "shape" } as unknown as { sum: number }).toAsync(),
     });
     const client = await clientFactory(contract);
 

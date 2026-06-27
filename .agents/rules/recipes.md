@@ -9,7 +9,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 3. **Consumer entry** — `defineEventConsumer(eventPublisher, queue, { routingKey: ... })`. The queue↔exchange binding is auto-generated.
 4. **Add to `defineContract`** under `consumers: { ... }`. Don't add the queue or binding yourself — they're auto-extracted.
 5. **Handler** — implement with `defineHandler(contract, "yourConsumerName", ({ payload, headers }) => …)` returning `AsyncResult<void, HandlerError>`. See [handlers.md](./handlers.md).
-6. **Tests** — integration test in `src/__tests__/<consumer>.spec.ts` using `it` from `@amqp-contract/testing/extension`. Mock the handler with `vi.fn().mockReturnValue(ok(undefined).toAsync())`.
+6. **Tests** — integration test in `src/__tests__/<consumer>.spec.ts` using `it` from `@amqp-contract/testing/extension`. Mock the handler with `vi.fn().mockReturnValue(Ok(undefined).toAsync())`.
 7. **Changeset** — `pnpm changeset` with a minor bump. Public API surface grew.
 
 ## Add a new RPC
@@ -18,7 +18,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 2. **Queue** — `defineQueue(...)` for the RPC. Quorum by default. **Configure a `deadLetter`** even though replies, not the queue, drive most failure modes: missing `replyTo` / `correlationId` and response-schema mismatches are surfaced as `NonRetryableError` and the worker `nack`s them without requeue, so without a DLX they're dropped silently.
 3. **RPC entry** — `defineRpc(queue, { request, response })`.
 4. **Add to `defineContract`** under `rpcs: { ... }`.
-5. **Server-side handler** — define it with `defineHandler(contract, "yourRpcName", ({ payload }) => ok({ /* response */ }).toAsync())`, via `defineHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `defineHandler` / `defineHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
+5. **Server-side handler** — define it with `defineHandler(contract, "yourRpcName", ({ payload }) => Ok({ /* response */ }).toAsync())`, via `defineHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `defineHandler` / `defineHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
 6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required.
 7. **Tests** — round-trip integration test (worker + client both wired up). For "no server" scenarios, just create the client without a worker; for "request validation fails", pass a deliberately wrong payload through `as unknown as ...`.
 8. **Changeset** — minor bump.
@@ -68,7 +68,7 @@ processOrder: ({ payload }) =>
 Three things to remember:
 
 - `fromPromise` requires the error mapper as the second arg — chaining `.mapErr` afterwards is a type error.
-- For permanent failures, return `err(new NonRetryableError(...)).toAsync()`.
-- For success with no value, `ok(undefined).toAsync()`.
+- For permanent failures, return `Err(new NonRetryableError(...)).toAsync()`.
+- For success with no value, `Ok(undefined).toAsync()`.
 
 See [handlers.md](./handlers.md) for the full unthrown API and the common-mistakes list in [`AGENTS.md`](../../AGENTS.md#common-mistakes).

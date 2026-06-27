@@ -1,4 +1,4 @@
-import { ok } from "unthrown";
+import { Ok } from "unthrown";
 import { TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
 import { describe, expect, vi } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
@@ -17,13 +17,13 @@ describe("Basic Order Processing Worker Integration", () => {
         handlers: defineHandlers(orderContract, {
           processOrder: ({ payload }) => {
             processedOrders.push(payload);
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
-          notifyOrder: () => ok(undefined).toAsync(),
-          shipOrder: () => ok(undefined).toAsync(),
-          handleUrgentOrder: () => ok(undefined).toAsync(),
+          notifyOrder: () => Ok(undefined).toAsync(),
+          shipOrder: () => Ok(undefined).toAsync(),
+          handleUrgentOrder: () => Ok(undefined).toAsync(),
 
-          handleFailedOrders: () => ok(undefined).toAsync(),
+          handleFailedOrders: () => Ok(undefined).toAsync(),
         }),
         urls: [amqpConnectionUrl],
       })
@@ -66,15 +66,15 @@ describe("Basic Order Processing Worker Integration", () => {
     const workerResult = await TypedAmqpWorker.create({
       contract: orderContract,
       handlers: defineHandlers(orderContract, {
-        processOrder: () => ok(undefined).toAsync(),
+        processOrder: () => Ok(undefined).toAsync(),
         notifyOrder: ({ payload }) => {
           notifications.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
-        shipOrder: () => ok(undefined).toAsync(),
-        handleUrgentOrder: () => ok(undefined).toAsync(),
+        shipOrder: () => Ok(undefined).toAsync(),
+        handleUrgentOrder: () => Ok(undefined).toAsync(),
 
-        handleFailedOrders: () => ok(undefined).toAsync(),
+        handleFailedOrders: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
     });
@@ -131,16 +131,16 @@ describe("Basic Order Processing Worker Integration", () => {
       handlers: defineHandlers(orderContract, {
         processOrder: ({ payload }) => {
           processedOrders.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
         notifyOrder: ({ payload }) => {
           notifications.push(payload);
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
-        shipOrder: () => ok(undefined).toAsync(),
-        handleUrgentOrder: () => ok(undefined).toAsync(),
+        shipOrder: () => Ok(undefined).toAsync(),
+        handleUrgentOrder: () => Ok(undefined).toAsync(),
 
-        handleFailedOrders: () => ok(undefined).toAsync(),
+        handleFailedOrders: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
     });

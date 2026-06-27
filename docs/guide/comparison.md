@@ -121,7 +121,7 @@ channel.consume("order-processing", (msg) => {
 
 ```typescript [✅ amqp-contract - Fully typed]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 const worker = (
@@ -133,7 +133,7 @@ const worker = (
         console.log(payload.orderId); // ✅ Full autocomplete!
         console.log(payload.amount); // ✅ Type-safe!
         // ✅ Automatic validation - invalid messages rejected!
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       }, // ✅ Auto-acknowledgment on success!
     },
     urls: ["amqp://localhost"],

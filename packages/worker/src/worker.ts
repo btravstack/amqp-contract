@@ -24,10 +24,10 @@ import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connectio
 import type { ConsumeMessage } from "amqplib";
 import {
   allAsync,
-  err,
+  Err,
   fromPromise,
   fromSafePromise,
-  ok,
+  Ok,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -77,13 +77,13 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  *     // Simple handler
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order:', payload.orderId);
- *       return ok(undefined).toAsync();
+ *       return Ok(undefined).toAsync();
  *     },
  *     // Handler with prefetch configuration
  *     processPayment: [
  *       ({ payload }) => {
  *         console.log('Processing payment:', payload.paymentId);
- *         return ok(undefined).toAsync();
+ *         return Ok(undefined).toAsync();
  *       },
  *       { prefetch: 10 }
  *     ]
@@ -135,7 +135,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
   defaultConsumerOptions?: ConsumerOptions | undefined;
   /**
    * Maximum time in ms to wait for the AMQP connection to become ready before
-   * `create()` resolves to an `err(TechnicalError)`. Defaults to 30s
+   * `create()` resolves to an `Err(TechnicalError)`. Defaults to 30s
    * (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null` to
    * disable the timeout and let amqp-connection-manager retry indefinitely.
    */
@@ -154,7 +154,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
  * ```typescript
  * import { TypedAmqpWorker } from '@amqp-contract/worker';
  * import { defineQueue, defineMessage, defineContract, defineConsumer } from '@amqp-contract/contract';
- * import { ok } from 'unthrown';
+ * import { Ok } from 'unthrown';
  * import { z } from 'zod';
  *
  * const orderQueue = defineQueue('order-processing');
@@ -174,7 +174,7 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
  *   handlers: {
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order', payload.orderId);
- *       return ok(undefined).toAsync();
+ *       return Ok(undefined).toAsync();
  *     },
  *   },
  *   urls: ['amqp://localhost'],
@@ -279,7 +279,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * const result = await TypedAmqpWorker.create({
    *   contract: myContract,
    *   handlers: {
-   *     processOrder: ({ payload }) => ok(undefined).toAsync(),
+   *     processOrder: ({ payload }) => Ok(undefined).toAsync(),
    *   },
    *   urls: ['amqp://localhost'],
    * });
@@ -353,7 +353,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       // cleanup and we still want to release the underlying connection.
       this.amqpClient.cancel(consumerTag).orElse((error) => {
         this.logger?.warn("Failed to cancel consumer during close", { consumerTag, error });
-        return ok(undefined);
+        return Ok(undefined);
       }),
     );
 
@@ -415,14 +415,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       (error) => new TechnicalError(`Error validating ${context.field}`, error),
     ).flatMap((result) => {
       if (result.issues) {
-        return err(
+        return Err(
           new TechnicalError(
             `${context.field} validation failed`,
             new MessageValidationError(context.consumerName, result.issues),
           ),
         );
       }
-      return ok(result.value);
+      return Ok(result.value);
     });
   }
 
@@ -460,7 +460,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             field: "headers",
           },
         )
-      : ok(undefined).toAsync();
+      : Ok(undefined).toAsync();
 
     return allAsync([parsePayload, parseHeaders]).map(([payload, headers]) => ({
       payload,
@@ -501,7 +501,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         "RPC handler returned a response but the incoming message has no replyTo",
         { rpcName: String(rpcName), queueName },
       );
-      return err(
+      return Err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without replyTo; cannot deliver response`,
         ),
@@ -514,7 +514,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         "RPC handler returned a response but the incoming message has no correlationId",
         { rpcName: String(rpcName), queueName, replyTo },
       );
-      return err(
+      return Err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without correlationId; cannot deliver response`,
         ),
@@ -528,7 +528,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     try {
       rawValidation = responseSchema["~standard"].validate(response);
     } catch (error: unknown) {
-      return err(new NonRetryableError("RPC response schema validation threw", error)).toAsync();
+      return Err(new NonRetryableError("RPC response schema validation threw", error)).toAsync();
     }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
@@ -540,14 +540,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     )
       .flatMap((validation) => {
         if (validation.issues) {
-          return err<HandlerError>(
+          return Err<HandlerError>(
             new NonRetryableError(
               `RPC response for "${String(rpcName)}" failed schema validation`,
               new MessageValidationError(String(rpcName), validation.issues),
             ),
           );
         }
-        return ok(validation.value);
+        return Ok(validation.value);
       })
       .flatMap((validatedResponse) =>
         this.amqpClient
@@ -566,8 +566,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           )
           .flatMap((published) =>
             published
-              ? ok(undefined)
-              : err<HandlerError>(
+              ? Ok(undefined)
+              : Err<HandlerError>(
                   new NonRetryableError("Failed to publish RPC response: channel buffer full"),
                 ),
           ),
@@ -587,7 +587,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
     return this.parseAndValidateMessage(msg, consumer, name).orElse((parseError) => {
       this.amqpClient.nack(msg, false, false);
-      return err(parseError).toAsync();
+      return Err(parseError).toAsync();
     });
   }
 
@@ -608,7 +608,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   /**
    * For RPC handlers, validate and publish the reply on the caller's
    * `replyTo` / `correlationId`. For non-RPC consumers, this is a no-op that
-   * resolves to `ok(undefined).toAsync()`.
+   * resolves to `Ok(undefined).toAsync()`.
    */
   private publishReplyIfRpc(
     msg: ConsumeMessage,
@@ -617,7 +617,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     handlerResponse: unknown,
   ): AsyncResult<void, HandlerError> {
     if (!view.isRpc || !view.responseSchema) {
-      return ok(undefined).toAsync();
+      return Ok(undefined).toAsync();
     }
     const queueName = extractQueue(view.consumer.queue).name;
     return this.publishRpcResponse(msg, queueName, name, view.responseSchema, handlerResponse);
@@ -632,7 +632,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * is still needed (see {@link consumeSingle}).
    *
    * Success-vs-failure telemetry is data-driven: the chain resolves to
-   * `ok(undefined)` only on handler success (and reply-publish success for
+   * `Ok(undefined)` only on handler success (and reply-publish success for
    * RPC). Handler failures — even when {@link handleError} routes them
    * successfully to retry/DLQ — are classified as failures for metrics by
    * re-failing the chain with a `TechnicalError` whose `cause` is the
@@ -712,7 +712,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                 state.messageHandled = true;
               })
               .flatMap(() =>
-                err(
+                Err(
                   new TechnicalError(
                     `Handler "${String(name)}" failed: ${handlerError.message}`,
                     handlerError,

@@ -6,7 +6,7 @@ import {
   defineMessage,
   defineQueue,
 } from "@amqp-contract/contract";
-import { err, ok } from "unthrown";
+import { Err, Ok } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 import { RetryableError } from "../errors.js";
@@ -56,9 +56,9 @@ describe("Worker Retry Mechanism", () => {
         testConsumer: () => {
           attemptCount++;
           if (attemptCount === 1) {
-            return err(new RetryableError("First attempt failed")).toAsync();
+            return Err(new RetryableError("First attempt failed")).toAsync();
           }
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       });
 
@@ -155,7 +155,7 @@ describe("Worker Retry Mechanism", () => {
       });
 
       await workerFactory(contract, {
-        testConsumer: () => err(new RetryableError("Always fails")).toAsync(),
+        testConsumer: () => Err(new RetryableError("Always fails")).toAsync(),
       });
 
       // Set up DLQ manually for verification (after worker creates the DLX exchange)
@@ -247,7 +247,7 @@ describe("Worker Retry Mechanism", () => {
       await workerFactory(contract, {
         testConsumer: () => {
           attemptCount++;
-          return err(new RetryableError("Always fails")).toAsync();
+          return Err(new RetryableError("Always fails")).toAsync();
         },
       });
 
@@ -323,7 +323,7 @@ describe("Worker Retry Mechanism", () => {
       });
 
       await workerFactory(contract, {
-        testConsumer: () => err(new RetryableError("Test error message")).toAsync(),
+        testConsumer: () => Err(new RetryableError("Test error message")).toAsync(),
       });
 
       // WHEN publishing a message that fails
@@ -383,7 +383,7 @@ describe("Worker Retry Mechanism", () => {
       await workerFactory(contract, {
         testConsumer: () => {
           attemptCount++;
-          return err(new RetryableError("Will not retry")).toAsync();
+          return Err(new RetryableError("Will not retry")).toAsync();
         },
       });
 
@@ -438,7 +438,7 @@ describe("Worker Retry Mechanism", () => {
       await workerFactory(contract, {
         testConsumer: () => {
           attemptCount++;
-          return err(new RetryableError("No retry")).toAsync();
+          return Err(new RetryableError("No retry")).toAsync();
         },
       });
 
@@ -516,9 +516,9 @@ describe("Worker Retry Mechanism", () => {
             attemptCount++;
             if (attemptCount < 2) {
               // This triggers a requeue in immediate-requeue mode
-              return err(new RetryableError("Simulated failure")).toAsync();
+              return Err(new RetryableError("Simulated failure")).toAsync();
             }
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
         });
 
@@ -579,7 +579,7 @@ describe("Worker Retry Mechanism", () => {
           testConsumer: () => {
             attemptCount++;
             // Always fail - message should be dead-lettered after exceeding maxRetries
-            return err(new RetryableError("Always fails")).toAsync();
+            return Err(new RetryableError("Always fails")).toAsync();
           },
         });
 
@@ -653,9 +653,9 @@ describe("Worker Retry Mechanism", () => {
             attemptCount++;
             if (attemptCount < 2) {
               // This triggers a requeue in immediate-requeue mode
-              return err(new RetryableError("Simulated failure")).toAsync();
+              return Err(new RetryableError("Simulated failure")).toAsync();
             }
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
         });
 
@@ -717,7 +717,7 @@ describe("Worker Retry Mechanism", () => {
           testConsumer: () => {
             attemptCount++;
             // Always fail - message should be dead-lettered after exceeding maxRetries
-            return err(new RetryableError("Always fails")).toAsync();
+            return Err(new RetryableError("Always fails")).toAsync();
           },
         });
 
@@ -788,9 +788,9 @@ describe("Worker Retry Mechanism", () => {
           testConsumer: () => {
             attemptCount++;
             if (attemptCount < 2) {
-              return err(new RetryableError("Fail once")).toAsync();
+              return Err(new RetryableError("Fail once")).toAsync();
             }
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
         });
 
@@ -868,13 +868,13 @@ describe("Worker Retry Mechanism", () => {
 
             // Fail first two attempts to trigger retries
             if (attemptCount === 1) {
-              return err(new RetryableError("First failure")).toAsync();
+              return Err(new RetryableError("First failure")).toAsync();
             } else if (attemptCount === 2) {
-              return err(new RetryableError("Second failure")).toAsync();
+              return Err(new RetryableError("Second failure")).toAsync();
             }
 
             // Succeed on third attempt
-            return ok(undefined).toAsync();
+            return Ok(undefined).toAsync();
           },
         });
 
@@ -948,9 +948,9 @@ describe("Worker Retry Mechanism", () => {
         testConsumer: () => {
           attemptCount++;
           if (attemptCount === 1) {
-            return err(new RetryableError("First attempt failed")).toAsync();
+            return Err(new RetryableError("First attempt failed")).toAsync();
           }
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       });
 
@@ -1047,9 +1047,9 @@ describe("Worker Retry Mechanism", () => {
         testConsumer: () => {
           attemptCount++;
           if (attemptCount === 1) {
-            return err(new RetryableError("First attempt failed")).toAsync();
+            return Err(new RetryableError("First attempt failed")).toAsync();
           }
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       });
 
@@ -1132,9 +1132,9 @@ describe("Worker Retry Mechanism", () => {
           // Capture the routing key from the message
           capturedRoutingKeys.push(msg.fields.routingKey);
           if (attemptCount === 1) {
-            return err(new RetryableError("First attempt failed")).toAsync();
+            return Err(new RetryableError("First attempt failed")).toAsync();
           }
-          return ok(undefined).toAsync();
+          return Ok(undefined).toAsync();
         },
       });
 
@@ -1192,7 +1192,7 @@ describe("Worker Retry Mechanism", () => {
         testConsumer: () => {
           attemptCount++;
           // Always fail
-          return err(new RetryableError("Always fails")).toAsync();
+          return Err(new RetryableError("Always fails")).toAsync();
         },
       });
 

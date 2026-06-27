@@ -99,7 +99,7 @@ const contract = defineContract({
 });
 
 // Server handler returns the response value, not void:
-//   handlers: { calculate: ({ payload }) => ok({ sum: payload.a + payload.b }).toAsync() }
+//   handlers: { calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync() }
 //
 // Client invokes with a required timeout:
 //   const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000 });

@@ -94,7 +94,7 @@ const worker = (
         // Message is automatically decompressed
         console.log("Processing order:", payload.orderId);
         console.log("Items:", payload.items); // Already decompressed
-        return ok(undefined).toAsync();
+        return Ok(undefined).toAsync();
       },
     },
     urls: ["amqp://localhost"],
