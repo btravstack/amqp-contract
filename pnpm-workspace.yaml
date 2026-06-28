@@ -75,8 +75,9 @@ overrides:
   undici: ^8.5.0
   # Keep @types/node on the supported Node major (24.x) everywhere — dev tooling
   # (@changesets/cli, @commitlint/cli) would otherwise pull @types/node@26
-  # transitively. Types-only, so this has no runtime effect.
-  "@types/node": 24.13.2
+  # transitively. Types-only, so this has no runtime effect. `catalog:` keeps it
+  # in sync with the catalog entry above (single source of truth).
+  "@types/node": "catalog:"
 
 auditConfig:
   ignoreGhsas:
