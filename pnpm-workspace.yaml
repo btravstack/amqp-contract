@@ -65,6 +65,7 @@ minimumReleaseAgeStrict: true
 # from the release-age maturity gate so freshly published versions can be adopted
 # immediately.
 minimumReleaseAgeExclude:
+  - "@btravstack/theme"
   - unthrown
   - "@unthrown/vitest"
 
