@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@amqp-contract/tsconfig": "workspace:*",
-    "@btravstack/theme": "^1.2.0",
+    "@btravstack/theme": "catalog:",
     "@types/node": "catalog:",
     "mermaid": "catalog:",
     "tsx": "catalog:",

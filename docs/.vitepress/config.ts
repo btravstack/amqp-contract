@@ -70,6 +70,17 @@ export default withMermaid(
       class: "mermaid",
     },
 
+    // `@btravstack/theme` imports `vitepress/theme` (which side-effect-imports the
+    // default theme's CSS) plus its own `style.css`. VitePress externalizes the
+    // package during the SSR build, so Node's ESM loader hits those `.css` files
+    // and throws `ERR_UNKNOWN_FILE_EXTENSION`. Mark it `noExternal` so Vite
+    // processes (and strips) the CSS for the server bundle instead.
+    vite: {
+      ssr: {
+        noExternal: ["@btravstack/theme"],
+      },
+    },
+
     themeConfig: {
       // https://vitepress.dev/reference/default-theme-config
       logo: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
