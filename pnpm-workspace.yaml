@@ -32,7 +32,7 @@ catalog:
   "@orpc/zod": 1.14.6
   "@standard-schema/spec": 1.1.0
   "@types/node": 24.13.2
-  "@unthrown/vitest": 1.0.0
+  "@unthrown/vitest": 1.1.0
   "@vitest/coverage-v8": 4.1.9
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1
