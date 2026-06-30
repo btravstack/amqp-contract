@@ -89,6 +89,7 @@ export default withMermaid(
         { text: "Guides", link: "/guide/getting-started" },
         { text: "API", link: "/api/" },
         { text: "Examples", link: "/examples/" },
+        { text: "Changelog", link: "https://github.com/btravstack/amqp-contract/releases" },
         // Back to the btravstack hub (links the docs up to the landing page).
         { text: "btravstack", link: "https://btravstack.github.io/" },
       ],
