@@ -27,6 +27,10 @@ updates:
       # Only allow @types/node patch/minor updates (block major version bumps)
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+    # Apply a 7-day minimum package age (similar to pnpm's minimumReleaseAge).
+    # Note: Dependabot can't express pnpm's minimumReleaseAgeExclude list; this applies to all updates.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
 
   # GitHub Actions
@@ -35,4 +39,6 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5

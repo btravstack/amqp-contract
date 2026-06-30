@@ -60,6 +60,7 @@ catalog:
   yaml: 2.9.0
   zod: 4.4.3
 
+minimumReleaseAge: 10080 # 7 days, in minutes
 minimumReleaseAgeStrict: true
 
 # unthrown and its companions are first-party (btravstack) packages; exempt them
