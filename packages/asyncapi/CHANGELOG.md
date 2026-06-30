@@ -1,5 +1,12 @@
 # @amqp-contract/asyncapi
 
+## 2.2.0
+
+### Patch Changes
+
+- Updated dependencies [bfc138c]
+  - @amqp-contract/contract@2.2.0
+
 ## 2.1.0
 
 ### Patch Changes
