@@ -159,17 +159,17 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 `AsyncResult<T, E>` (async; `await` resolves to a `Result<T, E>`):
 
-| Method                          | Description                                                                       |
-| ------------------------------- | --------------------------------------------------------------------------------- |
-| `Ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                             |
-| `Err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                 |
-| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify` maps the rejection to `E \| Defect(cause)`. Required. |
-| `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).    |
-| `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                |
-| `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)             |
-| `.orElse(f)`                    | Recover from an error with another `Result` / `AsyncResult`                       |
-| `.tap(f)` / `.tapErr(f)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`)   |
-| `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                        |
+| Method                          | Description                                                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                                                                                                 |
+| `Err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                                                                                     |
+| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required. |
+| `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                        |
+| `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                                                                                    |
+| `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)                                                                                 |
+| `.orElse(f)`                    | Recover from an error with another `Result` / `AsyncResult`                                                                                           |
+| `.tap(f)` / `.tapErr(f)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`)                                                                       |
+| `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                                                                                            |
 
 `Result<T, E>` (sync; a union of `Ok` / `Err` / `Defect`):
 
