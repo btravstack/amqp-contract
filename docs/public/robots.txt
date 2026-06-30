@@ -1,8 +1,0 @@
-# robots.txt for https://btravstack.github.io/amqp-contract/
-# Allow all search engines to crawl the site
-
-User-agent: *
-Allow: /
-
-# Sitemap location
-Sitemap: https://btravstack.github.io/amqp-contract/sitemap.xml
