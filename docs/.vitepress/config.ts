@@ -229,16 +229,37 @@ export default withMermaid(
       ["meta", { property: "og:locale", content: "en_US" }],
       [
         "meta",
-        { property: "og:image", content: "https://btravstack.github.io/amqp-contract/logo.svg" },
+        {
+          property: "og:image",
+          content: "https://btravstack.github.io/amqp-contract/og-amqp-contract.png",
+        },
       ],
-      ["meta", { property: "og:image:alt", content: "amqp-contract logo" }],
-      // Twitter Card meta tags
-      ["meta", { name: "twitter:card", content: "summary" }],
+      ["meta", { property: "og:image:type", content: "image/png" }],
+      ["meta", { property: "og:image:width", content: "1200" }],
+      ["meta", { property: "og:image:height", content: "630" }],
       [
         "meta",
-        { name: "twitter:image", content: "https://btravstack.github.io/amqp-contract/logo.svg" },
+        {
+          property: "og:image:alt",
+          content: "amqp-contract — type-safe contracts for AMQP & RabbitMQ",
+        },
       ],
-      ["meta", { name: "twitter:image:alt", content: "amqp-contract logo" }],
+      // Twitter Card meta tags
+      ["meta", { name: "twitter:card", content: "summary_large_image" }],
+      [
+        "meta",
+        {
+          name: "twitter:image",
+          content: "https://btravstack.github.io/amqp-contract/og-amqp-contract.png",
+        },
+      ],
+      [
+        "meta",
+        {
+          name: "twitter:image:alt",
+          content: "amqp-contract — type-safe contracts for AMQP & RabbitMQ",
+        },
+      ],
       // Additional SEO meta tags
       ["meta", { name: "author", content: "Benoit TRAVERS" }],
       ["meta", { name: "robots", content: "index, follow" }],
