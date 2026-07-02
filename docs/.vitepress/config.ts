@@ -207,13 +207,6 @@ export default withMermaid(
 
     head: [
       ["link", { rel: "icon", type: "image/svg+xml", href: "/amqp-contract/logo.svg" }],
-      [
-        "meta",
-        {
-          name: "google-site-verification",
-          content: "u6ZPW5bWbP9G1yF5Sv7B4fSOJm5rLbZWeH858tmisTc",
-        },
-      ],
       // SEO keywords meta tags
       [
         "meta",
