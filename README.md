@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/public/logo.svg" alt="amqp-contract" width="128" height="128" />
+
 # amqp-contract
 
 **Type-safe contracts for [AMQP](https://www.amqp.org/)/[RabbitMQ](https://www.rabbitmq.com/) messaging with [TypeScript](https://www.typescriptlang.org/)**
