@@ -10,8 +10,8 @@ catalogs:
       specifier: 3.6.0
       version: 3.6.0
     '@btravstack/theme':
-      specifier: 1.4.0
-      version: 1.4.0
+      specifier: 1.5.0
+      version: 1.5.0
     '@changesets/cli':
       specifier: 2.31.0
       version: 2.31.0
@@ -182,7 +182,7 @@ importers:
         version: link:../tools/tsconfig
       '@btravstack/theme':
         specifier: 'catalog:'
-        version: 1.4.0(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.15)(typescript@6.0.3))
+        version: 1.5.0(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.15)(typescript@6.0.3))
       '@types/node':
         specifier: 24.13.2
         version: 24.13.2
@@ -815,8 +815,8 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
-  '@btravstack/theme@1.4.0':
-    resolution: {integrity: sha512-K6s6gxBkRRQG51gf13CMS+lu6QX+mH4DFhR8v75+v0UYDmAL/hCBbkuc0ydRcPMQ1NcBvHpkbj34Tukl4LCtSQ==}
+  '@btravstack/theme@1.5.0':
+    resolution: {integrity: sha512-tTTWDNarS0GOSeHk3GZ+GtrNfAFacZNvYMzG+X/gpyUa8irPGB8MT4f+uCbloJ2UFG6JNLNXnMF7KuAVtMaoAA==}
     peerDependencies:
       vitepress: ^1.6.0
 
@@ -5609,7 +5609,7 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
-  '@btravstack/theme@1.4.0(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.15)(typescript@6.0.3))':
+  '@btravstack/theme@1.5.0(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.15)(typescript@6.0.3))':
     dependencies:
       vitepress: 1.6.4(@algolia/client-search@5.53.0)(@types/node@24.13.2)(lightningcss@1.32.0)(postcss@8.5.15)(typescript@6.0.3)
 
