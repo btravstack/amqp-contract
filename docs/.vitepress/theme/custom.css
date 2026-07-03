@@ -25,16 +25,15 @@
 .VPHome::after {
   content: "";
   position: absolute;
-  top: 30px;
+  top: 8px;
+  left: var(--btv-gutter);
   right: var(--btv-gutter);
-  width: 560px;
-  max-width: 46vw;
   aspect-ratio: 500 / 300;
   background-color: var(--accent);
   -webkit-mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgMzAwIiBmaWxsPSJub25lIj48cGF0aCBkPSJNMCwxNTAgSDE1MCBNMTUwLDE1MCBDMjIwLDE1MCAyMjAsNzAgMjkwLDcwIEg1MDAgTTE1MCwxNTAgQzIyMCwxNTAgMjIwLDE1MCAyOTAsMTUwIEg1MDAgTTE1MCwxNTAgQzIyMCwxNTAgMjIwLDIzMCAyOTAsMjMwIEg1MDAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyIi8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTUwIiByPSI3IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMjkwIiBjeT0iNzAiIHI9IjUiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyOTAiIGN5PSIxNTAiIHI9IjUiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyOTAiIGN5PSIyMzAiIHI9IjUiIGZpbGw9IiNmZmYiLz48L3N2Zz4=")
-    no-repeat top right / contain;
+    no-repeat top center / contain;
   mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgMzAwIiBmaWxsPSJub25lIj48cGF0aCBkPSJNMCwxNTAgSDE1MCBNMTUwLDE1MCBDMjIwLDE1MCAyMjAsNzAgMjkwLDcwIEg1MDAgTTE1MCwxNTAgQzIyMCwxNTAgMjIwLDE1MCAyOTAsMTUwIEg1MDAgTTE1MCwxNTAgQzIyMCwxNTAgMjIwLDIzMCAyOTAsMjMwIEg1MDAiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyIi8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTUwIiByPSI3IiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMjkwIiBjeT0iNzAiIHI9IjUiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyOTAiIGN5PSIxNTAiIHI9IjUiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyOTAiIGN5PSIyMzAiIHI9IjUiIGZpbGw9IiNmZmYiLz48L3N2Zz4=")
-    no-repeat top right / contain;
+    no-repeat top center / contain;
   opacity: 0.14;
   pointer-events: none;
   z-index: 0;
