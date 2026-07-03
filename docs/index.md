@@ -22,15 +22,15 @@ hero:
       link: https://github.com/btravstack/amqp-contract
 
 features:
-  - icon: 🔒
+  - icon: { src: /icons/shield-check.svg }
     title: Type Safety & Validation
     details: End-to-end TypeScript inference with automatic runtime validation using Zod, Valibot, or ArkType.
 
-  - icon: 🔄
+  - icon: { src: /icons/retry.svg }
     title: Reliable Retry
     details: Built-in immediate or exponential backoff retry mechanisms.
 
-  - icon: 📄
+  - icon: { src: /icons/spec.svg }
     title: AsyncAPI Compatible
     details: Generate AsyncAPI 3.0 specs for documentation, visualization, and breaking change detection.
 ---
