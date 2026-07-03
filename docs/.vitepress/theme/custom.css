@@ -1,0 +1,6 @@
+/* amqp-contract accent — RabbitMQ orange.
+ * @btravstack/theme 1.4.0 derives every accent shade from this one token
+ * (deep/hover/soft/washes/hero glow/feature-icon chip/light-mode AA text). */
+:root:root {
+  --accent: #FF6600;
+}
