@@ -324,8 +324,8 @@ describe("Channel Configuration", () => {
       },
     });
 
-    await client.channel.waitForConnect();
-    expect(client.channel).toBeDefined();
+    const connected = await client.waitForConnect();
+    expect(connected.isOk()).toBe(true);
 
     await client.close();
   });
@@ -414,7 +414,7 @@ const client = new AmqpClient(contract, {
 
 **Solutions:**
 
-1. Ensure channel is connected: `await client.channel.waitForConnect()`
+1. Ensure channel is connected: `await client.waitForConnect()`
 2. Check for errors in setup function (they may cause silent failures)
 3. Verify setup function signature is correct
 
