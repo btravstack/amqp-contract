@@ -161,6 +161,9 @@ vite.config.ts.timestamp-*
 .vscode/
 .idea/
 
+# AI agents
+.claude/
+
 # macOS
 .DS_Store
 .AppleDouble
