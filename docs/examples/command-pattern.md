@@ -68,27 +68,23 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "@org/payment-contract";
 import { randomUUID } from "node:crypto";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-(
-  await client
-    .publish("chargeCustomer", {
-      customerId: "cust_123",
-      amountCents: 4_999,
-      currency: "USD",
-      idempotencyKey: randomUUID(),
-    })
-    .recover((e) => {
-      throw e;
-    })
-).unwrap();
+await client
+  .publish("chargeCustomer", {
+    customerId: "cust_123",
+    amountCents: 4_999,
+    currency: "USD",
+    idempotencyKey: randomUUID(),
+  })
+  .unwrapOrElse((e) => {
+    throw e;
+  });
 ```
 
 A `subscriptions-service`, `refunds-service`, or any other publisher does the same — they all use `chargeCustomer`. Routing-key dispatch is handled by the contract; callers never name `payments.charge` themselves.
@@ -127,17 +123,15 @@ const chargeHandler = defineHandler(contract, "chargeCustomer", ({ payload }) =>
   ).map(() => undefined),
 );
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      chargeCustomer: [chargeHandler, { prefetch: 5 }],
-    },
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    chargeCustomer: [chargeHandler, { prefetch: 5 }],
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 process.on("SIGINT", async () => {
   await worker.close();

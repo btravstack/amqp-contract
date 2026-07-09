@@ -213,14 +213,12 @@ async function main() {
   console.log("🚀 Starting publisher...");
 
   // Create client
-  const client = (
-    await TypedAmqpClient.create({
-      contract,
-      urls: ["amqp://localhost"],
-    }).recover((e) => {
-      throw e;
-    })
-  ).unwrap();
+  const client = await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  }).unwrapOrElse((e) => {
+    throw e;
+  });
 
   console.log("✅ Connected to RabbitMQ");
 
@@ -261,26 +259,24 @@ async function main() {
   console.log("⚙️ Starting worker...");
 
   // Create worker with handlers
-  const worker = (
-    await TypedAmqpWorker.create({
-      contract,
-      handlers: {
-        processEmail: ({ payload }) => {
-          // Payload is fully typed!
-          console.log("\n📬 Received email:");
-          console.log(`  To: ${payload.to}`);
-          console.log(`  Subject: ${payload.subject}`);
-          console.log(`  Body: ${payload.body}`);
+  const worker = await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+      processEmail: ({ payload }) => {
+        // Payload is fully typed!
+        console.log("\n📬 Received email:");
+        console.log(`  To: ${payload.to}`);
+        console.log(`  Subject: ${payload.subject}`);
+        console.log(`  Body: ${payload.body}`);
 
-          // Report success — handlers return an AsyncResult, they don't throw
-          return Ok(undefined).toAsync();
-        },
+        // Report success — handlers return an AsyncResult, they don't throw
+        return Ok(undefined).toAsync();
       },
-      urls: ["amqp://localhost"],
-    }).recover((e) => {
-      throw e;
-    })
-  ).unwrap();
+    },
+    urls: ["amqp://localhost"],
+  }).unwrapOrElse((e) => {
+    throw e;
+  });
 
   console.log("✅ Worker ready, waiting for messages...\n");
   console.log("Press Ctrl+C to stop\n");

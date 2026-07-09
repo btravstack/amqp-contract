@@ -43,22 +43,18 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (
-      await client.waitForConnect().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // THEN - Verify queue was created with x-max-priority
     const queueInfo = await amqpChannel.checkQueue("test-priority-queue");
     expect(queueInfo.queue).toBe("test-priority-queue");
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
     await amqpChannel.deleteQueue("test-priority-queue");
   });
 
@@ -106,37 +102,29 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (
-      await client.waitForConnect().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Publish messages with different priorities
     // Publishing in this order: low (1), medium (5), high (10)
-    (
-      await client
-        .publish(exchange.name, "test", { id: "msg-low", priority: 1 }, { priority: 1 })
-        .recover((e) => {
-          throw e;
-        })
-    ).unwrap();
+    await client
+      .publish(exchange.name, "test", { id: "msg-low", priority: 1 }, { priority: 1 })
+      .unwrapOrElse((e) => {
+        throw e;
+      });
 
-    (
-      await client
-        .publish(exchange.name, "test", { id: "msg-medium", priority: 5 }, { priority: 5 })
-        .recover((e) => {
-          throw e;
-        })
-    ).unwrap();
+    await client
+      .publish(exchange.name, "test", { id: "msg-medium", priority: 5 }, { priority: 5 })
+      .unwrapOrElse((e) => {
+        throw e;
+      });
 
-    (
-      await client
-        .publish(exchange.name, "test", { id: "msg-high", priority: 10 }, { priority: 10 })
-        .recover((e) => {
-          throw e;
-        })
-    ).unwrap();
+    await client
+      .publish(exchange.name, "test", { id: "msg-high", priority: 10 }, { priority: 10 })
+      .unwrapOrElse((e) => {
+        throw e;
+      });
 
     // Give RabbitMQ time to order the messages
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -175,11 +163,9 @@ describe("Priority Queue", () => {
     ]);
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
     await amqpChannel.deleteQueue(extractQueue(priorityQueue).name);
     await amqpChannel.deleteExchange(exchange.name);
   });
@@ -233,27 +219,21 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (
-      await client.waitForConnect().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Publish message without priority (defaults to 0)
-    (
-      await client.publish(exchange.name, "test", { id: "msg-default" }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.publish(exchange.name, "test", { id: "msg-default" }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Publish message with priority 5
-    (
-      await client
-        .publish(exchange.name, "test", { id: "msg-priority" }, { priority: 5 })
-        .recover((e) => {
-          throw e;
-        })
-    ).unwrap();
+    await client
+      .publish(exchange.name, "test", { id: "msg-priority" }, { priority: 5 })
+      .unwrapOrElse((e) => {
+        throw e;
+      });
 
     // Give RabbitMQ time to order the messages
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -288,11 +268,9 @@ describe("Priority Queue", () => {
     expect(consumedMessages).toEqual([{ id: "msg-priority" }, { id: "msg-default" }]);
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
     await amqpChannel.deleteQueue(extractQueue(priorityQueue).name);
     await amqpChannel.deleteExchange(exchange.name);
   });

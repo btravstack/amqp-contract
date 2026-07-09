@@ -4,20 +4,18 @@ Learn how to use the type-safe AMQP client to publish messages.
 
 ## Creating a Client
 
-Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) clear the error channel with `.recover((e) => { throw e })` before `.unwrap()`, since [unthrown 4 gates `.unwrap()`](./error-model.md#getting-the-value-out) to infallible results:
+Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) unwrap with `.unwrapOrElse((e) => { throw e })`, since [unthrown 4 gates `.unwrap()`](./error-model.md#getting-the-value-out) to infallible results:
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ### Default Publish Options
@@ -25,18 +23,16 @@ const client = (
 Configure default publish options that apply to all messages published by the client:
 
 ```typescript
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    defaultPublishOptions: {
-      priority: 5,
-      headers: { "x-app-version": "1.0.0" },
-    },
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  defaultPublishOptions: {
+    priority: 5,
+    headers: { "x-app-version": "1.0.0" },
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 Default publish options can be overridden by options passed to individual `publish` calls.
@@ -205,14 +201,12 @@ async function main() {
   let client;
 
   try {
-    client = (
-      await TypedAmqpClient.create({
-        contract,
-        urls: ["amqp://localhost"],
-      }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    client = await TypedAmqpClient.create({
+      contract,
+      urls: ["amqp://localhost"],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     const result = await client.publish("orderCreated", {
       orderId: "ORD-123",

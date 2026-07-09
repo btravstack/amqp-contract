@@ -70,21 +70,19 @@ describe("Worker defensive nack guard", () => {
 
     const processed: string[] = [];
 
-    const worker = (
-      await TypedAmqpWorker.create({
-        contract,
-        handlers: {
-          testConsumer: ({ payload }) => {
-            processed.push(payload.id);
-            return Ok(undefined).toAsync();
-          },
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        testConsumer: ({ payload }) => {
+          processed.push(payload.id);
+          return Ok(undefined).toAsync();
         },
-        urls: [amqpConnectionUrl],
-        telemetry: provider,
-      }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+      },
+      urls: [amqpConnectionUrl],
+      telemetry: provider,
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     try {
       // WHEN we publish two messages back to back. The first triggers the
@@ -115,11 +113,9 @@ describe("Worker defensive nack guard", () => {
       // channel.
       expect(processed.length).toBe(2);
     } finally {
-      (
-        await worker.close().recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      await worker.close().unwrapOrElse((e) => {
+        throw e;
+      });
     }
   }, 15_000);
 });

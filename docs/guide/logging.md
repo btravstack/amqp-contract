@@ -32,15 +32,13 @@ Pass a `logger` to `TypedAmqpClient.create()`:
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    logger, // [!code highlight]
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  logger, // [!code highlight]
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ## Usage with Worker
@@ -50,16 +48,14 @@ Pass a `logger` to `TypedAmqpWorker.create()`:
 ```typescript
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"],
-    handlers,
-    logger, // [!code highlight]
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"],
+  handlers,
+  logger, // [!code highlight]
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ## What Gets Logged

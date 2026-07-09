@@ -73,56 +73,46 @@ const contract = defineContract({
 });
 
 // 5. Type-safe consuming with automatic retry (configured at queue level)
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log(payload.orderId); // ✅ TypeScript knows!
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log(payload.orderId); // ✅ TypeScript knows!
+      return Ok(undefined).toAsync();
     },
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // 6. Type-safe publishing with validation
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // publish() returns an AsyncResult instead of throwing — awaiting it yields a
 // Result. unthrown 4 gates unwrap() to infallible results, so clear the error
 // channel with recover() first (or use .match()). See the error model guide.
-(
-  await client
-    .publish("orderCreated", {
-      orderId: "ORD-123", // ✅ TypeScript knows!
-      amount: 99.99,
-    })
-    .recover((e) => {
-      throw e;
-    })
-).unwrap();
+await client
+  .publish("orderCreated", {
+    orderId: "ORD-123", // ✅ TypeScript knows!
+    amount: 99.99,
+  })
+  .unwrapOrElse((e) => {
+    throw e;
+  });
 
 // 7. Clean up
-(
-  await client.close().recover((e) => {
-    throw e;
-  })
-).unwrap();
-(
-  await worker.close().recover((e) => {
-    throw e;
-  })
-).unwrap();
+await client.close().unwrapOrElse((e) => {
+  throw e;
+});
+await worker.close().unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).
