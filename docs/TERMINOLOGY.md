@@ -82,23 +82,27 @@ When implementing the contract, we use our terms:
 import { Ok } from "unthrown";
 
 // Client = runtime publisher
-const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
+const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+  throw e;
+});
 
-await client.publish("orderCreated", message);
+await client.publish("orderCreated", message).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Worker = runtime consumer
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        // Handle message
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      // Handle message
+      return Ok(undefined).toAsync();
     },
-    urls,
-  })
-).unwrap();
+  },
+  urls,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 These terms (`TypedAmqpClient`, `TypedAmqpWorker`) describe the **runtime components** that implement the contract.
@@ -154,17 +158,21 @@ await publisher.publish(exchange, routingKey, message);
 const consumer = await createConsumer(queue, handler);
 
 // amqp-contract uses:
-const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
+const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+  throw e;
+});
 
-await client.publish("orderCreated", message);
+await client.publish("orderCreated", message).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: { processOrder: handler },
-    urls,
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: { processOrder: handler },
+  urls,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 The functionality is identical; only the naming differs.
