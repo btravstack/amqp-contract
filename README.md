@@ -72,20 +72,7 @@ const contract = defineContract({
   },
 });
 
-// 6. Type-safe publishing with validation
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
-
-await client.publish("orderCreated", {
-  orderId: "ORD-123", // ✅ TypeScript knows!
-  amount: 99.99,
-});
-
-// 7. Type-safe consuming with automatic retry (configured at queue level)
+// 5. Type-safe consuming with automatic retry (configured at queue level)
 const worker = (
   await TypedAmqpWorker.create({
     contract,
@@ -98,15 +85,46 @@ const worker = (
     urls: ["amqp://localhost"],
   })
 ).unwrap();
+
+// 6. Type-safe publishing with validation
+const client = (
+  await TypedAmqpClient.create({
+    contract,
+    urls: ["amqp://localhost"],
+  })
+).unwrap();
+
+// publish() returns a Result instead of throwing — unwrap() it (or use
+// .match()) so failures surface. See the error model guide for details.
+(
+  await client.publish("orderCreated", {
+    orderId: "ORD-123", // ✅ TypeScript knows!
+    amount: 99.99,
+  })
+).unwrap();
+
+// 7. Clean up
+(await client.close()).unwrap();
+(await worker.close()).unwrap();
 ```
+
+▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).
 
 ## Installation
 
+Requires **Node.js 22.19+**.
+
 ```bash
-pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown
+pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
 ```
 
-[`unthrown`](https://github.com/btravstack/unthrown) is exposed in the public types (`AsyncResult<void, HandlerError>`), so consumers need it directly to construct handler results.
+[`unthrown`](https://github.com/btravstack/unthrown) is exposed in the public types (`AsyncResult<void, HandlerError>`), so consumers need it directly to construct handler results. `zod` can be swapped for any [Standard Schema](https://standardschema.dev/) library ([Valibot](https://valibot.dev/), [ArkType](https://arktype.io/), …).
+
+Need a local RabbitMQ to try it against?
+
+```bash
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
+```
 
 ## Documentation
 

@@ -13,7 +13,7 @@ amqp-contract brings end-to-end type safety to [AMQP](https://www.amqp.org/)/[Ra
 
 ## Prerequisites
 
-- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **Node.js 22.19+** - [Download Node.js](https://nodejs.org/)
 - **RabbitMQ running locally** - We'll use Docker (see below)
 - **Basic TypeScript knowledge** - Understanding of TypeScript syntax
 
@@ -54,8 +54,8 @@ mkdir amqp-demo && cd amqp-demo
 npm init -y
 
 # Install dependencies
-pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker amqplib zod
-pnpm add -D @types/amqplib typescript tsx
+pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
+pnpm add -D typescript tsx
 
 # Initialize TypeScript
 npx tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext
@@ -67,8 +67,8 @@ mkdir amqp-demo && cd amqp-demo
 npm init -y
 
 # Install dependencies
-npm install @amqp-contract/contract @amqp-contract/client @amqp-contract/worker amqplib zod
-npm install -D @types/amqplib typescript tsx
+npm install @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
+npm install -D typescript tsx
 
 # Initialize TypeScript
 npx tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext
@@ -80,13 +80,17 @@ mkdir amqp-demo && cd amqp-demo
 npm init -y
 
 # Install dependencies
-yarn add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker amqplib zod
-yarn add -D @types/amqplib typescript tsx
+yarn add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
+yarn add -D typescript tsx
 
 # Initialize TypeScript
 npx tsc --init --target ES2022 --module NodeNext --moduleResolution NodeNext
 ```
 
+:::
+
+::: info Why these packages?
+[`unthrown`](https://github.com/btravstack/unthrown) appears in the public types (handlers return `AsyncResult<void, HandlerError>`), so you need it directly to construct handler results. `zod` can be any [Standard Schema](https://standardschema.dev/) library — see [Alternative Schema Libraries](#alternative-schema-libraries) below. You do **not** need to install `amqplib` yourself; it ships as a dependency of the amqp-contract packages.
 :::
 
 ### Optional Packages
@@ -223,7 +227,7 @@ Create `consumer.ts` - processes messages:
 ```typescript
 // consumer.ts
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromSafePromise } from "unthrown";
+import { Ok } from "unthrown";
 import { contract } from "./contract.js";
 
 async function main() {
@@ -241,11 +245,8 @@ async function main() {
           console.log(`  Subject: ${payload.subject}`);
           console.log(`  Body: ${payload.body}`);
 
-          // Simulate sending email (the promise never rejects, so fromSafePromise)
-          return fromSafePromise(new Promise((resolve) => setTimeout(resolve, 1000))).map(() => {
-            console.log("✅ Email sent successfully!");
-            return undefined;
-          });
+          // Report success — handlers return a Result, they don't throw
+          return Ok(undefined).toAsync();
         },
       },
       urls: ["amqp://localhost"],
@@ -265,6 +266,10 @@ async function main() {
 
 main().catch(console.error);
 ```
+
+::: tip Doing real async work in a handler?
+Wrap the promise with `fromPromise(promise, qualify)` (or `fromSafePromise` if it can never reject) instead of `async`/`await` — handlers return an `AsyncResult`, not a bare promise. See the [Error Model guide](/guide/error-model) and [Worker Usage](/guide/worker-usage).
+:::
 
 ## Step 6: Run It
 
@@ -309,7 +314,6 @@ npx tsx publisher.ts
   To: user@example.com
   Subject: Welcome to amqp-contract!
   Body: This is a type-safe message from amqp-contract.
-✅ Email sent successfully!
 ```
 
 **🎉 Success!** You've just sent and received your first type-safe AMQP message!
