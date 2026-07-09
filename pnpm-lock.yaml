@@ -394,9 +394,6 @@ importers:
       ts-pattern:
         specifier: 'catalog:'
         version: 5.9.0
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -434,6 +431,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 3.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -489,9 +489,6 @@ importers:
       amqplib:
         specifier: 'catalog:'
         version: 2.0.1
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -523,6 +520,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 3.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -575,9 +575,6 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -615,6 +612,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 3.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
