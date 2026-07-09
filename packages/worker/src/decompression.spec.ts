@@ -10,11 +10,9 @@ describe("Decompression utilities", () => {
   describe("decompressBuffer", () => {
     it("should return buffer as-is when no content-encoding is provided", async () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
-      const result = (
-        await decompressBuffer(testData, undefined).recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      const result = await decompressBuffer(testData, undefined).unwrapOrElse((e) => {
+        throw e;
+      });
 
       expect(result).toEqual(testData);
     });
@@ -23,11 +21,9 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = (
-        await decompressBuffer(compressed, "gzip").recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      const decompressed = await decompressBuffer(compressed, "gzip").unwrapOrElse((e) => {
+        throw e;
+      });
 
       expect(decompressed).toEqual(testData);
     });
@@ -36,11 +32,9 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await deflateAsync(testData);
 
-      const decompressed = (
-        await decompressBuffer(compressed, "deflate").recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      const decompressed = await decompressBuffer(compressed, "deflate").unwrapOrElse((e) => {
+        throw e;
+      });
 
       expect(decompressed).toEqual(testData);
     });
@@ -49,11 +43,9 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = (
-        await decompressBuffer(compressed, "GZIP").recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      const decompressed = await decompressBuffer(compressed, "GZIP").unwrapOrElse((e) => {
+        throw e;
+      });
 
       expect(decompressed).toEqual(testData);
     });
@@ -83,11 +75,9 @@ describe("Decompression utilities", () => {
       );
 
       const compressed = await gzipAsync(largeData);
-      const decompressed = (
-        await decompressBuffer(compressed, "gzip").recover((e) => {
-          throw e;
-        })
-      ).unwrap();
+      const decompressed = await decompressBuffer(compressed, "gzip").unwrapOrElse((e) => {
+        throw e;
+      });
 
       expect(decompressed).toEqual(largeData);
     });

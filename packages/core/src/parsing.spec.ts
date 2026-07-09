@@ -9,11 +9,9 @@ describe("safeJsonParse", () => {
 
     expect(result).toBeOk();
     expect(
-      result
-        .recover((e) => {
-          throw e;
-        })
-        .unwrap(),
+      result.unwrapOrElse((e) => {
+        throw e;
+      }),
     ).toEqual({ a: 1, b: "two" });
   });
 
@@ -21,21 +19,11 @@ describe("safeJsonParse", () => {
     const rethrow = (e: unknown): never => {
       throw e;
     };
-    expect(
-      safeJsonParse(Buffer.from("42"), () => new Error())
-        .recover(rethrow)
-        .unwrap(),
-    ).toBe(42);
-    expect(
-      safeJsonParse(Buffer.from('"hello"'), () => new Error())
-        .recover(rethrow)
-        .unwrap(),
-    ).toBe("hello");
-    expect(
-      safeJsonParse(Buffer.from("null"), () => new Error())
-        .recover(rethrow)
-        .unwrap(),
-    ).toBeNull();
+    expect(safeJsonParse(Buffer.from("42"), () => new Error()).unwrapOrElse(rethrow)).toBe(42);
+    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error()).unwrapOrElse(rethrow)).toBe(
+      "hello",
+    );
+    expect(safeJsonParse(Buffer.from("null"), () => new Error()).unwrapOrElse(rethrow)).toBeNull();
   });
 
   it("invokes the error mapper with the underlying parse error and returns Err", () => {

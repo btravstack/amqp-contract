@@ -145,14 +145,12 @@ const contract = defineContract({
 });
 
 // 4. Publisher gets full type safety
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows these fields!
@@ -161,22 +159,20 @@ await client.publish("orderCreated", {
 });
 
 // 5. Consumer gets fully typed payloads
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log(payload.orderId); // ✅ Fully typed!
-        console.log(payload.customerId); // ✅ Autocomplete!
-        console.log(payload.amount); // ✅ Type safe!
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log(payload.orderId); // ✅ Fully typed!
+      console.log(payload.customerId); // ✅ Autocomplete!
+      console.log(payload.amount); // ✅ Type safe!
+      return Ok(undefined).toAsync();
     },
-    urls: ["amqp://localhost"],
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ### 2. Automatic Validation

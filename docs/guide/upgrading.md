@@ -17,15 +17,13 @@ pnpm add unthrown@^4
 
 amqp-contract's own API shape is unchanged, but unthrown 4 changes two things you may rely on:
 
-**1. `.unwrap()` is type-gated.** It now compiles only on a result whose error channel is empty (`E = never`). Calling `.unwrap()` on a fallible result — e.g. `(await client.publish(...)).unwrap()` or `(await TypedAmqpClient.create(...)).unwrap()` — is now a **compile error**. Prefer `.match()`; to keep "throw on failure", clear the error channel with `recover` first:
+**1. `.unwrap()` is type-gated.** It now compiles only on a result whose error channel is empty (`E = never`). Calling `.unwrap()` on a fallible result — e.g. `(await client.publish(...)).unwrap()` or `(await TypedAmqpClient.create(...)).unwrap()` — is now a **compile error**. Prefer `.match()`; to keep "throw on failure", unwrap with `.unwrapOrElse()`:
 
 ```diff
 - const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
-+ const client = (
-+   await TypedAmqpClient.create({ contract, urls }).recover((e) => {
-+     throw e;
-+   })
-+ ).unwrap();
++ const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
++   throw e;
++ });
 ```
 
 See [Getting the value out](./error-model.md#getting-the-value-out).

@@ -22,16 +22,14 @@ const logger = pino({
 
 async function main() {
   // Create type-safe client
-  const client = (
-    await TypedAmqpClient.create({
-      contract: orderContract,
-      urls: [env.AMQP_URL],
-    })
-      .tapErr((error) => logger.error({ error }, "Failed to create client"))
-      .recover((error) => {
-        throw error;
-      })
-  ).unwrap();
+  const client = await TypedAmqpClient.create({
+    contract: orderContract,
+    urls: [env.AMQP_URL],
+  })
+    .tapErr((error) => logger.error({ error }, "Failed to create client"))
+    .unwrapOrElse((error) => {
+      throw error;
+    });
 
   logger.info("Client ready");
   logger.info("=".repeat(60));
@@ -46,15 +44,13 @@ async function main() {
     message: Parameters<typeof client.publish<T>>[1],
     options?: PublishOptions,
   ): Promise<void> => {
-    (
-      await client
-        .publish(publisherName, message, options)
-        .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
-        .tap(() => logger.debug(`Successfully published to ${publisherName}`))
-        .recover((error) => {
-          throw error;
-        })
-    ).unwrap();
+    await client
+      .publish(publisherName, message, options)
+      .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
+      .tap(() => logger.debug(`Successfully published to ${publisherName}`))
+      .unwrapOrElse((error) => {
+        throw error;
+      });
   };
 
   // 1. Publish a new order (routing key: order.created)
@@ -144,11 +140,9 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Clean up
-  (
-    await client.close().recover((error) => {
-      throw error;
-    })
-  ).unwrap();
+  await client.close().unwrapOrElse((error) => {
+    throw error;
+  });
   logger.info("Publisher stopped");
   process.exit(0);
 }

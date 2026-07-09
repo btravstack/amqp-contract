@@ -82,16 +82,12 @@ amqp-contract automatically shares connections across clients and workers with t
 
 ```typescript
 // These share the same underlying connection
-const client = (
-  await TypedAmqpClient.create({ contract, urls }).recover((e) => {
-    throw e;
-  })
-).unwrap();
-const worker = (
-  await TypedAmqpWorker.create({ contract, handlers, urls }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+  throw e;
+});
+const worker = await TypedAmqpWorker.create({ contract, handlers, urls }).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ### Connection Pool Sizing
@@ -100,35 +96,31 @@ For high-throughput scenarios, you may want separate connections:
 
 ```typescript
 // Separate connection for publishing
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls,
+const client = await TypedAmqpClient.create({
+  contract,
+  urls,
+  connectionOptions: {
     connectionOptions: {
-      connectionOptions: {
-        clientProperties: { connection_name: "publisher" },
-      },
+      clientProperties: { connection_name: "publisher" },
     },
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Separate connection for consuming
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers,
-    urls,
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers,
+  urls,
+  connectionOptions: {
     connectionOptions: {
-      connectionOptions: {
-        clientProperties: { connection_name: "consumer" },
-      },
+      clientProperties: { connection_name: "consumer" },
     },
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ### Heartbeat Configuration
@@ -136,17 +128,15 @@ const worker = (
 Heartbeats detect dead connections but add overhead:
 
 ```typescript
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls,
-    connectionOptions: {
-      heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
-    },
-  }).recover((e) => {
-    throw e;
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls,
+  connectionOptions: {
+    heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 **Recommendations:**

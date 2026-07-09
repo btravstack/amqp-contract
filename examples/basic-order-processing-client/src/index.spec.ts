@@ -7,14 +7,12 @@ import { orderContract } from "@amqp-contract-examples/basic-order-processing-co
 describe("Basic Order Processing Client Integration", () => {
   it("should publish a new order successfully", async ({ amqpConnectionUrl }) => {
     // GIVEN
-    const client = (
-      await TypedAmqpClient.create({
-        contract: orderContract,
-        urls: [amqpConnectionUrl],
-      }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    const client = await TypedAmqpClient.create({
+      contract: orderContract,
+      urls: [amqpConnectionUrl],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     const newOrder = {
       orderId: "TEST-001",
@@ -34,23 +32,19 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should publish order status updates", async ({ amqpConnectionUrl }) => {
     // GIVEN
-    const client = (
-      await TypedAmqpClient.create({
-        contract: orderContract,
-        urls: [amqpConnectionUrl],
-      }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    const client = await TypedAmqpClient.create({
+      contract: orderContract,
+      urls: [amqpConnectionUrl],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     const orderUpdate = {
       orderId: "TEST-001",
@@ -65,23 +59,19 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should validate order schema before publishing", async ({ amqpConnectionUrl }) => {
     // GIVEN
-    const client = (
-      await TypedAmqpClient.create({
-        contract: orderContract,
-        urls: [amqpConnectionUrl],
-      }).recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    const client = await TypedAmqpClient.create({
+      contract: orderContract,
+      urls: [amqpConnectionUrl],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     const invalidOrder = {
       orderId: "TEST-001",
@@ -100,10 +90,8 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result.isErr()).toBe(true);
 
     // CLEANUP
-    (
-      await client.close().recover((e) => {
-        throw e;
-      })
-    ).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 });
