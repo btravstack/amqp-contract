@@ -141,7 +141,11 @@ export default withMermaid(
           },
           {
             text: "Help",
-            items: [{ text: "Troubleshooting", link: "/guide/troubleshooting" }],
+            items: [
+              { text: "Troubleshooting", link: "/guide/troubleshooting" },
+              { text: "FAQ", link: "/guide/faq" },
+              { text: "Upgrading", link: "/guide/upgrading" },
+            ],
           },
         ],
         "/api/": [
