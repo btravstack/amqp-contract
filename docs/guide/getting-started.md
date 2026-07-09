@@ -175,6 +175,31 @@ export const contract = defineContract({
 });
 ```
 
+### Event or command?
+
+This tutorial uses the **event** pattern — one publisher broadcasts, and any number of consumers subscribe. It's the right default for notifications and domain events like "an email was requested".
+
+When the work has a single owner (a task queue — many producers, one consumer), reach for the **command** pattern instead. You define the consumer first with `defineCommandConsumer`, and `defineCommandPublisher` derives the publisher's message type from it so callers can't drift:
+
+```typescript
+import { defineCommandConsumer, defineCommandPublisher } from "@amqp-contract/contract";
+
+// The worker owns the queue and declares the one command it accepts
+const processPayment = defineCommandConsumer(paymentQueue, paymentsExchange, paymentMessage, {
+  routingKey: "payment.charge",
+});
+
+// Any service can send the command; its payload type comes from the consumer
+const chargeCustomer = defineCommandPublisher(processPayment);
+```
+
+| Pattern     | Shape                          | Define with                                        |
+| ----------- | ------------------------------ | -------------------------------------------------- |
+| **Event**   | one publisher → many consumers | `defineEventPublisher` → `defineEventConsumer`     |
+| **Command** | many publishers → one consumer | `defineCommandConsumer` → `defineCommandPublisher` |
+
+Both register the same way in `defineContract`, and both stay fully typed end to end. See [Defining Contracts](/guide/defining-contracts) for the full comparison and the [Command Pattern example](/examples/command-pattern) for a complete walkthrough.
+
 ## Step 4: Publisher
 
 Create `publisher.ts` - publishes a message:

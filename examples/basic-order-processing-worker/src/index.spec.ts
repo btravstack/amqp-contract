@@ -24,6 +24,7 @@ describe("Basic Order Processing Worker Integration", () => {
           handleUrgentOrder: () => Ok(undefined).toAsync(),
 
           handleFailedOrders: () => Ok(undefined).toAsync(),
+          fulfillOrder: () => Ok(undefined).toAsync(),
         }),
         urls: [amqpConnectionUrl],
       })
@@ -75,6 +76,7 @@ describe("Basic Order Processing Worker Integration", () => {
         handleUrgentOrder: () => Ok(undefined).toAsync(),
 
         handleFailedOrders: () => Ok(undefined).toAsync(),
+        fulfillOrder: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
     });
@@ -141,6 +143,7 @@ describe("Basic Order Processing Worker Integration", () => {
         handleUrgentOrder: () => Ok(undefined).toAsync(),
 
         handleFailedOrders: () => Ok(undefined).toAsync(),
+        fulfillOrder: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
     });
@@ -170,6 +173,56 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(processedOrders.length).toBeGreaterThanOrEqual(1);
       expect(notifications.length).toBeGreaterThan(0); // Receives all events
+    } finally {
+      (await worker.close()).unwrap();
+    }
+  });
+
+  it("should deliver a fulfillment command to the single owning consumer", async ({
+    amqpConnectionUrl,
+    publishMessage,
+  }) => {
+    // GIVEN
+    const fulfilled: Array<unknown> = [];
+    const worker = (
+      await TypedAmqpWorker.create({
+        contract: orderContract,
+        handlers: defineHandlers(orderContract, {
+          processOrder: () => Ok(undefined).toAsync(),
+          notifyOrder: () => Ok(undefined).toAsync(),
+          shipOrder: () => Ok(undefined).toAsync(),
+          handleUrgentOrder: () => Ok(undefined).toAsync(),
+          handleFailedOrders: () => Ok(undefined).toAsync(),
+          fulfillOrder: ({ payload }) => {
+            fulfilled.push(payload);
+            return Ok(undefined).toAsync();
+          },
+        }),
+        urls: [amqpConnectionUrl],
+      })
+    ).unwrap();
+
+    try {
+      const command = {
+        orderId: "TEST-004",
+        warehouseId: "WH-EU-1",
+        priority: "express" as const,
+      };
+
+      // WHEN — the command is addressed to the fulfillment queue's exchange + key
+      publishMessage(
+        orderContract.publishers.requestFulfillment.exchange.name,
+        orderContract.publishers.requestFulfillment.routingKey,
+        command,
+      );
+
+      // THEN
+      await vi.waitFor(() => {
+        if (fulfilled.length < 1) {
+          throw new Error("Fulfillment command not yet handled");
+        }
+      });
+      expect(fulfilled).toEqual([command]);
     } finally {
       (await worker.close()).unwrap();
     }

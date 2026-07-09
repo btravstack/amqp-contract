@@ -114,6 +114,20 @@ async function main() {
   await publishWithLog("orderUrgentUpdate", urgentUpdate);
   logger.info(`   ✓ Published urgent update for ${urgentUpdate.orderId}`);
   logger.info(`   → Will be received by: notifications & urgent queues`);
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  // 6. Send a FULFILLMENT COMMAND (routing key: order.fulfill)
+  //    This is a command, not an event: it is addressed to the single
+  //    fulfillment worker (a task queue), not broadcast to subscribers.
+  logger.info("6️⃣ Sending FULFILLMENT COMMAND (order.fulfill)");
+  const fulfillment = {
+    orderId: "ORD-001",
+    warehouseId: "WH-EU-1",
+    priority: "express" as const,
+  };
+  await publishWithLog("requestFulfillment", fulfillment);
+  logger.info(`   ✓ Sent fulfillment command for ${fulfillment.orderId}`);
+  logger.info(`   → Will be received by: the single fulfillment worker (task queue)`);
 
   logger.info("=".repeat(60));
   logger.info("All orders published!");
