@@ -16,6 +16,10 @@ export default defineConfig({
           setupFiles: ["./src/vitest.setup.ts"],
           include: ["src/**/*.spec.ts"],
           exclude: ["src/**/__tests__/*.spec.ts"],
+          typecheck: {
+            enabled: true,
+            include: ["src/**/*.test-d.ts"],
+          },
         },
       },
       {
