@@ -245,7 +245,7 @@ async function main() {
           console.log(`  Subject: ${payload.subject}`);
           console.log(`  Body: ${payload.body}`);
 
-          // Report success — handlers return a Result, they don't throw
+          // Report success — handlers return an AsyncResult, they don't throw
           return Ok(undefined).toAsync();
         },
       },

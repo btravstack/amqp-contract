@@ -94,8 +94,9 @@ const client = (
   })
 ).unwrap();
 
-// publish() returns a Result instead of throwing — unwrap() it (or use
-// .match()) so failures surface. See the error model guide for details.
+// publish() returns an AsyncResult instead of throwing — awaiting it yields
+// a Result to unwrap() (or .match()) so failures surface. See the error
+// model guide for details.
 (
   await client.publish("orderCreated", {
     orderId: "ORD-123", // ✅ TypeScript knows!
