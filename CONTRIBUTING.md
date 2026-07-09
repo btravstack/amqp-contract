@@ -4,6 +4,14 @@ Thank you for your interest in contributing to amqp-contract!
 
 ## Development Setup
 
+### Prerequisites
+
+- **Node.js >= 22.19** (enforced via `engines`; `.node-version` pins the version used in CI)
+- **pnpm 11.7.0** — the repo pins it via the `packageManager` field, so `corepack enable` gives you the right version automatically
+- **Docker running** (not just installed) — required only for `pnpm test:integration`, which spins up RabbitMQ via testcontainers
+
+### Setup
+
 1. Install dependencies:
 
 ```bash
@@ -25,6 +33,28 @@ pnpm test
 # Run integration tests (requires Docker)
 pnpm test:integration
 ```
+
+### Development Loop
+
+```bash
+# Rebuild packages on change (tsdown --watch)
+pnpm dev
+
+# Run one package's unit tests
+pnpm --filter @amqp-contract/worker test
+
+# Run a single test file (from the package directory)
+cd packages/worker && pnpm vitest run --project unit src/retry.spec.ts
+
+# Type check everything
+pnpm typecheck
+```
+
+> [!IMPORTANT]
+> Two gotchas worth knowing up front:
+>
+> - **`pnpm typecheck` is not in the pre-commit hook.** Lefthook only runs `oxfmt` and `oxlint` on commit, so run `pnpm typecheck` (and `pnpm test`) yourself before pushing.
+> - **Packages typecheck against each other's `dist/` output**, not `src/`. If you change a public type in package A, rebuild it (`pnpm --filter @amqp-contract/<a> build`) before typechecking a package that depends on it — otherwise you'll see stale, confusing type errors.
 
 ## Testing Strategy
 
