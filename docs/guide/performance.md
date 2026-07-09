@@ -82,8 +82,16 @@ amqp-contract automatically shares connections across clients and workers with t
 
 ```typescript
 // These share the same underlying connection
-const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
-const worker = (await TypedAmqpWorker.create({ contract, handlers, urls })).unwrap();
+const client = (
+  await TypedAmqpClient.create({ contract, urls }).recover((e) => {
+    throw e;
+  })
+).unwrap();
+const worker = (
+  await TypedAmqpWorker.create({ contract, handlers, urls }).recover((e) => {
+    throw e;
+  })
+).unwrap();
 ```
 
 ### Connection Pool Sizing
@@ -101,6 +109,8 @@ const client = (
         clientProperties: { connection_name: "publisher" },
       },
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -115,6 +125,8 @@ const worker = (
         clientProperties: { connection_name: "consumer" },
       },
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -131,6 +143,8 @@ const client = (
     connectionOptions: {
       heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```

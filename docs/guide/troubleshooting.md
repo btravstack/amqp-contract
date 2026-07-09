@@ -415,6 +415,8 @@ const orderMessage = defineMessage(
        await TypedAmqpClient.create({
          contract,
          urls: ["amqp://localhost"],
+       }).recover((e) => {
+         throw e;
        })
      ).unwrap();
      await client.publish("sendEmail", message);
@@ -426,6 +428,8 @@ const orderMessage = defineMessage(
      await TypedAmqpClient.create({
        contract,
        urls: ["amqp://localhost"],
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
 
@@ -483,7 +487,7 @@ const orderMessage = defineMessage(
          { prefetch: 10 }, // Process up to 10 messages concurrently
        ],
      },
-   })).unwrap();
+   }).recover((e) => { throw e })).unwrap();
    ```
 
 2. **Heavy computation in handlers:**
@@ -553,6 +557,8 @@ Error: Connection timeout
            timeout: 10000, // 10 seconds
          },
        },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    ```
@@ -602,6 +608,8 @@ Error: Queue 'order-processing' not found
      await TypedAmqpClient.create({
        contract,
        urls: ["amqp://localhost"],
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    ```

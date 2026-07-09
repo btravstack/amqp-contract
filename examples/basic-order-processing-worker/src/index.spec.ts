@@ -27,6 +27,8 @@ describe("Basic Order Processing Worker Integration", () => {
           fulfillOrder: () => Ok(undefined).toAsync(),
         }),
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -54,7 +56,11 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(processedOrders).toEqual([newOrder]);
     } finally {
-      (await worker.close()).unwrap();
+      (
+        await worker.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     }
   });
 
@@ -80,7 +86,11 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.unwrap();
+    const worker = workerResult
+      .recover((e) => {
+        throw e;
+      })
+      .unwrap();
 
     try {
       // WHEN
@@ -117,7 +127,11 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(notifications.length).toBeGreaterThanOrEqual(2);
     } finally {
-      (await worker.close()).unwrap();
+      (
+        await worker.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     }
   });
 
@@ -147,7 +161,11 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.unwrap();
+    const worker = workerResult
+      .recover((e) => {
+        throw e;
+      })
+      .unwrap();
 
     try {
       const newOrder = {
@@ -174,7 +192,11 @@ describe("Basic Order Processing Worker Integration", () => {
       expect(processedOrders.length).toBeGreaterThanOrEqual(1);
       expect(notifications.length).toBeGreaterThan(0); // Receives all events
     } finally {
-      (await worker.close()).unwrap();
+      (
+        await worker.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     }
   });
 
@@ -199,6 +221,8 @@ describe("Basic Order Processing Worker Integration", () => {
           },
         }),
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -224,7 +248,11 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(fulfilled).toEqual([command]);
     } finally {
-      (await worker.close()).unwrap();
+      (
+        await worker.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     }
   });
 });

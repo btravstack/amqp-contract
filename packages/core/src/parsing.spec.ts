@@ -8,13 +8,34 @@ describe("safeJsonParse", () => {
     const result = safeJsonParse(buffer, () => new TechnicalError("unused"));
 
     expect(result).toBeOk();
-    expect(result.unwrap()).toEqual({ a: 1, b: "two" });
+    expect(
+      result
+        .recover((e) => {
+          throw e;
+        })
+        .unwrap(),
+    ).toEqual({ a: 1, b: "two" });
   });
 
   it("parses primitive JSON values", () => {
-    expect(safeJsonParse(Buffer.from("42"), () => new Error()).unwrap()).toBe(42);
-    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error()).unwrap()).toBe("hello");
-    expect(safeJsonParse(Buffer.from("null"), () => new Error()).unwrap()).toBeNull();
+    const rethrow = (e: unknown): never => {
+      throw e;
+    };
+    expect(
+      safeJsonParse(Buffer.from("42"), () => new Error())
+        .recover(rethrow)
+        .unwrap(),
+    ).toBe(42);
+    expect(
+      safeJsonParse(Buffer.from('"hello"'), () => new Error())
+        .recover(rethrow)
+        .unwrap(),
+    ).toBe("hello");
+    expect(
+      safeJsonParse(Buffer.from("null"), () => new Error())
+        .recover(rethrow)
+        .unwrap(),
+    ).toBeNull();
   });
 
   it("invokes the error mapper with the underlying parse error and returns Err", () => {
@@ -28,7 +49,8 @@ describe("safeJsonParse", () => {
     expect(result).toBeErr();
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBeInstanceOf(SyntaxError);
-    const err = result.unwrapErr();
+    if (!result.isErr()) throw new Error("expected Err");
+    const err = result.error;
     expect(err).toBeInstanceOf(TechnicalError);
     expect(err.message).toBe("Failed to parse JSON");
     expect(err.cause).toBeInstanceOf(SyntaxError);
@@ -43,6 +65,7 @@ describe("safeJsonParse", () => {
 
     const result = safeJsonParse(Buffer.from("oops"), (raw) => new CustomError(raw));
     expect(result).toBeErr();
-    expect(result.unwrapErr()).toBeInstanceOf(CustomError);
+    if (!result.isErr()) throw new Error("expected Err");
+    expect(result.error).toBeInstanceOf(CustomError);
   });
 });

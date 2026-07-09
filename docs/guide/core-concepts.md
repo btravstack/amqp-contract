@@ -59,6 +59,8 @@ const client = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 

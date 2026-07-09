@@ -16,11 +16,11 @@ import { TaggedError } from "unthrown";
 export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError", {
   name: "TechnicalError",
 })<{
-  message: string;
   cause?: unknown;
 }> {
   constructor(message: string, cause?: unknown) {
-    super({ message, cause });
+    super({ cause });
+    this.message = message;
   }
 }
 
@@ -38,11 +38,11 @@ export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError",
 export class MessageValidationError extends TaggedError("@amqp-contract/MessageValidationError", {
   name: "MessageValidationError",
 })<{
-  message: string;
   source: string;
   issues: unknown;
 }> {
   constructor(source: string, issues: unknown) {
-    super({ message: `Message validation failed for "${source}"`, source, issues });
+    super({ source, issues });
+    this.message = `Message validation failed for "${source}"`;
   }
 }

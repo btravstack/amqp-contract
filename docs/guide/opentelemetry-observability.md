@@ -160,6 +160,8 @@ const client = (
     contract,
     connection,
     telemetry: customTelemetryProvider,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -170,6 +172,8 @@ const worker = (
     connection,
     handlers,
     telemetry: customTelemetryProvider,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```

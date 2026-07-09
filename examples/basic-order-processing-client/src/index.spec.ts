@@ -11,6 +11,8 @@ describe("Basic Order Processing Client Integration", () => {
       await TypedAmqpClient.create({
         contract: orderContract,
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -32,7 +34,11 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should publish order status updates", async ({ amqpConnectionUrl }) => {
@@ -41,6 +47,8 @@ describe("Basic Order Processing Client Integration", () => {
       await TypedAmqpClient.create({
         contract: orderContract,
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -57,7 +65,11 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should validate order schema before publishing", async ({ amqpConnectionUrl }) => {
@@ -66,6 +78,8 @@ describe("Basic Order Processing Client Integration", () => {
       await TypedAmqpClient.create({
         contract: orderContract,
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -86,6 +100,10 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result.isErr()).toBe(true);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 });

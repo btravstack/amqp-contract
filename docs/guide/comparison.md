@@ -70,6 +70,8 @@ const client = (
   await TypedAmqpClient.create({
     contract, // Resources declared automatically!
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -137,6 +139,8 @@ const worker = (
       }, // ✅ Auto-acknowledgment on success!
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```

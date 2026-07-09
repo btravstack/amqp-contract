@@ -37,6 +37,8 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
     logger, // [!code highlight]
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -54,6 +56,8 @@ const worker = (
     urls: ["amqp://localhost"],
     handlers,
     logger, // [!code highlight]
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```

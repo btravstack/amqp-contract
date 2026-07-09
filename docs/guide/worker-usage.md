@@ -27,6 +27,8 @@ const worker = (
     contract,
     handlers: { processOrder },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -60,6 +62,8 @@ const worker = (
       },
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -90,6 +94,8 @@ const worker = (
       },
     },
     connection,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -111,7 +117,7 @@ const workerResult = (await TypedAmqpWorker.create({
     // Missing processOrder handler!
   },
   urls: ['amqp://localhost'],
-})).unwrap();
+}).recover((e) => { throw e })).unwrap();
 
 // ✅ All handlers present
 const worker = (await TypedAmqpWorker.create({
@@ -121,7 +127,7 @@ const worker = (await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   urls: ['amqp://localhost'],
-})).unwrap();
+}).recover((e) => { throw e })).unwrap();
 
 console.log('✅ All handlers present');
 ```
@@ -179,6 +185,8 @@ const worker = (
     contract,
     handlers,
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -236,6 +244,8 @@ const worker = (
     contract: orderContract,
     handlers: orderHandlers,
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -254,7 +264,7 @@ const worker = (await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   connection,
-})).unwrap();
+}).recover((e) => { throw e })).unwrap();
 // Worker is already consuming messages from all queues
 console.log('Worker ready, waiting for messages...');
 ```
@@ -279,6 +289,8 @@ const worker = (
       },
     },
     connection,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -306,6 +318,8 @@ const worker = (
       }),
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -365,6 +379,8 @@ async function main() {
         },
       }),
       urls: ["amqp://localhost"],
+    }).recover((e) => {
+      throw e;
     })
   ).unwrap();
 
@@ -413,6 +429,8 @@ const worker = (
       ],
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -439,6 +457,8 @@ const worker = (
     defaultConsumerOptions: {
       prefetch: 10,
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -523,6 +543,8 @@ const worker = (
         ).map(() => undefined),
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -592,6 +614,8 @@ const worker = (
         ).map(() => undefined),
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -727,6 +751,8 @@ const worker = (
       ],
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -755,6 +781,8 @@ const worker = (
       }),
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -796,6 +824,8 @@ const worker = (
       }),
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -916,6 +946,8 @@ const worker = (
       },
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 

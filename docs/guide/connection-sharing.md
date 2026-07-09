@@ -38,6 +38,8 @@ const client = (
     connectionOptions: {
       heartbeatIntervalInSeconds: 30,
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -66,6 +68,8 @@ const worker = (
           });
       },
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -119,6 +123,8 @@ const client = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"], // ← URLs match
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -129,6 +135,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -153,6 +161,8 @@ const orderClient = (
   await TypedAmqpClient.create({
     contract: orderContract,
     urls: ["amqp://localhost"], // ← Same URLs
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -160,6 +170,8 @@ const notificationClient = (
   await TypedAmqpClient.create({
     contract: notificationContract,
     urls: ["amqp://localhost"], // ← Same URLs
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -170,6 +182,8 @@ const orderWorker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -180,6 +194,8 @@ const notificationWorker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -196,6 +212,8 @@ const mainClient = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://main-cluster"], // ← Different URLs
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -203,6 +221,8 @@ const analyticsClient = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://analytics-cluster"], // ← Different URLs
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -228,6 +248,8 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
     connectionOptions, // ← Same options
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -239,6 +261,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -247,6 +271,8 @@ const client = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"], // ← No options
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -257,6 +283,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -280,6 +308,8 @@ const client = (
   await TypedAmqpClient.create({
     contract: orderContract,
     ...AMQP_CONFIG,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -290,6 +320,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```
@@ -305,6 +337,8 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
     connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -316,6 +350,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -393,6 +429,8 @@ const client = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"], // ← Connection automatically created
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -403,6 +441,8 @@ const worker = (
     handlers: {
       /* ... */
     },
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -424,6 +464,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
      await TypedAmqpClient.create({
        contract,
        urls: ["amqp://localhost:5672"],
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    const worker = (
@@ -433,6 +475,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        handlers: {
          /* ... */
        },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
 
@@ -442,6 +486,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
      await TypedAmqpClient.create({
        contract,
        urls,
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    const worker = (
@@ -451,6 +497,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        handlers: {
          /* ... */
        },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    ```
@@ -464,6 +512,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        contract,
        urls: ["amqp://localhost"],
        connectionOptions: { heartbeatIntervalInSeconds: 30 },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    const worker = (
@@ -474,6 +524,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        handlers: {
          /* ... */
        },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
 
@@ -484,6 +536,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        contract,
        urls: ["amqp://localhost"],
        connectionOptions,
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    const worker = (
@@ -494,6 +548,8 @@ Connection sharing is automatic when URLs and connection options match. If you s
        handlers: {
          /* ... */
        },
+     }).recover((e) => {
+       throw e;
      })
    ).unwrap();
    ```

@@ -27,14 +27,22 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Channel should be created with json: false
     // We can't directly test the internal json setting, but we can verify the client was created
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should keep json as true by default", async ({ amqpConnectionUrl }) => {
@@ -50,13 +58,21 @@ describe("AmqpClient Channel Configuration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Default json: true should be used
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should call custom setup function after topology setup", async ({
@@ -83,7 +99,11 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Custom setup should have been called
     expect(customSetupMock).toHaveBeenCalledTimes(1);
@@ -94,7 +114,11 @@ describe("AmqpClient Channel Configuration", () => {
     await expect(amqpChannel.checkQueue("custom-queue")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should support callback-based custom setup function", async ({
@@ -124,7 +148,11 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Callback setup should have been called
     expect(callbackSetupMock).toHaveBeenCalledTimes(1);
@@ -134,7 +162,11 @@ describe("AmqpClient Channel Configuration", () => {
     await expect(amqpChannel.checkQueue("callback-queue")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should override default channel name", async ({ amqpConnectionUrl }) => {
@@ -155,13 +187,21 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Channel should be created
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should allow disabling confirmChannel option", async ({ amqpConnectionUrl }) => {
@@ -180,13 +220,21 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Regular channel should be created
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should combine user channel options with defaults", async ({ amqpConnectionUrl }) => {
@@ -206,12 +254,20 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - All options should be applied
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 });
