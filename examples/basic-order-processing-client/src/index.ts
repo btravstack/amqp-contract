@@ -26,7 +26,11 @@ async function main() {
     await TypedAmqpClient.create({
       contract: orderContract,
       urls: [env.AMQP_URL],
-    }).tapErr((error) => logger.error({ error }, "Failed to create client"))
+    })
+      .tapErr((error) => logger.error({ error }, "Failed to create client"))
+      .recover((error) => {
+        throw error;
+      })
   ).unwrap();
 
   logger.info("Client ready");
@@ -47,6 +51,9 @@ async function main() {
         .publish(publisherName, message, options)
         .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
         .tap(() => logger.debug(`Successfully published to ${publisherName}`))
+        .recover((error) => {
+          throw error;
+        })
     ).unwrap();
   };
 
@@ -137,7 +144,11 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Clean up
-  (await client.close()).unwrap();
+  (
+    await client.close().recover((error) => {
+      throw error;
+    })
+  ).unwrap();
   logger.info("Publisher stopped");
   process.exit(0);
 }

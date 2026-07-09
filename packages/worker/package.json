@@ -60,8 +60,7 @@
   "dependencies": {
     "@amqp-contract/contract": "workspace:*",
     "@amqp-contract/core": "workspace:*",
-    "@standard-schema/spec": "catalog:",
-    "unthrown": "catalog:"
+    "@standard-schema/spec": "catalog:"
   },
   "devDependencies": {
     "@amqp-contract/testing": "workspace:*",
@@ -76,8 +75,12 @@
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
     "typescript": "catalog:",
+    "unthrown": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "unthrown": "^4.0.0"
   },
   "engines": {
     "node": ">=22.19"

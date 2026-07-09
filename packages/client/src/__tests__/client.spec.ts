@@ -33,6 +33,8 @@ const it = baseIt.extend<{
               contract,
               urls: [amqpConnectionUrl],
               ...options,
+            }).recover((e) => {
+              throw e;
             })
           ).unwrap();
 
@@ -45,7 +47,11 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            (await client.close()).unwrap();
+            (
+              await client.close().recover((e) => {
+                throw e;
+              })
+            ).unwrap();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -265,7 +271,11 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close()).unwrap();
+      (
+        await client.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     });
 
     it("should override default publish options with publish-specific options", async ({
@@ -319,7 +329,11 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close()).unwrap();
+      (
+        await client.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     });
   });
 

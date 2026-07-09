@@ -124,6 +124,8 @@ describe("Order Processing Contract", () => {
       await TypedAmqpClient.create({
         contract,
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -139,6 +141,8 @@ describe("Order Processing Contract", () => {
           },
         },
         urls: [amqpConnectionUrl],
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 

@@ -310,6 +310,8 @@ const client = (
   await TypedAmqpClient.create({
     contract: orderContract,
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -387,6 +389,8 @@ const worker = (
       },
     },
     connection,
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 ```

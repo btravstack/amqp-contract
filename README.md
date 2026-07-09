@@ -83,6 +83,8 @@ const worker = (
       },
     },
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
@@ -91,22 +93,36 @@ const client = (
   await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"],
+  }).recover((e) => {
+    throw e;
   })
 ).unwrap();
 
-// publish() returns an AsyncResult instead of throwing — awaiting it yields
-// a Result to unwrap() (or .match()) so failures surface. See the error
-// model guide for details.
+// publish() returns an AsyncResult instead of throwing — awaiting it yields a
+// Result. unthrown 4 gates unwrap() to infallible results, so clear the error
+// channel with recover() first (or use .match()). See the error model guide.
 (
-  await client.publish("orderCreated", {
-    orderId: "ORD-123", // ✅ TypeScript knows!
-    amount: 99.99,
-  })
+  await client
+    .publish("orderCreated", {
+      orderId: "ORD-123", // ✅ TypeScript knows!
+      amount: 99.99,
+    })
+    .recover((e) => {
+      throw e;
+    })
 ).unwrap();
 
 // 7. Clean up
-(await client.close()).unwrap();
-(await worker.close()).unwrap();
+(
+  await client.close().recover((e) => {
+    throw e;
+  })
+).unwrap();
+(
+  await worker.close().recover((e) => {
+    throw e;
+  })
+).unwrap();
 ```
 
 ▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).

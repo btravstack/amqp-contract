@@ -81,6 +81,8 @@ describe("Worker defensive nack guard", () => {
         },
         urls: [amqpConnectionUrl],
         telemetry: provider,
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -113,7 +115,11 @@ describe("Worker defensive nack guard", () => {
       // channel.
       expect(processed.length).toBe(2);
     } finally {
-      (await worker.close()).unwrap();
+      (
+        await worker.close().recover((e) => {
+          throw e;
+        })
+      ).unwrap();
     }
   }, 15_000);
 });

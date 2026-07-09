@@ -645,6 +645,8 @@ describe("AmqpWorker Integration", () => {
         },
         urls: [amqpConnectionUrl],
         logger: mockLogger,
+      }).recover((e) => {
+        throw e;
       })
     ).unwrap();
 
@@ -684,6 +686,10 @@ describe("AmqpWorker Integration", () => {
     expect(unexpectedWarnings).toHaveLength(0);
 
     // Clean up
-    (await worker.close()).unwrap();
+    (
+      await worker.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 });

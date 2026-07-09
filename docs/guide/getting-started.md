@@ -217,6 +217,8 @@ async function main() {
     await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
+    }).recover((e) => {
+      throw e;
     })
   ).unwrap();
 
@@ -275,6 +277,8 @@ async function main() {
         },
       },
       urls: ["amqp://localhost"],
+    }).recover((e) => {
+      throw e;
     })
   ).unwrap();
 

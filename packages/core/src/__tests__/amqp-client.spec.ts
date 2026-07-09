@@ -35,14 +35,22 @@ describe("AmqpClient Integration", () => {
     });
 
     // Wait for setup to complete
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Verify exchanges exist by checking them
     await expect(amqpChannel.checkExchange("orders")).resolves.toBeDefined();
     await expect(amqpChannel.checkExchange("notifications")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should setup queues from contract", async ({ amqpConnectionUrl, amqpChannel }) => {
@@ -59,14 +67,22 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Verify queues exist by checking them
     await expect(amqpChannel.checkQueue("order-processing")).resolves.toBeDefined();
     await expect(amqpChannel.checkQueue("notifications")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should setup queue bindings from contract", async ({
@@ -95,7 +111,11 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // Setup consumer before publishing
     const waitForMessages = await initConsumer("orders", "order.created");
@@ -111,7 +131,11 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should setup exchange-to-exchange bindings", async ({
@@ -138,7 +162,11 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // Setup consumer on destination exchange
     const waitForMessages = await initConsumer("destination", "test.important");
@@ -154,7 +182,11 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should setup complete contract with all resources", async ({
@@ -192,7 +224,11 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // Setup consumers
     const waitForOrderMessages = await initConsumer("orders", "order.created");
@@ -215,7 +251,11 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should handle empty contract", async ({ amqpConnectionUrl }) => {
@@ -227,13 +267,21 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Should not throw and client should be usable
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should handle fanout exchange binding without routing key", async ({
@@ -260,7 +308,11 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // Setup consumer
     const waitForMessages = await initConsumer("fanout", "");
@@ -276,7 +328,11 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should pass custom arguments to exchanges", async ({ amqpConnectionUrl, amqpChannel }) => {
@@ -295,13 +351,21 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Exchange should exist (arguments would have been passed to RabbitMQ)
     await expect(amqpChannel.checkExchange("orders")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should pass custom arguments to queues", async ({ amqpConnectionUrl, amqpChannel }) => {
@@ -321,13 +385,21 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Queue should exist with custom arguments
     await expect(amqpChannel.checkQueue("orders")).resolves.toBeDefined();
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should setup bridged exchange-to-exchange bindings from contract", async ({
@@ -357,7 +429,11 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // Setup consumer on the local queue via bridge exchange
     const waitForMessages = await initConsumer(bridgeExchange.name, "order.created");
@@ -373,7 +449,11 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 
   it("should close channel and connection properly", async ({ amqpConnectionUrl }) => {
@@ -388,10 +468,18 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    (await client.waitForConnect()).unwrap();
+    (
+      await client.waitForConnect().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // WHEN
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
 
     // THEN - Client should have been properly closed
     // Note: We can't easily verify connection closure in isolation due to singleton

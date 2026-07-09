@@ -7,6 +7,31 @@ description: Migration notes for major versions of amqp-contract, including the 
 
 All six `@amqp-contract/*` packages version together, so upgrade them in lockstep. This page summarizes the changes that require action; the full history lives in the [GitHub Releases](https://github.com/btravstack/amqp-contract/releases) and each package's `CHANGELOG.md`.
 
+## 2.2.x → 2.3.x
+
+Upgrades [`unthrown`](https://github.com/btravstack/unthrown) to `4.0.0`. Since `unthrown` is a **peer dependency**, bump your own copy to `^4.0.0`:
+
+```bash
+pnpm add unthrown@^4
+```
+
+amqp-contract's own API shape is unchanged, but unthrown 4 changes two things you may rely on:
+
+**1. `.unwrap()` is type-gated.** It now compiles only on a result whose error channel is empty (`E = never`). Calling `.unwrap()` on a fallible result — e.g. `(await client.publish(...)).unwrap()` or `(await TypedAmqpClient.create(...)).unwrap()` — is now a **compile error**. Prefer `.match()`; to keep "throw on failure", clear the error channel with `recover` first:
+
+```diff
+- const client = (await TypedAmqpClient.create({ contract, urls })).unwrap();
++ const client = (
++   await TypedAmqpClient.create({ contract, urls }).recover((e) => {
++     throw e;
++   })
++ ).unwrap();
+```
+
+See [Getting the value out](./error-model.md#getting-the-value-out).
+
+**2. `TaggedError` reserves `message`.** Only relevant if you define your own `TaggedError` subclasses: a `message` field in the payload is now rejected. Move it to `override message = "…"` (or assign `this.message` in the constructor) and keep the payload for structured fields. amqp-contract's own error classes already do this.
+
 ## 2.1.x → 2.2.x
 
 Upgrades [`unthrown`](https://github.com/btravstack/unthrown) to `3.0.0`. amqp-contract's own public surface is unchanged. Action is only needed if you author `qualify` mappers that intentionally route unexpected failures to the `Defect` channel:

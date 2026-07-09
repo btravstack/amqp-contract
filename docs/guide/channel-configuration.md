@@ -327,7 +327,11 @@ describe("Channel Configuration", () => {
     const connectResult = await client.waitForConnect();
     expect(connectResult.isOk()).toBe(true);
 
-    (await client.close()).unwrap();
+    (
+      await client.close().recover((e) => {
+        throw e;
+      })
+    ).unwrap();
   });
 });
 ```
@@ -414,7 +418,7 @@ const client = new AmqpClient(contract, {
 
 **Solutions:**
 
-1. Ensure channel is connected: `(await client.waitForConnect()).unwrap()` — `await` alone returns a `Result` and does not throw on failure
+1. Ensure channel is connected: check `(await client.waitForConnect()).isOk()` — `await` alone returns a `Result` and does not throw on failure
 2. Check for errors in setup function (they may cause silent failures)
 3. Verify setup function signature is correct
 
