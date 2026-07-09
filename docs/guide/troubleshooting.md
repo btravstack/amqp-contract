@@ -144,8 +144,16 @@ Error: Connection closed: 320 (CONNECTION-FORCED)
 4. **Graceful shutdown:**
    ```typescript
    process.on("SIGINT", async () => {
-     await worker.close();
-     await client.close();
+     (
+       await worker.close().recover((e) => {
+         throw e;
+       })
+     ).unwrap();
+     (
+       await client.close().recover((e) => {
+         throw e;
+       })
+     ).unwrap();
      process.exit(0);
    });
    ```
@@ -419,8 +427,16 @@ const orderMessage = defineMessage(
          throw e;
        })
      ).unwrap();
-     await client.publish("sendEmail", message);
-     await client.close();
+     (
+       await client.publish("sendEmail", message).recover((e) => {
+         throw e;
+       })
+     ).unwrap();
+     (
+       await client.close().recover((e) => {
+         throw e;
+       })
+     ).unwrap();
    }
 
    // ✅ Reuse connection
@@ -434,7 +450,11 @@ const orderMessage = defineMessage(
    ).unwrap();
 
    async function publishMessage() {
-     await client.publish("sendEmail", message);
+     (
+       await client.publish("sendEmail", message).recover((e) => {
+         throw e;
+       })
+     ).unwrap();
    }
    ```
 
@@ -443,8 +463,16 @@ const orderMessage = defineMessage(
    ```typescript
    // ✅ Always close connections
    process.on("SIGINT", async () => {
-     await worker.close();
-     await client.close();
+     (
+       await worker.close().recover((e) => {
+         throw e;
+       })
+     ).unwrap();
+     (
+       await client.close().recover((e) => {
+         throw e;
+       })
+     ).unwrap();
      process.exit(0);
    });
    ```
