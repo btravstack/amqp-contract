@@ -46,7 +46,7 @@ The `.match({ ok, err, defect })` handler keys stay lowercase — those are case
 
 Replaces `neverthrow` with [`unthrown`](https://github.com/btravstack/unthrown) across all packages. unthrown keeps the errors-as-values model but adds a third **`Defect`** channel for unexpected failures. If you consume the `Result` / `AsyncResult` values returned by the client, worker, or core, update your call sites:
 
-| neverthrow (0.x)                           | unthrown (1.0+)                                              |
+| neverthrow (amqp-contract 0.x)             | unthrown (amqp-contract 1.x)                                 |
 | ------------------------------------------ | ------------------------------------------------------------ |
 | `ResultAsync<T, E>`                        | `AsyncResult<T, E>`                                          |
 | `result.match(okFn, errFn)`                | `result.match({ ok, err, defect })`                          |
@@ -55,6 +55,8 @@ Replaces `neverthrow` with [`unthrown`](https://github.com/btravstack/unthrown) 
 | `ResultAsync.fromPromise(p, mapper)`       | `fromPromise(p, qualify)` (free function, mapper required)   |
 | `._unsafeUnwrap()` / `._unsafeUnwrapErr()` | `.unwrap()` / `.unwrapErr()`                                 |
 | `error instanceof HandlerError`            | `isHandlerError(error)` (`HandlerError` is now a union type) |
+
+The table shows the constructors as they were on amqp-contract 1.x (lowercase `ok` / `err`); if you're upgrading straight to 2.0+, use the capitalized `Ok` / `Err` forms from the [1.x → 2.0](#_1-x-→-2-0) section instead.
 
 Error classes (`TechnicalError`, `RetryableError`, …) became `TaggedError`s with namespaced tags (e.g. `"@amqp-contract/TechnicalError"`) for exhaustive dispatch via `matchTags`; their `Error.name` and constructors are unchanged.
 
