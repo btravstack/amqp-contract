@@ -264,7 +264,11 @@ export class AmqpClient {
 
     return fromPromise(
       racedPromise,
-      (error: unknown) => new TechnicalError("Failed to connect to AMQP broker", error),
+      (error: unknown) =>
+        new TechnicalError(
+          "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
+          error,
+        ),
     );
   }
 
@@ -281,7 +285,11 @@ export class AmqpClient {
   ): AsyncResult<boolean, TechnicalError> {
     return fromPromise(
       this.channelWrapper.publish(exchange, routingKey, content, options),
-      (error: unknown) => new TechnicalError("Failed to publish message", error),
+      (error: unknown) =>
+        new TechnicalError(
+          `Failed to publish message to exchange "${exchange}" (routing key "${routingKey}")`,
+          error,
+        ),
     );
   }
 
@@ -297,7 +305,8 @@ export class AmqpClient {
   ): AsyncResult<boolean, TechnicalError> {
     return fromPromise(
       this.channelWrapper.sendToQueue(queue, content, options),
-      (error: unknown) => new TechnicalError("Failed to publish message to queue", error),
+      (error: unknown) =>
+        new TechnicalError(`Failed to publish message to queue "${queue}"`, error),
     );
   }
 
