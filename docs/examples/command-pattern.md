@@ -77,12 +77,18 @@ const client = (
   })
 ).unwrap();
 
-await client.publish("chargeCustomer", {
-  customerId: "cust_123",
-  amountCents: 4_999,
-  currency: "USD",
-  idempotencyKey: randomUUID(),
-});
+(
+  await client
+    .publish("chargeCustomer", {
+      customerId: "cust_123",
+      amountCents: 4_999,
+      currency: "USD",
+      idempotencyKey: randomUUID(),
+    })
+    .recover((e) => {
+      throw e;
+    })
+).unwrap();
 ```
 
 A `subscriptions-service`, `refunds-service`, or any other publisher does the same — they all use `chargeCustomer`. Routing-key dispatch is handled by the contract; callers never name `payments.charge` themselves.

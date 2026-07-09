@@ -97,10 +97,16 @@ const client = (
   })
 ).unwrap();
 
-await client.publish("orderCreated", {
-  orderId: "ORD-123", // ✅ TypeScript knows!
-  amount: 99.99,
-});
+(
+  await client
+    .publish("orderCreated", {
+      orderId: "ORD-123", // ✅ TypeScript knows!
+      amount: 99.99,
+    })
+    .recover((e) => {
+      throw e;
+    })
+).unwrap();
 ```
 
 ```typescript [3. Consume]
