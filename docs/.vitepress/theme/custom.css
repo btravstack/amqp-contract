@@ -43,3 +43,14 @@
     display: none;
   }
 }
+
+/* The shared theme only enlarges the hero mark at >=960px; below that the
+ * mark's small intrinsic size leaves it tiny, so size it up for tablet/mobile
+ * too. */
+@media (max-width: 959px) {
+  .VPHero .image-src {
+    width: min(208px, 62vw);
+    height: min(208px, 62vw);
+    object-fit: contain;
+  }
+}

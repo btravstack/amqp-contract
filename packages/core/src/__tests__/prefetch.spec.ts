@@ -37,14 +37,16 @@ describe("AmqpClient prefetch integration", () => {
     };
 
     const client = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
-    (await client.waitForConnect()).unwrap();
+    await client.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Hold every delivery: never ack, so the broker is forced to honour the
     // per-consumer prefetch cap (it cannot deliver more than `prefetch`
     // unacked messages over the consumer at a time).
     const heldDeliveryTags: number[] = [];
-    (
-      await client.consume(
+    await client
+      .consume(
         "prefetch-q",
         (msg) => {
           if (msg) {
@@ -53,7 +55,9 @@ describe("AmqpClient prefetch integration", () => {
         },
         { prefetch: 2 },
       )
-    ).unwrap();
+      .unwrapOrElse((e) => {
+        throw e;
+      });
 
     // WHEN publishing more messages than the prefetch allows.
     for (let i = 0; i < 10; i++) {
@@ -80,6 +84,8 @@ describe("AmqpClient prefetch integration", () => {
     expect(heldDeliveryTags).toHaveLength(2);
 
     // CLEANUP — close releases unack'd messages back to the queue.
-    (await client.close()).unwrap();
+    await client.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/client",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Client utilities for publishing messages using amqp-contract",
   "keywords": [
     "amqp",
@@ -61,8 +61,7 @@
     "@amqp-contract/contract": "workspace:*",
     "@amqp-contract/core": "workspace:*",
     "@standard-schema/spec": "catalog:",
-    "ts-pattern": "catalog:",
-    "unthrown": "catalog:"
+    "ts-pattern": "catalog:"
   },
   "devDependencies": {
     "@amqp-contract/testing": "workspace:*",
@@ -77,8 +76,12 @@
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
     "typescript": "catalog:",
+    "unthrown": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "unthrown": "^4.0.0"
   },
   "engines": {
     "node": ">=22.19"

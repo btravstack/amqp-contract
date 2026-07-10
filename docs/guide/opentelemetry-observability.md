@@ -155,23 +155,23 @@ const customTelemetryProvider: TelemetryProvider = {
 };
 
 // Use in client
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    connection,
-    telemetry: customTelemetryProvider,
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  connection,
+  telemetry: customTelemetryProvider,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Use in worker
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    connection,
-    handlers,
-    telemetry: customTelemetryProvider,
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  connection,
+  handlers,
+  telemetry: customTelemetryProvider,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ## Best Practices

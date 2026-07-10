@@ -40,8 +40,8 @@ catalogs:
       specifier: 1.1.0
       version: 1.1.0
     '@unthrown/vitest':
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 4.0.0
+      version: 4.0.0
     '@vitest/coverage-v8':
       specifier: 4.1.9
       version: 4.1.9
@@ -55,8 +55,8 @@ catalogs:
       specifier: 2.2.1
       version: 2.2.1
     knip:
-      specifier: 6.20.0
-      version: 6.20.0
+      specifier: 6.23.0
+      version: 6.23.0
     lefthook:
       specifier: 2.1.9
       version: 2.1.9
@@ -76,8 +76,8 @@ catalogs:
       specifier: 13.1.3
       version: 13.1.3
     testcontainers:
-      specifier: 12.0.3
-      version: 12.0.3
+      specifier: 12.0.4
+      version: 12.0.4
     ts-pattern:
       specifier: 5.9.0
       version: 5.9.0
@@ -100,11 +100,11 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     unthrown:
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 4.0.0
+      version: 4.0.0
     valibot:
-      specifier: 1.4.1
-      version: 1.4.1
+      specifier: 1.4.2
+      version: 1.4.2
     vitepress:
       specifier: 1.6.4
       version: 1.6.4
@@ -142,7 +142,7 @@ importers:
         version: 21.1.0
       knip:
         specifier: 'catalog:'
-        version: 6.20.0
+        version: 6.23.0
       lefthook:
         specifier: 'catalog:'
         version: 2.1.9
@@ -237,7 +237,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -292,7 +292,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -345,7 +345,7 @@ importers:
         version: 1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.1)
       '@orpc/valibot':
         specifier: 'catalog:'
-        version: 1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.1(typescript@6.0.3))
+        version: 1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.2(typescript@6.0.3))
       '@orpc/zod':
         specifier: 'catalog:'
         version: 1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(zod@4.4.3)
@@ -372,7 +372,7 @@ importers:
         version: 6.0.3
       valibot:
         specifier: 'catalog:'
-        version: 1.4.1(typescript@6.0.3)
+        version: 1.4.2(typescript@6.0.3)
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -394,9 +394,6 @@ importers:
       ts-pattern:
         specifier: 'catalog:'
         version: 5.9.0
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -412,7 +409,7 @@ importers:
         version: 24.13.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 3.0.0(vitest@4.1.9)
+        version: 4.0.0(unthrown@4.0.0)(vitest@4.1.9)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.9(vitest@4.1.9)
@@ -434,6 +431,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 4.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -489,9 +489,6 @@ importers:
       amqplib:
         specifier: 'catalog:'
         version: 2.0.1
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -510,7 +507,7 @@ importers:
         version: 24.13.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 3.0.0(vitest@4.1.9)
+        version: 4.0.0(unthrown@4.0.0)(vitest@4.1.9)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.9(vitest@4.1.9)
@@ -523,6 +520,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 4.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -537,7 +537,7 @@ importers:
         version: 2.0.1
       testcontainers:
         specifier: 'catalog:'
-        version: 12.0.3
+        version: 12.0.4
     devDependencies:
       '@amqp-contract/tsconfig':
         specifier: workspace:*
@@ -575,9 +575,6 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
-      unthrown:
-        specifier: 'catalog:'
-        version: 3.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -593,7 +590,7 @@ importers:
         version: 24.13.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 3.0.0(vitest@4.1.9)
+        version: 4.0.0(unthrown@4.0.0)(vitest@4.1.9)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.9(vitest@4.1.9)
@@ -615,6 +612,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      unthrown:
+        specifier: 'catalog:'
+        version: 4.0.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -641,7 +641,7 @@ importers:
         version: link:../packages/worker
       unthrown:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.0
     devDependencies:
       '@types/node':
         specifier: 24.13.2
@@ -2653,10 +2653,11 @@ packages:
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
 
-  '@unthrown/vitest@3.0.0':
-    resolution: {integrity: sha512-imKT5Wo8Kd+DwDa4XcPYzxTc4gXd+7wkPmObIVy5X9pJ67i5SYeS5IHfdRiT/k7Rs6B7K2c/siRRYE+ckfgH9g==}
-    engines: {node: '>=22.19'}
+  '@unthrown/vitest@4.0.0':
+    resolution: {integrity: sha512-KhH1YHj/5DHbW/w/bGzhlIWXyRTUFJRUGlJeATN7XqModTMDhfOSijaV9c0wAcG6UPFnSn9g2OnOIytfS72FLA==}
+    engines: {node: '>=20'}
     peerDependencies:
+      unthrown: ^4.0.0
       vitest: ^4
 
   '@upsetjs/venn.js@2.0.0':
@@ -3672,9 +3673,9 @@ packages:
     resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
     engines: {node: '>= 0.4'}
 
-  get-port@7.2.0:
-    resolution: {integrity: sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg==}
-    engines: {node: '>=16'}
+  get-port@5.1.1:
+    resolution: {integrity: sha512-g/Q1aTSDOxFpchXC4i8ZWvxA1lnPqx/JHqcpIw0/LX9T8x/GBbi6YnlN5nhaKIFkT8oFsscUKgDJYxfwfS6QsQ==}
+    engines: {node: '>=8'}
 
   get-proto@1.0.1:
     resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
@@ -4044,8 +4045,8 @@ packages:
   khroma@2.1.0:
     resolution: {integrity: sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw==}
 
-  knip@6.20.0:
-    resolution: {integrity: sha512-q+HYrS7FOERk32GM7g43IdTG7TurN7+YMLZrNpCxubZPYZyQwliBgd18yH4oYQL7YgGtOxP2fCqess3K2XaK2Q==}
+  knip@6.23.0:
+    resolution: {integrity: sha512-2DvAOX2pZWiG4SLvRRxOAU0aWGEn1ZoVblI541xIoXFdHqq2THMZXy66/qcY5WGuW3TXhb9T1x1zd/Hd1u+yqg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
@@ -4960,8 +4961,8 @@ packages:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
 
-  testcontainers@12.0.3:
-    resolution: {integrity: sha512-6vfiL9CWIX0rWhTJitzrzHcv4Q/sUfUdBV12jMz6HZ58Lz6ZtXVecO6jljd1O3ookEWQHNICiYoYNEPpDLzuRw==}
+  testcontainers@12.0.4:
+    resolution: {integrity: sha512-QIR/8xF1+F/26cIM+9B4yyxNTbKJxAv3hygZyhPRgZ8Q2AhlPZjDdpXRuk16V37X4bgJRI3hXFhoEICMBA7Adg==}
 
   text-decoder@1.2.7:
     resolution: {integrity: sha512-vlLytXkeP4xvEq2otHeJfSQIRyWxo/oZGEbXrtEEF9Hnmrdly59sUbzZ/QgyWuLYHctCHxFF4tRQZNQ9k60ExQ==}
@@ -5144,9 +5145,9 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  unthrown@3.0.0:
-    resolution: {integrity: sha512-UXIjZTRgbq3ANGYoH1s1jgK85XDmO2HICllG0wtCSBLBPl+Y+prx36Nk17r2JWdnSeTh8pB1fnzDzNpKTgiPzw==}
-    engines: {node: '>=22.19'}
+  unthrown@4.0.0:
+    resolution: {integrity: sha512-nToVgnaBR4pDjjGebOV1BUJs40dUU9VfBeonyVxveJVqQAFsvcxsjYRQo1KMEkuCseUmuxrltAzsi389MnXtSQ==}
+    engines: {node: '>=20'}
 
   urijs@1.19.11:
     resolution: {integrity: sha512-HXgFDgDommxn5/bIv0cnQZsPhHDA90NPHD6+c/v21U5+Sx5hoP8+dP9IZXBU1gIfvdRfhG8cel9QNPeionfcCQ==}
@@ -5162,8 +5163,8 @@ packages:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
-  valibot@1.4.1:
-    resolution: {integrity: sha512-klCmFTz2jeDluy9RwX+F884TCiogtdBJ/YaxSx1EOBYXa3NXNWj8kR1jjN8rzluwojJVWWaHJ4r1U5LfICnM3g==}
+  valibot@1.4.2:
+    resolution: {integrity: sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg==}
     peerDependencies:
       typescript: '>=5'
     peerDependenciesMeta:
@@ -6387,13 +6388,13 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/valibot@1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.1(typescript@6.0.3))':
+  '@orpc/valibot@1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.2(typescript@6.0.3))':
     dependencies:
       '@orpc/contract': 1.14.6(@opentelemetry/api@1.9.1)
       '@orpc/openapi': 1.14.6(@opentelemetry/api@1.9.1)
       '@orpc/server': 1.14.6(@opentelemetry/api@1.9.1)
-      '@valibot/to-json-schema': 1.7.1(valibot@1.4.1(typescript@6.0.3))
-      valibot: 1.4.1(typescript@6.0.3)
+      '@valibot/to-json-schema': 1.7.1(valibot@1.4.2(typescript@6.0.3))
+      valibot: 1.4.2(typescript@6.0.3)
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - crossws
@@ -7287,9 +7288,9 @@ snapshots:
 
   '@ungap/structured-clone@1.3.1': {}
 
-  '@unthrown/vitest@3.0.0(vitest@4.1.9)':
+  '@unthrown/vitest@4.0.0(unthrown@4.0.0)(vitest@4.1.9)':
     dependencies:
-      unthrown: 3.0.0
+      unthrown: 4.0.0
       vitest: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
 
   '@upsetjs/venn.js@2.0.0':
@@ -7297,9 +7298,9 @@ snapshots:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
 
-  '@valibot/to-json-schema@1.7.1(valibot@1.4.1(typescript@6.0.3))':
+  '@valibot/to-json-schema@1.7.1(valibot@1.4.2(typescript@6.0.3))':
     dependencies:
-      valibot: 1.4.1(typescript@6.0.3)
+      valibot: 1.4.2(typescript@6.0.3)
 
   '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@24.13.2)(lightningcss@1.32.0))(vue@3.5.35(typescript@6.0.3))':
     dependencies:
@@ -8449,7 +8450,7 @@ snapshots:
       hasown: 2.0.4
       math-intrinsics: 1.1.0
 
-  get-port@7.2.0: {}
+  get-port@5.1.1: {}
 
   get-proto@1.0.1:
     dependencies:
@@ -8800,7 +8801,7 @@ snapshots:
 
   khroma@2.1.0: {}
 
-  knip@6.20.0:
+  knip@6.23.0:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.4)
       formatly: 0.3.0
@@ -9883,7 +9884,7 @@ snapshots:
 
   term-size@2.2.1: {}
 
-  testcontainers@12.0.3:
+  testcontainers@12.0.4:
     dependencies:
       '@balena/dockerignore': 1.0.2
       '@types/dockerode': 4.0.1
@@ -9893,7 +9894,7 @@ snapshots:
       debug: 4.4.3
       docker-compose: 1.4.2
       dockerode: 5.0.0
-      get-port: 7.2.0
+      get-port: 5.1.1
       proper-lockfile: 4.1.2
       properties-reader: 3.0.1
       ssh-remote-port-forward: 1.0.4
@@ -10089,7 +10090,7 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  unthrown@3.0.0: {}
+  unthrown@4.0.0: {}
 
   urijs@1.19.11: {}
 
@@ -10099,7 +10100,7 @@ snapshots:
 
   uuid@14.0.0: {}
 
-  valibot@1.4.1(typescript@6.0.3):
+  valibot@1.4.2(typescript@6.0.3):
     optionalDependencies:
       typescript: 6.0.3
 

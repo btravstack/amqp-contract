@@ -31,43 +31,43 @@ import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { contract } from "./contract";
 
 // 1. Create client - automatically creates connection
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"], // ← Just provide URLs
-    connectionOptions: {
-      heartbeatIntervalInSeconds: 30,
-    },
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"], // ← Just provide URLs
+  connectionOptions: {
+    heartbeatIntervalInSeconds: 30,
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // 2. Create worker - automatically reuses the same connection!
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"], // ← Same URLs = automatic sharing
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log("Processing order:", payload.orderId);
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"], // ← Same URLs = automatic sharing
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log("Processing order:", payload.orderId);
 
-        // Can publish from within consumer — `publish` already returns a
-        // AsyncResult, so we chain its combinators directly.
-        return client
-          .publish("orderProcessed", {
-            orderId: payload.orderId,
-            status: "completed",
-          })
-          .map(() => {
-            console.log("Order processed event published");
-          })
-          .mapErr((error) => {
-            console.error("Failed to publish:", error);
-            return new RetryableError("Failed to publish", error);
-          });
-      },
+      // Can publish from within consumer — `publish` already returns a
+      // AsyncResult, so we chain its combinators directly.
+      return client
+        .publish("orderProcessed", {
+          orderId: payload.orderId,
+          status: "completed",
+        })
+        .map(() => {
+          console.log("Order processed event published");
+        })
+        .mapErr((error) => {
+          console.error("Failed to publish:", error);
+          return new RetryableError("Failed to publish", error);
+        });
     },
-  })
-).unwrap();
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Both client and worker automatically share a single connection! ✅
 // Result: 1 connection, 2 channels
@@ -115,22 +115,22 @@ When you create multiple clients or workers with the same URLs and connection op
 
 ```typescript
 // ✅ Automatically shares a single connection
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"], // ← URLs match
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"], // ← URLs match
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"], // ← URLs match = shared connection
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"], // ← URLs match = shared connection
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Result: 1 connection, 2 channels ✅
 // - Less resource usage
@@ -149,39 +149,39 @@ You can create multiple clients and workers - they automatically share connectio
 
 ```typescript
 // All automatically share the same connection
-const orderClient = (
-  await TypedAmqpClient.create({
-    contract: orderContract,
-    urls: ["amqp://localhost"], // ← Same URLs
-  })
-).unwrap();
+const orderClient = await TypedAmqpClient.create({
+  contract: orderContract,
+  urls: ["amqp://localhost"], // ← Same URLs
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const notificationClient = (
-  await TypedAmqpClient.create({
-    contract: notificationContract,
-    urls: ["amqp://localhost"], // ← Same URLs
-  })
-).unwrap();
+const notificationClient = await TypedAmqpClient.create({
+  contract: notificationContract,
+  urls: ["amqp://localhost"], // ← Same URLs
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const orderWorker = (
-  await TypedAmqpWorker.create({
-    contract: orderContract,
-    urls: ["amqp://localhost"], // ← Same URLs
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const orderWorker = await TypedAmqpWorker.create({
+  contract: orderContract,
+  urls: ["amqp://localhost"], // ← Same URLs
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const notificationWorker = (
-  await TypedAmqpWorker.create({
-    contract: notificationContract,
-    urls: ["amqp://localhost"], // ← Same URLs
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const notificationWorker = await TypedAmqpWorker.create({
+  contract: notificationContract,
+  urls: ["amqp://localhost"], // ← Same URLs
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // All automatically share one connection with 4 separate channels
 ```
@@ -192,19 +192,19 @@ If you need separate connections (e.g., for different RabbitMQ clusters), just u
 
 ```typescript
 // These will have separate connections
-const mainClient = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://main-cluster"], // ← Different URLs
-  })
-).unwrap();
+const mainClient = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://main-cluster"], // ← Different URLs
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const analyticsClient = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://analytics-cluster"], // ← Different URLs
-  })
-).unwrap();
+const analyticsClient = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://analytics-cluster"], // ← Different URLs
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Result: 2 separate connections (one per cluster)
 ```
@@ -223,42 +223,42 @@ For maximum sharing benefits, use the same `connectionOptions` across all client
 // ✅ Best: Use consistent options (or omit for defaults)
 const connectionOptions = { heartbeatIntervalInSeconds: 30 };
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    connectionOptions, // ← Same options
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  connectionOptions, // ← Same options
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"],
-    connectionOptions, // ← Same options = connection shared
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"],
+  connectionOptions, // ← Same options = connection shared
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // ✅ Also good: Omit options to use defaults
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"], // ← No options
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"], // ← No options
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"], // ← No options = connection shared
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"], // ← No options = connection shared
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 #### 2. **Extract Shared Configuration**
@@ -276,22 +276,22 @@ const AMQP_CONFIG = {
 } as const;
 
 // All components use the same configuration
-const client = (
-  await TypedAmqpClient.create({
-    contract: orderContract,
-    ...AMQP_CONFIG,
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract: orderContract,
+  ...AMQP_CONFIG,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract: orderContract,
-    ...AMQP_CONFIG,
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract: orderContract,
+  ...AMQP_CONFIG,
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 #### 3. **Understand Configuration Conflicts**
@@ -300,24 +300,24 @@ Different `connectionOptions` create separate connections:
 
 ```typescript
 // ⚠️ Warning: Different options = separate connections (may be intentional)
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"],
-    connectionOptions: { heartbeatIntervalInSeconds: 60 }, // ← Options B (different)
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"],
+  connectionOptions: { heartbeatIntervalInSeconds: 60 }, // ← Options B (different)
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Result: 2 separate connections (different configurations)
 // This may be intentional if you need different heartbeat settings
@@ -389,22 +389,22 @@ Connection sharing is **completely backward compatible** and happens automatical
 
 ```typescript
 // Existing code automatically benefits from connection sharing
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"], // ← Connection automatically created
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"], // ← Connection automatically created
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"], // ← Same URLs = connection automatically shared
-    handlers: {
-      /* ... */
-    },
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"], // ← Same URLs = connection automatically shared
+  handlers: {
+    /* ... */
+  },
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // No code changes needed - connection sharing just works!
 // Result: 1 connection, 2 channels (automatically managed)
@@ -420,82 +420,82 @@ Connection sharing is automatic when URLs and connection options match. If you s
 
    ```typescript
    // ❌ Different URLs = different connections
-   const client = (
-     await TypedAmqpClient.create({
-       contract,
-       urls: ["amqp://localhost:5672"],
-     })
-   ).unwrap();
-   const worker = (
-     await TypedAmqpWorker.create({
-       contract,
-       urls: ["amqp://localhost"], // Different URL!
-       handlers: {
-         /* ... */
-       },
-     })
-   ).unwrap();
+   const client = await TypedAmqpClient.create({
+     contract,
+     urls: ["amqp://localhost:5672"],
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
+   const worker = await TypedAmqpWorker.create({
+     contract,
+     urls: ["amqp://localhost"], // Different URL!
+     handlers: {
+       /* ... */
+     },
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
 
    // ✅ Same URLs = shared connection
    const urls = ["amqp://localhost"];
-   const client = (
-     await TypedAmqpClient.create({
-       contract,
-       urls,
-     })
-   ).unwrap();
-   const worker = (
-     await TypedAmqpWorker.create({
-       contract,
-       urls, // Same URL reference
-       handlers: {
-         /* ... */
-       },
-     })
-   ).unwrap();
+   const client = await TypedAmqpClient.create({
+     contract,
+     urls,
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
+   const worker = await TypedAmqpWorker.create({
+     contract,
+     urls, // Same URL reference
+     handlers: {
+       /* ... */
+     },
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
    ```
 
 2. **Check connection options match**:
 
    ```typescript
    // ❌ Different options = different connections
-   const client = (
-     await TypedAmqpClient.create({
-       contract,
-       urls: ["amqp://localhost"],
-       connectionOptions: { heartbeatIntervalInSeconds: 30 },
-     })
-   ).unwrap();
-   const worker = (
-     await TypedAmqpWorker.create({
-       contract,
-       urls: ["amqp://localhost"],
-       connectionOptions: { heartbeatIntervalInSeconds: 60 }, // Different!
-       handlers: {
-         /* ... */
-       },
-     })
-   ).unwrap();
+   const client = await TypedAmqpClient.create({
+     contract,
+     urls: ["amqp://localhost"],
+     connectionOptions: { heartbeatIntervalInSeconds: 30 },
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
+   const worker = await TypedAmqpWorker.create({
+     contract,
+     urls: ["amqp://localhost"],
+     connectionOptions: { heartbeatIntervalInSeconds: 60 }, // Different!
+     handlers: {
+       /* ... */
+     },
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
 
    // ✅ Same options = shared connection
    const connectionOptions = { heartbeatIntervalInSeconds: 30 };
-   const client = (
-     await TypedAmqpClient.create({
-       contract,
-       urls: ["amqp://localhost"],
-       connectionOptions,
-     })
-   ).unwrap();
-   const worker = (
-     await TypedAmqpWorker.create({
-       contract,
-       urls: ["amqp://localhost"],
-       connectionOptions, // Same options reference
-       handlers: {
-         /* ... */
-       },
-     })
-   ).unwrap();
+   const client = await TypedAmqpClient.create({
+     contract,
+     urls: ["amqp://localhost"],
+     connectionOptions,
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
+   const worker = await TypedAmqpWorker.create({
+     contract,
+     urls: ["amqp://localhost"],
+     connectionOptions, // Same options reference
+     handlers: {
+       /* ... */
+     },
+   }).unwrapOrElse((e) => {
+     throw e;
+   });
    ```
 
 ### Cleanup in tests

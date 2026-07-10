@@ -28,13 +28,13 @@ const it = baseIt.extend<{
           contract: TContract,
           options?: Omit<CreateClientOptions<TContract>, "contract" | "urls">,
         ) => {
-          const client = (
-            await TypedAmqpClient.create({
-              contract,
-              urls: [amqpConnectionUrl],
-              ...options,
-            })
-          ).unwrap();
+          const client = await TypedAmqpClient.create({
+            contract,
+            urls: [amqpConnectionUrl],
+            ...options,
+          }).unwrapOrElse((e) => {
+            throw e;
+          });
 
           clients.push(client);
           return client;
@@ -45,7 +45,9 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            (await client.close()).unwrap();
+            await client.close().unwrapOrElse((e) => {
+              throw e;
+            });
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -265,7 +267,9 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close()).unwrap();
+      await client.close().unwrapOrElse((e) => {
+        throw e;
+      });
     });
 
     it("should override default publish options with publish-specific options", async ({
@@ -319,7 +323,9 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      (await client.close()).unwrap();
+      await client.close().unwrapOrElse((e) => {
+        throw e;
+      });
     });
   });
 

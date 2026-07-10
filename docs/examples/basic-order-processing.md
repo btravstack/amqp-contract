@@ -306,12 +306,12 @@ The client is in a separate package (`@amqp-contract-examples/basic-order-proces
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract: orderContract,
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract: orderContract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Publish new order with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -360,35 +360,35 @@ import { orderContract } from "@amqp-contract-examples/basic-order-processing-co
 
 const connection = await connect("amqp://localhost");
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract: orderContract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log(`[PROCESSING] Order ${payload.orderId}`);
-        console.log(`  Customer: ${payload.customerId}`);
-        console.log(`  Total: $${payload.totalAmount}`);
-        return Ok(undefined).toAsync();
-      },
-
-      notifyOrder: ({ payload }) => {
-        console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-        return Ok(undefined).toAsync();
-      },
-
-      shipOrder: ({ payload }) => {
-        console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-        return Ok(undefined).toAsync();
-      },
-
-      handleUrgentOrder: ({ payload }) => {
-        console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract: orderContract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log(`[PROCESSING] Order ${payload.orderId}`);
+      console.log(`  Customer: ${payload.customerId}`);
+      console.log(`  Total: $${payload.totalAmount}`);
+      return Ok(undefined).toAsync();
     },
-    connection,
-  })
-).unwrap();
+
+    notifyOrder: ({ payload }) => {
+      console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
+      return Ok(undefined).toAsync();
+    },
+
+    shipOrder: ({ payload }) => {
+      console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
+      return Ok(undefined).toAsync();
+    },
+
+    handleUrgentOrder: ({ payload }) => {
+      console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
+      return Ok(undefined).toAsync();
+    },
+  },
+  connection,
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 ## Message Routing Table

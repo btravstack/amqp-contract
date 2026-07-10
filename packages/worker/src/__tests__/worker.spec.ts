@@ -637,16 +637,16 @@ describe("AmqpWorker Integration", () => {
     };
 
     // Create worker with mock logger
-    const worker = (
-      await TypedAmqpWorker.create({
-        contract,
-        handlers: {
-          testConsumer: defineHandler(contract, "testConsumer", (_msg) => Ok(undefined).toAsync()),
-        },
-        urls: [amqpConnectionUrl],
-        logger: mockLogger,
-      })
-    ).unwrap();
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        testConsumer: defineHandler(contract, "testConsumer", (_msg) => Ok(undefined).toAsync()),
+      },
+      urls: [amqpConnectionUrl],
+      logger: mockLogger,
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Wait for worker setup
     const WORKER_SETUP_WAIT_MS = 500;
@@ -684,6 +684,8 @@ describe("AmqpWorker Integration", () => {
     expect(unexpectedWarnings).toHaveLength(0);
 
     // Clean up
-    (await worker.close()).unwrap();
+    await worker.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 });

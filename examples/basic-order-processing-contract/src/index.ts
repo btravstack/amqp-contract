@@ -1,4 +1,6 @@
 import {
+  defineCommandConsumer,
+  defineCommandPublisher,
   defineContract,
   defineEventConsumer,
   defineEventPublisher,
@@ -42,6 +44,18 @@ const orderStatusSchema = z.object({
 });
 
 /**
+ * Message schema for the fulfillment command.
+ *
+ * A command is an instruction to do work ("fulfill this order"), not a fact
+ * that happened ("this order was created"). It is addressed to one owner.
+ */
+const fulfillmentSchema = z.object({
+  orderId: z.string(),
+  warehouseId: z.string(),
+  priority: z.enum(["standard", "express"]).default("standard"),
+});
+
+/**
  * Message headers schema for order events
  */
 const orderHeadersSchema = z.object({
@@ -54,6 +68,10 @@ const ordersExchange = defineExchange("orders");
 
 // Define dead letter exchange for failed messages
 const ordersDlx = defineExchange("orders-dlx");
+
+// Direct exchange dedicated to the fulfillment command (task queue). A command
+// targets a single owner, so a direct exchange routing on an exact key fits.
+const fulfillmentExchange = defineExchange("fulfillment", { type: "direct" });
 
 // Define queues
 const orderProcessingQueue = defineQueue("order-processing", {
@@ -68,6 +86,10 @@ const orderProcessingQueue = defineQueue("order-processing", {
 const orderNotificationsQueue = defineQueue("order-notifications");
 const orderShippingQueue = defineQueue("order-shipping");
 const orderUrgentQueue = defineQueue("order-urgent");
+
+// The fulfillment worker owns this queue — commands sent to it are processed
+// by exactly one consumer (a task queue), not broadcast.
+const orderFulfillmentQueue = defineQueue("order-fulfillment");
 
 // Dead letter queue to collect failed messages
 const ordersDlxQueue = defineQueue("orders-dlx-queue");
@@ -85,6 +107,11 @@ const orderStatusMessage = defineMessage(orderStatusSchema, {
 });
 
 const orderUnionMessage = defineMessage(z.union([orderSchema, orderStatusSchema]));
+
+const fulfillmentMessage = defineMessage(fulfillmentSchema, {
+  summary: "Order fulfillment command",
+  description: "Instructs the fulfillment service to pick, pack, and ship an order",
+});
 
 /**
  * Event publishers for each event type.
@@ -130,12 +157,33 @@ const failedOrderEvent = defineEventPublisher(ordersDlx, orderMessage, {
 });
 
 /**
- * Order processing contract demonstrating the event pattern.
+ * Command consumer for the fulfillment task queue.
+ *
+ * The command pattern is the inverse of the event pattern: instead of one
+ * publisher broadcasting to many consumers, many publishers send commands to a
+ * single consumer that owns the queue. Here the fulfillment worker owns
+ * `order-fulfillment` and exposes one command.
+ *
+ * `defineCommandPublisher` derives the publisher's message type and routing key
+ * from this consumer, so callers cannot drift from the owner's contract.
+ */
+const fulfillOrder = defineCommandConsumer(
+  orderFulfillmentQueue,
+  fulfillmentExchange,
+  fulfillmentMessage,
+  { routingKey: "order.fulfill" },
+);
+
+const requestFulfillment = defineCommandPublisher(fulfillOrder);
+
+/**
+ * Order processing contract demonstrating both the event and command patterns.
  *
  * This contract demonstrates:
  * 1. Event Pattern: publishers broadcast events, consumers subscribe with routing key overrides
- * 2. Dead Letter Exchange: Failed messages from orderProcessingQueue are routed to DLX
- * 3. Topic Exchange Wildcards: Consumers use patterns like order.# and order.*.urgent
+ * 2. Command Pattern: many publishers send a command to one owner (the fulfillment task queue)
+ * 3. Dead Letter Exchange: Failed messages from orderProcessingQueue are routed to DLX
+ * 4. Topic Exchange Wildcards: Consumers use patterns like order.# and order.*.urgent
  *
  * Exchanges, queues, and bindings are automatically extracted from publishers and consumers.
  */
@@ -149,6 +197,10 @@ export const orderContract = defineContract({
     orderUrgentUpdate: definePublisher(ordersExchange, orderStatusMessage, {
       routingKey: "order.updated.urgent",
     }),
+
+    // Command publisher: sends a fulfillment command to the single owner.
+    // Its message type is derived from `fulfillOrder`, not restated here.
+    requestFulfillment,
   },
   consumers: {
     // Event consumer: subscribes to order.created events
@@ -169,5 +221,8 @@ export const orderContract = defineContract({
 
     // DLX consumer: receives failed messages
     handleFailedOrders: defineEventConsumer(failedOrderEvent, ordersDlxQueue),
+
+    // Command consumer: the fulfillment worker owns this task queue
+    fulfillOrder,
   },
 });

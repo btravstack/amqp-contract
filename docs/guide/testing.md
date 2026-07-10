@@ -120,27 +120,27 @@ describe("Order Processing Contract", () => {
     amqpConnectionUrl,
   }) => {
     // Create client
-    const client = (
-      await TypedAmqpClient.create({
-        contract,
-        urls: [amqpConnectionUrl],
-      })
-    ).unwrap();
+    const client = await TypedAmqpClient.create({
+      contract,
+      urls: [amqpConnectionUrl],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Create worker with handler
     const receivedPayloads: unknown[] = [];
-    const worker = (
-      await TypedAmqpWorker.create({
-        contract,
-        handlers: {
-          processOrder: ({ payload }) => {
-            receivedPayloads.push(payload);
-            return Ok(undefined).toAsync();
-          },
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        processOrder: ({ payload }) => {
+          receivedPayloads.push(payload);
+          return Ok(undefined).toAsync();
         },
-        urls: [amqpConnectionUrl],
-      })
-    ).unwrap();
+      },
+      urls: [amqpConnectionUrl],
+    }).unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Publish message
     const result = await client.publish("orderCreated", {

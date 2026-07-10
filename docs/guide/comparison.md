@@ -66,12 +66,12 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract.js";
 
 // Create client once
-const client = (
-  await TypedAmqpClient.create({
-    contract, // Resources declared automatically!
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
+const client = await TypedAmqpClient.create({
+  contract, // Resources declared automatically!
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 
 // Publish - fully typed and validated!
 const result = await client.publish("orderCreated", {
@@ -124,21 +124,21 @@ import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        // ✅ Payload is fully typed!
-        console.log(payload.orderId); // ✅ Full autocomplete!
-        console.log(payload.amount); // ✅ Type-safe!
-        // ✅ Automatic validation - invalid messages rejected!
-        return Ok(undefined).toAsync();
-      }, // ✅ Auto-acknowledgment on success!
-    },
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      // ✅ Payload is fully typed!
+      console.log(payload.orderId); // ✅ Full autocomplete!
+      console.log(payload.amount); // ✅ Type-safe!
+      // ✅ Automatic validation - invalid messages rejected!
+      return Ok(undefined).toAsync();
+    }, // ✅ Auto-acknowledgment on success!
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 :::

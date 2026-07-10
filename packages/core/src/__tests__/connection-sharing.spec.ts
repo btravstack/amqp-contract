@@ -24,15 +24,23 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    (await client1.waitForConnect()).unwrap();
-    (await client2.waitForConnect()).unwrap();
+    await client1.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // THEN - Both clients should share the same connection instance
     expect(client1.getConnection()).toBe(client2.getConnection());
 
     // CLEANUP
-    (await client1.close()).unwrap();
-    (await client2.close()).unwrap();
+    await client1.close().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should create separate connections for different URLs", async ({ amqpConnectionUrl }) => {
@@ -48,7 +56,9 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
     const client2 = new AmqpClient(contract, { urls: [`${amqpConnectionUrl}-different`] });
 
-    (await client1.waitForConnect()).unwrap();
+    await client1.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
     // client2 will fail to connect due to invalid URL, but that's okay for this test
 
     // THEN - Connections should be different instances
@@ -57,8 +67,12 @@ describe("AmqpClient Connection Sharing Integration", () => {
     expect(client1.getConnection()).not.toBe(client2.getConnection());
 
     // CLEANUP
-    (await client1.close()).unwrap();
-    (await client2.close()).unwrap();
+    await client1.close().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should maintain connection when only one client closes", async ({ amqpConnectionUrl }) => {
@@ -73,19 +87,27 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    (await client1.waitForConnect()).unwrap();
-    (await client2.waitForConnect()).unwrap();
+    await client1.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     const sharedConnection = client1.getConnection();
 
     // WHEN - Close first client
-    (await client1.close()).unwrap();
+    await client1.close().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // THEN - Connection should still be alive (used by client2)
     expect(sharedConnection.isConnected()).toBe(true);
 
     // CLEANUP
-    (await client2.close()).unwrap();
+    await client2.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should close connection when last client closes", async ({ amqpConnectionUrl }) => {
@@ -100,14 +122,22 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    (await client1.waitForConnect()).unwrap();
-    (await client2.waitForConnect()).unwrap();
+    await client1.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
 
     const sharedConnection = client1.getConnection();
 
     // WHEN - Close both clients
-    (await client1.close()).unwrap();
-    (await client2.close()).unwrap();
+    await client1.close().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2.close().unwrapOrElse((e) => {
+      throw e;
+    });
 
     // Give connection a moment to close
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -132,8 +162,12 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1b = new AmqpClient(contract, { urls: urls1 });
     const client2a = new AmqpClient(contract, { urls: urls2 });
 
-    (await client1a.waitForConnect()).unwrap();
-    (await client1b.waitForConnect()).unwrap();
+    await client1a.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client1b.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
     // client2a will fail to connect but that's okay
 
     // THEN - Clients with same URLs should share connection
@@ -141,9 +175,15 @@ describe("AmqpClient Connection Sharing Integration", () => {
     expect(client1a.getConnection()).not.toBe(client2a.getConnection());
 
     // CLEANUP
-    (await client1a.close()).unwrap();
-    (await client1b.close()).unwrap();
-    (await client2a.close()).unwrap();
+    await client1a.close().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client1b.close().unwrapOrElse((e) => {
+      throw e;
+    });
+    await client2a.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 
   it("should handle rapid create and close cycles", async ({ amqpConnectionUrl }) => {
@@ -159,16 +199,24 @@ describe("AmqpClient Connection Sharing Integration", () => {
     // WHEN - Rapidly create and close clients
     for (let i = 0; i < 5; i++) {
       const client = new AmqpClient(contract, { urls });
-      (await client.waitForConnect()).unwrap();
-      (await client.close()).unwrap();
+      await client.waitForConnect().unwrapOrElse((e) => {
+        throw e;
+      });
+      await client.close().unwrapOrElse((e) => {
+        throw e;
+      });
     }
 
     // THEN - Should not throw errors and last close should clean up connection
     const finalClient = new AmqpClient(contract, { urls });
-    (await finalClient.waitForConnect()).unwrap();
+    await finalClient.waitForConnect().unwrapOrElse((e) => {
+      throw e;
+    });
     expect(finalClient.getConnection()).toBeDefined();
 
     // CLEANUP
-    (await finalClient.close()).unwrap();
+    await finalClient.close().unwrapOrElse((e) => {
+      throw e;
+    });
   });
 });

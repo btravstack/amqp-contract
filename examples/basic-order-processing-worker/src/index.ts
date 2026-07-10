@@ -23,7 +23,7 @@ const logger = pino({
 
 async function main() {
   // Create type-safe worker with handlers for each consumer
-  const workerResult = await TypedAmqpWorker.create({
+  const workerResult = TypedAmqpWorker.create({
     contract: orderContract,
     handlers: defineHandlers(orderContract, {
       // Handler for processing NEW orders (order.created)
@@ -124,6 +124,26 @@ async function main() {
         });
       },
 
+      // Command handler (task queue): the fulfillment worker owns this queue.
+      // Unlike the event handlers above, this command reaches exactly one worker.
+      fulfillOrder: ({ payload }) => {
+        logger.info(
+          {
+            orderId: payload.orderId,
+            warehouseId: payload.warehouseId,
+            priority: payload.priority,
+          },
+          "[FULFILLMENT] Fulfillment command received",
+        );
+
+        return fromPromise(
+          new Promise<void>((resolve) => setTimeout(resolve, 400)),
+          (e) => new RetryableError("Fulfillment failed", e),
+        ).map(() => {
+          logger.info({ orderId: payload.orderId }, "Order handed to the warehouse");
+        });
+      },
+
       // Handler for FAILED orders (from dead letter exchange)
       handleFailedOrders: ({ payload }) => {
         logger.error(
@@ -146,15 +166,18 @@ async function main() {
     }),
     urls: [env.AMQP_URL],
   }).tapErr((error) => logger.error({ error }, "Failed to create worker"));
-  const worker = workerResult.unwrap();
+  const worker = await workerResult.unwrapOrElse((error) => {
+    throw error;
+  });
 
   logger.info("Worker ready, waiting for messages...");
   logger.info("=".repeat(60));
   logger.info("Subscribed to:");
-  logger.info("  • order.created     → processOrder handler");
+  logger.info("  • order.created     → processOrder handler (event)");
   logger.info("  • order.#           → notifyOrder handler (all events)");
-  logger.info("  • order.shipped     → shipOrder handler");
-  logger.info("  • order.*.urgent    → handleUrgentOrder handler");
+  logger.info("  • order.shipped     → shipOrder handler (event)");
+  logger.info("  • order.*.urgent    → handleUrgentOrder handler (event)");
+  logger.info("  • order.fulfill     → fulfillOrder handler (command / task queue)");
   logger.info("  • order.failed (via DLX) → handleFailedOrders handler");
   logger.info("=".repeat(60));
   logger.info("Dead Letter Exchange:");
@@ -164,7 +187,9 @@ async function main() {
   // Handle graceful shutdown
   process.on("SIGINT", async () => {
     logger.info("Shutting down worker...");
-    (await worker.close()).unwrap();
+    await worker.close().unwrapOrElse((error) => {
+      throw error;
+    });
     process.exit(0);
   });
 }

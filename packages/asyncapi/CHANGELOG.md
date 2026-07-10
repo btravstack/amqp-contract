@@ -1,5 +1,11 @@
 # @amqp-contract/asyncapi
 
+## 2.3.0
+
+### Patch Changes
+
+- @amqp-contract/contract@2.3.0
+
 ## 2.2.0
 
 ### Patch Changes

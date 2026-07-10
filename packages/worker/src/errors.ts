@@ -17,11 +17,11 @@ export { isRpcError, MessageValidationError, RpcError, rpcError } from "@amqp-co
 export class RetryableError extends TaggedError("@amqp-contract/RetryableError", {
   name: "RetryableError",
 })<{
-  message: string;
   cause?: unknown;
 }> {
   constructor(message: string, cause?: unknown) {
-    super({ message, cause });
+    super({ cause });
+    this.message = message;
   }
 }
 
@@ -37,11 +37,11 @@ export class RetryableError extends TaggedError("@amqp-contract/RetryableError",
 export class NonRetryableError extends TaggedError("@amqp-contract/NonRetryableError", {
   name: "NonRetryableError",
 })<{
-  message: string;
   cause?: unknown;
 }> {
   constructor(message: string, cause?: unknown) {
-    super({ message, cause });
+    super({ cause });
+    this.message = message;
   }
 }
 

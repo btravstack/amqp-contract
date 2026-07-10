@@ -88,17 +88,21 @@ export const contract = defineContract({
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
-
-await client.publish("orderCreated", {
-  orderId: "ORD-123", // ✅ TypeScript knows!
-  amount: 99.99,
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
 });
+
+await client
+  .publish("orderCreated", {
+    orderId: "ORD-123", // ✅ TypeScript knows!
+    amount: 99.99,
+  })
+  .unwrapOrElse((e) => {
+    throw e;
+  });
 ```
 
 ```typescript [3. Consume]
@@ -106,18 +110,18 @@ import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log(payload.orderId); // ✅ Fully typed!
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log(payload.orderId); // ✅ Fully typed!
+      return Ok(undefined).toAsync();
     },
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 :::

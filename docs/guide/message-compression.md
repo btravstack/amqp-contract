@@ -39,10 +39,10 @@ Compression is specified in the publish options:
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "./contract";
 
-const client = (await TypedAmqpClient.create({
+const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-})).unwrap();
+}).unwrapOrElse((e) => { throw e; });
 
 // Publish with gzip compression
 await client
@@ -86,20 +86,20 @@ await client
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { contract } from "./contract";
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        // Message is automatically decompressed
-        console.log("Processing order:", payload.orderId);
-        console.log("Items:", payload.items); // Already decompressed
-        return Ok(undefined).toAsync();
-      },
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      // Message is automatically decompressed
+      console.log("Processing order:", payload.orderId);
+      console.log("Items:", payload.items); // Already decompressed
+      return Ok(undefined).toAsync();
     },
-    urls: ["amqp://localhost"],
-  })
-).unwrap();
+  },
+  urls: ["amqp://localhost"],
+}).unwrapOrElse((e) => {
+  throw e;
+});
 ```
 
 The worker automatically:
