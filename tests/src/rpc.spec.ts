@@ -1,6 +1,8 @@
 import {
+  isRpcError,
   MessageValidationError,
   RpcCancelledError,
+  RpcError,
   RpcTimeoutError,
   TypedAmqpClient,
 } from "@amqp-contract/client";
@@ -13,8 +15,8 @@ import {
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
-import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromSafePromise, Ok } from "unthrown";
+import { rpcError, TypedAmqpWorker } from "@amqp-contract/worker";
+import { Err, fromSafePromise, Ok } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -206,6 +208,147 @@ describe("TypedAmqpClient RPC", () => {
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error).toBeInstanceOf(TechnicalError);
+    }
+  });
+});
+
+const buildErrorContract = (queueName: string) => {
+  const queue = defineQueue(queueName, { type: "classic", durable: false });
+  const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
+  const response = defineMessage(z.object({ sum: z.number() }));
+  const calculate = defineRpc(queue, {
+    request,
+    response,
+    errors: {
+      NEGATIVE_NUMBERS: defineMessage(z.object({ a: z.number(), b: z.number() })),
+      LIMIT_EXCEEDED: defineMessage(z.object({ limit: z.number() })),
+    },
+  });
+  return defineContract({ rpcs: { calculate } });
+};
+
+describe("TypedAmqpClient RPC typed errors", () => {
+  it("round-trips a declared typed error with validated data", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildErrorContract("rpc.calculate.typed-error");
+
+    await workerFactory(contract, {
+      calculate: ({ payload }) =>
+        payload.a < 0 || payload.b < 0
+          ? Err(
+              rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }, "negatives rejected"),
+            ).toAsync()
+          : Ok({ sum: payload.a + payload.b }).toAsync(),
+    });
+    const client = await clientFactory(contract);
+
+    const result = await client.call("calculate", { a: -1, b: 2 }, { timeoutMs: 5_000 });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(isRpcError(result.error)).toBe(true);
+      if (isRpcError(result.error)) {
+        expect(result.error.code).toBe("NEGATIVE_NUMBERS");
+        expect(result.error.data).toEqual({ a: -1, b: 2 });
+        expect(result.error.message).toBe("negatives rejected");
+      }
+    }
+  });
+
+  it("still resolves success replies on an RPC that declares errors", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildErrorContract("rpc.calculate.typed-error-ok");
+
+    await workerFactory(contract, {
+      calculate: ({ payload }) =>
+        payload.a < 0 || payload.b < 0
+          ? Err(rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b })).toAsync()
+          : Ok({ sum: payload.a + payload.b }).toAsync(),
+    });
+    const client = await clientFactory(contract);
+
+    const result = await client.call("calculate", { a: 2, b: 3 }, { timeoutMs: 5_000 });
+
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({ sum: 5 });
+    }
+  });
+
+  it("discriminates between multiple declared error codes", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildErrorContract("rpc.calculate.typed-error-codes");
+
+    await workerFactory(contract, {
+      calculate: ({ payload }) =>
+        payload.a + payload.b > 100
+          ? Err(rpcError("LIMIT_EXCEEDED", { limit: 100 })).toAsync()
+          : Ok({ sum: payload.a + payload.b }).toAsync(),
+    });
+    const client = await clientFactory(contract);
+
+    const result = await client.call("calculate", { a: 60, b: 60 }, { timeoutMs: 5_000 });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr() && isRpcError(result.error)) {
+      expect(result.error.code).toBe("LIMIT_EXCEEDED");
+      if (result.error.code === "LIMIT_EXCEEDED") {
+        expect(result.error.data).toEqual({ limit: 100 });
+      }
+    }
+  });
+
+  it("times out when the handler returns an undeclared error code (worker DLQ path)", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildErrorContract("rpc.calculate.undeclared-error");
+
+    await workerFactory(contract, {
+      // Cast through unknown to deliberately bypass the type system — the
+      // worker refuses to publish an undeclared code, so the client times out.
+      calculate: () =>
+        Err(
+          rpcError("NOT_DECLARED", {}) as unknown as RpcError<"LIMIT_EXCEEDED", { limit: number }>,
+        ).toAsync(),
+    });
+    const client = await clientFactory(contract);
+
+    const result = await client.call("calculate", { a: 1, b: 1 }, { timeoutMs: 500 });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error).toBeInstanceOf(RpcTimeoutError);
+    }
+  });
+
+  it("times out when the error data fails its declared schema (worker DLQ path)", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildErrorContract("rpc.calculate.invalid-error-data");
+
+    await workerFactory(contract, {
+      // Wrong data shape for the declared code — worker-side validation drops
+      // the reply before publishing, so the client times out.
+      calculate: () =>
+        Err(
+          rpcError("LIMIT_EXCEEDED", { wrong: "shape" } as unknown as { limit: number }),
+        ).toAsync(),
+    });
+    const client = await clientFactory(contract);
+
+    const result = await client.call("calculate", { a: 1, b: 1 }, { timeoutMs: 500 });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error).toBeInstanceOf(RpcTimeoutError);
     }
   });
 });

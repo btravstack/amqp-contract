@@ -4,12 +4,15 @@ import {
   type ContractDefinition,
   type InferPublisherNames,
   type InferRpcNames,
+  type RpcErrorMap,
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
   PublishOptions as AmqpClientPublishOptions,
   type Logger,
   MessagingSemanticConventions,
+  RPC_ERROR_CODE_HEADER,
+  RpcError,
   TechnicalError,
   type TelemetryProvider,
   defaultTelemetryProvider,
@@ -28,6 +31,7 @@ import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
 import type {
   ClientInferPublisherInput,
+  ClientInferRpcErrors,
   ClientInferRpcRequestInput,
   ClientInferRpcResponseOutput,
 } from "./types.js";
@@ -49,10 +53,16 @@ const DIRECT_REPLY_TO = "amq.rabbitmq.reply-to";
 type PendingCall = {
   rpcName: string;
   responseSchema: StandardSchemaV1;
+  /**
+   * The RPC's declared `errors` map (code → message definition), used to
+   * validate the `data` of a typed error reply. Undefined when the RPC
+   * declares no errors — any error reply then resolves to a TechnicalError.
+   */
+  rpcErrorSchemas?: RpcErrorMap | undefined;
   resolve: (
     result: Result<
       unknown,
-      TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError
+      TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError | RpcError
     >,
   ) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -262,6 +272,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     }
     const parsed = parseResult.value;
 
+    // A reply carrying the error-code header is a typed error reply: its body
+    // is `{ message, data }` rather than the response payload. Resolve it
+    // through the RPC's declared error schemas instead of the response schema.
+    const errorCode = msg.properties.headers?.[RPC_ERROR_CODE_HEADER];
+    if (typeof errorCode === "string") {
+      this.resolveRpcErrorReply(pending, errorCode, parsed);
+      return;
+    }
+
     // Wrap the validate call itself — a Standard Schema implementation may
     // throw synchronously, and the throw would otherwise escape the consume
     // callback and could crash the reply consumer.
@@ -288,6 +307,68 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       (error: unknown) => {
         pending.resolve(
           Err(new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error)),
+        );
+      },
+    );
+  }
+
+  /**
+   * Resolve a pending call with a typed error reply: look up the error's
+   * schema in the RPC's declared `errors` map, validate the reply's `data`
+   * against it, and resolve the caller with `Err(RpcError<code, data>)`.
+   *
+   * An error code the contract does not declare resolves to a TechnicalError —
+   * it means the two sides run different contract versions (or the worker
+   * bypassed the type system), and the client has no schema to give the data
+   * a type under.
+   */
+  private resolveRpcErrorReply(pending: PendingCall, errorCode: string, parsed: unknown): void {
+    const errorSchema = pending.rpcErrorSchemas?.[errorCode];
+    if (!errorSchema) {
+      pending.resolve(
+        Err(
+          new TechnicalError(
+            `RPC "${pending.rpcName}" replied with undeclared error code "${errorCode}"`,
+          ),
+        ),
+      );
+      return;
+    }
+
+    const body =
+      typeof parsed === "object" && parsed !== null
+        ? (parsed as { message?: unknown; data?: unknown })
+        : {};
+    const message = typeof body.message === "string" ? body.message : undefined;
+
+    // Wrap the validate call itself — a Standard Schema implementation may
+    // throw synchronously, and the throw would otherwise escape the consume
+    // callback and could crash the reply consumer.
+    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
+    try {
+      rawValidation = errorSchema.payload["~standard"].validate(body.data);
+    } catch (error: unknown) {
+      pending.resolve(
+        Err(new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error)),
+      );
+      return;
+    }
+    const validationPromise =
+      rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
+
+    validationPromise.then(
+      (validation) => {
+        if (validation.issues) {
+          pending.resolve(Err(new MessageValidationError(pending.rpcName, validation.issues)));
+          return;
+        }
+        pending.resolve(Err(new RpcError(errorCode, validation.value, message)));
+      },
+      (error: unknown) => {
+        pending.resolve(
+          Err(
+            new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
+          ),
         );
       },
     );
@@ -423,10 +504,19 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     options: CallOptions,
   ): AsyncResult<
     ClientInferRpcResponseOutput<TContract, TName>,
-    TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError
+    | TechnicalError
+    | MessageValidationError
+    | RpcTimeoutError
+    | RpcCancelledError
+    | ClientInferRpcErrors<TContract, TName>
   > {
     type ResponseType = ClientInferRpcResponseOutput<TContract, TName>;
-    type CallError = TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError;
+    type CallError =
+      | TechnicalError
+      | MessageValidationError
+      | RpcTimeoutError
+      | RpcCancelledError
+      | ClientInferRpcErrors<TContract, TName>;
     type CallResult = Result<ResponseType, CallError>;
 
     // setTimeout truncates fractional ms and clamps anything outside the
@@ -482,6 +572,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     this.pendingCalls.set(correlationId, {
       rpcName: String(rpcName),
       responseSchema,
+      rpcErrorSchemas: rpc.errors,
       resolve: resolveCall as PendingCall["resolve"],
       timer,
     });

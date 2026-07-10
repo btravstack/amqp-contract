@@ -11,6 +11,7 @@ Error
 ├── HandlerError                     (worker-side, returned by handlers)
 │   ├── RetryableError               — go through queue retry mode
 │   └── NonRetryableError            — straight to DLQ, skip retry
+├── RpcError<code, data>             (typed business error declared on an RPC)
 ├── TechnicalError                   (any AMQP / framework failure)
 └── MessageValidationError           (Standard Schema validation issue)
 
@@ -110,6 +111,69 @@ On the worker side, validation failures route directly to the DLQ via `nack(requ
 
 On the client side (publisher input or RPC response validation), `MessageValidationError` is returned via `Err(...)` from `publish()` / `call()` so you can decide how to react before sending.
 
+## Typed RPC errors (`RpcError`)
+
+An RPC can declare its business failures in the contract, alongside the request and response schemas. Each error code maps to a `defineMessage(...)` validating the error's `data` payload:
+
+```ts
+import { defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
+import { z } from "zod";
+
+const getOrder = defineRpc(defineQueue("rpc.get-order"), {
+  request: defineMessage(z.object({ orderId: z.string() })),
+  response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
+  errors: {
+    ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+  },
+});
+```
+
+Declared errors widen both ends of the RPC:
+
+**Worker side** — the handler's error channel becomes `HandlerError | RpcError<code, data>`. Return one with the `rpcError` factory:
+
+```ts
+import { rpcError } from "@amqp-contract/worker";
+import { Err, Ok } from "unthrown";
+
+const handlers = defineHandlers(contract, {
+  getOrder: ({ payload }) => {
+    const order = orders.get(payload.orderId);
+    if (!order) {
+      return Err(rpcError("ORDER_NOT_FOUND", { orderId: payload.orderId })).toAsync();
+    }
+    return Ok({ orderId: order.id, status: order.status }).toAsync();
+  },
+});
+```
+
+A returned `RpcError` is the RPC's _business-failure channel_, not a processing failure: the worker validates `data` against the declared schema, publishes an error reply to the caller, and **acks the request — business errors are never retried**. Only `RetryableError` / `NonRetryableError` enter the retry/DLQ pipeline.
+
+**Client side** — the `call()` error union gains the declared `RpcError<code, data>` members. Discriminate with `isRpcError` and narrow on `code`:
+
+```ts
+import { isRpcError } from "@amqp-contract/client";
+
+const result = await client.call("getOrder", { orderId: "42" }, { timeoutMs: 5_000 });
+if (result.isErr() && isRpcError(result.error)) {
+  // result.error.code is "ORDER_NOT_FOUND"; result.error.data is { orderId: string }
+  console.log(`Order ${result.error.data.orderId} not found`);
+}
+```
+
+Error `data` is validated twice: on the worker before the reply is published, and again on the client when it arrives — the same double-validation contract as responses.
+
+### Contract enforcement at runtime
+
+The type system prevents undeclared codes, but a cast (or two services running different contract versions) can bypass it. The runtime holds the line:
+
+- **Worker**: an undeclared code or `data` failing its schema is a contract violation — the reply is not published and the request routes to the DLQ as a `NonRetryableError`. The caller times out.
+- **Client**: an error reply whose code the local contract doesn't declare resolves to `Err(TechnicalError)`; error data failing its schema resolves to `Err(MessageValidationError)`.
+
+### Wire format
+
+Success replies are unchanged. An error reply is marked by the `x-amqp-contract-error-code` AMQP header (exported as `RPC_ERROR_CODE_HEADER` from `@amqp-contract/core`) carrying the code, with a `{ message, data }` JSON body. RPCs that declare no `errors` behave exactly as before.
+
 ## Client-side RPC errors
 
 ### `RpcTimeoutError`
@@ -127,6 +191,7 @@ const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000
 result.match({
   ok: (response) => /* ... */,
   err: (err) => {
+    if (isRpcError(err)) /* declared business error — narrow on err.code */;
     if (err instanceof RpcTimeoutError) /* retry, or fall back */;
     if (err instanceof RpcCancelledError) /* shutting down */;
     if (err instanceof MessageValidationError) /* response shape wrong */;

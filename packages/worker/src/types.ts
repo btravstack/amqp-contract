@@ -5,8 +5,11 @@ import type {
   InferConsumerNames,
   InferRpcNames,
   MessageDefinition,
+  QueueEntry,
   RpcDefinition,
+  RpcErrorMap,
 } from "@amqp-contract/contract";
+import type { RpcError } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
 import type { AsyncResult } from "unthrown";
@@ -18,6 +21,13 @@ import { ConsumerOptions } from "./worker.js";
  */
 type InferSchemaOutput<TSchema extends StandardSchemaV1> =
   TSchema extends StandardSchemaV1<infer _TInput, infer TOutput> ? TOutput : never;
+
+/**
+ * Infer the input type from a schema (used for RPC error data — the handler
+ * supplies the pre-validation shape; the worker validates before replying).
+ */
+type InferSchemaInput<TSchema extends StandardSchemaV1> =
+  TSchema extends StandardSchemaV1<infer TInput> ? TInput : never;
 
 /**
  * Extract the ConsumerDefinition from any consumer entry type.
@@ -117,6 +127,30 @@ export type WorkerInferRpcHeaders<
     : undefined;
 
 /**
+ * Infer the typed error union for an RPC handler — one `RpcError<code, data>`
+ * member per entry in the RPC's `errors` map, with `data` typed as the
+ * declared schema's *input* (the worker validates before replying). Resolves
+ * to `never` when the RPC declares no errors, leaving the handler's error
+ * channel as plain `HandlerError`.
+ */
+export type WorkerInferRpcErrors<
+  TContract extends ContractDefinition,
+  TName extends InferRpcNames<TContract>,
+> =
+  InferRpc<TContract, TName> extends RpcDefinition<
+    MessageDefinition,
+    MessageDefinition,
+    QueueEntry,
+    infer TErrors
+  >
+    ? TErrors extends RpcErrorMap
+      ? {
+          [K in keyof TErrors & string]: RpcError<K, InferSchemaInput<TErrors[K]["payload"]>>;
+        }[keyof TErrors & string]
+      : never
+    : never;
+
+/**
  * Infer the response payload type for an RPC. The handler must return a
  * `AsyncResult<TResponse, HandlerError>` matching this shape.
  */
@@ -204,10 +238,13 @@ export type WorkerInferConsumerHandler<
 
 /**
  * Handler signature for an RPC. Returns
- * `AsyncResult<TResponse, HandlerError>` where `TResponse` is the inferred
- * response payload. The worker validates the response against the RPC's
- * response schema and publishes it back to `msg.properties.replyTo` with the
- * same `correlationId`.
+ * `AsyncResult<TResponse, HandlerError | RpcError>` where `TResponse` is the
+ * inferred response payload and the `RpcError` members come from the RPC's
+ * declared `errors` map (absent when none are declared). The worker validates
+ * the response against the RPC's response schema and publishes it back to
+ * `msg.properties.replyTo` with the same `correlationId`; a declared
+ * `RpcError` is validated, published as an error reply, and the request is
+ * acked (business errors are not retried).
  */
 export type WorkerInferRpcHandler<
   TContract extends ContractDefinition,
@@ -215,7 +252,10 @@ export type WorkerInferRpcHandler<
 > = (
   message: WorkerInferRpcConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
-) => AsyncResult<WorkerInferRpcResponse<TContract, TName>, HandlerError>;
+) => AsyncResult<
+  WorkerInferRpcResponse<TContract, TName>,
+  HandlerError | WorkerInferRpcErrors<TContract, TName>
+>;
 
 /**
  * Handler entry for a regular consumer — function or `[handler, options]`.

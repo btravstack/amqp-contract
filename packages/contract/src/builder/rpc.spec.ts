@@ -16,6 +16,30 @@ describe("defineRpc", () => {
 
     // THEN
     expect(rpc).toEqual({ queue, request, response });
+    // No errors declared → no `errors` key at all (not `errors: undefined`),
+    // so consumers of the definition can use `"errors" in rpc` checks.
+    expect(Object.hasOwn(rpc, "errors")).toBe(false);
+  });
+
+  it("carries the declared error map through to the definition", () => {
+    // GIVEN
+    const notFound = defineMessage(z.object({ id: z.string() }));
+    const limitExceeded = defineMessage(z.object({ limit: z.number() }));
+
+    // WHEN
+    const rpc = defineRpc(queue, {
+      request,
+      response,
+      errors: { NOT_FOUND: notFound, LIMIT_EXCEEDED: limitExceeded },
+    });
+
+    // THEN
+    expect(rpc).toEqual({
+      queue,
+      request,
+      response,
+      errors: { NOT_FOUND: notFound, LIMIT_EXCEEDED: limitExceeded },
+    });
   });
 
   describe("defineContract integration", () => {
@@ -39,6 +63,18 @@ describe("defineRpc", () => {
         consumers: {},
         bindings: {},
       });
+    });
+
+    it("exposes the RPC's error map under contract.rpcs", () => {
+      // GIVEN
+      const notFound = defineMessage(z.object({ id: z.string() }));
+      const calculate = defineRpc(queue, { request, response, errors: { NOT_FOUND: notFound } });
+
+      // WHEN
+      const contract = defineContract({ rpcs: { calculate } });
+
+      // THEN
+      expect(contract.rpcs.calculate.errors).toEqual({ NOT_FOUND: notFound });
     });
 
     it("throws when an RPC name collides with a consumer name", () => {

@@ -5,13 +5,16 @@ export {
   MessageValidationError,
   NonRetryableError,
   RetryableError,
+  RpcError,
   // Type guards
   isHandlerError,
   isNonRetryableError,
   isRetryableError,
+  isRpcError,
   // Factory functions
   nonRetryable,
   retryable,
+  rpcError,
 } from "./errors.js";
 // HandlerError is now a tagged union type (RetryableError | NonRetryableError),
 // not a class — re-export it as a type.
@@ -25,6 +28,7 @@ export type {
   WorkerInferConsumerHeaders,
   WorkerInferHandlers,
   WorkerInferRpcConsumedMessage,
+  WorkerInferRpcErrors,
   WorkerInferRpcHandler,
   WorkerInferRpcHandlerEntry,
   WorkerInferRpcHeaders,

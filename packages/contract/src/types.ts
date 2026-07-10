@@ -1030,6 +1030,19 @@ export type BridgedPublisherConfigBase = {
 };
 
 /**
+ * Typed error map for an RPC: error code → message definition validating the
+ * error's `data` payload.
+ *
+ * Reuses {@link MessageDefinition} so error data gets the same Standard Schema
+ * validation and AsyncAPI metadata (`summary` / `description`) as request and
+ * response payloads. The `headers` slot of an error's message definition is
+ * ignored — error replies carry the code in a fixed AMQP header instead.
+ *
+ * @see defineRpc for declaring errors on an RPC
+ */
+export type RpcErrorMap = Record<string, MessageDefinition>;
+
+/**
  * Definition of an RPC operation: a request/response pair flowing over a
  * request queue with replies routed back via direct reply-to.
  *
@@ -1041,6 +1054,7 @@ export type BridgedPublisherConfigBase = {
  * @template TRequestMessage - The request message definition
  * @template TResponseMessage - The response message definition
  * @template TQueue - The request queue entry
+ * @template TErrors - The typed error map (undefined when the RPC declares none)
  *
  * @see defineRpc for creating RPC definitions
  */
@@ -1048,6 +1062,7 @@ export type RpcDefinition<
   TRequestMessage extends MessageDefinition = MessageDefinition,
   TResponseMessage extends MessageDefinition = MessageDefinition,
   TQueue extends QueueEntry = QueueEntry,
+  TErrors extends RpcErrorMap | undefined = RpcErrorMap | undefined,
 > = {
   /** The queue that receives RPC requests. Replies are routed back via direct reply-to. */
   queue: TQueue;
@@ -1055,6 +1070,13 @@ export type RpcDefinition<
   request: TRequestMessage;
   /** Schema for the response payload (validated on both worker reply and client receive). */
   response: TResponseMessage;
+  /**
+   * Typed business errors the handler may return via `Err(rpcError(code, data))`.
+   * Error data is validated against the declared schema on the worker before
+   * the error reply is published, and re-validated on the client when it
+   * arrives. Business errors are replied and acked — never retried.
+   */
+  errors?: TErrors;
 };
 
 /**

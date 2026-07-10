@@ -1,6 +1,6 @@
 import { TaggedError } from "unthrown";
 
-export { MessageValidationError } from "@amqp-contract/core";
+export { isRpcError, MessageValidationError, RpcError, rpcError } from "@amqp-contract/core";
 
 /**
  * Retryable errors - transient failures that may succeed on retry

@@ -10,7 +10,14 @@ export {
   _getConnectionCountForTesting,
   _resetConnectionsForTesting,
 } from "./connection-manager.js";
-export { MessageValidationError, TechnicalError } from "./errors.js";
+export {
+  isRpcError,
+  MessageValidationError,
+  RPC_ERROR_CODE_HEADER,
+  RpcError,
+  rpcError,
+  TechnicalError,
+} from "./errors.js";
 export type { Logger, LoggerContext } from "./logger.js";
 export { safeJsonParse } from "./parsing.js";
 export { setupAmqpTopology } from "./setup.js";
