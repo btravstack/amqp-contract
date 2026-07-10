@@ -323,7 +323,12 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * a type under.
    */
   private resolveRpcErrorReply(pending: PendingCall, errorCode: string, parsed: unknown): void {
-    const errorSchema = pending.rpcErrorSchemas?.[errorCode];
+    // `Object.hasOwn` rather than plain indexing so prototype properties
+    // (e.g. "toString") are not misclassified as declared error codes.
+    const errorSchema =
+      pending.rpcErrorSchemas && Object.hasOwn(pending.rpcErrorSchemas, errorCode)
+        ? pending.rpcErrorSchemas[errorCode]
+        : undefined;
     if (!errorSchema) {
       pending.resolve(
         Err(

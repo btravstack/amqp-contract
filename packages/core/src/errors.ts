@@ -78,7 +78,6 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
   "@amqp-contract/RpcError",
   { name: "RpcError" },
 )<{
-  message: string;
   code: string;
   data: unknown;
 }> {
@@ -86,7 +85,8 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
   declare readonly data: TData;
 
   constructor(code: TCode, data: TData, message?: string) {
-    super({ message: message ?? `RPC failed with error "${code}"`, code, data });
+    super({ code, data });
+    this.message = message ?? `RPC failed with error "${code}"`;
   }
 }
 

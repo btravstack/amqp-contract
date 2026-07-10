@@ -128,9 +128,11 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
    * Handlers for each `consumers` and `rpcs` entry in the contract.
    *
    * - Regular consumers return `AsyncResult<void, HandlerError>`.
-   * - RPC handlers return `AsyncResult<TResponse, HandlerError | RpcError>`
-   *   where `TResponse` is inferred from the RPC's response message schema
-   *   and the `RpcError` members come from the RPC's declared `errors` map.
+   * - RPC handlers return `AsyncResult<TResponse, HandlerError>` where
+   *   `TResponse` is inferred from the RPC's response message schema. When
+   *   the RPC declares an `errors` map, the error channel additionally
+   *   accepts the declared `RpcError<code, data>` members (otherwise it
+   *   stays plain `HandlerError`).
    *
    * Use `defineHandler` / `defineHandlers` to create handlers with full type
    * inference.
@@ -548,7 +550,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     error: RpcError,
   ): AsyncResult<void, HandlerError> {
     const queueName = extractQueue(view.consumer.queue).name;
-    const errorSchema = view.errorSchemas?.[error.code];
+    // `Object.hasOwn` rather than plain indexing so prototype properties
+    // (e.g. "toString") are not misclassified as declared error codes.
+    const errorSchema =
+      view.errorSchemas && Object.hasOwn(view.errorSchemas, error.code)
+        ? view.errorSchemas[error.code]
+        : undefined;
     if (!errorSchema) {
       return Err<HandlerError>(
         new NonRetryableError(
