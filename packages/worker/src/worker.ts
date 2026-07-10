@@ -3,6 +3,7 @@ import {
   type ContractDefinition,
   type InferConsumerNames,
   type InferRpcNames,
+  type RpcErrorMap,
   extractConsumer,
   extractQueue,
 } from "@amqp-contract/contract";
@@ -10,11 +11,14 @@ import {
   AmqpClient,
   ConsumerOptions as AmqpClientConsumerOptions,
   type Logger,
+  RPC_ERROR_CODE_HEADER,
+  type RpcError,
   TechnicalError,
   type TelemetryProvider,
   defaultTelemetryProvider,
   endSpanError,
   endSpanSuccess,
+  isRpcError,
   recordConsumeMetric,
   safeJsonParse,
   startConsumeSpan,
@@ -48,12 +52,27 @@ type HandlerName<TContract extends ContractDefinition> =
  * Resolved handler entry stored on the worker, regardless of whether the
  * source is a `consumers` or `rpcs` slot. The handler signature is widened
  * here because both kinds share the same dispatch loop; specific call sites
- * cast back to the correct typed handler.
+ * cast back to the correct typed handler. RPC handlers may additionally fail
+ * with a contract-declared `RpcError`, which the dispatch path publishes back
+ * to the caller instead of routing to retry/DLQ.
  */
 type StoredHandler = (
   message: { payload: unknown; headers: unknown },
   rawMessage: ConsumeMessage,
-) => AsyncResult<unknown, HandlerError>;
+) => AsyncResult<unknown, HandlerError | RpcError>;
+
+/**
+ * `ConsumerDefinition`-shaped view over a `consumers` or `rpcs` entry, as
+ * produced by `resolveConsumerView`. `isRpc` (with `responseSchema` and
+ * `errorSchemas`) tells the dispatch path whether to validate the handler
+ * return value and publish a reply.
+ */
+type ConsumerView = {
+  consumer: ConsumerDefinition;
+  isRpc: boolean;
+  responseSchema?: StandardSchemaV1 | undefined;
+  errorSchemas?: RpcErrorMap | undefined;
+};
 
 export type ConsumerOptions = AmqpClientConsumerOptions;
 
@@ -109,8 +128,9 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
    * Handlers for each `consumers` and `rpcs` entry in the contract.
    *
    * - Regular consumers return `AsyncResult<void, HandlerError>`.
-   * - RPC handlers return `AsyncResult<TResponse, HandlerError>` where
-   *   `TResponse` is inferred from the RPC's response message schema.
+   * - RPC handlers return `AsyncResult<TResponse, HandlerError | RpcError>`
+   *   where `TResponse` is inferred from the RPC's response message schema
+   *   and the `RpcError` members come from the RPC's declared `errors` map.
    *
    * Use `defineHandler` / `defineHandlers` to create handlers with full type
    * inference.
@@ -238,11 +258,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * accompanying `responseSchema`) tells `processMessage` whether to validate
    * the handler return value and publish a reply.
    */
-  private resolveConsumerView(name: HandlerName<TContract>): {
-    consumer: ConsumerDefinition;
-    isRpc: boolean;
-    responseSchema?: StandardSchemaV1;
-  } {
+  private resolveConsumerView(name: HandlerName<TContract>): ConsumerView {
     // Use `Object.hasOwn` rather than `key in rpcs` so prototype properties
     // (e.g. "toString") on a plain object are not misclassified as RPC names.
     const rpcs = this.contract.rpcs;
@@ -252,6 +268,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         consumer: { queue: rpc.queue, message: rpc.request },
         isRpc: true,
         responseSchema: rpc.response.payload,
+        errorSchemas: rpc.errors,
       };
     }
     const consumerEntry = this.contract.consumers![name as string]!;
@@ -494,41 +511,133 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     responseSchema: StandardSchemaV1,
     response: unknown,
   ): AsyncResult<void, HandlerError> {
+    return this.requireReplyAddress(msg, rpcName, queueName)
+      .toAsync()
+      .flatMap(({ replyTo, correlationId }) =>
+        this.validateReplyPayload(
+          responseSchema,
+          response,
+          `RPC response for "${String(rpcName)}"`,
+          String(rpcName),
+        ).flatMap((validatedResponse) =>
+          this.publishReply(validatedResponse, replyTo, {
+            correlationId,
+            contentType: "application/json",
+          }),
+        ),
+      );
+  }
+
+  /**
+   * Validate a declared `RpcError` returned by an RPC handler and publish it
+   * as an error reply: same `replyTo` / `correlationId` routing as a success
+   * reply, plus the error code in the `RPC_ERROR_CODE_HEADER` header and a
+   * `{ message, data }` body with `data` validated against the error's schema
+   * from the RPC's `errors` map.
+   *
+   * Failure semantics mirror {@link publishRpcResponse} (NonRetryableError →
+   * DLQ), with one addition: an error code absent from the `errors` map is a
+   * contract violation by the handler — the type system prevents it, but a
+   * cast or untyped call site can bypass that — and is routed to the DLQ
+   * rather than sent to a caller that has no schema for it.
+   */
+  private publishRpcErrorReply(
+    msg: ConsumeMessage,
+    view: ConsumerView,
+    rpcName: HandlerName<TContract>,
+    error: RpcError,
+  ): AsyncResult<void, HandlerError> {
+    const queueName = extractQueue(view.consumer.queue).name;
+    const errorSchema = view.errorSchemas?.[error.code];
+    if (!errorSchema) {
+      return Err<HandlerError>(
+        new NonRetryableError(
+          `RPC "${String(rpcName)}" returned undeclared error code "${error.code}"`,
+          error,
+        ),
+      ).toAsync();
+    }
+
+    return this.requireReplyAddress(msg, rpcName, queueName)
+      .toAsync()
+      .flatMap(({ replyTo, correlationId }) =>
+        this.validateReplyPayload(
+          errorSchema.payload as StandardSchemaV1,
+          error.data,
+          `RPC error data for "${String(rpcName)}" code "${error.code}"`,
+          String(rpcName),
+        ).flatMap((validatedData) =>
+          this.publishReply({ message: error.message, data: validatedData }, replyTo, {
+            correlationId,
+            contentType: "application/json",
+            headers: { [RPC_ERROR_CODE_HEADER]: error.code },
+          }),
+        ),
+      );
+  }
+
+  /**
+   * Extract and require the `replyTo` / `correlationId` pair an RPC reply is
+   * routed by. Missing either is a NonRetryableError: the caller is already
+   * lost (or cannot demultiplex the reply), so retrying the original message
+   * cannot recover the reply path — the poison message lands in DLQ for
+   * inspection rather than being silently ack'd.
+   */
+  private requireReplyAddress(
+    msg: ConsumeMessage,
+    rpcName: HandlerName<TContract>,
+    queueName: string,
+  ): Result<{ replyTo: string; correlationId: string }, HandlerError> {
     const replyTo = msg.properties.replyTo;
     const correlationId = msg.properties.correlationId;
     if (typeof replyTo !== "string" || replyTo.length === 0) {
-      this.logger?.error(
-        "RPC handler returned a response but the incoming message has no replyTo",
-        { rpcName: String(rpcName), queueName },
-      );
+      this.logger?.error("RPC handler returned a reply but the incoming message has no replyTo", {
+        rpcName: String(rpcName),
+        queueName,
+      });
       return Err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without replyTo; cannot deliver response`,
         ),
-      ).toAsync();
+      );
     }
     if (typeof correlationId !== "string" || correlationId.length === 0) {
       // Without a correlationId the client cannot match the reply to its
       // pending call — publishing anyway would guarantee a client-side timeout.
       this.logger?.error(
-        "RPC handler returned a response but the incoming message has no correlationId",
+        "RPC handler returned a reply but the incoming message has no correlationId",
         { rpcName: String(rpcName), queueName, replyTo },
       );
       return Err(
         new NonRetryableError(
           `RPC "${String(rpcName)}" received a message without correlationId; cannot deliver response`,
         ),
-      ).toAsync();
+      );
     }
+    return Ok({ replyTo, correlationId });
+  }
 
+  /**
+   * Validate a reply payload (RPC response or RPC error data) against its
+   * schema. Validation failures are NonRetryableError — the handler produced
+   * the wrong shape; retrying the same input will not fix it.
+   */
+  private validateReplyPayload(
+    schema: StandardSchemaV1,
+    value: unknown,
+    description: string,
+    source: string,
+  ): AsyncResult<unknown, HandlerError> {
     // Wrap the call to `validate` itself in try/catch — a Standard Schema
     // implementation may throw synchronously (not via a rejected Promise), and
     // we don't want that to crash the consume callback.
     let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
     try {
-      rawValidation = responseSchema["~standard"].validate(response);
+      rawValidation = schema["~standard"].validate(value);
     } catch (error: unknown) {
-      return Err(new NonRetryableError("RPC response schema validation threw", error)).toAsync();
+      return Err<HandlerError>(
+        new NonRetryableError(`${description} schema validation threw`, error),
+      ).toAsync();
     }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
@@ -536,41 +645,47 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     return fromPromise(
       validationPromise,
       (error: unknown) =>
-        new NonRetryableError("RPC response schema validation threw", error) as HandlerError,
-    )
-      .flatMap((validation) => {
-        if (validation.issues) {
-          return Err<HandlerError>(
-            new NonRetryableError(
-              `RPC response for "${String(rpcName)}" failed schema validation`,
-              new MessageValidationError(String(rpcName), validation.issues),
-            ),
-          );
-        }
-        return Ok(validation.value);
-      })
-      .flatMap((validatedResponse) =>
-        this.amqpClient
-          .publish("", replyTo, validatedResponse, {
-            correlationId,
-            contentType: "application/json",
-          })
-          // Reply-side failures are not retryable from the inbox: by the time
-          // the broker can't deliver the reply, the caller's RPC future has
-          // already (or will soon) time out. Retrying the original message
-          // re-runs the handler against a stale caller. Send to DLQ instead so
-          // the failure is visible without churning the queue.
-          .mapErr(
-            (error: TechnicalError): HandlerError =>
-              new NonRetryableError("Failed to publish RPC response", error),
-          )
-          .flatMap((published) =>
-            published
-              ? Ok(undefined)
-              : Err<HandlerError>(
-                  new NonRetryableError("Failed to publish RPC response: channel buffer full"),
-                ),
+        new NonRetryableError(`${description} schema validation threw`, error) as HandlerError,
+    ).flatMap((validation) => {
+      if (validation.issues) {
+        return Err<HandlerError>(
+          new NonRetryableError(
+            `${description} failed schema validation`,
+            new MessageValidationError(source, validation.issues),
           ),
+        );
+      }
+      return Ok(validation.value);
+    });
+  }
+
+  /**
+   * Publish a validated reply body to the caller's reply queue via the AMQP
+   * default exchange.
+   *
+   * Reply-side failures are not retryable from the inbox: by the time the
+   * broker can't deliver the reply, the caller's RPC future has already (or
+   * will shortly) time out. Retrying the original message re-runs the handler
+   * against a stale caller. Send to DLQ instead so the failure is visible
+   * without churning the queue.
+   */
+  private publishReply(
+    body: unknown,
+    replyTo: string,
+    options: { correlationId: string; contentType: string; headers?: Record<string, unknown> },
+  ): AsyncResult<void, HandlerError> {
+    return this.amqpClient
+      .publish("", replyTo, body, options)
+      .mapErr(
+        (error: TechnicalError): HandlerError =>
+          new NonRetryableError("Failed to publish RPC reply", error),
+      )
+      .flatMap((published) =>
+        published
+          ? Ok(undefined)
+          : Err<HandlerError>(
+              new NonRetryableError("Failed to publish RPC reply: channel buffer full"),
+            ),
       );
   }
 
@@ -601,7 +716,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     handler: StoredHandler,
     validatedMessage: { payload: unknown; headers: unknown },
     msg: ConsumeMessage,
-  ): AsyncResult<unknown, HandlerError> {
+  ): AsyncResult<unknown, HandlerError | RpcError> {
     return handler(validatedMessage, msg);
   }
 
@@ -612,7 +727,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    */
   private publishReplyIfRpc(
     msg: ConsumeMessage,
-    view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
+    view: ConsumerView,
     name: HandlerName<TContract>,
     handlerResponse: unknown,
   ): AsyncResult<void, HandlerError> {
@@ -642,7 +757,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    */
   private processMessage(
     msg: ConsumeMessage,
-    view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
+    view: ConsumerView,
     name: HandlerName<TContract>,
     handler: StoredHandler,
     state: { messageHandled: boolean },
@@ -677,48 +792,37 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               state.messageHandled = true;
             }),
           )
-          .orElse((handlerError: HandlerError) => {
-            this.logger?.error("Error processing message", {
-              consumerName: String(name),
-              queueName,
-              errorType: handlerError.name,
-              retryCount:
-                (msg.properties.headers?.["x-delivery-count"] as number | undefined) ??
-                (msg.properties.headers?.["x-retry-count"] as number | undefined) ??
-                0,
-              error: handlerError.message,
-            });
-
-            // Route the failure to retry / DLQ via handleError. On its
-            // success paths (retry republish, immediate-requeue nack, DLQ
-            // nack) the message has been ack'd or nack'd, so mark it
-            // handled. On its failure paths (e.g. TTL-backoff misconfig)
-            // no ack/nack happens and the message will be redelivered —
-            // leave messageHandled false so the consume catch-all can
-            // defensive-nack if needed.
-            //
-            // Either way, re-fail the chain with the original handlerError
-            // as `cause` so the failure-telemetry path fires; routing-
-            // internal errors (TechnicalError) take precedence and surface
-            // as the chain's error directly.
-            return handleError(
-              { amqpClient: this.amqpClient, logger: this.logger },
-              handlerError,
-              msg,
-              String(name),
-              consumer,
-            )
-              .tap(() => {
-                state.messageHandled = true;
-              })
-              .flatMap(() =>
-                Err(
-                  new TechnicalError(
-                    `Handler "${String(name)}" failed: ${handlerError.message}`,
-                    handlerError,
-                  ),
-                ).toAsync(),
-              );
+          .orElse((handlerError: HandlerError | RpcError) => {
+            // A contract-declared RpcError is the RPC's business-failure
+            // channel, not a processing failure: publish it back to the
+            // caller and ack the request. Only if the error reply itself
+            // cannot be produced (undeclared code, schema mismatch, publish
+            // failure) does the failure fall through to retry/DLQ routing.
+            if (isRpcError(handlerError) && view.isRpc) {
+              return this.publishRpcErrorReply(msg, view, name, handlerError)
+                .tap(() => {
+                  this.logger?.info("RPC handler replied with a typed error", {
+                    consumerName: String(name),
+                    queueName,
+                    errorCode: handlerError.code,
+                  });
+                  this.amqpClient.ack(msg);
+                  state.messageHandled = true;
+                })
+                .orElse((replyError: HandlerError) =>
+                  this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
+                );
+            }
+            // An RpcError from a non-RPC consumer is type-impossible but
+            // runtime-reachable through casts; treat it as a permanent
+            // failure rather than crashing the dispatch loop.
+            const routableError: HandlerError = isRpcError(handlerError)
+              ? new NonRetryableError(
+                  `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
+                  handlerError,
+                )
+              : handlerError;
+            return this.routeHandlerError(routableError, msg, name, consumer, queueName, state);
           }),
       )
       .tap(() => {
@@ -770,11 +874,63 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
+   * Route a handler failure to retry / DLQ via {@link handleError}. On its
+   * success paths (retry republish, immediate-requeue nack, DLQ nack) the
+   * message has been ack'd or nack'd, so mark it handled. On its failure
+   * paths (e.g. TTL-backoff misconfig) no ack/nack happens and the message
+   * will be redelivered — leave `messageHandled` false so the consume
+   * catch-all can defensive-nack if needed.
+   *
+   * Either way, re-fail the chain with the original handlerError as `cause`
+   * so the failure-telemetry path fires; routing-internal errors
+   * (TechnicalError) take precedence and surface as the chain's error
+   * directly.
+   */
+  private routeHandlerError(
+    handlerError: HandlerError,
+    msg: ConsumeMessage,
+    name: HandlerName<TContract>,
+    consumer: ConsumerDefinition,
+    queueName: string,
+    state: { messageHandled: boolean },
+  ): AsyncResult<void, TechnicalError> {
+    this.logger?.error("Error processing message", {
+      consumerName: String(name),
+      queueName,
+      errorType: handlerError.name,
+      retryCount:
+        (msg.properties.headers?.["x-delivery-count"] as number | undefined) ??
+        (msg.properties.headers?.["x-retry-count"] as number | undefined) ??
+        0,
+      error: handlerError.message,
+    });
+
+    return handleError(
+      { amqpClient: this.amqpClient, logger: this.logger },
+      handlerError,
+      msg,
+      String(name),
+      consumer,
+    )
+      .tap(() => {
+        state.messageHandled = true;
+      })
+      .flatMap(() =>
+        Err(
+          new TechnicalError(
+            `Handler "${String(name)}" failed: ${handlerError.message}`,
+            handlerError,
+          ),
+        ).toAsync(),
+      );
+  }
+
+  /**
    * Consume messages one at a time.
    */
   private consumeSingle(
     name: HandlerName<TContract>,
-    view: { consumer: ConsumerDefinition; isRpc: boolean; responseSchema?: StandardSchemaV1 },
+    view: ConsumerView,
     handler: StoredHandler,
   ): AsyncResult<void, TechnicalError> {
     const queueName = extractQueue(view.consumer.queue).name;

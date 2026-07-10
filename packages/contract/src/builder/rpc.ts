@@ -1,4 +1,4 @@
-import type { MessageDefinition, QueueEntry, RpcDefinition } from "../types.js";
+import type { MessageDefinition, QueueEntry, RpcDefinition, RpcErrorMap } from "../types.js";
 
 /**
  * Define an RPC operation: a request/response pair flowing over a request
@@ -18,37 +18,53 @@ import type { MessageDefinition, QueueEntry, RpcDefinition } from "../types.js";
  *   (server side) and outgoing requests (client side).
  * @param messages.response - Schema validated against handler return values
  *   (server side) and incoming replies (client side).
+ * @param messages.errors - Optional typed error map: error code → message
+ *   definition for the error's `data` payload. Declared errors widen the
+ *   handler's `Err` channel (return `Err(rpcError(code, data))`) and the
+ *   client's `call()` error union; error data is schema-validated on both
+ *   sides. Business errors are replied and acked — never retried.
  *
  * @example
  * ```typescript
  * import { defineQueue, defineMessage, defineRpc, defineContract } from '@amqp-contract/contract';
  * import { z } from 'zod';
  *
- * const calculate = defineRpc(defineQueue('rpc.calculate'), {
- *   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
- *   response: defineMessage(z.object({ sum: z.number() })),
+ * const getOrder = defineRpc(defineQueue('rpc.get-order'), {
+ *   request: defineMessage(z.object({ orderId: z.string() })),
+ *   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
+ *   errors: {
+ *     ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+ *   },
  * });
  *
- * const contract = defineContract({ rpcs: { calculate } });
+ * const contract = defineContract({ rpcs: { getOrder } });
  *
- * // Server (worker): handler returns the typed response
- * //   handlers: { calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync() }
+ * // Server (worker): return the response, or a declared typed error
+ * //   handlers: {
+ * //     getOrder: ({ payload }) =>
+ * //       orders.has(payload.orderId)
+ * //         ? Ok(orders.get(payload.orderId)).toAsync()
+ * //         : Err(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId })).toAsync(),
+ * //   }
  *
- * // Client: typed call with required timeout
- * //   const result = await client.call('calculate', { a: 1, b: 2 }, { timeoutMs: 5_000 });
+ * // Client: typed call — the error union includes RpcError<'ORDER_NOT_FOUND', { orderId: string }>
+ * //   const result = await client.call('getOrder', { orderId: '42' }, { timeoutMs: 5_000 });
+ * //   if (result.isErr() && isRpcError(result.error)) console.log(result.error.code);
  * ```
  */
 export function defineRpc<
   TRequestMessage extends MessageDefinition,
   TResponseMessage extends MessageDefinition,
   TQueue extends QueueEntry,
+  TErrors extends RpcErrorMap | undefined = undefined,
 >(
   queue: TQueue,
-  messages: { request: TRequestMessage; response: TResponseMessage },
-): RpcDefinition<TRequestMessage, TResponseMessage, TQueue> {
+  messages: { request: TRequestMessage; response: TResponseMessage; errors?: TErrors },
+): RpcDefinition<TRequestMessage, TResponseMessage, TQueue, TErrors> {
   return {
     queue,
     request: messages.request,
     response: messages.response,
+    ...(messages.errors !== undefined && { errors: messages.errors }),
   };
 }

@@ -269,6 +269,7 @@ The `Infer*` naming pattern indicates type inference helpers that extract types 
 - `ClientInferPublisherInput<Contract, "publisherName">` — input shape for `client.publish(...)`
 - `ClientInferRpcRequestInput<Contract, "rpcName">` — input shape for `client.call(...)`
 - `ClientInferRpcResponseOutput<Contract, "rpcName">` — typed response from `client.call(...)`
+- `ClientInferRpcErrors<Contract, "rpcName">` — union of declared `RpcError<code, data>` members in `client.call(...)`'s error channel (`never` when the RPC declares no `errors`)
 
 **Re-exported from `@amqp-contract/worker`:**
 
@@ -276,5 +277,4 @@ The `Infer*` naming pattern indicates type inference helpers that extract types 
 - `WorkerInferConsumedMessage<Contract, "consumerName">` — `{ payload, headers }` envelope for a regular consumer
 - `WorkerInferConsumerHeaders<Contract, "consumerName">` — just the headers slice
 - `WorkerInferConsumerHandlerEntry<Contract, "consumerName">` — handler-or-`[handler, opts]` tuple shape
-
-The RPC equivalents (`WorkerInferRpcHandler`, `WorkerInferRpcConsumedMessage`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`, `WorkerInferRpcHeaders`) and the unified `WorkerInferHandlers<Contract>` exist in `packages/worker/src/types.ts` but are **not** currently re-exported from the package root. Inline RPC handlers don't need them — the `handlers` parameter on `TypedAmqpWorker.create` infers each name's signature automatically.
+- The RPC equivalents (`WorkerInferRpcHandler`, `WorkerInferRpcConsumedMessage`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`, `WorkerInferRpcHeaders`, `WorkerInferRpcErrors`) and the unified `WorkerInferHandlers<Contract>` — see `packages/worker/src/index.ts`. Inline RPC handlers rarely need them: the `handlers` parameter on `TypedAmqpWorker.create` infers each name's signature automatically.

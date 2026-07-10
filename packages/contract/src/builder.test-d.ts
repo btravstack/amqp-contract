@@ -17,6 +17,7 @@ import {
   defineMessage,
   definePublisher,
   defineQueue,
+  defineRpc,
 } from "./builder.js";
 import type {
   ConsumerDefinition,
@@ -463,5 +464,35 @@ describe("ContractOutput strict literal keys", () => {
 
     expectTypeOf(contract.exchanges.logs).toMatchTypeOf<HeadersExchangeDefinition>();
     expectTypeOf<keyof typeof contract.queues>().toEqualTypeOf<"logs">();
+  });
+});
+
+describe("defineRpc typed errors", () => {
+  const queue = defineQueue("rpc.orders", { type: "classic", durable: false });
+  const request = defineMessage(z.object({ orderId: z.string() }));
+  const response = defineMessage(z.object({ status: z.string() }));
+
+  test("captures the declared error map type on the definition", () => {
+    const notFound = defineMessage(z.object({ orderId: z.string() }));
+    const rpc = defineRpc(queue, { request, response, errors: { ORDER_NOT_FOUND: notFound } });
+
+    expectTypeOf(rpc.errors).toEqualTypeOf<{ ORDER_NOT_FOUND: typeof notFound } | undefined>();
+    expectTypeOf<keyof NonNullable<typeof rpc.errors>>().toEqualTypeOf<"ORDER_NOT_FOUND">();
+  });
+
+  test("errors type is undefined when no errors are declared", () => {
+    const rpc = defineRpc(queue, { request, response });
+
+    expectTypeOf(rpc.errors).toEqualTypeOf<undefined>();
+  });
+
+  test("error map survives defineContract", () => {
+    const notFound = defineMessage(z.object({ orderId: z.string() }));
+    const getOrder = defineRpc(queue, { request, response, errors: { ORDER_NOT_FOUND: notFound } });
+    const contract = defineContract({ rpcs: { getOrder } });
+
+    expectTypeOf<
+      keyof NonNullable<typeof contract.rpcs.getOrder.errors>
+    >().toEqualTypeOf<"ORDER_NOT_FOUND">();
   });
 });

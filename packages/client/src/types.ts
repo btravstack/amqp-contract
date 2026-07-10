@@ -4,8 +4,11 @@ import type {
   InferRpcNames,
   MessageDefinition,
   PublisherEntry,
+  QueueEntry,
   RpcDefinition,
+  RpcErrorMap,
 } from "@amqp-contract/contract";
+import type { RpcError } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**
@@ -78,5 +81,29 @@ export type ClientInferRpcResponseOutput<
   InferRpc<TContract, TName> extends RpcDefinition<MessageDefinition, infer TResponse>
     ? TResponse extends MessageDefinition
       ? InferSchemaOutput<TResponse["payload"]>
+      : never
+    : never;
+
+/**
+ * Typed error union for `client.call(name, ...)` — one `RpcError<code, data>`
+ * member per entry in the RPC's declared `errors` map, with `data` typed as
+ * the declared schema's *output* (the client re-validates error data when the
+ * reply arrives). Resolves to `never` when the RPC declares no errors, so the
+ * call's error union stays purely transport-level.
+ */
+export type ClientInferRpcErrors<
+  TContract extends ContractDefinition,
+  TName extends InferRpcNames<TContract>,
+> =
+  InferRpc<TContract, TName> extends RpcDefinition<
+    MessageDefinition,
+    MessageDefinition,
+    QueueEntry,
+    infer TErrors
+  >
+    ? TErrors extends RpcErrorMap
+      ? {
+          [K in keyof TErrors & string]: RpcError<K, InferSchemaOutput<TErrors[K]["payload"]>>;
+        }[keyof TErrors & string]
       : never
     : never;

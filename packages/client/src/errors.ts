@@ -1,6 +1,6 @@
 import { TaggedError } from "unthrown";
 
-export { MessageValidationError } from "@amqp-contract/core";
+export { isRpcError, MessageValidationError, RpcError } from "@amqp-contract/core";
 
 /**
  * Returned from `TypedAmqpClient.call()` when the configured `timeoutMs` elapses

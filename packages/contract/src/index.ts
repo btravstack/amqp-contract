@@ -70,6 +70,7 @@ export type {
   ResolvedTtlBackoffRetryOptions,
   ResolvedImmediateRequeueRetryOptions,
   RpcDefinition,
+  RpcErrorMap,
   TopicExchangeDefinition,
   TtlBackoffRetryOptions,
 } from "./types.js";
