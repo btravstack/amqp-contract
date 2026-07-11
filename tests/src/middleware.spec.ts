@@ -130,7 +130,7 @@ describe("worker middleware", () => {
       contract,
       middleware,
       handlers: {
-        processOrder: (_message, _raw, context) => {
+        processOrder: (_message, _raw, { context }) => {
           resolveSeen(context);
           return OkAsync(undefined);
         },
@@ -291,5 +291,151 @@ describe("client interceptors", () => {
       expect(result.value).toEqual({ sum: 6 });
     }
     expect(observed).toEqual(["before:calculate", "after"]);
+  });
+});
+
+describe("createContext and handler helpers", () => {
+  it("seeds the middleware chain with the createContext result", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("create-context");
+
+    let resolveSeen!: (value: Record<string, unknown>) => void;
+    const seen = new Promise<Record<string, unknown>>((res) => {
+      resolveSeen = res;
+    });
+
+    await workerFactory({
+      contract,
+      createContext: (info) => ({
+        requestId: `${info.handlerName}-${String(info.rawMessage.fields.deliveryTag)}`,
+      }),
+      middleware: defineMiddleware<{ requestId: string }, { requestId: string; stamped: boolean }>(
+        (args, next) => next({ context: { ...args.context, stamped: true } }),
+      ),
+      handlers: {
+        processOrder: (_message, _raw, { context }) => {
+          resolveSeen(context);
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+
+    await expect(seen).resolves.toEqual({ requestId: "processOrder-1", stamped: true });
+  });
+
+  it("routes a throwing createContext to the DLQ path without running the handler", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("create-context-throws");
+
+    let handlerRan = false;
+    await workerFactory({
+      contract,
+      createContext: () => {
+        throw new Error("dependency graph exploded");
+      },
+      handlers: {
+        processOrder: () => {
+          handlerRan = true;
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+
+    await new Promise((res) => setTimeout(res, 300));
+    expect(handlerRan).toBe(false);
+  });
+
+  it("RPC handlers build typed errors via the helpers.errors constructor bag", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildRpcContract("errors-bag");
+
+    await workerFactory({
+      contract,
+      handlers: {
+        calculate: ({ payload }, _raw, { errors }) =>
+          payload.a < 0
+            ? ErrAsync(errors.BLOCKED({ reason: "negative" }))
+            : OkAsync({ sum: payload.a + payload.b }),
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    const blocked = await client.call("calculate", { a: -1, b: 2 }, { timeoutMs: 5_000 });
+
+    expect(blocked.isErr()).toBe(true);
+    if (blocked.isErr() && isRpcError(blocked.error)) {
+      expect(blocked.error.code).toBe("BLOCKED");
+      expect(blocked.error.data).toEqual({ reason: "negative" });
+    }
+  });
+});
+
+describe("middleware payload substitution", () => {
+  it("re-validates substituted payloads before the handler runs", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("substitution");
+
+    let resolveSeen!: (value: unknown) => void;
+    const seen = new Promise<unknown>((res) => {
+      resolveSeen = res;
+    });
+
+    await workerFactory({
+      contract,
+      middleware: defineMiddleware((args, next) => {
+        const payload = args.message.payload as { orderId: string };
+        return next({ payload: { orderId: `${payload.orderId}-rewritten` } });
+      }),
+      handlers: {
+        processOrder: ({ payload }) => {
+          resolveSeen(payload);
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+
+    await expect(seen).resolves.toEqual({ orderId: "1-rewritten" });
+  });
+
+  it("blocks handler execution when the substitution fails the schema", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("substitution-invalid");
+
+    let handlerRan = false;
+    await workerFactory({
+      contract,
+      middleware: defineMiddleware((_args, next) => next({ payload: { wrong: "shape" } })),
+      handlers: {
+        processOrder: () => {
+          handlerRan = true;
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+
+    await new Promise((res) => setTimeout(res, 300));
+    expect(handlerRan).toBe(false);
   });
 });

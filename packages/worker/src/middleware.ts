@@ -35,12 +35,22 @@ export type WorkerMiddlewareArgs<TContextIn extends Record<string, unknown> | Em
  * downstream sees — pass `{ ...args.context, ...injected }` (or just the
  * injected fields; the dispatcher merges over the current context either way).
  *
+ * `opts.payload` substitutes the message payload seen downstream. Inner
+ * middleware observe the substituted payload as-is; the dispatcher
+ * **re-validates it against the consumer's payload schema** before the
+ * handler runs — an invalid substitution fails terminally as a
+ * `NonRetryableError` (DLQ), so middleware cannot smuggle unvalidated data
+ * past the contract boundary.
+ *
  * The returned AsyncResult carries the handler outcome: `undefined` for a
  * regular consumer, the (not yet validated) response for an RPC. A middleware
  * can transform or inspect it before returning.
  */
 export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | EmptyContext> =
-  (opts?: { context?: TContextOut }) => AsyncResult<unknown, HandlerError | RpcError>;
+  (opts?: {
+    context?: TContextOut;
+    payload?: unknown;
+  }) => AsyncResult<unknown, HandlerError | RpcError>;
 
 /**
  * A worker middleware: wraps every handler invocation (consumers and RPCs)
@@ -126,59 +136,70 @@ export function defineMiddleware<
  * // handlers receive the context injected by all three
  * ```
  */
-export function composeMiddleware<TA extends Record<string, unknown>>(
-  m1: WorkerMiddleware<EmptyContext, TA>,
-): WorkerMiddleware<EmptyContext, TA>;
-export function composeMiddleware<TA extends Record<string, unknown>, TB extends TA>(
-  m1: WorkerMiddleware<EmptyContext, TA>,
-  m2: WorkerMiddleware<TA, TB>,
-): WorkerMiddleware<EmptyContext, TB>;
-export function composeMiddleware<TA extends Record<string, unknown>, TB extends TA, TC extends TB>(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+export function composeMiddleware<
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
+>(m1: WorkerMiddleware<TIn, TA>): WorkerMiddleware<TIn, TA>;
+export function composeMiddleware<
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
+  TB extends TA,
+>(m1: WorkerMiddleware<TIn, TA>, m2: WorkerMiddleware<TA, TB>): WorkerMiddleware<TIn, TB>;
+export function composeMiddleware<
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
+  TB extends TA,
+  TC extends TB,
+>(
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
-): WorkerMiddleware<EmptyContext, TC>;
+): WorkerMiddleware<TIn, TC>;
 export function composeMiddleware<
-  TA extends Record<string, unknown>,
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
   TB extends TA,
   TC extends TB,
   TD extends TC,
 >(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
-): WorkerMiddleware<EmptyContext, TD>;
+): WorkerMiddleware<TIn, TD>;
 export function composeMiddleware<
-  TA extends Record<string, unknown>,
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
   TB extends TA,
   TC extends TB,
   TD extends TC,
   TE extends TD,
 >(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
   m5: WorkerMiddleware<TD, TE>,
-): WorkerMiddleware<EmptyContext, TE>;
+): WorkerMiddleware<TIn, TE>;
 export function composeMiddleware<
-  TA extends Record<string, unknown>,
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
   TB extends TA,
   TC extends TB,
   TD extends TC,
   TE extends TD,
   TF extends TE,
 >(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
   m5: WorkerMiddleware<TD, TE>,
   m6: WorkerMiddleware<TE, TF>,
-): WorkerMiddleware<EmptyContext, TF>;
+): WorkerMiddleware<TIn, TF>;
 export function composeMiddleware<
-  TA extends Record<string, unknown>,
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
   TB extends TA,
   TC extends TB,
   TD extends TC,
@@ -186,16 +207,17 @@ export function composeMiddleware<
   TF extends TE,
   TG extends TF,
 >(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
   m5: WorkerMiddleware<TD, TE>,
   m6: WorkerMiddleware<TE, TF>,
   m7: WorkerMiddleware<TF, TG>,
-): WorkerMiddleware<EmptyContext, TG>;
+): WorkerMiddleware<TIn, TG>;
 export function composeMiddleware<
-  TA extends Record<string, unknown>,
+  TIn extends Record<string, unknown> | EmptyContext,
+  TA extends TIn,
   TB extends TA,
   TC extends TB,
   TD extends TC,
@@ -204,7 +226,7 @@ export function composeMiddleware<
   TG extends TF,
   TH extends TG,
 >(
-  m1: WorkerMiddleware<EmptyContext, TA>,
+  m1: WorkerMiddleware<TIn, TA>,
   m2: WorkerMiddleware<TA, TB>,
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
@@ -212,20 +234,30 @@ export function composeMiddleware<
   m6: WorkerMiddleware<TE, TF>,
   m7: WorkerMiddleware<TF, TG>,
   m8: WorkerMiddleware<TG, TH>,
-): WorkerMiddleware<EmptyContext, TH>;
+): WorkerMiddleware<TIn, TH>;
 export function composeMiddleware(
   ...middlewares: readonly AnyWorkerMiddleware[]
 ): AnyWorkerMiddleware {
   return (args, next) => {
+    // `payload` stays undefined until a middleware substitutes it — the
+    // terminal (the worker dispatcher) re-validates only when set.
     const run = (
       index: number,
       context: Record<string, unknown>,
-    ): ReturnType<AnyWorkerMiddleware> =>
-      index >= middlewares.length
-        ? next({ context })
-        : middlewares[index]!({ ...args, context }, (opts) =>
-            run(index + 1, { ...context, ...opts?.context }),
-          );
-    return run(0, args.context);
+      payload: unknown,
+    ): ReturnType<AnyWorkerMiddleware> => {
+      if (index >= middlewares.length) {
+        return next(payload === undefined ? { context } : { context, payload });
+      }
+      const message = payload === undefined ? args.message : { ...args.message, payload };
+      return middlewares[index]!({ ...args, message, context }, (opts) =>
+        run(
+          index + 1,
+          { ...context, ...opts?.context },
+          opts?.payload === undefined ? payload : opts.payload,
+        ),
+      );
+    };
+    return run(0, args.context, undefined);
   };
 }

@@ -1,5 +1,5 @@
 export { TypedAmqpWorker } from "./worker.js";
-export type { CreateWorkerOptions, ConsumerOptions } from "./worker.js";
+export type { ConsumerOptions, CreateWorkerOptions, WorkerCreateContextInfo } from "./worker.js";
 export {
   // Error classes
   MessageValidationError,
@@ -36,7 +36,9 @@ export type {
   WorkerInferConsumerHandlerEntry,
   WorkerInferConsumerHeaders,
   WorkerInferHandlers,
+  WorkerHandlerHelpers,
   WorkerInferRpcConsumedMessage,
+  WorkerInferRpcErrorConstructors,
   WorkerInferRpcErrors,
   WorkerInferRpcHandler,
   WorkerInferRpcHandlerEntry,

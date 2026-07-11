@@ -12,7 +12,7 @@ import {
   ConsumerOptions as AmqpClientConsumerOptions,
   type Logger,
   RPC_ERROR_CODE_HEADER,
-  type RpcError,
+  RpcError,
   TechnicalError,
   type TelemetryProvider,
   defaultTelemetryProvider,
@@ -63,8 +63,27 @@ type HandlerName<TContract extends ContractDefinition> =
 type StoredHandler = (
   message: { payload: unknown; headers: unknown },
   rawMessage: ConsumeMessage,
-  context: Record<string, unknown>,
+  helpers: {
+    context: Record<string, unknown>;
+    errors: Record<string, (data: unknown, message?: string) => RpcError>;
+  },
 ) => AsyncResult<unknown, HandlerError | RpcError>;
+
+/**
+ * Per-message information handed to the `createContext` factory — enough to
+ * derive request-scoped dependencies (correlation-id loggers, per-message
+ * transactions) without closing over the dispatch loop.
+ */
+export type WorkerCreateContextInfo = {
+  /** The `consumers` / `rpcs` key being dispatched. */
+  handlerName: string;
+  /** True when the handler is an RPC server. */
+  isRpc: boolean;
+  /** The validated message (payload and headers already schema-checked). */
+  message: { payload: unknown; headers: unknown };
+  /** The raw amqplib message. */
+  rawMessage: ConsumeMessage;
+};
 
 /**
  * `ConsumerDefinition`-shaped view over a `consumers` or `rpcs` entry, as
@@ -77,6 +96,8 @@ type ConsumerView = {
   isRpc: boolean;
   responseSchema?: StandardSchemaV1 | undefined;
   errorSchemas?: RpcErrorMap | undefined;
+  /** Typed error constructors handed to RPC handlers via `helpers.errors`. */
+  errorConstructors?: Record<string, (data: unknown, message?: string) => RpcError> | undefined;
 };
 
 export type ConsumerOptions = AmqpClientConsumerOptions;
@@ -128,7 +149,8 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  */
 export type CreateWorkerOptions<
   TContract extends ContractDefinition,
-  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+  TCreated extends Record<string, unknown> | EmptyContext = EmptyContext,
+  TContext extends TCreated = TCreated,
 > = {
   /** The AMQP contract definition specifying consumers and their message schemas */
   contract: TContract;
@@ -150,16 +172,31 @@ export type CreateWorkerOptions<
    */
   handlers: WorkerInferHandlers<TContract, TContext>;
   /**
+   * Build the per-message dependency context — the *seed* of the middleware
+   * chain (and, without middleware, the context handlers receive directly in
+   * `helpers.context`). Invoked once per message after validation, so it can
+   * produce request-scoped values (correlation-id loggers, per-message
+   * transactions); close over singletons for per-worker dependencies. A
+   * rejection/throw routes the message to the DLQ as a NonRetryableError.
+   *
+   * demesne's `Layer.forkScope` is the recommended implementation for
+   * DI-managed graphs.
+   */
+  createContext?: ((info: WorkerCreateContextInfo) => TCreated | Promise<TCreated>) | undefined;
+  /**
    * Optional middleware wrapping every handler invocation (consumers and
-   * RPCs), applied after message validation. Compose multiple middleware
-   * with `composeMiddleware(outermost, ..., innermost)`; the chain's final
-   * context type is what handlers receive as their third argument.
+   * RPCs), applied after message validation. The chain is seeded with the
+   * `createContext` result (an empty object when none is configured); compose
+   * multiple middleware with `composeMiddleware(outermost, ..., innermost)` —
+   * the chain's final context type is what handlers receive in
+   * `helpers.context`.
    *
    * A middleware can short-circuit by returning without calling `next`:
    * handler-style errors route through retry/DLQ (or a typed RPC error
-   * reply), and an `Ok(value)` skips the handler entirely.
+   * reply), and an `Ok(value)` skips the handler entirely. `next({ payload })`
+   * substitutes the message payload, re-validated before the handler runs.
    */
-  middleware?: WorkerMiddleware<EmptyContext, TContext> | undefined;
+  middleware?: WorkerMiddleware<TCreated, TContext> | undefined;
   /** AMQP broker URL(s). Multiple URLs provide failover support */
   urls: ConnectionUrl[];
   /** Optional connection configuration (heartbeat, reconnect settings, etc.) */
@@ -250,6 +287,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     private readonly logger?: Logger,
     telemetry?: TelemetryProvider,
     private readonly middleware?: AnyWorkerMiddleware,
+    private readonly createContext?: (
+      info: WorkerCreateContextInfo,
+    ) => Record<string, unknown> | Promise<Record<string, unknown>>,
   ) {
     this.telemetry = telemetry ?? defaultTelemetryProvider;
 
@@ -289,11 +329,20 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     const rpcs = this.contract.rpcs;
     if (rpcs && Object.hasOwn(rpcs, name as string)) {
       const rpc = rpcs[name as string]!;
+      const errorConstructors = rpc.errors
+        ? Object.fromEntries(
+            Object.keys(rpc.errors).map((code) => [
+              code,
+              (data: unknown, message?: string) => new RpcError(code, data, message),
+            ]),
+          )
+        : undefined;
       return {
         consumer: { queue: rpc.queue, message: rpc.request },
         isRpc: true,
         responseSchema: rpc.response.payload,
         errorSchemas: rpc.errors,
+        errorConstructors,
       };
     }
     const consumerEntry = this.contract.consumers![name as string]!;
@@ -329,10 +378,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    */
   static create<
     TContract extends ContractDefinition,
-    TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+    TCreated extends Record<string, unknown> | EmptyContext = EmptyContext,
+    TContext extends TCreated = TCreated,
   >({
     contract,
     handlers,
+    createContext,
     middleware,
     urls,
     connectionOptions,
@@ -340,7 +391,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     logger,
     telemetry,
     connectTimeoutMs,
-  }: CreateWorkerOptions<TContract, TContext>): AsyncResult<
+  }: CreateWorkerOptions<TContract, TCreated, TContext>): AsyncResult<
     TypedAmqpWorker<TContract>,
     TechnicalError
   > {
@@ -382,6 +433,11 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       logger,
       telemetry,
       middleware as AnyWorkerMiddleware | undefined,
+      createContext as
+        | ((
+            info: WorkerCreateContextInfo,
+          ) => Record<string, unknown> | Promise<Record<string, unknown>>)
+        | undefined,
     );
 
     // Note: Wait queues are now created by the core package in setupAmqpTopology
@@ -786,21 +842,70 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     validatedMessage: { payload: unknown; headers: unknown },
     msg: ConsumeMessage,
     name: HandlerName<TContract>,
-    isRpc: boolean,
+    view: ConsumerView,
   ): AsyncResult<unknown, HandlerError | RpcError> {
-    if (!this.middleware) {
-      return handler(validatedMessage, msg, {});
-    }
-    return this.middleware(
-      {
-        message: validatedMessage,
-        rawMessage: msg,
-        handlerName: String(name),
-        isRpc,
-        context: {},
-      },
-      (opts) => handler(validatedMessage, msg, opts?.context ?? {}),
-    );
+    const errors = view.errorConstructors ?? {};
+
+    // Seed the context: createContext when configured, empty otherwise. A
+    // rejection/throw in the factory is a permanent failure — retrying the
+    // message cannot fix a broken dependency factory.
+    const seed: AsyncResult<Record<string, unknown>, HandlerError> = this.createContext
+      ? fromPromise(
+          Promise.resolve(
+            this.createContext({
+              handlerName: String(name),
+              isRpc: view.isRpc,
+              message: validatedMessage,
+              rawMessage: msg,
+            }),
+          ),
+          (cause): HandlerError => new NonRetryableError("createContext failed", cause),
+        )
+      : OkAsync({});
+
+    return seed.flatMap((seedContext) => {
+      const terminal = (opts?: {
+        context?: Record<string, unknown>;
+        payload?: unknown;
+      }): AsyncResult<unknown, HandlerError | RpcError> => {
+        const helpers = { context: opts?.context ?? seedContext, errors };
+        if (opts?.payload === undefined) {
+          return handler(validatedMessage, msg, helpers);
+        }
+        // A middleware substituted the payload — re-validate against the
+        // consumer's schema before the handler sees it, so middleware cannot
+        // smuggle unvalidated data past the contract boundary.
+        return this.validateSchema(
+          view.consumer.message.payload as StandardSchemaV1,
+          opts.payload,
+          { consumerName: String(name), field: "middleware-substituted payload" },
+        )
+          .mapErr(
+            (error): HandlerError =>
+              new NonRetryableError(
+                "Middleware-substituted payload failed schema validation",
+                error,
+              ),
+          )
+          .flatMap((validatedPayload) =>
+            handler({ ...validatedMessage, payload: validatedPayload }, msg, helpers),
+          );
+      };
+
+      if (!this.middleware) {
+        return terminal();
+      }
+      return this.middleware(
+        {
+          message: validatedMessage,
+          rawMessage: msg,
+          handlerName: String(name),
+          isRpc: view.isRpc,
+          context: seedContext,
+        },
+        terminal,
+      );
+    });
   }
 
   /**
@@ -864,7 +969,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         state.messageHandled = true;
       })
       .flatMap<void, TechnicalError>((validatedMessage) =>
-        this.runHandler(handler, validatedMessage, msg, name, view.isRpc)
+        this.runHandler(handler, validatedMessage, msg, name, view)
           .flatMap((handlerResponse) =>
             this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
               this.logger?.info("Message consumed successfully", {

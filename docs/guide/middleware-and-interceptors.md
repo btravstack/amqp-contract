@@ -44,8 +44,8 @@ const worker = (
     contract,
     middleware: composeMiddleware(auth, timing),
     handlers: {
-      // context is typed as { tenantId: string } — proven by the middleware
-      processOrder: ({ payload }, _raw, context) =>
+      // helpers.context is typed as { tenantId: string } — proven by the middleware
+      processOrder: ({ payload }, _raw, { context }) =>
         processFor(context.tenantId, payload).mapErr((e) => nonRetryable("failed", e)),
     },
     urls: ["amqp://localhost"],
@@ -53,7 +53,51 @@ const worker = (
 ).getOrThrow();
 ```
 
-`composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive. Without a `middleware` option, handlers get an empty object (`EmptyContext`).
+`composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive in `helpers.context`. Without `createContext` or `middleware`, handlers get an empty object (`EmptyContext`).
+
+### Seeding the chain with `createContext`
+
+Dependency injection is the dominant use of context, so it has a named option: `createContext` builds the per-message seed the middleware chain accumulates on top of. It runs once per message after validation, so it can produce request-scoped values (a correlation-id logger, a per-message transaction); close over singletons for per-worker dependencies. A throw or rejection routes the message to the DLQ as a `NonRetryableError` — the handler never runs.
+
+```ts
+const worker = (
+  await TypedAmqpWorker.create({
+    contract,
+    createContext: (info) => ({
+      log: baseLogger.child({
+        handler: info.handlerName,
+        correlationId: info.rawMessage.properties.correlationId,
+      }),
+      orderRepo,
+    }),
+    middleware: composeMiddleware(auth), // seeded with { log, orderRepo }
+    handlers: {
+      // helpers.context: { log, orderRepo } & { tenantId: string }
+      processOrder: ({ payload }, _raw, { context }) => context.orderRepo.process(payload),
+    },
+    urls: ["amqp://localhost"],
+  })
+).getOrThrow();
+```
+
+[demesne](https://btravstack.github.io/demesne/)'s `Layer.forkScope` is the recommended `createContext` implementation for DI-managed graphs: build the app graph once at startup, fork a request scope per message.
+
+### Typed error constructors (`helpers.errors`)
+
+RPC handlers with a declared `errors` map also receive typed constructors — `Err(errors.ORDER_NOT_FOUND({ orderId }))` with per-code autocomplete, equivalent to `rpcError("ORDER_NOT_FOUND", { orderId })`:
+
+```ts
+handlers: {
+  getOrder: ({ payload }, _raw, { errors }) =>
+    orders.has(payload.orderId)
+      ? OkAsync(orders.get(payload.orderId))
+      : ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId })),
+},
+```
+
+### Payload substitution
+
+`next({ payload })` substitutes the message payload for everything downstream. Inner middleware observe the substituted payload as-is; the dispatcher **re-validates it against the consumer's payload schema** before the handler runs — an invalid substitution is a `NonRetryableError` (DLQ), so middleware cannot smuggle unvalidated data past the contract boundary.
 
 ### Semantics
 
