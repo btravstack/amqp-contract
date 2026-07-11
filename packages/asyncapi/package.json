@@ -53,7 +53,8 @@
     "build:docs": "typedoc",
     "dev": "tsdown src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint --strict && attw --pack ."
   },
   "dependencies": {
     "@amqp-contract/contract": "workspace:*",
@@ -63,6 +64,7 @@
   "devDependencies": {
     "@amqp-contract/tsconfig": "workspace:*",
     "@amqp-contract/typedoc": "workspace:*",
+    "@arethetypeswrong/cli": "catalog:",
     "@asyncapi/parser": "catalog:",
     "@orpc/arktype": "catalog:",
     "@orpc/valibot": "catalog:",
@@ -70,6 +72,7 @@
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "arktype": "catalog:",
+    "publint": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",

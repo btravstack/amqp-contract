@@ -203,7 +203,9 @@ export function _internal_getConnectionCount(): number {
 }
 
 /** @deprecated Renamed to {@link _internal_getConnectionCount} per the org `_internal_` convention. */
-export const _getConnectionCountForTesting = _internal_getConnectionCount;
+export function _getConnectionCountForTesting(): number {
+  return _internal_getConnectionCount();
+}
 
 /**
  * Close every pooled connection and clear ref-counts. Test-only helper.
@@ -215,4 +217,6 @@ export function _internal_resetConnections(): Promise<void> {
 }
 
 /** @deprecated Renamed to {@link _internal_resetConnections} per the org `_internal_` convention. */
-export const _resetConnectionsForTesting = _internal_resetConnections;
+export function _resetConnectionsForTesting(): Promise<void> {
+  return _internal_resetConnections();
+}

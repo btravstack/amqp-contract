@@ -165,3 +165,62 @@ jobs:
               echo "| $name | $size |" >> $GITHUB_STEP_SUMMARY
             fi
           done
+
+  package-check:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Validate published surfaces (publint + are-the-types-wrong)
+        run: pnpm run check:packages
+
+  changeset:
+    name: Changeset
+    runs-on: ubuntu-latest
+    # Only on PRs: fail if a versioned package changed without a changeset
+    # (docs/examples/tests are private and unversioned, they don't trigger it).
+    # `pnpm changeset add --empty` opts a PR out explicitly.
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Check changeset status
+        run: |
+          git fetch --no-tags origin main
+          pnpm exec changeset status --since=origin/main
+
+  node-floor:
+    name: Node 22 (engine floor)
+    runs-on: ubuntu-latest
+    # CI otherwise runs the .node-version (24). Exercise the declared
+    # `engines.node` floor so published packages are verified on the oldest
+    # supported Node.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.19"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and unit-test on the engine floor
+        run: pnpm build && pnpm test

@@ -426,4 +426,6 @@ export function _internal_resetTelemetryCache(): void {
 }
 
 /** @deprecated Renamed to {@link _internal_resetTelemetryCache} per the org `_internal_` convention. */
-export const _resetTelemetryCacheForTesting = _internal_resetTelemetryCache;
+export function _resetTelemetryCacheForTesting(): void {
+  _internal_resetTelemetryCache();
+}
