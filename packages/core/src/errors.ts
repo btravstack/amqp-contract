@@ -130,7 +130,7 @@ export function isRpcError(error: unknown): error is RpcError {
  * @example
  * ```typescript
  * import { rpcError } from '@amqp-contract/worker';
- * import { Err } from 'unthrown';
+ * import { ErrAsync } from 'unthrown';
  *
  * const handler = ({ payload }) => {
  *   if (!orders.has(payload.orderId)) {

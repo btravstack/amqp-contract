@@ -111,7 +111,7 @@ import { describe, expect } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 describe("Order Processing Contract", () => {

@@ -74,7 +74,7 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  * @example
  * ```typescript
  * import { defineMiddleware, nonRetryable } from '@amqp-contract/worker';
- * import { Err } from 'unthrown';
+ * import { ErrAsync } from 'unthrown';
  *
  * const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
  *   const tenantId = args.rawMessage.properties.headers?.['x-tenant-id'];

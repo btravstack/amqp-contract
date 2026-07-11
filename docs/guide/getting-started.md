@@ -250,7 +250,7 @@ Create `consumer.ts` - processes messages:
 ```typescript
 // consumer.ts
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { Ok } from "unthrown";
+import { OkAsync } from "unthrown";
 import { contract } from "./contract.js";
 
 async function main() {

@@ -219,7 +219,7 @@ Property 'orderId' does not exist on type 'never'.
 3. **Check consumer handler types:**
 
    ```typescript
-   import { Ok } from "unthrown";
+   import { OkAsync } from "unthrown";
 
    // ✅ Payload is automatically typed
    handlers: {

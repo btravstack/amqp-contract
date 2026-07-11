@@ -59,7 +59,7 @@ The failure is permanent. The message bypasses the retry mode entirely and goes 
 
 ```ts
 import { NonRetryableError } from "@amqp-contract/worker";
-import { Err } from "unthrown";
+import { ErrAsync } from "unthrown";
 
 ({ payload }) => {
   if (payload.amount < 0) {
@@ -156,7 +156,7 @@ Declared errors widen both ends of the RPC:
 
 ```ts
 import { rpcError } from "@amqp-contract/worker";
-import { Err, Ok } from "unthrown";
+import { ErrAsync, OkAsync } from "unthrown";
 
 const handlers = defineHandlers(contract, {
   getOrder: ({ payload }) => {

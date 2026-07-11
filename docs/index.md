@@ -103,7 +103,7 @@ await client
 
 ```typescript [3. Consume]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const worker = await TypedAmqpWorker.create({

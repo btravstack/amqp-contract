@@ -13,7 +13,7 @@ import {
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const processOrder = defineHandler(contract, "processOrder", ({ payload }) =>
@@ -41,7 +41,7 @@ For one-file demos, you can inline the handler. The signature and types are iden
 
 ```typescript
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const worker = await TypedAmqpWorker.create({
@@ -67,7 +67,7 @@ In production code, prefer `defineHandler` so handler logic lives in its own mod
 Handlers receive validated, fully-typed messages with `{ payload, headers }`:
 
 ```typescript
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -130,7 +130,7 @@ Safe handlers return `AsyncResult<void, HandlerError>` for explicit error handli
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { ErrAsync, fromPromise, OkAsync, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
@@ -152,7 +152,7 @@ const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload
 
 ```typescript
 import { defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract";
 
 // Safe handlers (recommended) - for async operations use fromPromise
@@ -193,7 +193,7 @@ Create a dedicated module for handlers with explicit error handling:
 ```typescript
 // handlers/order-handlers.ts
 import { defineHandler, defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { orderContract } from "../contract";
 import { processPayment } from "../services/payment";
 import { sendEmail } from "../services/email";
@@ -256,7 +256,7 @@ console.log('Worker ready, waiting for messages...');
 By default, messages are automatically acknowledged after successful processing:
 
 ```typescript
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -277,7 +277,7 @@ For more control over acknowledgment, use the raw message parameter and error ty
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { fromPromise, type AsyncResult, type Result } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -321,7 +321,7 @@ process.on("SIGINT", shutdown);
 
 ```typescript
 import { TypedAmqpWorker, defineHandlers, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { contract } from "./contract";
 
 async function main() {
@@ -377,7 +377,7 @@ Control the number of unacknowledged messages a consumer can have at once. This 
 Use the tuple syntax `[handler, options]` to configure prefetch per-handler:
 
 ```typescript
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { RetryableError } from "@amqp-contract/worker";
 
 const worker = await TypedAmqpWorker.create({
@@ -404,7 +404,7 @@ const worker = await TypedAmqpWorker.create({
 If you want to apply a common consumer configuration across all handlers, use `defaultConsumerOptions` when creating the worker:
 
 ```typescript
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { RetryableError } from "@amqp-contract/worker";
 
 const worker = await TypedAmqpWorker.create({
@@ -478,7 +478,7 @@ A simpler mode that requeues failed messages immediately (no wait queues):
 ```typescript
 import { defineQueue, defineExchange, defineContract } from "@amqp-contract/contract";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 
 // 1. Define queue with immediate-requeue retry
 const dlx = defineExchange("orders-dlx");
@@ -533,7 +533,7 @@ import {
   defineMessage,
 } from "@amqp-contract/contract";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 import { z } from "zod";
 
 // 1. Define queue with TTL-backoff retry - infrastructure auto-generated
@@ -679,7 +679,7 @@ Use `RetryableError` for transient failures that may succeed on retry:
 
 ```typescript
 import { RetryableError, defineHandler } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult } from "unthrown";
+import { fromPromise, type AsyncResult } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -711,7 +711,7 @@ Use `NonRetryableError` for permanent failures that should NOT be retried:
 
 ```typescript
 import { NonRetryableError, RetryableError, defineHandler } from "@amqp-contract/worker";
-import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { ErrAsync, fromPromise, type AsyncResult, type Result } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -743,7 +743,7 @@ For the most explicit error handling, use safe handlers that return `AsyncResult
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { ErrAsync, fromPromise, type AsyncResult, type Result } from "unthrown";
 import { match } from "ts-pattern";
 
 const worker = await TypedAmqpWorker.create({
@@ -818,7 +818,7 @@ import {
   defineConsumer,
   defineMessage,
 } from "@amqp-contract/contract";
-import { Err, fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { ErrAsync, fromPromise, type AsyncResult, type Result } from "unthrown";
 import { z } from "zod";
 
 // Define exchanges

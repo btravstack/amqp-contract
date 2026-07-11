@@ -128,7 +128,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * @example Consumer handler
  * ```typescript
  * import { defineHandler, RetryableError, NonRetryableError } from '@amqp-contract/worker';
- * import { fromPromise, Ok } from 'unthrown';
+ * import { fromPromise } from 'unthrown';
  *
  * const processOrderHandler = defineHandler(
  *   orderContract,
@@ -219,7 +219,7 @@ export function defineHandler<
  * @example
  * ```typescript
  * import { defineHandlers, RetryableError } from '@amqp-contract/worker';
- * import { fromPromise, Ok } from 'unthrown';
+ * import { fromPromise, OkAsync } from 'unthrown';
  *
  * const handlers = defineHandlers(orderContract, {
  *   processOrder: ({ payload }) =>

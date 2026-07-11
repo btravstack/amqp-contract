@@ -119,7 +119,7 @@ channel.consume("order-processing", (msg) => {
 
 ```typescript [✅ amqp-contract - Fully typed]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { fromPromise, Ok, type AsyncResult, type Result } from "unthrown";
+import { OkAsync, type AsyncResult, type Result } from "unthrown";
 import { contract } from "./contract.js";
 
 const worker = await TypedAmqpWorker.create({
