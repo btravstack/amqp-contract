@@ -342,11 +342,20 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     TypedAmqpWorker<TContract>,
     TechnicalError
   > {
-    // Fail fast on incomplete handlers — the type system enforces this at the
-    // public API boundary, but a JavaScript caller or a cast can bypass it,
-    // and the dispatch loop would otherwise crash with an opaque TypeError on
-    // the first delivery. Checked before constructing the AmqpClient so no
-    // pooled connection reference is acquired on this error path.
+    // Fail fast on missing or incomplete handlers — the type system enforces
+    // this at the public API boundary, but a JavaScript caller or a cast can
+    // bypass it, and the dispatch loop would otherwise crash with an opaque
+    // TypeError on the first delivery. Checked before constructing the
+    // AmqpClient so no pooled connection reference is acquired on this error
+    // path. The nullish/shape guard keeps create() throw-free even when
+    // `handlers` is absent entirely.
+    if (handlers === null || typeof handlers !== "object") {
+      return Err(
+        new TechnicalError(
+          "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+        ),
+      ).toAsync();
+    }
     const missing = missingHandlerNames(contract, handlers);
     if (missing.length > 0) {
       return Err(

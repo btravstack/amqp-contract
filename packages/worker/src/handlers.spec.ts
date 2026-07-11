@@ -204,6 +204,20 @@ describe("handlers", () => {
           "Every `consumers` and `rpcs` key requires a handler.",
       );
     });
+
+    it("should throw a clear error if handlers is null or undefined", () => {
+      // WHEN/THEN — JavaScript callers can pass nullish handlers despite the types
+      expect(() => {
+        defineHandlers(testContract, null as never);
+      }).toThrow(
+        "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+      );
+      expect(() => {
+        defineHandlers(testContract, undefined as never);
+      }).toThrow(
+        "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+      );
+    });
   });
 
   describe("safe handlers error handling", () => {
