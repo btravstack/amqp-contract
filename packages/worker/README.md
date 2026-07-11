@@ -129,7 +129,7 @@ Worker handlers return `AsyncResult<void, HandlerError>` for explicit error hand
 
 ```typescript
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { Err, fromPromise, type AsyncResult } from "unthrown";
+import { ErrAsync, fromPromise, type AsyncResult } from "unthrown";
 
 handlers: {
   processOrder: ({ payload }) => {

@@ -235,7 +235,7 @@ export type CreateWorkerOptions<
  * ```typescript
  * import { TypedAmqpWorker } from '@amqp-contract/worker';
  * import { defineQueue, defineMessage, defineContract, defineConsumer } from '@amqp-contract/contract';
- * import { Ok } from 'unthrown';
+ * import { OkAsync } from 'unthrown';
  * import { z } from 'zod';
  *
  * const orderQueue = defineQueue('order-processing');
@@ -848,11 +848,15 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
     // Seed the context: createContext when configured, empty otherwise. A
     // rejection/throw in the factory is a permanent failure — retrying the
-    // message cannot fix a broken dependency factory.
-    const seed: AsyncResult<Record<string, unknown>, HandlerError> = this.createContext
+    // message cannot fix a broken dependency factory. The factory is invoked
+    // *inside* the promise chain so a synchronous throw becomes a rejection
+    // that `fromPromise` qualifies — invoking it eagerly as an argument would
+    // let sync throws escape to the defect channel instead of the DLQ.
+    const createContext = this.createContext;
+    const seed: AsyncResult<Record<string, unknown>, HandlerError> = createContext
       ? fromPromise(
-          Promise.resolve(
-            this.createContext({
+          Promise.resolve().then(() =>
+            createContext({
               handlerName: String(name),
               isRpc: view.isRpc,
               message: validatedMessage,

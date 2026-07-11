@@ -21,7 +21,7 @@ import {
   TypedAmqpWorker,
   type EmptyContext,
 } from "@amqp-contract/worker";
-import { Err, Ok } from "unthrown";
+import { ErrAsync } from "unthrown";
 
 const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
@@ -141,7 +141,7 @@ Wrap the full RPC round trip (request validation, publish, reply await). They ca
 
 ```ts
 import { RpcTimeoutError, type CallInterceptor } from "@amqp-contract/client";
-import { Err } from "unthrown";
+import { ErrAsync } from "unthrown";
 
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
   next().flatMapErr((error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)));

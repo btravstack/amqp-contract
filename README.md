@@ -37,7 +37,7 @@ import {
 } from "@amqp-contract/contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { Ok } from "unthrown";
+import { OkAsync } from "unthrown";
 import { z } from "zod";
 
 // 1. Define resources with Dead Letter Exchange and retry configuration

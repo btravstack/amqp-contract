@@ -7,7 +7,7 @@ This project uses [unthrown](https://github.com/btravstack/unthrown) for explici
 A consumer handler receives `({ payload, headers }, rawMessage)` and returns `AsyncResult<void, HandlerError>`:
 
 ```typescript
-import { fromPromise, Ok } from "unthrown";
+import { fromPromise, OkAsync } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
 // Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
@@ -41,7 +41,7 @@ When the RPC declares an `errors` map (`defineRpc(queue, { request, response, er
 You can define RPC handlers either with `defineHandler` / `defineHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
-import { fromPromise, Ok } from "unthrown";
+import { fromPromise, OkAsync } from "unthrown";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
 
 const result = await TypedAmqpWorker.create({
@@ -88,7 +88,7 @@ Use `defineHandler` (single) or `defineHandlers` (object) for full type inferenc
 
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { Err, fromPromise, Ok } from "unthrown";
+import { ErrAsync, fromPromise, OkAsync } from "unthrown";
 
 const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
   fromPromise(
