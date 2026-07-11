@@ -13,6 +13,8 @@ export {
   isRpcError,
   // Factory functions
   nonRetryable,
+  qualifyNonRetryable,
+  qualifyRetryable,
   retryable,
   rpcError,
 } from "./errors.js";

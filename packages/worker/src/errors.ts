@@ -181,7 +181,7 @@ export function retryable(message: string, cause?: unknown): RetryableError {
  * @example
  * ```typescript
  * import { nonRetryable } from '@amqp-contract/worker';
- * import { Err, Ok } from 'unthrown';
+ * import { ErrAsync, OkAsync } from 'unthrown';
  *
  * const handler = ({ payload }) => {
  *   if (!isValidPayload(payload)) {
@@ -196,4 +196,52 @@ export function retryable(message: string, cause?: unknown): RetryableError {
  */
 export function nonRetryable(message: string, cause?: unknown): NonRetryableError {
   return new NonRetryableError(message, cause);
+}
+
+// =============================================================================
+// Qualifier Factories
+// =============================================================================
+
+/**
+ * Build a `fromPromise` qualifier that wraps the rejection cause in a
+ * {@link RetryableError} with the given message.
+ *
+ * `fromPromise` requires a qualify mapper as its second argument; writing it
+ * by hand every time (`(e) => retryable("...", e)`) is the most re-introduced
+ * mistake in this codebase. The factory removes the boilerplate:
+ *
+ * @example
+ * ```typescript
+ * import { qualifyRetryable } from '@amqp-contract/worker';
+ * import { fromPromise } from 'unthrown';
+ *
+ * const handler = ({ payload }) =>
+ *   fromPromise(processPayment(payload), qualifyRetryable('Payment service unavailable'))
+ *     .map(() => undefined);
+ *
+ * // Equivalent to:
+ * // fromPromise(processPayment(payload), (e) => retryable('Payment service unavailable', e))
+ * ```
+ */
+export function qualifyRetryable(message: string): (cause: unknown) => RetryableError {
+  return (cause) => new RetryableError(message, cause);
+}
+
+/**
+ * Build a `fromPromise` qualifier that wraps the rejection cause in a
+ * {@link NonRetryableError} with the given message — the permanent-failure
+ * counterpart of {@link qualifyRetryable}.
+ *
+ * @example
+ * ```typescript
+ * import { qualifyNonRetryable } from '@amqp-contract/worker';
+ * import { fromPromise } from 'unthrown';
+ *
+ * const handler = ({ payload }) =>
+ *   fromPromise(chargeCard(payload), qualifyNonRetryable('Card permanently declined'))
+ *     .map(() => undefined);
+ * ```
+ */
+export function qualifyNonRetryable(message: string): (cause: unknown) => NonRetryableError {
+  return (cause) => new NonRetryableError(message, cause);
 }
