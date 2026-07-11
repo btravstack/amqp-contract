@@ -80,6 +80,22 @@ These have been re-introduced more than once across recent migrations / reviews 
 - **Hardcoding a dep version in a `package.json`.** Use `"catalog:"` and add the actual version once in `pnpm-workspace.yaml`.
 - **Forgetting to add a changeset** when changing public API. The release will silently skip your change.
 
+## Load-bearing invariants
+
+Each invariant maps to a named guarding test — extend the mapping when you add one (org DNA: unthrown's `invariants.spec.ts` pattern).
+
+1. **Retry publishes before ack** (a failed retry-publish must not lose the message) — `packages/worker/src/retry.spec.ts` ("acks the original message only AFTER a successful retry publish", "does NOT ack … buffer is full").
+2. **NonRetryableError → exactly one `nack(requeue=false)`** (DLQ, never republished/acked) — `packages/worker/src/invariants.spec.ts`.
+3. **Retryable without retry config → DLQ, not infinite requeue** — `packages/worker/src/invariants.spec.ts`.
+4. **Immediate-requeue honors the retry budget** (requeue below, DLQ at) — `packages/worker/src/invariants.spec.ts`.
+5. **Validation failures bypass the retry pipeline** (deterministic poison → DLQ) — `packages/worker/src/__tests__/worker-retry.spec.ts`.
+6. **A message is acked/nacked exactly once** — `packages/worker/src/__tests__/worker-double-ack.spec.ts`.
+7. **Middleware short-circuit skips the handler; its result routes like a handler result** — `packages/worker/src/middleware.spec.ts` + `tests/src/middleware.spec.ts`.
+8. **Middleware-substituted payloads are re-validated before the handler** — `packages/worker/src/middleware.spec.ts` ("threads substituted payloads…") + `tests/src/middleware.spec.ts` ("blocks handler execution when the substitution fails the schema").
+9. **RPC replies require `replyTo` + `correlationId`; undeclared error codes/invalid error data → DLQ, never a malformed reply** — `tests/src/rpc.spec.ts` (undeclared-code and invalid-error-data timeout tests).
+10. **Worker creation fails fast on missing handlers, before any connection is acquired** — `packages/worker/src/worker-cleanup.spec.ts`.
+11. **`createContext` failure routes to DLQ; the handler never runs** — `tests/src/middleware.spec.ts` ("routes a throwing createContext…").
+
 ## Workflow rules for agents
 
 - **Before claiming a refactor is done**, run `pnpm typecheck` (it isn't in the pre-commit hook). If you changed a public type in package A, also rebuild it (`pnpm --filter @amqp-contract/<a> build`) before typechecking package B that depends on it — workspace packages are typed against their `dist/` output.

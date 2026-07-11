@@ -17,7 +17,8 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "typecheck": "turbo run typecheck",
-    "version": "changeset version"
+    "version": "changeset version",
+    "check:packages": "turbo run check:package"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

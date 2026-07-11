@@ -46,7 +46,8 @@
   "scripts": {
     "build": "tsdown src/index.ts src/global-setup.ts src/extension.ts --format esm --dts --clean",
     "build:docs": "typedoc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
     "amqplib": "catalog:",
@@ -55,7 +56,9 @@
   "devDependencies": {
     "@amqp-contract/tsconfig": "workspace:*",
     "@amqp-contract/typedoc": "workspace:*",
+    "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
+    "publint": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
