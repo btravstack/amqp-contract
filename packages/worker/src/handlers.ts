@@ -56,8 +56,25 @@ function validateHandlerTargetExists<TContract extends ContractDefinition>(
 }
 
 /**
- * Validate that every key in `handlers` maps to a contract entry —
- * either a `consumers` key or an `rpcs` key.
+ * Contract entries (`consumers` and `rpcs` keys) that have no corresponding
+ * handler in `handlers`. The type system requires completeness at the public
+ * API boundary, but a JavaScript caller, a cast, or a contract that gained an
+ * entry without its worker being updated can bypass it — this is the runtime
+ * backstop.
+ *
+ * @internal Shared with `TypedAmqpWorker.create` for its fail-fast check.
+ */
+export function missingHandlerNames<TContract extends ContractDefinition>(
+  contract: TContract,
+  handlers: object,
+): readonly string[] {
+  return availableHandlerNames(contract).filter((name) => !Object.hasOwn(handlers, name));
+}
+
+/**
+ * Validate `handlers` against the contract in both directions: every key in
+ * `handlers` maps to a contract entry (a `consumers` or `rpcs` key), and
+ * every contract entry has a handler.
  */
 function validateHandlers<TContract extends ContractDefinition>(
   contract: TContract,
@@ -65,6 +82,13 @@ function validateHandlers<TContract extends ContractDefinition>(
 ): void {
   for (const handlerName of Object.keys(handlers)) {
     validateHandlerTargetExists(contract, handlerName);
+  }
+  const missing = missingHandlerNames(contract, handlers);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing handlers for contract entries: ${missing.join(", ")}. ` +
+        "Every `consumers` and `rpcs` key requires a handler.",
+    );
   }
 }
 

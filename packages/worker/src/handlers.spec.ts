@@ -186,6 +186,24 @@ describe("handlers", () => {
         'Handler target "nonExistent" not found in contract. Available consumers and RPCs: testConsumer, anotherConsumer, calculate',
       );
     });
+
+    it("should throw error if a contract entry has no handler (reverse completeness)", () => {
+      // GIVEN — only one of the three contract entries has a handler
+      const handlers = {
+        testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+          console.log(payload.id);
+          return Ok(undefined).toAsync();
+        },
+      };
+
+      // WHEN/THEN — cast to bypass type-system check; runtime guard is what's under test
+      expect(() => {
+        defineHandlers(testContract, handlers as never);
+      }).toThrow(
+        "Missing handlers for contract entries: anotherConsumer, calculate. " +
+          "Every `consumers` and `rpcs` key requires a handler.",
+      );
+    });
   });
 
   describe("safe handlers error handling", () => {

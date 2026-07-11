@@ -38,6 +38,7 @@ import {
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
+import { missingHandlerNames } from "./handlers.js";
 import type { AnyWorkerMiddleware, EmptyContext, WorkerMiddleware } from "./middleware.js";
 import { handleError } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
@@ -341,6 +342,21 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     TypedAmqpWorker<TContract>,
     TechnicalError
   > {
+    // Fail fast on incomplete handlers — the type system enforces this at the
+    // public API boundary, but a JavaScript caller or a cast can bypass it,
+    // and the dispatch loop would otherwise crash with an opaque TypeError on
+    // the first delivery. Checked before constructing the AmqpClient so no
+    // pooled connection reference is acquired on this error path.
+    const missing = missingHandlerNames(contract, handlers);
+    if (missing.length > 0) {
+      return Err(
+        new TechnicalError(
+          `Missing handlers for contract entries: ${missing.join(", ")}. ` +
+            "Every `consumers` and `rpcs` key requires a handler.",
+        ),
+      ).toAsync();
+    }
+
     const worker = new TypedAmqpWorker(
       contract,
       new AmqpClient(contract, {
