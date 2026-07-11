@@ -8,6 +8,14 @@ export {
   RpcTimeoutError,
 } from "./errors.js";
 export type {
+  CallInterceptor,
+  CallInterceptorArgs,
+  CallInterceptorNext,
+  PublishInterceptor,
+  PublishInterceptorArgs,
+  PublishInterceptorNext,
+} from "./interceptors.js";
+export type {
   ClientInferPublisherInput,
   ClientInferRpcErrors,
   ClientInferRpcRequestInput,

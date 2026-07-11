@@ -34,6 +34,8 @@ const asyncHandler = ({ payload }) =>
 
 `defineRpc` creates a request-reply slot. RPC handlers return `AsyncResult<TResponse, HandlerError | WorkerInferRpcErrors<...>>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
+All handlers (consumer and RPC) receive a third `context` argument populated by the worker's middleware chain (`TypedAmqpWorker.create({ middleware: composeMiddleware(...) })`) — an empty object when no middleware is configured. See `packages/worker/src/middleware.ts` and [docs/guide/middleware-and-interceptors.md](../../docs/guide/middleware-and-interceptors.md).
+
 When the RPC declares an `errors` map (`defineRpc(queue, { request, response, errors })`), the handler may also return `Err(rpcError(code, data))` for a declared code — the worker validates `data` against the declared schema, publishes an error reply (marked by the `RPC_ERROR_CODE_HEADER` header), and **acks the request**; typed business errors never enter the retry/DLQ pipeline. Undeclared codes or invalid error data are contract violations routed to the DLQ. See `packages/worker/src/worker.ts` (`publishRpcErrorReply`) and [docs/guide/error-model.md](../../docs/guide/error-model.md#typed-rpc-errors-rpcerror).
 
 You can define RPC handlers either with `defineHandler` / `defineHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:

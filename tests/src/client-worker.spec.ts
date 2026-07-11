@@ -186,6 +186,7 @@ describe("Client and Worker Integration", () => {
               },
             },
             expect.anything(), // rawMessage
+            expect.anything(), // middleware context
           );
         },
         { timeout: 5000 },
@@ -404,6 +405,7 @@ describe("Client and Worker Integration", () => {
               },
             },
             expect.anything(), // rawMessage
+            expect.anything(), // middleware context
           );
           expect(smsHandler).toHaveBeenCalledTimes(1);
           expect(smsHandler).toHaveBeenNthCalledWith(
@@ -415,6 +417,7 @@ describe("Client and Worker Integration", () => {
               },
             },
             expect.anything(), // rawMessage
+            expect.anything(), // middleware context
           );
         },
         { timeout: 5000 },

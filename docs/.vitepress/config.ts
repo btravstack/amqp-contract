@@ -112,6 +112,10 @@ export default withMermaid(
               { text: "Client Usage", link: "/guide/client-usage" },
               { text: "Worker Usage", link: "/guide/worker-usage" },
               { text: "Error Model", link: "/guide/error-model" },
+              {
+                text: "Middleware & Interceptors",
+                link: "/guide/middleware-and-interceptors",
+              },
               { text: "Retry Strategies", link: "/guide/retry-strategies" },
               { text: "Testing", link: "/guide/testing" },
             ],

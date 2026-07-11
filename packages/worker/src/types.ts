@@ -14,6 +14,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
 import type { AsyncResult } from "unthrown";
 import type { HandlerError } from "./errors.js";
+import type { EmptyContext } from "./middleware.js";
 import { ConsumerOptions } from "./worker.js";
 
 /**
@@ -223,6 +224,11 @@ export type WorkerInferRpcConsumedMessage<
 // All handlers return `AsyncResult<TResponse, HandlerError>` for explicit
 // error handling. Regular consumers return `void`; RPC handlers return the
 // response payload. RetryableError → exponential backoff retry; NonRetryableError → DLQ.
+//
+// Every handler additionally receives a third `context` argument, populated by
+// the worker's middleware chain (an empty object when no middleware is
+// configured). `TContext` defaults to `EmptyContext` so handlers that ignore
+// the argument keep their existing two-parameter shape.
 
 /**
  * Handler signature for a regular consumer (event/command). Returns
@@ -231,9 +237,11 @@ export type WorkerInferRpcConsumedMessage<
 export type WorkerInferConsumerHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
   message: WorkerInferConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
+  context: TContext,
 ) => AsyncResult<void, HandlerError>;
 
 /**
@@ -249,9 +257,11 @@ export type WorkerInferConsumerHandler<
 export type WorkerInferRpcHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
   message: WorkerInferRpcConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
+  context: TContext,
 ) => AsyncResult<
   WorkerInferRpcResponse<TContract, TName>,
   HandlerError | WorkerInferRpcErrors<TContract, TName>
@@ -263,9 +273,10 @@ export type WorkerInferRpcHandler<
 export type WorkerInferConsumerHandlerEntry<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > =
-  | WorkerInferConsumerHandler<TContract, TName>
-  | readonly [WorkerInferConsumerHandler<TContract, TName>, ConsumerOptions];
+  | WorkerInferConsumerHandler<TContract, TName, TContext>
+  | readonly [WorkerInferConsumerHandler<TContract, TName, TContext>, ConsumerOptions];
 
 /**
  * Handler entry for an RPC — function or `[handler, options]`.
@@ -273,14 +284,18 @@ export type WorkerInferConsumerHandlerEntry<
 export type WorkerInferRpcHandlerEntry<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > =
-  | WorkerInferRpcHandler<TContract, TName>
-  | readonly [WorkerInferRpcHandler<TContract, TName>, ConsumerOptions];
+  | WorkerInferRpcHandler<TContract, TName, TContext>
+  | readonly [WorkerInferRpcHandler<TContract, TName, TContext>, ConsumerOptions];
 
 /**
  * All handlers for a contract: one entry per `consumers` key plus one entry
  * per `rpcs` key. The two name spaces are disjoint so the resulting object
  * type is unambiguous.
+ *
+ * `TContext` is the context produced by the worker's middleware chain; the
+ * third handler argument is typed with it.
  *
  * @example
  * ```typescript
@@ -294,11 +309,14 @@ export type WorkerInferRpcHandlerEntry<
  * };
  * ```
  */
-export type WorkerInferHandlers<TContract extends ContractDefinition> = ([
-  InferConsumerNames<TContract>,
-] extends [never]
+export type WorkerInferHandlers<
+  TContract extends ContractDefinition,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> = ([InferConsumerNames<TContract>] extends [never]
   ? {}
-  : { [K in InferConsumerNames<TContract>]: WorkerInferConsumerHandlerEntry<TContract, K> }) &
+  : {
+      [K in InferConsumerNames<TContract>]: WorkerInferConsumerHandlerEntry<TContract, K, TContext>;
+    }) &
   ([InferRpcNames<TContract>] extends [never]
     ? {}
-    : { [K in InferRpcNames<TContract>]: WorkerInferRpcHandlerEntry<TContract, K> });
+    : { [K in InferRpcNames<TContract>]: WorkerInferRpcHandlerEntry<TContract, K, TContext> });

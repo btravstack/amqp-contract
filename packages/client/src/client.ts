@@ -4,6 +4,7 @@ import {
   type ContractDefinition,
   type InferPublisherNames,
   type InferRpcNames,
+  type RpcDefinition,
   type RpcErrorMap,
 } from "@amqp-contract/contract";
 import {
@@ -29,6 +30,14 @@ import { Err, fromPromise, fromSafePromise, Ok, type AsyncResult, type Result } 
 import { randomUUID } from "node:crypto";
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
+import { chainInterceptors } from "./interceptors.js";
+import type {
+  CallError as InterceptorCallError,
+  CallInterceptor,
+  PublishError,
+  PublishInterceptor,
+  PublishInterceptorArgs,
+} from "./interceptors.js";
 import type {
   ClientInferPublisherInput,
   ClientInferRpcErrors,
@@ -107,6 +116,18 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
    * disable the timeout and let amqp-connection-manager retry indefinitely.
    */
   connectTimeoutMs?: number | null | undefined;
+  /**
+   * Interceptors wrapping every `publish(...)`: the first entry is the
+   * outermost. Each can patch the message/options, observe the outcome,
+   * retry by calling `next` again, or short-circuit. A patched message is
+   * validated exactly like the caller's original.
+   */
+  publishInterceptors?: readonly PublishInterceptor[] | undefined;
+  /**
+   * Interceptors wrapping every `call(...)` round trip (request validation,
+   * publish, reply await): the first entry is the outermost.
+   */
+  callInterceptors?: readonly CallInterceptor[] | undefined;
 };
 
 /**
@@ -151,6 +172,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     private readonly defaultPublishOptions: PublishOptions,
     private readonly logger?: Logger,
     private readonly telemetry: TelemetryProvider = defaultTelemetryProvider,
+    private readonly publishInterceptors: readonly PublishInterceptor[] = [],
+    private readonly callInterceptors: readonly CallInterceptor[] = [],
   ) {}
 
   /**
@@ -171,6 +194,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     logger,
     telemetry,
     connectTimeoutMs,
+    publishInterceptors,
+    callInterceptors,
   }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, TechnicalError> {
     const client = new TypedAmqpClient(
       contract,
@@ -178,6 +203,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       { persistent: true, ...defaultPublishOptions },
       logger,
       telemetry ?? defaultTelemetryProvider,
+      publishInterceptors ?? [],
+      callInterceptors ?? [],
     );
 
     const setup = client
@@ -406,8 +433,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: String(publisherName),
     });
 
-    const validateMessage = (): AsyncResult<unknown, TechnicalError | MessageValidationError> => {
-      const validationResult = publisher.message.payload["~standard"].validate(message);
+    const validateMessage = (
+      rawMessage: unknown,
+    ): AsyncResult<unknown, TechnicalError | MessageValidationError> => {
+      const validationResult = publisher.message.payload["~standard"].validate(rawMessage);
       const promise =
         validationResult instanceof Promise ? validationResult : Promise.resolve(validationResult);
       return fromPromise(
@@ -424,9 +453,12 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       });
     };
 
-    const publishMessage = (validatedMessage: unknown): AsyncResult<void, TechnicalError> => {
+    const publishMessage = (
+      validatedMessage: unknown,
+      callOptions: PublishOptions,
+    ): AsyncResult<void, TechnicalError> => {
       // Merge default options with provided options
-      const mergedOptions = { ...this.defaultPublishOptions, ...options };
+      const mergedOptions = { ...this.defaultPublishOptions, ...callOptions };
 
       // Extract compression from merged options and create publish options without it
       const { compression, ...restOptions } = mergedOptions;
@@ -469,8 +501,18 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       );
     };
 
-    return validateMessage()
-      .flatMap((validatedMessage) => publishMessage(validatedMessage))
+    // Interceptors wrap validation + publish; telemetry stays outermost so
+    // the span covers interceptor work too.
+    const terminal = (args: PublishInterceptorArgs): AsyncResult<void, PublishError> =>
+      validateMessage(args.message).flatMap((validatedMessage) =>
+        publishMessage(validatedMessage, args.options),
+      );
+
+    return chainInterceptors(
+      this.publishInterceptors,
+      { publisherName: String(publisherName), message, options: options ?? {} },
+      terminal,
+    )
       .tap(() => {
         const durationMs = Date.now() - startTime;
         endSpanSuccess(span);
@@ -522,7 +564,57 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       | RpcTimeoutError
       | RpcCancelledError
       | ClientInferRpcErrors<TContract, TName>;
-    type CallResult = Result<ResponseType, CallError>;
+
+    const startTime = Date.now();
+    // Non-null assertion safe: TName is constrained to RPC names in the contract.
+    const rpc = this.contract.rpcs![rpcName as string]!;
+    const queueName = extractQueue(rpc.queue).name;
+
+    // RPC publishes to the default exchange with the queue name as routing key.
+    const span = startPublishSpan(this.telemetry, "", queueName, {
+      [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: String(rpcName),
+    });
+
+    // Interceptors wrap the full round trip (request validation, publish,
+    // reply await) so they can adjust timeouts, stamp headers, or retry by
+    // calling `next` again; telemetry stays outermost. Error/value types are
+    // erased through the chain and restored at this public boundary.
+    const chained = chainInterceptors(
+      this.callInterceptors,
+      { rpcName: String(rpcName), request, options },
+      (args) => this.executeCall(String(rpcName), rpc, args.request, args.options),
+    );
+
+    const instrumented = chained
+      .tap(() => {
+        const durationMs = Date.now() - startTime;
+        endSpanSuccess(span);
+        recordPublishMetric(this.telemetry, "", queueName, true, durationMs);
+      })
+      .tapErr((error) => {
+        const durationMs = Date.now() - startTime;
+        endSpanError(span, error);
+        recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
+      });
+
+    // Safe: executeCall resolves with the schema-validated response, and its
+    // wire-level error union is the widened form of CallError.
+    return instrumented as AsyncResult<ResponseType, CallError>;
+  }
+
+  /**
+   * The uninstrumented RPC round trip: timeout validation, correlation
+   * bookkeeping, request validation, publish, and reply await. Runs as the
+   * terminal of the call-interceptor chain — `call()` owns telemetry and the
+   * typed public signature.
+   */
+  private executeCall(
+    rpcName: string,
+    rpc: RpcDefinition,
+    request: unknown,
+    options: CallOptions,
+  ): AsyncResult<unknown, InterceptorCallError> {
+    type CallResult = Result<unknown, InterceptorCallError>;
 
     // setTimeout truncates fractional ms and clamps anything outside the
     // 32-bit signed integer range (~24.8 days) to 1ms, so reject those up
@@ -534,24 +626,16 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       options.timeoutMs <= 0 ||
       options.timeoutMs > TIMEOUT_MAX_MS
     ) {
-      return Err<CallError>(
+      return Err<InterceptorCallError>(
         new TechnicalError(
-          `Invalid timeoutMs for RPC call to "${String(rpcName)}": expected a finite positive number ≤ ${TIMEOUT_MAX_MS}, got ${String(options.timeoutMs)}`,
+          `Invalid timeoutMs for RPC call to "${rpcName}": expected a finite positive number ≤ ${TIMEOUT_MAX_MS}, got ${String(options.timeoutMs)}`,
         ),
       ).toAsync();
     }
 
-    const startTime = Date.now();
-    // Non-null assertion safe: TName is constrained to RPC names in the contract.
-    const rpc = this.contract.rpcs![rpcName as string]!;
     const requestSchema = rpc.request.payload;
     const responseSchema = rpc.response.payload;
     const queueName = extractQueue(rpc.queue).name;
-
-    // RPC publishes to the default exchange with the queue name as routing key.
-    const span = startPublishSpan(this.telemetry, "", queueName, {
-      [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: String(rpcName),
-    });
 
     const correlationId = randomUUID();
 
@@ -564,18 +648,18 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     });
     // `callPromise` resolves to a `Result` (never rejects), so lift it with
     // `fromSafePromise` and collapse the nested `Result` back into the channel.
-    const callResultAsync: AsyncResult<ResponseType, CallError> = fromSafePromise(
+    const callResultAsync: AsyncResult<unknown, InterceptorCallError> = fromSafePromise(
       callPromise,
     ).flatMap((result) => result);
 
     const timer = setTimeout(() => {
       if (!this.pendingCalls.has(correlationId)) return;
       this.pendingCalls.delete(correlationId);
-      resolveCall(Err(new RpcTimeoutError(String(rpcName), options.timeoutMs)));
+      resolveCall(Err(new RpcTimeoutError(rpcName, options.timeoutMs)));
     }, options.timeoutMs);
 
     this.pendingCalls.set(correlationId, {
-      rpcName: String(rpcName),
+      rpcName,
       responseSchema,
       rpcErrorSchemas: rpc.errors,
       resolve: resolveCall as PendingCall["resolve"],
@@ -603,7 +687,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       ).flatMap((validation) =>
         validation.issues
           ? Err<TechnicalError | MessageValidationError>(
-              new MessageValidationError(String(rpcName), validation.issues),
+              new MessageValidationError(rpcName, validation.issues),
             )
           : Ok(validation.value),
       );
@@ -631,7 +715,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
             ? Ok(undefined)
             : Err<TechnicalError>(
                 new TechnicalError(
-                  `Failed to publish RPC request for "${String(rpcName)}": channel buffer full`,
+                  `Failed to publish RPC request for "${rpcName}": channel buffer full`,
                 ),
               ),
         );
@@ -640,7 +724,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return validateRequest()
       .flatMap((validated) => publishRequest(validated))
       .flatMap(() => callResultAsync)
-      .orElse((error: CallError) => {
+      .orElse((error: InterceptorCallError) => {
         // If preflight failed (validate or publish), the pending entry still
         // exists and the timer is alive. Clean both up so the call doesn't
         // leak. Timer-fired errors and reply-resolved errors have already
@@ -650,16 +734,6 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
           this.pendingCalls.delete(correlationId);
         }
         return Err(error).toAsync();
-      })
-      .tap(() => {
-        const durationMs = Date.now() - startTime;
-        endSpanSuccess(span);
-        recordPublishMetric(this.telemetry, "", queueName, true, durationMs);
-      })
-      .tapErr((error) => {
-        const durationMs = Date.now() - startTime;
-        endSpanError(span, error);
-        recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
       });
   }
 
