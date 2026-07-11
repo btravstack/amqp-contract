@@ -216,7 +216,7 @@ async function main() {
   const client = await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"],
-  }).unwrapOrElse((e) => {
+  }).getOrElse((e) => {
     throw e;
   });
 
@@ -274,7 +274,7 @@ async function main() {
       },
     },
     urls: ["amqp://localhost"],
-  }).unwrapOrElse((e) => {
+  }).getOrElse((e) => {
     throw e;
   });
 

@@ -82,7 +82,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -90,27 +90,27 @@ const worker = await TypedAmqpWorker.create({
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
 // publish() returns an AsyncResult instead of throwing — awaiting it yields a
-// Result. unthrown 4 gates unwrap() to infallible results, so clear the error
+// Result. unthrown 4 gates get() to infallible results, so clear the error
 // channel with recover() first (or use .match()). See the error model guide.
 await client
   .publish("orderCreated", {
     orderId: "ORD-123", // ✅ TypeScript knows!
     amount: 99.99,
   })
-  .unwrapOrElse((e) => {
+  .getOrElse((e) => {
     throw e;
   });
 
 // 7. Clean up
-await client.close().unwrapOrElse((e) => {
+await client.close().getOrElse((e) => {
   throw e;
 });
-await worker.close().unwrapOrElse((e) => {
+await worker.close().getOrElse((e) => {
   throw e;
 });
 ```

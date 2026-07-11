@@ -644,7 +644,7 @@ describe("AmqpWorker Integration", () => {
       },
       urls: [amqpConnectionUrl],
       logger: mockLogger,
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -684,7 +684,7 @@ describe("AmqpWorker Integration", () => {
     expect(unexpectedWarnings).toHaveLength(0);
 
     // Clean up
-    await worker.close().unwrapOrElse((e) => {
+    await worker.close().getOrElse((e) => {
       throw e;
     });
   });

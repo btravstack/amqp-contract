@@ -82,11 +82,11 @@ When implementing the contract, we use our terms:
 import { Ok } from "unthrown";
 
 // Client = runtime publisher
-const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+const client = await TypedAmqpClient.create({ contract, urls }).getOrElse((e) => {
   throw e;
 });
 
-await client.publish("orderCreated", message).unwrapOrElse((e) => {
+await client.publish("orderCreated", message).getOrElse((e) => {
   throw e;
 });
 
@@ -100,7 +100,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -158,11 +158,11 @@ await publisher.publish(exchange, routingKey, message);
 const consumer = await createConsumer(queue, handler);
 
 // amqp-contract uses:
-const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+const client = await TypedAmqpClient.create({ contract, urls }).getOrElse((e) => {
   throw e;
 });
 
-await client.publish("orderCreated", message).unwrapOrElse((e) => {
+await client.publish("orderCreated", message).getOrElse((e) => {
   throw e;
 });
 
@@ -170,7 +170,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder: handler },
   urls,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```

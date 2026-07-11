@@ -26,7 +26,7 @@ describe("Basic Order Processing Worker Integration", () => {
         fulfillOrder: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -54,7 +54,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(processedOrders).toEqual([newOrder]);
     } finally {
-      await worker.close().unwrapOrElse((e) => {
+      await worker.close().getOrElse((e) => {
         throw e;
       });
     }
@@ -82,7 +82,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.unwrapOrElse((e) => {
+    const worker = workerResult.getOrElse((e) => {
       throw e;
     });
 
@@ -121,7 +121,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(notifications.length).toBeGreaterThanOrEqual(2);
     } finally {
-      await worker.close().unwrapOrElse((e) => {
+      await worker.close().getOrElse((e) => {
         throw e;
       });
     }
@@ -153,7 +153,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.unwrapOrElse((e) => {
+    const worker = workerResult.getOrElse((e) => {
       throw e;
     });
 
@@ -182,7 +182,7 @@ describe("Basic Order Processing Worker Integration", () => {
       expect(processedOrders.length).toBeGreaterThanOrEqual(1);
       expect(notifications.length).toBeGreaterThan(0); // Receives all events
     } finally {
-      await worker.close().unwrapOrElse((e) => {
+      await worker.close().getOrElse((e) => {
         throw e;
       });
     }
@@ -208,7 +208,7 @@ describe("Basic Order Processing Worker Integration", () => {
         },
       }),
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -234,7 +234,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(fulfilled).toEqual([command]);
     } finally {
-      await worker.close().unwrapOrElse((e) => {
+      await worker.close().getOrElse((e) => {
         throw e;
       });
     }

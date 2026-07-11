@@ -23,7 +23,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-).unwrap();
+).get();
 
 await client.publish("orderCreated", {
   /* fully typed */

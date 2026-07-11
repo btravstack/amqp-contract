@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -59,7 +59,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -89,7 +89,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -111,7 +111,7 @@ const workerResult = await TypedAmqpWorker.create({
     // Missing processOrder handler!
   },
   urls: ['amqp://localhost'],
-}).unwrapOrElse((e) => { throw e; });
+}).getOrElse((e) => { throw e; });
 
 // ✅ All handlers present
 const worker = await TypedAmqpWorker.create({
@@ -121,7 +121,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   urls: ['amqp://localhost'],
-}).unwrapOrElse((e) => { throw e; });
+}).getOrElse((e) => { throw e; });
 
 console.log('✅ All handlers present');
 ```
@@ -178,7 +178,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -235,7 +235,7 @@ const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: orderHandlers,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -254,7 +254,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   connection,
-}).unwrapOrElse((e) => { throw e; });
+}).getOrElse((e) => { throw e; });
 // Worker is already consuming messages from all queues
 console.log('Worker ready, waiting for messages...');
 ```
@@ -278,7 +278,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -305,7 +305,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -364,7 +364,7 @@ async function main() {
       },
     }),
     urls: ["amqp://localhost"],
-  }).unwrapOrElse((e) => {
+  }).getOrElse((e) => {
     throw e;
   });
 
@@ -412,7 +412,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -438,7 +438,7 @@ const worker = await TypedAmqpWorker.create({
   defaultConsumerOptions: {
     prefetch: 10,
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -522,7 +522,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -591,7 +591,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -726,7 +726,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -754,7 +754,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -795,7 +795,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -915,7 +915,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 

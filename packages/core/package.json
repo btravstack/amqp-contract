@@ -79,7 +79,7 @@
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.0.0",
-    "unthrown": "^4.0.0"
+    "unthrown": "^4.1.0"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {

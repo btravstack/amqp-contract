@@ -42,7 +42,7 @@ const worker = (
     },
     urls: [env.AMQP_URL],
   })
-).unwrap();
+).get();
 ```
 
 ### External Handlers (src/handlers.ts)
@@ -73,7 +73,7 @@ const worker = (
     },
     urls: [env.AMQP_URL],
   })
-).unwrap();
+).get();
 ```
 
 The main `src/index.ts` file uses inline handlers for simplicity, while `src/handlers.ts` provides an example of how to organize handlers externally for better maintainability.

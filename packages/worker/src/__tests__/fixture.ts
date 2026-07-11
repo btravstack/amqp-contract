@@ -25,7 +25,7 @@ export const it = baseIt.extend<{
             handlers,
             urls: [amqpConnectionUrl],
             logger: console,
-          }).unwrapOrElse((e) => {
+          }).getOrElse((e) => {
             throw e;
           });
 
@@ -38,7 +38,7 @@ export const it = baseIt.extend<{
       await Promise.all(
         workers.map(async (worker) => {
           try {
-            await worker.close().unwrapOrElse((e) => {
+            await worker.close().getOrElse((e) => {
               throw e;
             });
           } catch (error) {

@@ -36,7 +36,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -50,7 +50,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
     await amqpChannel.deleteQueue("test-queue-with-dlx");
@@ -85,7 +85,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -98,7 +98,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
     await amqpChannel.deleteQueue("test-queue-dlx-no-key");
@@ -126,7 +126,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -139,7 +139,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
     await amqpChannel.deleteQueue("test-queue-no-dlx");
@@ -178,7 +178,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -209,7 +209,7 @@ describe("Dead Letter Exchange Support", () => {
     expect(dlxInfo).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
     await amqpChannel.deleteQueue("test-main-queue");
@@ -263,7 +263,7 @@ describe("Dead Letter Exchange Support", () => {
     });
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });

@@ -80,7 +80,7 @@ describe("Worker defensive nack guard", () => {
       },
       urls: [amqpConnectionUrl],
       telemetry: provider,
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -113,7 +113,7 @@ describe("Worker defensive nack guard", () => {
       // channel.
       expect(processed.length).toBe(2);
     } finally {
-      await worker.close().unwrapOrElse((e) => {
+      await worker.close().getOrElse((e) => {
         throw e;
       });
     }

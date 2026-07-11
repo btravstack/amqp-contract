@@ -10,7 +10,7 @@ describe("Decompression utilities", () => {
   describe("decompressBuffer", () => {
     it("should return buffer as-is when no content-encoding is provided", async () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
-      const result = await decompressBuffer(testData, undefined).unwrapOrElse((e) => {
+      const result = await decompressBuffer(testData, undefined).getOrElse((e) => {
         throw e;
       });
 
@@ -21,7 +21,7 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "gzip").unwrapOrElse((e) => {
+      const decompressed = await decompressBuffer(compressed, "gzip").getOrElse((e) => {
         throw e;
       });
 
@@ -32,7 +32,7 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await deflateAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "deflate").unwrapOrElse((e) => {
+      const decompressed = await decompressBuffer(compressed, "deflate").getOrElse((e) => {
         throw e;
       });
 
@@ -43,7 +43,7 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "GZIP").unwrapOrElse((e) => {
+      const decompressed = await decompressBuffer(compressed, "GZIP").getOrElse((e) => {
         throw e;
       });
 
@@ -75,7 +75,7 @@ describe("Decompression utilities", () => {
       );
 
       const compressed = await gzipAsync(largeData);
-      const decompressed = await decompressBuffer(compressed, "gzip").unwrapOrElse((e) => {
+      const decompressed = await decompressBuffer(compressed, "gzip").getOrElse((e) => {
         throw e;
       });
 

@@ -166,7 +166,7 @@ async function main() {
     }),
     urls: [env.AMQP_URL],
   }).tapErr((error) => logger.error({ error }, "Failed to create worker"));
-  const worker = await workerResult.unwrapOrElse((error) => {
+  const worker = await workerResult.getOrElse((error) => {
     throw error;
   });
 
@@ -187,7 +187,7 @@ async function main() {
   // Handle graceful shutdown
   process.on("SIGINT", async () => {
     logger.info("Shutting down worker...");
-    await worker.close().unwrapOrElse((error) => {
+    await worker.close().getOrElse((error) => {
       throw error;
     });
     process.exit(0);

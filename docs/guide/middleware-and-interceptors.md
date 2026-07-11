@@ -50,7 +50,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-).unwrap();
+).get();
 ```
 
 `composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive. Without a `middleware` option, handlers get an empty object (`EmptyContext`).
@@ -63,7 +63,7 @@ const worker = (
   - `Err(retryable(...))` → queue retry mode; `Err(nonRetryable(...))` → DLQ.
   - `Err(rpcError(code, data))` on an RPC with a declared `errors` map → typed error reply to the caller (see [Error Model](./error-model.md#typed-rpc-errors-rpcerror)).
   - `Ok(value)` skips the handler; for an RPC, `value` is validated against the response schema and published as the reply (cache pattern).
-- Calling `next()` returns the handler's `AsyncResult` — middleware can `.tap` / `.mapErr` / `.orElse` it for post-processing.
+- Calling `next()` returns the handler's `AsyncResult` — middleware can `.tap` / `.mapErr` / `.flatMapErr` it for post-processing.
 
 ## Client interceptors
 
@@ -88,7 +88,7 @@ const client = (
     urls: ["amqp://localhost"],
     publishInterceptors: [stampTrace],
   })
-).unwrap();
+).get();
 ```
 
 ### Call interceptors
@@ -100,7 +100,7 @@ import { RpcTimeoutError, type CallInterceptor } from "@amqp-contract/client";
 import { Err } from "unthrown";
 
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
-  next().orElse((error) => (error instanceof RpcTimeoutError ? next() : Err(error).toAsync()));
+  next().flatMapErr((error) => (error instanceof RpcTimeoutError ? next() : Err(error).toAsync()));
 ```
 
 The first interceptor in either array is the **outermost**. Telemetry spans stay outside the chain, so interceptor work is covered by the existing OpenTelemetry instrumentation.

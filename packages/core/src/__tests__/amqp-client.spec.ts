@@ -35,7 +35,7 @@ describe("AmqpClient Integration", () => {
     });
 
     // Wait for setup to complete
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -44,7 +44,7 @@ describe("AmqpClient Integration", () => {
     await expect(amqpChannel.checkExchange("notifications")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -63,7 +63,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -72,7 +72,7 @@ describe("AmqpClient Integration", () => {
     await expect(amqpChannel.checkQueue("notifications")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -103,7 +103,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -121,7 +121,7 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -150,7 +150,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -168,7 +168,7 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -208,7 +208,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -233,7 +233,7 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -247,7 +247,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -255,7 +255,7 @@ describe("AmqpClient Integration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -284,7 +284,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -302,7 +302,7 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -323,7 +323,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -331,7 +331,7 @@ describe("AmqpClient Integration", () => {
     await expect(amqpChannel.checkExchange("orders")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -353,7 +353,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -361,7 +361,7 @@ describe("AmqpClient Integration", () => {
     await expect(amqpChannel.checkQueue("orders")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -393,7 +393,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -411,7 +411,7 @@ describe("AmqpClient Integration", () => {
     ]);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -428,12 +428,12 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
     // WHEN
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
 

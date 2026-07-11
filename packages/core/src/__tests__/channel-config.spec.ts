@@ -27,7 +27,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -36,7 +36,7 @@ describe("AmqpClient Channel Configuration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -54,7 +54,7 @@ describe("AmqpClient Channel Configuration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -62,7 +62,7 @@ describe("AmqpClient Channel Configuration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -91,7 +91,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -104,7 +104,7 @@ describe("AmqpClient Channel Configuration", () => {
     await expect(amqpChannel.checkQueue("custom-queue")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -136,7 +136,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -148,7 +148,7 @@ describe("AmqpClient Channel Configuration", () => {
     await expect(amqpChannel.checkQueue("callback-queue")).resolves.toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -171,7 +171,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -179,7 +179,7 @@ describe("AmqpClient Channel Configuration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -200,7 +200,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -208,7 +208,7 @@ describe("AmqpClient Channel Configuration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -230,7 +230,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -238,7 +238,7 @@ describe("AmqpClient Channel Configuration", () => {
     expect(client.getConnection()).toBeDefined();
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });

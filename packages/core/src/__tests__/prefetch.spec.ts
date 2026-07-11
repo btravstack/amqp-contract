@@ -37,7 +37,7 @@ describe("AmqpClient prefetch integration", () => {
     };
 
     const client = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
-    await client.waitForConnect().unwrapOrElse((e) => {
+    await client.waitForConnect().getOrElse((e) => {
       throw e;
     });
 
@@ -55,7 +55,7 @@ describe("AmqpClient prefetch integration", () => {
         },
         { prefetch: 2 },
       )
-      .unwrapOrElse((e) => {
+      .getOrElse((e) => {
         throw e;
       });
 
@@ -84,7 +84,7 @@ describe("AmqpClient prefetch integration", () => {
     expect(heldDeliveryTags).toHaveLength(2);
 
     // CLEANUP — close releases unack'd messages back to the queue.
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
