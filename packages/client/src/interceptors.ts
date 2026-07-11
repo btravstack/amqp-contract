@@ -115,7 +115,12 @@ export type CallInterceptor = (
  *
  * @internal Shared by `publish()` and `call()`; not part of the public API.
  */
-export function chainInterceptors<TArgs extends object, TPatch, TValue, TError>(
+export function chainInterceptors<
+  TArgs extends object,
+  TPatch extends Partial<TArgs>,
+  TValue,
+  TError,
+>(
   interceptors: readonly ((
     args: TArgs,
     next: (patch?: TPatch) => AsyncResult<TValue, TError>,
