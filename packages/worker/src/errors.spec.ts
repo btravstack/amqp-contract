@@ -5,6 +5,8 @@ import {
   isNonRetryableError,
   isRetryableError,
   nonRetryable,
+  qualifyNonRetryable,
+  qualifyRetryable,
   retryable,
 } from "./errors.js";
 import type { HandlerError } from "./errors.js";
@@ -161,6 +163,46 @@ describe("Factory Functions", () => {
     it("should preserve non-Error cause values", () => {
       const cause = { code: "VALIDATION_FAILED", field: "email" };
       const error = nonRetryable("test message", cause);
+      expect(error.cause).toBe(cause);
+    });
+  });
+
+  describe("qualifyRetryable", () => {
+    it("builds a qualifier that wraps the cause in a RetryableError", () => {
+      const qualify = qualifyRetryable("service unavailable");
+      const cause = new Error("ECONNREFUSED");
+
+      const error = qualify(cause);
+
+      expect(error).toBeInstanceOf(RetryableError);
+      expect(error.message).toBe("service unavailable");
+      expect(error.cause).toBe(cause);
+    });
+
+    it("works as a fromPromise qualifier", async () => {
+      const { fromPromise } = await import("unthrown");
+      const result = await fromPromise(
+        Promise.reject(new Error("boom")),
+        qualifyRetryable("upstream failed"),
+      );
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error).toBeInstanceOf(RetryableError);
+        expect(result.error.message).toBe("upstream failed");
+      }
+    });
+  });
+
+  describe("qualifyNonRetryable", () => {
+    it("builds a qualifier that wraps the cause in a NonRetryableError", () => {
+      const qualify = qualifyNonRetryable("permanently declined");
+      const cause = { code: "CARD_DECLINED" };
+
+      const error = qualify(cause);
+
+      expect(error).toBeInstanceOf(NonRetryableError);
+      expect(error.message).toBe("permanently declined");
       expect(error.cause).toBe(cause);
     });
   });

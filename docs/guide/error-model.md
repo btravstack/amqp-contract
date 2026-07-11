@@ -75,6 +75,8 @@ import { Err } from "unthrown";
 import {
   retryable,
   nonRetryable,
+  qualifyRetryable,
+  qualifyNonRetryable,
   isRetryableError,
   isNonRetryableError,
   isHandlerError,
@@ -83,6 +85,10 @@ import {
 // Shorthand factories
 retryable("API unavailable", error); // === new RetryableError(...)
 nonRetryable("Invalid input", error); // === new NonRetryableError(...)
+
+// Qualifier factories — build the `fromPromise` mapper instead of hand-writing it
+fromPromise(callExternalApi(payload), qualifyRetryable("API unavailable"));
+fromPromise(chargeCard(payload), qualifyNonRetryable("Card permanently declined"));
 
 // Discriminate when handling
 if (isRetryableError(err)) {
