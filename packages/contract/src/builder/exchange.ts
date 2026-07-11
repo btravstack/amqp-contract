@@ -6,6 +6,7 @@ import type {
   HeadersExchangeDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
+import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 
 /**
  * Define a topic exchange.
@@ -135,7 +136,21 @@ export function defineExchange(
     "name" | "type"
   >,
 ): ExchangeDefinition {
+  _internal_assertNonEmptyName("Exchange", name);
+  _internal_assertKnownKeys("exchange", name, options, [
+    "type",
+    "durable",
+    "autoDelete",
+    "internal",
+    "arguments",
+  ]);
   const type = options?.type ?? "topic";
+  if (!["topic", "direct", "fanout", "headers"].includes(type)) {
+    throw new Error(
+      `Unknown exchange type "${String(type)}" for exchange "${name}". ` +
+        "Allowed types: topic, direct, fanout, headers.",
+    );
+  }
   return {
     name,
     type,

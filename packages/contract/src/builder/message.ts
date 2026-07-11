@@ -1,4 +1,5 @@
 import type { MessageDefinition } from "../types.js";
+import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./validate.js";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**
@@ -47,6 +48,15 @@ export function defineMessage<
     description?: string;
   },
 ): MessageDefinition<TPayload, THeaders> {
+  _internal_assertStandardSchema("Message payload schema", payload);
+  _internal_assertKnownKeys("message", "(anonymous)", options, [
+    "headers",
+    "summary",
+    "description",
+  ]);
+  if (options?.headers !== undefined) {
+    _internal_assertStandardSchema("Message headers schema", options.headers);
+  }
   return {
     payload,
     ...options,

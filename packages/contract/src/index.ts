@@ -29,6 +29,7 @@ export type {
   MatchingRoutingKey,
   RoutingKey,
 } from "./builder.js";
+export { formatIssue, summarizeIssues } from "./issues.js";
 export type {
   AnySchema,
   BaseExchangeDefinition,

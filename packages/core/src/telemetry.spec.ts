@@ -1,6 +1,6 @@
 import {
   type TelemetryProvider,
-  _resetTelemetryCacheForTesting,
+  _internal_resetTelemetryCache,
   defaultTelemetryProvider,
   endSpanError,
   endSpanSuccess,
@@ -42,11 +42,11 @@ function providerWithTracer(
 
 describe("Telemetry", () => {
   beforeEach(() => {
-    _resetTelemetryCacheForTesting();
+    _internal_resetTelemetryCache();
   });
 
   afterEach(() => {
-    _resetTelemetryCacheForTesting();
+    _internal_resetTelemetryCache();
   });
 
   describe("defaultTelemetryProvider", () => {

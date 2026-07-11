@@ -415,7 +415,7 @@ export function recordLateRpcReply(
  * For testing purposes only.
  * @internal
  */
-export function _resetTelemetryCacheForTesting(): void {
+export function _internal_resetTelemetryCache(): void {
   otelApi = undefined;
   cachedTracer = undefined;
   cachedPublishCounter = undefined;
@@ -424,3 +424,6 @@ export function _resetTelemetryCacheForTesting(): void {
   cachedConsumeLatencyHistogram = undefined;
   cachedLateRpcReplyCounter = undefined;
 }
+
+/** @deprecated Renamed to {@link _internal_resetTelemetryCache} per the org `_internal_` convention. */
+export const _resetTelemetryCacheForTesting = _internal_resetTelemetryCache;

@@ -198,15 +198,21 @@ export class ConnectionManagerSingleton {
  *
  * @internal
  */
-export function _getConnectionCountForTesting(): number {
+export function _internal_getConnectionCount(): number {
   return ConnectionManagerSingleton.getInstance()._getConnectionCountForTesting();
 }
+
+/** @deprecated Renamed to {@link _internal_getConnectionCount} per the org `_internal_` convention. */
+export const _getConnectionCountForTesting = _internal_getConnectionCount;
 
 /**
  * Close every pooled connection and clear ref-counts. Test-only helper.
  *
  * @internal
  */
-export function _resetConnectionsForTesting(): Promise<void> {
+export function _internal_resetConnections(): Promise<void> {
   return ConnectionManagerSingleton.getInstance()._resetForTesting();
 }
+
+/** @deprecated Renamed to {@link _internal_resetConnections} per the org `_internal_` convention. */
+export const _resetConnectionsForTesting = _internal_resetConnections;

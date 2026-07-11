@@ -12,6 +12,7 @@ import type {
   ResolvedTtlBackoffRetryOptions,
   TtlBackoffRetryOptions,
 } from "../types.js";
+import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 import { wrapWithTtlBackoffInfrastructure } from "./ttl-backoff.js";
 
 /**
@@ -121,6 +122,36 @@ export function defineQueue<TName extends string>(
 ): QueueEntry<TName>;
 
 export function defineQueue(name: string, options?: DefineQueueOptions): QueueEntry {
+  _internal_assertNonEmptyName("Queue", name);
+  _internal_assertKnownKeys("queue", name, options, [
+    "type",
+    "durable",
+    "exclusive",
+    "autoDelete",
+    "maxPriority",
+    "deadLetter",
+    "retry",
+    "arguments",
+  ]);
+  if (options?.deadLetter !== undefined) {
+    _internal_assertKnownKeys("queue deadLetter config of", name, options.deadLetter, [
+      "exchange",
+      "routingKey",
+    ]);
+  }
+  if (options?.retry !== undefined) {
+    _internal_assertKnownKeys("queue retry config of", name, options.retry, [
+      "mode",
+      "maxRetries",
+      "initialDelayMs",
+      "maxDelayMs",
+      "backoffMultiplier",
+      "jitter",
+      "waitQueueName",
+      "waitExchangeName",
+      "retryExchangeName",
+    ]);
+  }
   const opts = options ?? {};
   const type = opts.type ?? "quorum";
   const durable = opts.durable ?? true;
