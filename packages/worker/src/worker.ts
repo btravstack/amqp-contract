@@ -38,6 +38,7 @@ import {
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
+import type { AnyWorkerMiddleware, EmptyContext, WorkerMiddleware } from "./middleware.js";
 import { handleError } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
 
@@ -59,6 +60,7 @@ type HandlerName<TContract extends ContractDefinition> =
 type StoredHandler = (
   message: { payload: unknown; headers: unknown },
   rawMessage: ConsumeMessage,
+  context: Record<string, unknown>,
 ) => AsyncResult<unknown, HandlerError | RpcError>;
 
 /**
@@ -121,7 +123,10 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  * Note: Retry configuration is defined at the queue level in the contract,
  * not at the handler level. See `QueueDefinition.retry` for configuration options.
  */
-export type CreateWorkerOptions<TContract extends ContractDefinition> = {
+export type CreateWorkerOptions<
+  TContract extends ContractDefinition,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> = {
   /** The AMQP contract definition specifying consumers and their message schemas */
   contract: TContract;
   /**
@@ -134,10 +139,24 @@ export type CreateWorkerOptions<TContract extends ContractDefinition> = {
    *   accepts the declared `RpcError<code, data>` members (otherwise it
    *   stays plain `HandlerError`).
    *
+   * Handlers receive the middleware-produced context as a third argument
+   * (an empty object when no `middleware` is configured).
+   *
    * Use `defineHandler` / `defineHandlers` to create handlers with full type
    * inference.
    */
-  handlers: WorkerInferHandlers<TContract>;
+  handlers: WorkerInferHandlers<TContract, TContext>;
+  /**
+   * Optional middleware wrapping every handler invocation (consumers and
+   * RPCs), applied after message validation. Compose multiple middleware
+   * with `composeMiddleware(outermost, ..., innermost)`; the chain's final
+   * context type is what handlers receive as their third argument.
+   *
+   * A middleware can short-circuit by returning without calling `next`:
+   * handler-style errors route through retry/DLQ (or a typed RPC error
+   * reply), and an `Ok(value)` skips the handler entirely.
+   */
+  middleware?: WorkerMiddleware<EmptyContext, TContext> | undefined;
   /** AMQP broker URL(s). Multiple URLs provide failover support */
   urls: ConnectionUrl[];
   /** Optional connection configuration (heartbeat, reconnect settings, etc.) */
@@ -227,6 +246,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     private readonly defaultConsumerOptions: ConsumerOptions,
     private readonly logger?: Logger,
     telemetry?: TelemetryProvider,
+    private readonly middleware?: AnyWorkerMiddleware,
   ) {
     this.telemetry = telemetry ?? defaultTelemetryProvider;
 
@@ -304,16 +324,23 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * });
    * ```
    */
-  static create<TContract extends ContractDefinition>({
+  static create<
+    TContract extends ContractDefinition,
+    TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+  >({
     contract,
     handlers,
+    middleware,
     urls,
     connectionOptions,
     defaultConsumerOptions,
     logger,
     telemetry,
     connectTimeoutMs,
-  }: CreateWorkerOptions<TContract>): AsyncResult<TypedAmqpWorker<TContract>, TechnicalError> {
+  }: CreateWorkerOptions<TContract, TContext>): AsyncResult<
+    TypedAmqpWorker<TContract>,
+    TechnicalError
+  > {
     const worker = new TypedAmqpWorker(
       contract,
       new AmqpClient(contract, {
@@ -321,10 +348,13 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         connectionOptions,
         connectTimeoutMs,
       }),
-      handlers,
+      // Context types are erased at the dispatch boundary: handlers receive
+      // whatever the (type-checked) middleware chain produced at runtime.
+      handlers as WorkerInferHandlers<TContract>,
       defaultConsumerOptions ?? {},
       logger,
       telemetry,
+      middleware as AnyWorkerMiddleware | undefined,
     );
 
     // Note: Wait queues are now created by the core package in setupAmqpTopology
@@ -714,17 +744,36 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
-   * Invoke the handler and ack the message on success. Returns the handler's
-   * response (RPC) or `undefined` (regular consumer). Errors propagate as
-   * `HandlerError` for downstream RPC reply publishing or routing via
-   * {@link handleError}.
+   * Invoke the handler — through the middleware chain when one is configured.
+   * Returns the handler's response (RPC) or `undefined` (regular consumer).
+   * Errors propagate as `HandlerError` for downstream RPC reply publishing or
+   * routing via {@link handleError}.
+   *
+   * The middleware chain wraps only the handler, not validation or ack/nack:
+   * a middleware that never calls `next` short-circuits the handler, and its
+   * returned result flows through the exact same reply/retry/DLQ routing a
+   * handler result would.
    */
   private runHandler(
     handler: StoredHandler,
     validatedMessage: { payload: unknown; headers: unknown },
     msg: ConsumeMessage,
+    name: HandlerName<TContract>,
+    isRpc: boolean,
   ): AsyncResult<unknown, HandlerError | RpcError> {
-    return handler(validatedMessage, msg);
+    if (!this.middleware) {
+      return handler(validatedMessage, msg, {});
+    }
+    return this.middleware(
+      {
+        message: validatedMessage,
+        rawMessage: msg,
+        handlerName: String(name),
+        isRpc,
+        context: {},
+      },
+      (opts) => handler(validatedMessage, msg, opts?.context ?? {}),
+    );
   }
 
   /**
@@ -788,7 +837,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         state.messageHandled = true;
       })
       .flatMap<void, TechnicalError>((validatedMessage) =>
-        this.runHandler(handler, validatedMessage, msg)
+        this.runHandler(handler, validatedMessage, msg, name, view.isRpc)
           .flatMap((handlerResponse) =>
             this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
               this.logger?.info("Message consumed successfully", {

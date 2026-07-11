@@ -20,6 +20,13 @@ export {
 // not a class — re-export it as a type.
 export type { HandlerError } from "./errors.js";
 export { defineHandler, defineHandlers } from "./handlers.js";
+export { composeMiddleware, defineMiddleware } from "./middleware.js";
+export type {
+  EmptyContext,
+  WorkerMiddleware,
+  WorkerMiddlewareArgs,
+  WorkerMiddlewareNext,
+} from "./middleware.js";
 export type {
   WorkerConsumedMessage,
   WorkerInferConsumedMessage,

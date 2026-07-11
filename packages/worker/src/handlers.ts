@@ -3,6 +3,7 @@ import type {
   InferConsumerNames,
   InferRpcNames,
 } from "@amqp-contract/contract";
+import type { EmptyContext } from "./middleware.js";
 import type {
   WorkerInferConsumerHandler,
   WorkerInferConsumerHandlerEntry,
@@ -121,37 +122,41 @@ function validateHandlers<TContract extends ContractDefinition>(
 export function defineHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 >(
   contract: TContract,
   name: TName,
-  handler: WorkerInferConsumerHandler<TContract, TName>,
-): WorkerInferConsumerHandlerEntry<TContract, TName>;
+  handler: WorkerInferConsumerHandler<TContract, TName, TContext>,
+): WorkerInferConsumerHandlerEntry<TContract, TName, TContext>;
 export function defineHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 >(
   contract: TContract,
   name: TName,
-  handler: WorkerInferConsumerHandler<TContract, TName>,
+  handler: WorkerInferConsumerHandler<TContract, TName, TContext>,
   options: ConsumerOptions,
-): WorkerInferConsumerHandlerEntry<TContract, TName>;
+): WorkerInferConsumerHandlerEntry<TContract, TName, TContext>;
 export function defineHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 >(
   contract: TContract,
   name: TName,
-  handler: WorkerInferRpcHandler<TContract, TName>,
-): WorkerInferRpcHandlerEntry<TContract, TName>;
+  handler: WorkerInferRpcHandler<TContract, TName, TContext>,
+): WorkerInferRpcHandlerEntry<TContract, TName, TContext>;
 export function defineHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 >(
   contract: TContract,
   name: TName,
-  handler: WorkerInferRpcHandler<TContract, TName>,
+  handler: WorkerInferRpcHandler<TContract, TName, TContext>,
   options: ConsumerOptions,
-): WorkerInferRpcHandlerEntry<TContract, TName>;
+): WorkerInferRpcHandlerEntry<TContract, TName, TContext>;
 export function defineHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract> | InferRpcNames<TContract>,
@@ -195,10 +200,13 @@ export function defineHandler<
  * });
  * ```
  */
-export function defineHandlers<TContract extends ContractDefinition>(
+export function defineHandlers<
+  TContract extends ContractDefinition,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+>(
   contract: TContract,
-  handlers: WorkerInferHandlers<TContract>,
-): WorkerInferHandlers<TContract> {
+  handlers: WorkerInferHandlers<TContract, TContext>,
+): WorkerInferHandlers<TContract, TContext> {
   validateHandlers(contract, handlers);
   return handlers;
 }
