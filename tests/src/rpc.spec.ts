@@ -33,13 +33,11 @@ const it = baseIt.extend<{
     const workers: Array<TypedAmqpWorker<ContractDefinition>> = [];
     try {
       await use(async (contract, handlers) => {
-        const worker = (
-          await TypedAmqpWorker.create({
-            contract,
-            handlers,
-            urls: [amqpConnectionUrl],
-          })
-        ).getOrThrow();
+        const worker = await TypedAmqpWorker.create({
+          contract,
+          handlers,
+          urls: [amqpConnectionUrl],
+        }).getOrThrow();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -48,7 +46,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .then((r) => r.getOrThrow())
+            .getOrThrow()
             .catch(() => undefined),
         ),
       );
@@ -58,12 +56,10 @@ const it = baseIt.extend<{
     const clients: Array<TypedAmqpClient<ContractDefinition>> = [];
     try {
       await use(async (contract) => {
-        const client = (
-          await TypedAmqpClient.create({
-            contract,
-            urls: [amqpConnectionUrl],
-          })
-        ).getOrThrow();
+        const client = await TypedAmqpClient.create({
+          contract,
+          urls: [amqpConnectionUrl],
+        }).getOrThrow();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -72,7 +68,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .then((r) => r.getOrThrow())
+            .getOrThrow()
             .catch(() => undefined),
         ),
       );
@@ -168,7 +164,7 @@ describe("TypedAmqpClient RPC", () => {
     // the publish has completed and the pending-call entry is registered.
     await handlerStartedPromise;
 
-    (await client.close()).getOrThrow();
+    await client.close().getOrThrow();
 
     const result = await callFuture;
     expect(result.isErr()).toBe(true);

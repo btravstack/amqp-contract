@@ -8,7 +8,7 @@ This page lists every error type the library can produce, where it surfaces, and
 
 The safe way to consume a result is `.match({ ok, err, defect })` — it forces you to handle every channel.
 
-`unthrown` makes `.get()` **type-gated**: it compiles only on a result whose error channel is empty (`E = never`), so `Ok(x).get()` works but `(await client.publish(...)).get()` on a fallible result is a compile error. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
+`unthrown` makes `.get()` **type-gated**: it compiles only on a result whose error channel is empty (`E = never`), so `Ok(x).get()` works but `await client.publish(...).get()` on a fallible result is a compile error. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
 
 ```ts
 // throws on Err (and rethrows a Defect) — the escape hatch, not the default

@@ -87,13 +87,11 @@ const logger: Logger = {
 // Pass the logger to client or worker
 import { TypedAmqpClient } from "@amqp-contract/client";
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    logger, // Optional: logs published messages
-  })
-).getOrThrow();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  logger, // Optional: logs published messages
+}).getOrThrow();
 ```
 
 ## API
