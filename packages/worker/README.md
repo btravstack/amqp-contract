@@ -43,24 +43,22 @@ const logger: Logger = {
 };
 
 // Create worker from contract with handlers (automatically connects and starts consuming)
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) => {
-        console.log("Processing order:", payload.orderId);
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) => {
+      console.log("Processing order:", payload.orderId);
 
-        // Your business logic here
-        return fromPromise(
-          Promise.all([processPayment(payload), updateInventory(payload)]),
-          (error) => new RetryableError("Order processing failed", error),
-        ).map(() => undefined);
-      },
+      // Your business logic here
+      return fromPromise(
+        Promise.all([processPayment(payload), updateInventory(payload)]),
+        (error) => new RetryableError("Order processing failed", error),
+      ).map(() => undefined);
     },
-    urls: ["amqp://localhost"],
-    logger, // Optional: logs message consumption and errors
-  })
-).getOrThrow();
+  },
+  urls: ["amqp://localhost"],
+  logger, // Optional: logs message consumption and errors
+}).getOrThrow();
 
 // Worker is already consuming messages
 
@@ -101,20 +99,18 @@ Then use `RetryableError` in your handlers:
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
 import { fromPromise, type AsyncResult } from "unthrown";
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    handlers: {
-      processOrder: ({ payload }) =>
-        // If this fails with RetryableError, message is automatically retried
-        fromPromise(
-          processPayment(payload),
-          (error) => new RetryableError("Payment failed", error),
-        ).map(() => undefined),
-    },
-    urls: ["amqp://localhost"],
-  })
-).getOrThrow();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers: {
+    processOrder: ({ payload }) =>
+      // If this fails with RetryableError, message is automatically retried
+      fromPromise(
+        processPayment(payload),
+        (error) => new RetryableError("Payment failed", error),
+      ).map(() => undefined),
+  },
+  urls: ["amqp://localhost"],
+}).getOrThrow();
 ```
 
 See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.

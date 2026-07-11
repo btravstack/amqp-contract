@@ -39,18 +39,16 @@ const timing = defineMiddleware<{ tenantId: string }, { tenantId: string }>((arg
   });
 });
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    middleware: composeMiddleware(auth, timing),
-    handlers: {
-      // helpers.context is typed as { tenantId: string } — proven by the middleware
-      processOrder: ({ payload }, _raw, { context }) =>
-        processFor(context.tenantId, payload).mapErr((e) => nonRetryable("failed", e)),
-    },
-    urls: ["amqp://localhost"],
-  })
-).getOrThrow();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  middleware: composeMiddleware(auth, timing),
+  handlers: {
+    // helpers.context is typed as { tenantId: string } — proven by the middleware
+    processOrder: ({ payload }, _raw, { context }) =>
+      processFor(context.tenantId, payload).mapErr((e) => nonRetryable("failed", e)),
+  },
+  urls: ["amqp://localhost"],
+}).getOrThrow();
 ```
 
 `composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive in `helpers.context`. Without `createContext` or `middleware`, handlers get an empty object (`EmptyContext`).
@@ -60,24 +58,22 @@ const worker = (
 Dependency injection is the dominant use of context, so it has a named option: `createContext` builds the per-message seed the middleware chain accumulates on top of. It runs once per message after validation, so it can produce request-scoped values (a correlation-id logger, a per-message transaction); close over singletons for per-worker dependencies. A throw or rejection routes the message to the DLQ as a `NonRetryableError` — the handler never runs.
 
 ```ts
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    createContext: (info) => ({
-      log: baseLogger.child({
-        handler: info.handlerName,
-        correlationId: info.rawMessage.properties.correlationId,
-      }),
-      orderRepo,
+const worker = await TypedAmqpWorker.create({
+  contract,
+  createContext: (info) => ({
+    log: baseLogger.child({
+      handler: info.handlerName,
+      correlationId: info.rawMessage.properties.correlationId,
     }),
-    middleware: composeMiddleware(auth), // seeded with { log, orderRepo }
-    handlers: {
-      // helpers.context: { log, orderRepo } & { tenantId: string }
-      processOrder: ({ payload }, _raw, { context }) => context.orderRepo.process(payload),
-    },
-    urls: ["amqp://localhost"],
-  })
-).getOrThrow();
+    orderRepo,
+  }),
+  middleware: composeMiddleware(auth), // seeded with { log, orderRepo }
+  handlers: {
+    // helpers.context: { log, orderRepo } & { tenantId: string }
+    processOrder: ({ payload }, _raw, { context }) => context.orderRepo.process(payload),
+  },
+  urls: ["amqp://localhost"],
+}).getOrThrow();
 ```
 
 [demesne](https://btravstack.github.io/demesne/)'s `Layer.forkScope` is the recommended `createContext` implementation for DI-managed graphs: build the app graph once at startup, fork a request scope per message.
@@ -126,13 +122,11 @@ const stampTrace: PublishInterceptor = (args, next) =>
     },
   });
 
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-    publishInterceptors: [stampTrace],
-  })
-).getOrThrow();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  publishInterceptors: [stampTrace],
+}).getOrThrow();
 ```
 
 ### Call interceptors

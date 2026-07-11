@@ -38,9 +38,10 @@ const it = baseIt.extend<{
     const workers: Array<TypedAmqpWorker<ContractDefinition>> = [];
     try {
       await use(async (options) => {
-        const worker = (
-          await TypedAmqpWorker.create({ ...options, urls: [amqpConnectionUrl] })
-        ).getOrThrow();
+        const worker = await TypedAmqpWorker.create({
+          ...options,
+          urls: [amqpConnectionUrl],
+        }).getOrThrow();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -49,7 +50,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .then((r) => r.getOrThrow())
+            .getOrThrow()
             .catch(() => undefined),
         ),
       );
@@ -59,9 +60,10 @@ const it = baseIt.extend<{
     const clients: Array<TypedAmqpClient<ContractDefinition>> = [];
     try {
       await use(async (options) => {
-        const client = (
-          await TypedAmqpClient.create({ ...options, urls: [amqpConnectionUrl] })
-        ).getOrThrow();
+        const client = await TypedAmqpClient.create({
+          ...options,
+          urls: [amqpConnectionUrl],
+        }).getOrThrow();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -70,7 +72,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .then((r) => r.getOrThrow())
+            .getOrThrow()
             .catch(() => undefined),
         ),
       );
@@ -138,9 +140,9 @@ describe("worker middleware", () => {
     });
     const client = await clientFactory({ contract });
 
-    (
-      await client.publish("createOrder", { orderId: "1" }, { headers: { "x-tenant-id": "acme" } })
-    ).getOrThrow();
+    await client
+      .publish("createOrder", { orderId: "1" }, { headers: { "x-tenant-id": "acme" } })
+      .getOrThrow();
 
     await expect(seen).resolves.toEqual({ tenantId: "acme", greeting: "hi acme" });
   });
@@ -172,7 +174,7 @@ describe("worker middleware", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await blocked;
     // Give the dispatch loop a beat to (not) run the handler after the guard.
@@ -251,7 +253,7 @@ describe("client interceptors", () => {
 
     const client = await clientFactory({ contract, publishInterceptors: [stampTrace] });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await expect(headersSeen).resolves.toMatchObject({ traceparent: "00-abc-def-01" });
   });
@@ -323,7 +325,7 @@ describe("createContext and handler helpers", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await expect(seen).resolves.toEqual({ requestId: "processOrder-1", stamped: true });
   });
@@ -349,7 +351,7 @@ describe("createContext and handler helpers", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await new Promise((res) => setTimeout(res, 300));
     expect(handlerRan).toBe(false);
@@ -409,7 +411,7 @@ describe("middleware payload substitution", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await expect(seen).resolves.toEqual({ orderId: "1-rewritten" });
   });
@@ -433,7 +435,7 @@ describe("middleware payload substitution", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
 
     await new Promise((res) => setTimeout(res, 300));
     expect(handlerRan).toBe(false);

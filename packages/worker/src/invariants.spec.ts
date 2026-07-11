@@ -88,27 +88,23 @@ describe("invariants: handler-error routing", () => {
 
     // Below the budget: broker-side redelivery via nack(requeue=true).
     const below = mockClient();
-    (
-      await handleError(
-        { amqpClient: below.client as never },
-        new RetryableError("transient"),
-        mockMessage({ "x-delivery-count": 1 }),
-        "processOrder",
-        consumer,
-      )
+    await handleError(
+      { amqpClient: below.client as never },
+      new RetryableError("transient"),
+      mockMessage({ "x-delivery-count": 1 }),
+      "processOrder",
+      consumer,
     ).getOrThrow();
     expect(below.nack).toHaveBeenCalledWith(expect.anything(), false, true);
 
     // At the budget: permanent failure, DLQ.
     const at = mockClient();
-    (
-      await handleError(
-        { amqpClient: at.client as never },
-        new RetryableError("transient"),
-        mockMessage({ "x-delivery-count": 2 }),
-        "processOrder",
-        consumer,
-      )
+    await handleError(
+      { amqpClient: at.client as never },
+      new RetryableError("transient"),
+      mockMessage({ "x-delivery-count": 2 }),
+      "processOrder",
+      consumer,
     ).getOrThrow();
     expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false);
   });

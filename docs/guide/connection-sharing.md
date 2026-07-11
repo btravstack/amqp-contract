@@ -76,22 +76,18 @@ With automatic connection sharing, lifecycle management is simple:
 
 ```typescript
 // Create client and worker
-const client = (
-  await TypedAmqpClient.create({
-    contract,
-    urls: ["amqp://localhost"],
-  })
-).getOrThrow();
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+}).getOrThrow();
 
-const worker = (
-  await TypedAmqpWorker.create({
-    contract,
-    urls: ["amqp://localhost"],
-    handlers: {
-      /* ... */
-    },
-  })
-).getOrThrow();
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"],
+  handlers: {
+    /* ... */
+  },
+}).getOrThrow();
 
 // Close components when done
 // 1. Close worker first (stops consuming)
