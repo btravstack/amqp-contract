@@ -93,7 +93,7 @@ const worker = await TypedAmqpWorker.create({
       // Message is automatically decompressed
       console.log("Processing order:", payload.orderId);
       console.log("Items:", payload.items); // Already decompressed
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],

@@ -268,7 +268,7 @@ async function main() {
         console.log(`  Body: ${payload.body}`);
 
         // Report success — handlers return an AsyncResult, they don't throw
-        return Ok(undefined).toAsync();
+        return OkAsync(undefined);
       },
     },
     urls: ["amqp://localhost"],

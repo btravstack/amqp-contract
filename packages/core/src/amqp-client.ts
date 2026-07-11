@@ -7,7 +7,15 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import { Err, fromPromise, fromSafePromise, Ok, type AsyncResult, type Result } from "unthrown";
+import {
+  Err,
+  ErrAsync,
+  fromPromise,
+  fromSafePromise,
+  Ok,
+  type AsyncResult,
+  type Result,
+} from "unthrown";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -342,11 +350,11 @@ export class AmqpClient {
     // travel to the broker, which either rejects or interprets unexpectedly.
     if (prefetch !== undefined) {
       if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
-        return Err(
+        return ErrAsync(
           new TechnicalError(
             `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
           ),
-        ).toAsync();
+        );
       }
     }
 

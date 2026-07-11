@@ -10,7 +10,7 @@ Add worker middleware and client interceptors for cross-cutting concerns (trace 
 ```typescript
 const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
-  if (typeof tenantId !== "string") return Err(nonRetryable("unauthenticated")).toAsync();
+  if (typeof tenantId !== "string") return ErrAsync(nonRetryable("unauthenticated"));
   return next({ context: { tenantId } });
 });
 

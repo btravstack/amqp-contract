@@ -130,7 +130,7 @@ const worker = await TypedAmqpWorker.create({
       console.log(payload.orderId); // ✅ Full autocomplete!
       console.log(payload.amount); // ✅ Type-safe!
       // ✅ Automatic validation - invalid messages rejected!
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     }, // ✅ Auto-acknowledgment on success!
   },
   urls: ["amqp://localhost"],

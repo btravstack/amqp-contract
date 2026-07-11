@@ -132,7 +132,7 @@ describe("Order Processing Contract", () => {
       handlers: {
         processOrder: ({ payload }) => {
           receivedPayloads.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       },
       urls: [amqpConnectionUrl],

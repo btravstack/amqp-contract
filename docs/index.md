@@ -111,7 +111,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ payload }) => {
       console.log(payload.orderId); // ✅ Fully typed!
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],

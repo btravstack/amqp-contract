@@ -27,7 +27,7 @@ const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) =
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
   if (typeof tenantId !== "string") {
     // Short-circuit: routed to DLQ like any handler error — the handler never runs.
-    return Err(nonRetryable("Missing x-tenant-id header")).toAsync();
+    return ErrAsync(nonRetryable("Missing x-tenant-id header"));
   }
   return next({ context: { tenantId } });
 });
@@ -100,7 +100,7 @@ import { RpcTimeoutError, type CallInterceptor } from "@amqp-contract/client";
 import { Err } from "unthrown";
 
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
-  next().flatMapErr((error) => (error instanceof RpcTimeoutError ? next() : Err(error).toAsync()));
+  next().flatMapErr((error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)));
 ```
 
 The first interceptor in either array is the **outermost**. Telemetry spans stay outside the chain, so interceptor work is covered by the existing OpenTelemetry instrumentation.

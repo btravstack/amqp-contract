@@ -16,7 +16,7 @@ import {
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { rpcError, TypedAmqpWorker } from "@amqp-contract/worker";
-import { Err, fromSafePromise, Ok } from "unthrown";
+import { ErrAsync, fromSafePromise, OkAsync } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -93,7 +93,7 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+      calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -126,7 +126,7 @@ describe("TypedAmqpClient RPC", () => {
     await workerFactory(contract, {
       // Cast through unknown to deliberately return a wrong shape — the worker's
       // response-schema validation drops the reply, so the client times out.
-      calculate: () => Ok({ wrong: "shape" } as unknown as { sum: number }).toAsync(),
+      calculate: () => OkAsync({ wrong: "shape" } as unknown as { sum: number }),
     });
     const client = await clientFactory(contract);
 
@@ -237,10 +237,10 @@ describe("TypedAmqpClient RPC typed errors", () => {
     await workerFactory(contract, {
       calculate: ({ payload }) =>
         payload.a < 0 || payload.b < 0
-          ? Err(
+          ? ErrAsync(
               rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }, "negatives rejected"),
-            ).toAsync()
-          : Ok({ sum: payload.a + payload.b }).toAsync(),
+            )
+          : OkAsync({ sum: payload.a + payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -266,8 +266,8 @@ describe("TypedAmqpClient RPC typed errors", () => {
     await workerFactory(contract, {
       calculate: ({ payload }) =>
         payload.a < 0 || payload.b < 0
-          ? Err(rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b })).toAsync()
-          : Ok({ sum: payload.a + payload.b }).toAsync(),
+          ? ErrAsync(rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }))
+          : OkAsync({ sum: payload.a + payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -288,8 +288,8 @@ describe("TypedAmqpClient RPC typed errors", () => {
     await workerFactory(contract, {
       calculate: ({ payload }) =>
         payload.a + payload.b > 100
-          ? Err(rpcError("LIMIT_EXCEEDED", { limit: 100 })).toAsync()
-          : Ok({ sum: payload.a + payload.b }).toAsync(),
+          ? ErrAsync(rpcError("LIMIT_EXCEEDED", { limit: 100 }))
+          : OkAsync({ sum: payload.a + payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -314,9 +314,9 @@ describe("TypedAmqpClient RPC typed errors", () => {
       // Cast through unknown to deliberately bypass the type system — the
       // worker refuses to publish an undeclared code, so the client times out.
       calculate: () =>
-        Err(
+        ErrAsync(
           rpcError("NOT_DECLARED", {}) as unknown as RpcError<"LIMIT_EXCEEDED", { limit: number }>,
-        ).toAsync(),
+        ),
     });
     const client = await clientFactory(contract);
 
@@ -338,9 +338,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
       // Wrong data shape for the declared code — worker-side validation drops
       // the reply before publishing, so the client times out.
       calculate: () =>
-        Err(
-          rpcError("LIMIT_EXCEEDED", { wrong: "shape" } as unknown as { limit: number }),
-        ).toAsync(),
+        ErrAsync(rpcError("LIMIT_EXCEEDED", { wrong: "shape" } as unknown as { limit: number })),
     });
     const client = await clientFactory(contract);
 

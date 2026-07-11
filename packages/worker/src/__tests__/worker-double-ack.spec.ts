@@ -7,7 +7,7 @@ import {
   defineQueue,
 } from "@amqp-contract/contract";
 import type { TelemetryProvider } from "@amqp-contract/core";
-import { Ok } from "unthrown";
+import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 import { TypedAmqpWorker } from "../worker.js";
@@ -75,7 +75,7 @@ describe("Worker defensive nack guard", () => {
       handlers: {
         testConsumer: ({ payload }) => {
           processed.push(payload.id);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       },
       urls: [amqpConnectionUrl],

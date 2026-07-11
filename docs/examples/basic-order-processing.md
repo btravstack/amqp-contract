@@ -365,22 +365,22 @@ const worker = await TypedAmqpWorker.create({
       console.log(`[PROCESSING] Order ${payload.orderId}`);
       console.log(`  Customer: ${payload.customerId}`);
       console.log(`  Total: $${payload.totalAmount}`);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
 
     notifyOrder: ({ payload }) => {
       console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
 
     shipOrder: ({ payload }) => {
       console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
 
     handleUrgentOrder: ({ payload }) => {
       console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   connection,

@@ -1,5 +1,5 @@
 import type { ConsumeMessage } from "amqplib";
-import { Err, Ok } from "unthrown";
+import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, it } from "vitest";
 import { nonRetryable } from "./errors.js";
 import { composeMiddleware, defineMiddleware, type WorkerMiddlewareArgs } from "./middleware.js";
@@ -29,7 +29,7 @@ describe("composeMiddleware", () => {
     const chain = composeMiddleware(outer, inner);
     const result = await chain(baseArgs, () => {
       order.push("handler");
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -57,7 +57,7 @@ describe("composeMiddleware", () => {
     const chain = composeMiddleware(first, second);
     const result = await chain(baseArgs, (opts) => {
       seen = opts?.context;
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -80,7 +80,7 @@ describe("composeMiddleware", () => {
     const chain = composeMiddleware(first, second);
     await chain(baseArgs, (opts) => {
       seen = opts?.context;
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -89,16 +89,14 @@ describe("composeMiddleware", () => {
 
   it("short-circuits when a middleware returns without calling next", async () => {
     // GIVEN
-    const guard = defineMiddleware((_args, _next) =>
-      Err(nonRetryable("blocked by guard")).toAsync(),
-    );
+    const guard = defineMiddleware((_args, _next) => ErrAsync(nonRetryable("blocked by guard")));
     let handlerRan = false;
 
     // WHEN
     const chain = composeMiddleware(guard);
     const result = await chain(baseArgs, () => {
       handlerRan = true;
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -119,7 +117,7 @@ describe("composeMiddleware", () => {
 
     // WHEN
     const chain = composeMiddleware(observer, observer);
-    await chain({ ...baseArgs, isRpc: true }, () => Ok(undefined).toAsync());
+    await chain({ ...baseArgs, isRpc: true }, () => OkAsync(undefined));
 
     // THEN
     expect(seen).toEqual([

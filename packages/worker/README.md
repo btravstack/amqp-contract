@@ -135,7 +135,7 @@ handlers: {
   processOrder: ({ payload }) => {
     // Validation errors - non-retryable
     if (payload.amount <= 0) {
-      return Err(new NonRetryableError("Invalid amount")).toAsync();
+      return ErrAsync(new NonRetryableError("Invalid amount"));
     }
 
     // Transient errors - retryable

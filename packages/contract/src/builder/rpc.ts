@@ -43,8 +43,8 @@ import type { MessageDefinition, QueueEntry, RpcDefinition, RpcErrorMap } from "
  * //   handlers: {
  * //     getOrder: ({ payload }) =>
  * //       orders.has(payload.orderId)
- * //         ? Ok(orders.get(payload.orderId)).toAsync()
- * //         : Err(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId })).toAsync(),
+ * //         ? OkAsync(orders.get(payload.orderId))
+ * //         : ErrAsync(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId })),
  * //   }
  *
  * // Client: typed call — the error union includes RpcError<'ORDER_NOT_FOUND', { orderId: string }>

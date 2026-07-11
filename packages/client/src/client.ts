@@ -26,7 +26,16 @@ import {
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
-import { Err, fromPromise, fromSafePromise, Ok, type AsyncResult, type Result } from "unthrown";
+import {
+  Err,
+  ErrAsync,
+  fromPromise,
+  fromSafePromise,
+  Ok,
+  OkAsync,
+  type AsyncResult,
+  type Result,
+} from "unthrown";
 import { randomUUID } from "node:crypto";
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -238,7 +247,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   private setupReplyConsumerIfNeeded(): AsyncResult<void, TechnicalError> {
     const rpcs = this.contract.rpcs ?? {};
     if (Object.keys(rpcs).length === 0) {
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     }
 
     return this.amqpClient
@@ -475,7 +484,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         }
 
         // No compression: use the channel's built-in JSON serialization
-        return Ok(validatedMessage).toAsync();
+        return OkAsync(validatedMessage);
       };
 
       return preparePayload().flatMap((payload) =>
@@ -638,11 +647,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       options.timeoutMs <= 0 ||
       options.timeoutMs > TIMEOUT_MAX_MS
     ) {
-      return Err<InterceptorCallError>(
+      return ErrAsync<InterceptorCallError>(
         new TechnicalError(
           `Invalid timeoutMs for RPC call to "${rpcName}": expected a finite positive number ≤ ${TIMEOUT_MAX_MS}, got ${String(options.timeoutMs)}`,
         ),
-      ).toAsync();
+      );
     }
 
     const requestSchema = rpc.request.payload;
@@ -686,9 +695,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       try {
         rawValidation = requestSchema["~standard"].validate(request);
       } catch (error: unknown) {
-        return Err<TechnicalError | MessageValidationError>(
+        return ErrAsync<TechnicalError | MessageValidationError>(
           new TechnicalError("RPC request validation threw", error),
-        ).toAsync();
+        );
       }
       const validationPromise =
         rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
@@ -745,7 +754,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
           clearTimeout(timer);
           this.pendingCalls.delete(correlationId);
         }
-        return Err(error).toAsync();
+        return ErrAsync(error);
       });
   }
 
@@ -766,7 +775,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
           this.logger?.warn("Failed to cancel RPC reply consumer during close", { error });
           return Ok(undefined);
         })
-      : Ok(undefined).toAsync();
+      : OkAsync(undefined);
 
     return cancelReply.flatMap(() => this.amqpClient.close());
   }

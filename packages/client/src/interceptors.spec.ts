@@ -1,5 +1,5 @@
 import { TechnicalError } from "@amqp-contract/core";
-import { Err, Ok, type AsyncResult } from "unthrown";
+import { ErrAsync, OkAsync, type AsyncResult } from "unthrown";
 import { describe, expect, it } from "vitest";
 import {
   chainInterceptors,
@@ -28,7 +28,7 @@ describe("chainInterceptors", () => {
     // WHEN
     const result = await chainInterceptors([make("outer"), make("inner")], baseArgs, () => {
       order.push("terminal");
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -53,7 +53,7 @@ describe("chainInterceptors", () => {
     let finalArgs: PublishInterceptorArgs | undefined;
     await chainInterceptors([stampHeader, raisePriority], baseArgs, (args) => {
       finalArgs = args;
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN — the inner interceptor received the stamped header and kept it
@@ -64,13 +64,13 @@ describe("chainInterceptors", () => {
 
   it("short-circuits when an interceptor returns without calling next", async () => {
     // GIVEN
-    const block: PublishInterceptor = () => Err(new TechnicalError("blocked")).toAsync();
+    const block: PublishInterceptor = () => ErrAsync(new TechnicalError("blocked"));
     let terminalRan = false;
 
     // WHEN
     const result = await chainInterceptors([block], baseArgs, () => {
       terminalRan = true;
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     });
 
     // THEN
@@ -83,15 +83,13 @@ describe("chainInterceptors", () => {
     let attempts = 0;
     const retryOnce: PublishInterceptor = (_args, next) =>
       next().flatMapErr(
-        (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : Err(error).toAsync()),
+        (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
       );
 
     // WHEN
     const result = await chainInterceptors([retryOnce], baseArgs, () => {
       attempts += 1;
-      return attempts < 2
-        ? Err(new TechnicalError("transient")).toAsync()
-        : Ok(undefined).toAsync();
+      return attempts < 2 ? ErrAsync(new TechnicalError("transient")) : OkAsync(undefined);
     });
 
     // THEN
@@ -103,8 +101,8 @@ describe("chainInterceptors", () => {
     // WHEN
     const result = await chainInterceptors([], baseArgs, (args) =>
       args.publisherName === "orderCreated"
-        ? Ok(undefined).toAsync()
-        : Err(new TechnicalError("wrong args")).toAsync(),
+        ? OkAsync(undefined)
+        : ErrAsync(new TechnicalError("wrong args")),
     );
 
     // THEN

@@ -184,7 +184,7 @@ export type WorkerInferRpcResponse<
  *   console.log(message.payload.orderId);  // Typed payload
  *   console.log(message.headers?.priority); // Typed headers (if defined)
  *   console.log(rawMessage.fields.deliveryTag); // Raw AMQP message
- *   return Ok(undefined).toAsync();
+ *   return OkAsync(undefined);
  * });
  * ```
  */
@@ -305,7 +305,7 @@ export type WorkerInferRpcHandlerEntry<
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+ *   calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
  * };
  * ```
  */

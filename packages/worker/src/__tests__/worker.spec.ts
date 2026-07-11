@@ -7,7 +7,7 @@ import {
   defineQueue,
   extractQueue,
 } from "@amqp-contract/contract";
-import { Err, Ok } from "unthrown";
+import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 import { RetryableError } from "../errors.js";
@@ -44,7 +44,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -95,7 +95,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -152,7 +152,7 @@ describe("AmqpWorker Integration", () => {
         testConsumer: ({ payload, headers }) => {
           messages.push(payload);
           messageHeaders.push(headers);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -219,7 +219,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -270,11 +270,11 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         consumer1: ({ payload }) => {
           messages1.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
         consumer2: ({ payload }) => {
           messages2.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -324,7 +324,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -371,10 +371,10 @@ describe("AmqpWorker Integration", () => {
         testConsumer: ({ payload }) => {
           attemptCount++;
           if (payload.shouldFail && attemptCount === 1) {
-            return Err(new RetryableError("Handler error on first attempt")).toAsync();
+            return ErrAsync(new RetryableError("Handler error on first attempt"));
           }
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -422,7 +422,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         destConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -467,7 +467,7 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         testConsumer: ({ payload }) => {
           messages.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -534,11 +534,11 @@ describe("AmqpWorker Integration", () => {
       defineHandlers(contract, {
         orderConsumer: ({ payload }) => {
           orders.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
         notificationConsumer: ({ payload }) => {
           notifications.push(payload);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       }),
     );
@@ -640,7 +640,7 @@ describe("AmqpWorker Integration", () => {
     const worker = await TypedAmqpWorker.create({
       contract,
       handlers: {
-        testConsumer: defineHandler(contract, "testConsumer", (_msg) => Ok(undefined).toAsync()),
+        testConsumer: defineHandler(contract, "testConsumer", (_msg) => OkAsync(undefined)),
       },
       urls: [amqpConnectionUrl],
       logger: mockLogger,

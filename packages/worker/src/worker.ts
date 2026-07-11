@@ -29,9 +29,11 @@ import type { ConsumeMessage } from "amqplib";
 import {
   allAsync,
   Err,
+  ErrAsync,
   fromPromise,
   fromSafePromise,
   Ok,
+  OkAsync,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -99,13 +101,13 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  *     // Simple handler
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order:', payload.orderId);
- *       return Ok(undefined).toAsync();
+ *       return OkAsync(undefined);
  *     },
  *     // Handler with prefetch configuration
  *     processPayment: [
  *       ({ payload }) => {
  *         console.log('Processing payment:', payload.paymentId);
- *         return Ok(undefined).toAsync();
+ *         return OkAsync(undefined);
  *       },
  *       { prefetch: 10 }
  *     ]
@@ -216,7 +218,7 @@ export type CreateWorkerOptions<
  *   handlers: {
  *     processOrder: ({ payload }) => {
  *       console.log('Processing order', payload.orderId);
- *       return Ok(undefined).toAsync();
+ *       return OkAsync(undefined);
  *     },
  *   },
  *   urls: ['amqp://localhost'],
@@ -319,7 +321,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * const result = await TypedAmqpWorker.create({
    *   contract: myContract,
    *   handlers: {
-   *     processOrder: ({ payload }) => Ok(undefined).toAsync(),
+   *     processOrder: ({ payload }) => OkAsync(undefined),
    *   },
    *   urls: ['amqp://localhost'],
    * });
@@ -350,20 +352,20 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     // path. The nullish/shape guard keeps create() throw-free even when
     // `handlers` is absent entirely.
     if (handlers === null || typeof handlers !== "object") {
-      return Err(
+      return ErrAsync(
         new TechnicalError(
           "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
         ),
-      ).toAsync();
+      );
     }
     const missing = missingHandlerNames(contract, handlers);
     if (missing.length > 0) {
-      return Err(
+      return ErrAsync(
         new TechnicalError(
           `Missing handlers for contract entries: ${missing.join(", ")}. ` +
             "Every `consumers` and `rpcs` key requires a handler.",
         ),
-      ).toAsync();
+      );
     }
 
     const worker = new TypedAmqpWorker(
@@ -534,7 +536,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             field: "headers",
           },
         )
-      : Ok(undefined).toAsync();
+      : OkAsync(undefined);
 
     return allAsync([parsePayload, parseHeaders]).map(([payload, headers]) => ({
       payload,
@@ -612,12 +614,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         ? view.errorSchemas[error.code]
         : undefined;
     if (!errorSchema) {
-      return Err<HandlerError>(
+      return ErrAsync<HandlerError>(
         new NonRetryableError(
           `RPC "${String(rpcName)}" returned undeclared error code "${error.code}"`,
           error,
         ),
-      ).toAsync();
+      );
     }
 
     return this.requireReplyAddress(msg, rpcName, queueName)
@@ -697,9 +699,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     try {
       rawValidation = schema["~standard"].validate(value);
     } catch (error: unknown) {
-      return Err<HandlerError>(
+      return ErrAsync<HandlerError>(
         new NonRetryableError(`${description} schema validation threw`, error),
-      ).toAsync();
+      );
     }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
@@ -764,7 +766,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
     return this.parseAndValidateMessage(msg, consumer, name).flatMapErr((parseError) => {
       this.amqpClient.nack(msg, false, false);
-      return Err(parseError).toAsync();
+      return ErrAsync(parseError);
     });
   }
 
@@ -804,7 +806,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   /**
    * For RPC handlers, validate and publish the reply on the caller's
    * `replyTo` / `correlationId`. For non-RPC consumers, this is a no-op that
-   * resolves to `Ok(undefined).toAsync()`.
+   * resolves to `OkAsync(undefined)`.
    */
   private publishReplyIfRpc(
     msg: ConsumeMessage,
@@ -813,7 +815,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     handlerResponse: unknown,
   ): AsyncResult<void, HandlerError> {
     if (!view.isRpc || !view.responseSchema) {
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     }
     const queueName = extractQueue(view.consumer.queue).name;
     return this.publishRpcResponse(msg, queueName, name, view.responseSchema, handlerResponse);
@@ -997,12 +999,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         state.messageHandled = true;
       })
       .flatMap(() =>
-        Err(
+        ErrAsync(
           new TechnicalError(
             `Handler "${String(name)}" failed: ${handlerError.message}`,
             handlerError,
           ),
-        ).toAsync(),
+        ),
       );
   }
 

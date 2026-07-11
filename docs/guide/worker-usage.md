@@ -49,11 +49,11 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ payload }) => {
       console.log("Processing:", payload.orderId);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
     notifyOrder: ({ payload }) => {
       console.log("Notifying:", payload.orderId);
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],
@@ -81,7 +81,7 @@ const worker = await TypedAmqpWorker.create({
       for (const item of payload.items) {
         console.log(`${item.productId}: ${item.quantity}`);
       }
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   connection,
@@ -142,9 +142,9 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
 // Non-retryable errors go directly to DLQ
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount <= 0) {
-    return Err(new NonRetryableError("Invalid order amount")).toAsync();
+    return ErrAsync(new NonRetryableError("Invalid order amount"));
   }
-  return Ok(undefined).toAsync();
+  return OkAsync(undefined);
 });
 ```
 
@@ -264,7 +264,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: ({ payload }) => {
       console.log("Processing:", payload.orderId);
       // Message is automatically acked after this handler completes
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   connection,
@@ -435,7 +435,7 @@ Three configuration patterns are supported:
 handlers: {
   processOrder: ({ payload }) => {
     // Single message processing
-    return Ok(undefined).toAsync();
+    return OkAsync(undefined);
   };
 }
 ```
@@ -447,7 +447,7 @@ handlers: {
   processOrder: [
     ({ payload }) => {
       // Single message processing with prefetch
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
     { prefetch: 10 },
   ];
@@ -719,7 +719,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: defineHandler(contract, "processOrder", ({ payload }) => {
       // Validation errors should not be retried
       if (payload.amount <= 0) {
-        return Err(new NonRetryableError("Invalid order amount")).toAsync();
+        return ErrAsync(new NonRetryableError("Invalid order amount"));
       }
       return fromPromise(
         processPayment(payload),
@@ -752,7 +752,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: defineHandler(contract, "processOrder", ({ payload }) => {
       // Validation - non-retryable
       if (payload.amount <= 0) {
-        return Err(new NonRetryableError("Invalid amount")).toAsync();
+        return ErrAsync(new NonRetryableError("Invalid amount"));
       }
 
       // Qualify the rejection at the boundary into a modeled HandlerError.
@@ -869,7 +869,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: ({ payload }) => {
       // Validate before processing (don't retry validation errors)
       if (!payload.amount || payload.amount <= 0) {
-        return Err(new NonRetryableError("Invalid order amount")).toAsync();
+        return ErrAsync(new NonRetryableError("Invalid order amount"));
       }
 
       // Process with external service (retry on failure based on queue config)

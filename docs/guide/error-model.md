@@ -63,7 +63,7 @@ import { Err } from "unthrown";
 
 ({ payload }) => {
   if (payload.amount < 0) {
-    return Err(new NonRetryableError("Negative amount")).toAsync();
+    return ErrAsync(new NonRetryableError("Negative amount"));
   }
   // ...
 };
@@ -156,9 +156,9 @@ const handlers = defineHandlers(contract, {
   getOrder: ({ payload }) => {
     const order = orders.get(payload.orderId);
     if (!order) {
-      return Err(rpcError("ORDER_NOT_FOUND", { orderId: payload.orderId })).toAsync();
+      return ErrAsync(rpcError("ORDER_NOT_FOUND", { orderId: payload.orderId }));
     }
-    return Ok({ orderId: order.id, status: order.status }).toAsync();
+    return OkAsync({ orderId: order.id, status: order.status });
   },
 });
 ```
@@ -229,7 +229,7 @@ Two reasons:
 
 ## Defensive guards
 
-The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `Err(...).toAsync()` instead.
+The worker still wraps the consume callback in `try/catch` so a buggy handler that throws synchronously cannot leave a message neither acked nor nacked: the worker logs the error and nacks with `requeue=false` (DLQ if configured). Don't rely on it — return `ErrAsync(...)` instead.
 
 ## See also
 

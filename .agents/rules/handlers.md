@@ -13,7 +13,7 @@ import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 // Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
 const handler = ({ payload }, rawMessage) => {
   console.log(payload.orderId);
-  return Ok(undefined).toAsync();
+  return OkAsync(undefined);
 };
 
 // Async case — fromPromise REQUIRES the qualify mapper as the second arg
@@ -48,10 +48,10 @@ const result = await TypedAmqpWorker.create({
   contract,
   handlers: {
     // Regular consumer — `payload` typed from the consumer's message schema
-    processOrder: ({ payload }) => Ok(undefined).toAsync(),
+    processOrder: ({ payload }) => OkAsync(undefined),
 
     // RPC handler — must return the typed response payload
-    calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+    calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
 
     // RPC with async work
     lookupUser: ({ payload }) =>
@@ -100,9 +100,9 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
 // Permanent failures use NonRetryableError → DLQ, never retried
 const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount < 1) {
-    return Err(new NonRetryableError("Invalid amount")).toAsync();
+    return ErrAsync(new NonRetryableError("Invalid amount"));
   }
-  return Ok(undefined).toAsync();
+  return OkAsync(undefined);
 });
 ```
 
@@ -165,8 +165,8 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 | Method                          | Description                                                                                                                                           |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Ok(value).toAsync()`           | Lift a successful sync `Result` into an `AsyncResult`                                                                                                 |
-| `Err(error).toAsync()`          | Lift a failed sync `Result` into an `AsyncResult`                                                                                                     |
+| `OkAsync(value)`                | Lift a successful sync `Result` into an `AsyncResult`                                                                                                 |
+| `ErrAsync(error)`               | Lift a failed sync `Result` into an `AsyncResult`                                                                                                     |
 | `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required. |
 | `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                        |
 | `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                                                                                    |

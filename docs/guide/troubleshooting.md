@@ -225,7 +225,7 @@ Property 'orderId' does not exist on type 'never'.
    handlers: {
      processEmail: ({ payload }) => {
        console.log(payload.to);  // Type-safe!
-       return Ok(undefined).toAsync();
+       return OkAsync(undefined);
      },
    }
    ```

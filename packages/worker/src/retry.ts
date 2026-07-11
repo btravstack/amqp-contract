@@ -7,7 +7,7 @@ import {
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { Err, Ok, type AsyncResult } from "unthrown";
+import { Err, ErrAsync, Ok, OkAsync, type AsyncResult } from "unthrown";
 import { NonRetryableError } from "./errors.js";
 
 type RetryContext = {
@@ -45,7 +45,7 @@ export function handleError(
   // decision log inside `sendToDLQ`.
   if (error instanceof NonRetryableError) {
     sendToDLQ(ctx, msg, consumer);
-    return Ok(undefined).toAsync();
+    return OkAsync(undefined);
   }
 
   // Get retry config from the queue definition in the contract
@@ -70,7 +70,7 @@ export function handleError(
     queueName: extractQueue(consumer.queue).name,
   });
   sendToDLQ(ctx, msg, consumer);
-  return Ok(undefined).toAsync();
+  return OkAsync(undefined);
 }
 
 /**
@@ -111,7 +111,7 @@ function handleErrorImmediateRequeue(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return Ok(undefined).toAsync();
+    return OkAsync(undefined);
   }
 
   ctx.logger?.info("Retrying message (immediate-requeue mode)", {
@@ -124,7 +124,7 @@ function handleErrorImmediateRequeue(
   if (queue.type === "quorum") {
     // For quorum queues, nack with requeue=true to trigger native retry mechanism
     ctx.amqpClient.nack(msg, false, true);
-    return Ok(undefined).toAsync();
+    return OkAsync(undefined);
   } else {
     // For classic queues, re-publish the message to the same exchange / routing key immediately with an incremented x-retry-count header
     return publishForRetry(ctx, {
@@ -176,7 +176,7 @@ function handleErrorTtlBackoff(
       consumerName,
       queueName: consumer.queue.name,
     });
-    return Err(new TechnicalError("Queue does not have TTL-backoff infrastructure")).toAsync();
+    return ErrAsync(new TechnicalError("Queue does not have TTL-backoff infrastructure"));
   }
 
   const queueEntry = consumer.queue;
@@ -196,7 +196,7 @@ function handleErrorTtlBackoff(
       maxRetries: config.maxRetries,
     });
     sendToDLQ(ctx, msg, consumer);
-    return Ok(undefined).toAsync();
+    return OkAsync(undefined);
   }
 
   // Retry with exponential backoff
