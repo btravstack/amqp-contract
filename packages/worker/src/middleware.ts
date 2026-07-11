@@ -114,6 +114,12 @@ export function defineMiddleware<
  * across the chain — each middleware's `TContextIn` must match what the
  * previous one produced.
  *
+ * Typed overloads cover up to 8 middleware. For longer chains, nest: a
+ * composed chain is itself a `WorkerMiddleware<EmptyContext, T>` and can be
+ * the *first* argument of an outer `composeMiddleware` call —
+ * `composeMiddleware(composeMiddleware(a, ..., h), i, j)` — preserving
+ * context-type accumulation at any length.
+ *
  * @example
  * ```typescript
  * const middleware = composeMiddleware(logging, auth, idempotency);
@@ -156,6 +162,57 @@ export function composeMiddleware<
   m4: WorkerMiddleware<TC, TD>,
   m5: WorkerMiddleware<TD, TE>,
 ): WorkerMiddleware<EmptyContext, TE>;
+export function composeMiddleware<
+  TA extends Record<string, unknown>,
+  TB extends TA,
+  TC extends TB,
+  TD extends TC,
+  TE extends TD,
+  TF extends TE,
+>(
+  m1: WorkerMiddleware<EmptyContext, TA>,
+  m2: WorkerMiddleware<TA, TB>,
+  m3: WorkerMiddleware<TB, TC>,
+  m4: WorkerMiddleware<TC, TD>,
+  m5: WorkerMiddleware<TD, TE>,
+  m6: WorkerMiddleware<TE, TF>,
+): WorkerMiddleware<EmptyContext, TF>;
+export function composeMiddleware<
+  TA extends Record<string, unknown>,
+  TB extends TA,
+  TC extends TB,
+  TD extends TC,
+  TE extends TD,
+  TF extends TE,
+  TG extends TF,
+>(
+  m1: WorkerMiddleware<EmptyContext, TA>,
+  m2: WorkerMiddleware<TA, TB>,
+  m3: WorkerMiddleware<TB, TC>,
+  m4: WorkerMiddleware<TC, TD>,
+  m5: WorkerMiddleware<TD, TE>,
+  m6: WorkerMiddleware<TE, TF>,
+  m7: WorkerMiddleware<TF, TG>,
+): WorkerMiddleware<EmptyContext, TG>;
+export function composeMiddleware<
+  TA extends Record<string, unknown>,
+  TB extends TA,
+  TC extends TB,
+  TD extends TC,
+  TE extends TD,
+  TF extends TE,
+  TG extends TF,
+  TH extends TG,
+>(
+  m1: WorkerMiddleware<EmptyContext, TA>,
+  m2: WorkerMiddleware<TA, TB>,
+  m3: WorkerMiddleware<TB, TC>,
+  m4: WorkerMiddleware<TC, TD>,
+  m5: WorkerMiddleware<TD, TE>,
+  m6: WorkerMiddleware<TE, TF>,
+  m7: WorkerMiddleware<TF, TG>,
+  m8: WorkerMiddleware<TG, TH>,
+): WorkerMiddleware<EmptyContext, TH>;
 export function composeMiddleware(
   ...middlewares: readonly AnyWorkerMiddleware[]
 ): AnyWorkerMiddleware {

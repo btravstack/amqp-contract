@@ -34,6 +34,7 @@ import { chainInterceptors } from "./interceptors.js";
 import type {
   CallError as InterceptorCallError,
   CallInterceptor,
+  CallInterceptorArgs,
   PublishError,
   PublishInterceptor,
   PublishInterceptorArgs,
@@ -508,7 +509,14 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         publishMessage(validatedMessage, args.options),
       );
 
-    return chainInterceptors(
+    // Explicit type arguments: TArgs must be the wire-level interceptor shape
+    // (message: unknown), not the narrower type inferred from this literal.
+    return chainInterceptors<
+      PublishInterceptorArgs,
+      { message?: unknown; options?: PublishOptions },
+      void,
+      PublishError
+    >(
       this.publishInterceptors,
       { publisherName: String(publisherName), message, options: options ?? {} },
       terminal,
@@ -578,11 +586,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     // Interceptors wrap the full round trip (request validation, publish,
     // reply await) so they can adjust timeouts, stamp headers, or retry by
     // calling `next` again; telemetry stays outermost. Error/value types are
-    // erased through the chain and restored at this public boundary.
-    const chained = chainInterceptors(
-      this.callInterceptors,
-      { rpcName: String(rpcName), request, options },
-      (args) => this.executeCall(String(rpcName), rpc, args.request, args.options),
+    // erased through the chain and restored at this public boundary; TArgs is
+    // pinned to the wire-level interceptor shape (request: unknown).
+    const chained = chainInterceptors<
+      CallInterceptorArgs,
+      { request?: unknown; options?: CallOptions },
+      unknown,
+      InterceptorCallError
+    >(this.callInterceptors, { rpcName: String(rpcName), request, options }, (args) =>
+      this.executeCall(String(rpcName), rpc, args.request, args.options),
     );
 
     const instrumented = chained
