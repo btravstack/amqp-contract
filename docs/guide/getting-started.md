@@ -216,9 +216,7 @@ async function main() {
   const client = await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"],
-  }).getOrElse((e) => {
-    throw e;
-  });
+  }).getOrThrow();
 
   console.log("✅ Connected to RabbitMQ");
 
@@ -274,9 +272,7 @@ async function main() {
       },
     },
     urls: ["amqp://localhost"],
-  }).getOrElse((e) => {
-    throw e;
-  });
+  }).getOrThrow();
 
   console.log("✅ Worker ready, waiting for messages...\n");
   console.log("Press Ctrl+C to stop\n");

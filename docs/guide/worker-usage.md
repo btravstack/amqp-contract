@@ -26,9 +26,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 console.log("✅ Worker ready!");
 ```
@@ -59,9 +57,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 In production code, prefer `defineHandler` so handler logic lives in its own module and can be unit-tested.
@@ -89,9 +85,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ### Type Safety
@@ -111,7 +105,7 @@ const workerResult = await TypedAmqpWorker.create({
     // Missing processOrder handler!
   },
   urls: ['amqp://localhost'],
-}).getOrElse((e) => { throw e; });
+}).getOrThrow();
 
 // ✅ All handlers present
 const worker = await TypedAmqpWorker.create({
@@ -121,7 +115,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   urls: ['amqp://localhost'],
-}).getOrElse((e) => { throw e; });
+}).getOrThrow();
 
 console.log('✅ All handlers present');
 ```
@@ -178,9 +172,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ### Benefits
@@ -235,9 +227,7 @@ const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: orderHandlers,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ## Starting Consumers
@@ -254,7 +244,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   connection,
-}).getOrElse((e) => { throw e; });
+}).getOrThrow();
 // Worker is already consuming messages from all queues
 console.log('Worker ready, waiting for messages...');
 ```
@@ -278,9 +268,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ### Manual Acknowledgment
@@ -305,9 +293,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 **Acknowledgment behavior:**
@@ -364,9 +350,7 @@ async function main() {
       },
     }),
     urls: ["amqp://localhost"],
-  }).getOrElse((e) => {
-    throw e;
-  });
+  }).getOrThrow();
 
   console.log("✅ Worker ready!");
 
@@ -412,9 +396,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ### Default Consumer Options
@@ -438,9 +420,7 @@ const worker = await TypedAmqpWorker.create({
   defaultConsumerOptions: {
     prefetch: 10,
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 `defaultConsumerOptions` are applied to every consumer handler. When a handler is defined with tuple syntax, per-handler options override these defaults.
@@ -522,9 +502,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 **How Immediate-Requeue works:**
@@ -591,9 +569,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 **How TTL-Backoff works:**
@@ -726,9 +702,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 #### NonRetryableError
@@ -754,9 +728,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 **NonRetryableError behavior:**
@@ -795,9 +767,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 **When to use which error type:**
@@ -915,9 +885,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 console.log("✅ Worker ready with retry enabled!");
 ```

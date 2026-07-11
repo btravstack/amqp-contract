@@ -93,7 +93,7 @@ const client = (
     urls: ["amqp://localhost"],
     logger, // Optional: logs published messages
   })
-).get();
+).getOrThrow();
 ```
 
 ## API

@@ -71,9 +71,7 @@ import { randomUUID } from "node:crypto";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 await client
   .publish("chargeCustomer", {
@@ -82,9 +80,7 @@ await client
     currency: "USD",
     idempotencyKey: randomUUID(),
   })
-  .getOrElse((e) => {
-    throw e;
-  });
+  .getOrThrow();
 ```
 
 A `subscriptions-service`, `refunds-service`, or any other publisher does the same — they all use `chargeCustomer`. Routing-key dispatch is handled by the contract; callers never name `payments.charge` themselves.
@@ -129,9 +125,7 @@ const worker = await TypedAmqpWorker.create({
     chargeCustomer: [chargeHandler, { prefetch: 5 }],
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 process.on("SIGINT", async () => {
   await worker.close();

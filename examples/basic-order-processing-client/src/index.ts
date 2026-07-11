@@ -27,9 +27,7 @@ async function main() {
     urls: [env.AMQP_URL],
   })
     .tapErr((error) => logger.error({ error }, "Failed to create client"))
-    .getOrElse((error) => {
-      throw error;
-    });
+    .getOrThrow();
 
   logger.info("Client ready");
   logger.info("=".repeat(60));
@@ -48,9 +46,7 @@ async function main() {
       .publish(publisherName, message, options)
       .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
       .tap(() => logger.debug(`Successfully published to ${publisherName}`))
-      .getOrElse((error) => {
-        throw error;
-      });
+      .getOrThrow();
   };
 
   // 1. Publish a new order (routing key: order.created)
@@ -140,9 +136,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Clean up
-  await client.close().getOrElse((error) => {
-    throw error;
-  });
+  await client.close().getOrThrow();
   logger.info("Publisher stopped");
   process.exit(0);
 }

@@ -91,18 +91,14 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 await client
   .publish("orderCreated", {
     orderId: "ORD-123", // ✅ TypeScript knows!
     amount: 99.99,
   })
-  .getOrElse((e) => {
-    throw e;
-  });
+  .getOrThrow();
 ```
 
 ```typescript [3. Consume]
@@ -119,9 +115,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 :::

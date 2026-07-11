@@ -17,16 +17,16 @@ pnpm add unthrown@^4.1
 
 unthrown 4.1 **renames** two operator families for consistency; the old names still work but are deprecated and will be removed in the next unthrown major:
 
-| Deprecated (unthrown ≤ 4.0 name) | Use instead        |
-| -------------------------------- | ------------------ |
-| `.orElse(f)`                     | `.flatMapErr(f)`   |
-| `.recover(f)`                    | `.recoverErr(f)`   |
-| `.unwrap()`                      | `.get()`           |
-| `.unwrapErr()`                   | `.getErr()`        |
-| `.unwrapOr(fallback)`            | `.getOr(fallback)` |
-| `.unwrapOrElse(f)`               | `.getOrElse(f)`    |
+| Deprecated (unthrown ≤ 4.0 name) | Use instead                                                 |
+| -------------------------------- | ----------------------------------------------------------- |
+| `.orElse(f)`                     | `.flatMapErr(f)`                                            |
+| `.recover(f)`                    | `.recoverErr(f)`                                            |
+| `.unwrap()`                      | `.get()` — or `.getOrThrow()` to throw on a fallible result |
+| `.unwrapErr()`                   | `.getErr()`                                                 |
+| `.unwrapOr(fallback)`            | `.getOr(fallback)`                                          |
+| `.unwrapOrElse(f)`               | `.getOrElse(f)`                                             |
 
-No amqp-contract API changes — but all documentation and examples now use the new names, so snippets like the throw-on-failure escape hatch read `.getOrElse((e) => { throw e; })`.
+No amqp-contract API changes — but all documentation and examples now use the new names, so snippets like the throw-on-failure escape hatch read `.getOrThrow()`.
 
 ## 2.2.x → 2.3.x
 

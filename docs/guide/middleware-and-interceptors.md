@@ -50,7 +50,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-).get();
+).getOrThrow();
 ```
 
 `composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive. Without a `middleware` option, handlers get an empty object (`EmptyContext`).
@@ -88,7 +88,7 @@ const client = (
     urls: ["amqp://localhost"],
     publishInterceptors: [stampTrace],
   })
-).get();
+).getOrThrow();
 ```
 
 ### Call interceptors

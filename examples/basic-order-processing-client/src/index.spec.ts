@@ -10,9 +10,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     const newOrder = {
       orderId: "TEST-001",
@@ -32,9 +30,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    await client.close().getOrElse((e) => {
-      throw e;
-    });
+    await client.close().getOrThrow();
   });
 
   it("should publish order status updates", async ({ amqpConnectionUrl }) => {
@@ -42,9 +38,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     const orderUpdate = {
       orderId: "TEST-001",
@@ -59,9 +53,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    await client.close().getOrElse((e) => {
-      throw e;
-    });
+    await client.close().getOrThrow();
   });
 
   it("should validate order schema before publishing", async ({ amqpConnectionUrl }) => {
@@ -69,9 +61,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     const invalidOrder = {
       orderId: "TEST-001",
@@ -90,8 +80,6 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result.isErr()).toBe(true);
 
     // CLEANUP
-    await client.close().getOrElse((e) => {
-      throw e;
-    });
+    await client.close().getOrThrow();
   });
 });

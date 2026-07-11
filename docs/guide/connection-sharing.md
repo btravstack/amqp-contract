@@ -37,9 +37,7 @@ const client = await TypedAmqpClient.create({
   connectionOptions: {
     heartbeatIntervalInSeconds: 30,
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // 2. Create worker - automatically reuses the same connection!
 const worker = await TypedAmqpWorker.create({
@@ -65,9 +63,7 @@ const worker = await TypedAmqpWorker.create({
         });
     },
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Both client and worker automatically share a single connection! ✅
 // Result: 1 connection, 2 channels
@@ -85,7 +81,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-).get();
+).getOrThrow();
 
 const worker = (
   await TypedAmqpWorker.create({
@@ -95,7 +91,7 @@ const worker = (
       /* ... */
     },
   })
-).get();
+).getOrThrow();
 
 // Close components when done
 // 1. Close worker first (stops consuming)
@@ -118,9 +114,7 @@ When you create multiple clients or workers with the same URLs and connection op
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← URLs match
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -128,9 +122,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Result: 1 connection, 2 channels ✅
 // - Less resource usage
@@ -152,16 +144,12 @@ You can create multiple clients and workers - they automatically share connectio
 const orderClient = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"], // ← Same URLs
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const notificationClient = await TypedAmqpClient.create({
   contract: notificationContract,
   urls: ["amqp://localhost"], // ← Same URLs
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const orderWorker = await TypedAmqpWorker.create({
   contract: orderContract,
@@ -169,9 +157,7 @@ const orderWorker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const notificationWorker = await TypedAmqpWorker.create({
   contract: notificationContract,
@@ -179,9 +165,7 @@ const notificationWorker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // All automatically share one connection with 4 separate channels
 ```
@@ -195,16 +179,12 @@ If you need separate connections (e.g., for different RabbitMQ clusters), just u
 const mainClient = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://main-cluster"], // ← Different URLs
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const analyticsClient = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://analytics-cluster"], // ← Different URLs
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Result: 2 separate connections (one per cluster)
 ```
@@ -227,9 +207,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   connectionOptions, // ← Same options
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -238,17 +216,13 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // ✅ Also good: Omit options to use defaults
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← No options
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -256,9 +230,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 #### 2. **Extract Shared Configuration**
@@ -279,9 +251,7 @@ const AMQP_CONFIG = {
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   ...AMQP_CONFIG,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract: orderContract,
@@ -289,9 +259,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 #### 3. **Understand Configuration Conflicts**
@@ -304,9 +272,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -315,9 +281,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Result: 2 separate connections (different configurations)
 // This may be intentional if you need different heartbeat settings
@@ -392,9 +356,7 @@ Connection sharing is **completely backward compatible** and happens automatical
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← Connection automatically created
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -402,9 +364,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // No code changes needed - connection sharing just works!
 // Result: 1 connection, 2 channels (automatically managed)
@@ -423,36 +383,28 @@ Connection sharing is automatic when URLs and connection options match. If you s
    const client = await TypedAmqpClient.create({
      contract,
      urls: ["amqp://localhost:5672"],
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    const worker = await TypedAmqpWorker.create({
      contract,
      urls: ["amqp://localhost"], // Different URL!
      handlers: {
        /* ... */
      },
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
 
    // ✅ Same URLs = shared connection
    const urls = ["amqp://localhost"];
    const client = await TypedAmqpClient.create({
      contract,
      urls,
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    const worker = await TypedAmqpWorker.create({
      contract,
      urls, // Same URL reference
      handlers: {
        /* ... */
      },
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    ```
 
 2. **Check connection options match**:
@@ -463,9 +415,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      contract,
      urls: ["amqp://localhost"],
      connectionOptions: { heartbeatIntervalInSeconds: 30 },
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    const worker = await TypedAmqpWorker.create({
      contract,
      urls: ["amqp://localhost"],
@@ -473,9 +423,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
 
    // ✅ Same options = shared connection
    const connectionOptions = { heartbeatIntervalInSeconds: 30 };
@@ -483,9 +431,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      contract,
      urls: ["amqp://localhost"],
      connectionOptions,
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    const worker = await TypedAmqpWorker.create({
      contract,
      urls: ["amqp://localhost"],
@@ -493,9 +439,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).getOrElse((e) => {
-     throw e;
-   });
+   }).getOrThrow();
    ```
 
 ### Cleanup in tests

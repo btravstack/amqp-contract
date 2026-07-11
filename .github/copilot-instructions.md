@@ -70,11 +70,11 @@ These do **not** need confirmation:
 
 These have been re-introduced more than once across recent migrations / reviews — flag them in self-review:
 
-- **Treating `await TypedAmqp(Client|Worker).create(...)` as a client/worker.** It returns `AsyncResult<Client, TechnicalError>`; `await` gives you a `Result`. Unwrap with `.get()` (or pattern-match) before calling instance methods.
+- **Treating `await TypedAmqp(Client|Worker).create(...)` as a client/worker.** It returns `AsyncResult<Client, TechnicalError>`; `await` gives you a `Result`. Unwrap with `.getOrThrow()` (or pattern-match) before calling instance methods.
 - **Wrapping `client.publish(...)` in `fromPromise(...)`.** `publish` already returns an `AsyncResult` — wrap it again and you get `AsyncResult<AsyncResult<...>>`. Chain `.map` / `.mapErr` / `.flatMap` directly.
 - **Calling `fromPromise(p)` without the `qualify` mapper.** The mapper is a required second argument with signature `(cause, defect) => E | defect(cause)` — return a modeled error, or call the `defect` callback for an unexpected failure. The fix to the opaque "expected 2 arguments, got 1" error is always: pass the mapper.
 - **Using positional `result.match(okFn, errFn)`.** That's the old neverthrow shape. unthrown's `match` is boxed with three branches: `result.match({ ok, err, defect })`.
-- **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `Ok(v).toAsync()` / `Err(e).toAsync()`, the `AsyncResult` type, and `.get()`.
+- **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `Ok(v).toAsync()` / `Err(e).toAsync()`, the `AsyncResult` type, and `.getOrThrow()`.
 - **Using lowercase `ok` / `err` / `defect` constructors.** unthrown 1.0 renamed them to **`Ok` / `Err` / `Defect`** (the lowercase forms are removed). The `.match({ ok, err, defect })` handler keys stay lowercase, though — those are case branches, not constructors.
 - **Adding a publishable package without `repository`, `homepage`, `bugs`, `author`, `license`** — npm will reject with a 422 on provenance validation under Trusted Publishing.
 - **Hardcoding a dep version in a `package.json`.** Use `"catalog:"` and add the actual version once in `pnpm-workspace.yaml`.

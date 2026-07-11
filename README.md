@@ -82,17 +82,13 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // 6. Type-safe publishing with validation
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // publish() returns an AsyncResult instead of throwing — awaiting it yields a
 // Result. unthrown 4 gates get() to infallible results, so clear the error
@@ -102,17 +98,11 @@ await client
     orderId: "ORD-123", // ✅ TypeScript knows!
     amount: 99.99,
   })
-  .getOrElse((e) => {
-    throw e;
-  });
+  .getOrThrow();
 
 // 7. Clean up
-await client.close().getOrElse((e) => {
-  throw e;
-});
-await worker.close().getOrElse((e) => {
-  throw e;
-});
+await client.close().getOrThrow();
+await worker.close().getOrThrow();
 ```
 
 ▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).

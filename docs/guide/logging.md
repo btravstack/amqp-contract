@@ -36,9 +36,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   logger, // [!code highlight]
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ## Usage with Worker
@@ -53,9 +51,7 @@ const worker = await TypedAmqpWorker.create({
   urls: ["amqp://localhost"],
   handlers,
   logger, // [!code highlight]
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ## What Gets Logged

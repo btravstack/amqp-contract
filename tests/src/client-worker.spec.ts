@@ -33,7 +33,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
           })
-        ).get();
+        ).getOrThrow();
 
         clients.push(client);
         return client;
@@ -43,7 +43,7 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            (await client.close()).get();
+            (await client.close()).getOrThrow();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -67,7 +67,7 @@ const it = baseIt.extend<{
               handlers: defineHandlers(contract, handlers),
               urls: [amqpConnectionUrl],
             })
-          ).get();
+          ).getOrThrow();
 
           workers.push(worker);
           return worker;
@@ -78,7 +78,7 @@ const it = baseIt.extend<{
       await Promise.all(
         workers.map(async (worker) => {
           try {
-            (await worker.close()).get();
+            (await worker.close()).getOrThrow();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console

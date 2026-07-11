@@ -222,7 +222,7 @@ export type CreateWorkerOptions<
  *   urls: ['amqp://localhost'],
  * });
  *
- * const worker = result.get();
+ * const worker = result.getOrThrow();
  *
  * // Close when done
  * await worker.close();
