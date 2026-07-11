@@ -1,5 +1,76 @@
 # @amqp-contract/worker
 
+## 2.4.0
+
+### Minor Changes
+
+- 0dbf274: Add worker middleware and client interceptors for cross-cutting concerns (trace propagation, auth, idempotency, logging) without handler wrapping.
+
+  **Worker middleware** — wraps every handler invocation (consumers and RPCs) after message validation, with oRPC-style typed context injection:
+
+  ```typescript
+  const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
+    const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
+    if (typeof tenantId !== "string") return ErrAsync(nonRetryable("unauthenticated"));
+    return next({ context: { tenantId } });
+  });
+
+  TypedAmqpWorker.create({
+    contract,
+    middleware: composeMiddleware(auth, timing),
+    handlers: {
+      // third argument is typed as { tenantId: string }
+      processOrder: ({ payload }, _raw, context) => ...,
+    },
+    urls,
+  });
+  ```
+
+  Short-circuit results route exactly like handler results: `retryable`/`nonRetryable` → retry/DLQ, `rpcError(code, data)` → typed RPC error reply, `Ok(value)` → skips the handler (RPC reply validated as usual). New exports: `defineMiddleware`, `composeMiddleware`, `WorkerMiddleware`, `WorkerMiddlewareArgs`, `WorkerMiddlewareNext`, `EmptyContext`.
+
+  **Client interceptors** — `publishInterceptors` wrap validation + publish (patched messages are re-validated), `callInterceptors` wrap the full RPC round trip; both can patch args, observe outcomes, retry by calling `next` again, or short-circuit. First array entry is outermost. New exports: `PublishInterceptor`, `CallInterceptor` (+ args/next types).
+
+  **Note:** handlers now always receive a third `context` argument (an empty object when no middleware is configured). Existing two-parameter handlers are unaffected; only tests asserting exact handler call arity need a third `expect.anything()`.
+
+- a89f978: Add `qualifyRetryable(message)` / `qualifyNonRetryable(message)` qualifier factories: they build the `fromPromise` mapper instead of hand-writing `(e) => retryable(message, e)` — the most re-introduced mistake in handler code. `fromPromise(work(), qualifyRetryable("upstream failed"))`.
+- 8b69031: Add typed RPC error maps: declare per-RPC business errors in the contract and get them typed end-to-end.
+
+  `defineRpc` now accepts an optional `errors` map (error code → `defineMessage(...)` for the error's `data` payload):
+
+  ```typescript
+  const getOrder = defineRpc(queue, {
+    request: defineMessage(z.object({ orderId: z.string() })),
+    response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
+    errors: {
+      ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+    },
+  });
+  ```
+
+  - **Worker**: RPC handlers can return `Err(rpcError(code, data))` for declared codes — the handler's error channel widens to `HandlerError | RpcError<code, data>`. The worker validates `data` against the declared schema, publishes an error reply, and acks the request (business errors are never retried). Undeclared codes or invalid data route to the DLQ.
+  - **Client**: `client.call(...)` error union gains the declared `RpcError<code, data>` members; error data is re-validated on arrival. Discriminate with `isRpcError(error)` and narrow on `error.code`.
+  - New exports: `RpcError`, `isRpcError`, `rpcError` (worker), `RpcErrorMap` (contract), `ClientInferRpcErrors` / `WorkerInferRpcErrors` inference helpers, `RPC_ERROR_CODE_HEADER` (core).
+
+  The wire format is backward compatible: success replies are unchanged; error replies are marked by the `x-amqp-contract-error-code` AMQP header with a `{ message, data }` JSON body. RPCs that declare no errors behave exactly as before.
+
+- bc2d5a0: Unified context model (org DNA alignment, #549 — counterpart of temporal-contract#302):
+
+  - **`createContext` factory** on `TypedAmqpWorker.create`: builds the per-message dependency context that _seeds_ the middleware chain (and reaches handlers directly when no middleware is configured). Runs once per message after validation; a throw/rejection routes to the DLQ as `NonRetryableError`. demesne's `Layer.forkScope` is the recommended implementation for DI graphs.
+  - **Handler helpers**: the third handler argument is now `{ context, errors }` — `context` from `createContext` + middleware accumulation, `errors` a bag of typed constructors for the RPC's declared errors (`ErrAsync(errors.ORDER_NOT_FOUND({ orderId }))`, per-code data inference; the free `rpcError(code, data)` form remains). This reshapes the (unreleased) plain-context third argument introduced with the middleware feature.
+  - **Payload substitution**: middleware `next({ payload })` substitutes the message payload downstream; the dispatcher re-validates it against the consumer's schema before the handler runs — invalid substitutions fail terminally (DLQ).
+  - `composeMiddleware` overloads generalized to arbitrary chain-input context (so chains compose over the `createContext` seed type). New exports: `WorkerCreateContextInfo`, `WorkerHandlerHelpers`, `WorkerInferRpcErrorConstructors`.
+
+- 56c1973: Upgrade `unthrown` to `4.1.0` and require it as the peer version (`^4.1.0`). All internal usage of the operators unthrown 4.1 deprecates has been migrated to the renamed forms — `.orElse` → `.flatMapErr`, `.recover` → `.recoverErr`, `.unwrap` → `.get` (or `.getOrThrow()` on fallible results — the throw-on-failure escape hatch), `.unwrapErr` → `.getErr`, `.unwrapOr` → `.getOr`, `.unwrapOrElse` → `.getOrElse` — and all documentation and examples now use the new names. No amqp-contract API changes; the deprecated unthrown aliases keep working in your own code until the next unthrown major.
+
+### Patch Changes
+
+- dc21686: Validate handler completeness at startup (reverse check). `TypedAmqpWorker.create` now fails fast with `Err(TechnicalError)` — before any connection is acquired — when a contract `consumers`/`rpcs` entry has no handler, and `defineHandlers` throws with the list of missing names. Previously the type system was the only guard; a JavaScript caller or a cast could pass an incomplete handlers object, and the failure surfaced later as an opaque `TypeError` inside the consume loop.
+- Updated dependencies [7dda7f4]
+- Updated dependencies [8b69031]
+- Updated dependencies [56c1973]
+  - @amqp-contract/contract@2.4.0
+  - @amqp-contract/core@2.4.0
+
 ## 2.3.0
 
 ### Minor Changes
