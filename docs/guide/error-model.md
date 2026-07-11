@@ -8,7 +8,7 @@ This page lists every error type the library can produce, where it surfaces, and
 
 The safe way to consume a result is `.match({ ok, err, defect })` — it forces you to handle every channel.
 
-`unthrown` makes `.get()` **type-gated**: it compiles only on a result whose error channel is empty (`E = never`), so `Ok(x).get()` works but `await client.publish(...).get()` on a fallible result is a compile error. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
+`unthrown` makes `.get()` **type-gated**: it compiles only when the error channel is empty (`E = never`) — and the gate applies identically on a `Result` and on its `AsyncResult` mirror. `Ok(x).get()` works; calling `.get()` on anything fallible — `client.publish(...)` returns `AsyncResult<void, TechnicalError | MessageValidationError>` — is a compile error whether you extract on the `AsyncResult` directly or on the awaited `Result`. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
 
 ```ts
 // throws on Err (and rethrows a Defect) — the escape hatch, not the default
