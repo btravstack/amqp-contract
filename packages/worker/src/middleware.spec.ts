@@ -107,6 +107,39 @@ describe("composeMiddleware", () => {
     }
   });
 
+  it("threads substituted payloads to inner middleware and the terminal", async () => {
+    // GIVEN — outer substitutes, inner observes the substituted payload
+    const seen: unknown[] = [];
+    const substitute = defineMiddleware((_args, next) => next({ payload: { id: "2" } }));
+    const observer = defineMiddleware((args, next) => {
+      seen.push(args.message.payload);
+      return next();
+    });
+
+    // WHEN
+    let terminalOpts: { context?: Record<string, unknown>; payload?: unknown } | undefined;
+    const chain = composeMiddleware(substitute, observer);
+    await chain(baseArgs, (opts) => {
+      terminalOpts = opts;
+      return OkAsync(undefined);
+    });
+
+    // THEN — inner middleware saw the substitution; terminal received it for re-validation
+    expect(seen).toEqual([{ id: "2" }]);
+    expect(terminalOpts?.payload).toEqual({ id: "2" });
+  });
+
+  it("omits payload from the terminal opts when nothing substituted", async () => {
+    let terminalOpts: { payload?: unknown } | undefined;
+    const passthrough = defineMiddleware((_args, next) => next());
+    const chain = composeMiddleware(passthrough);
+    await chain(baseArgs, (opts) => {
+      terminalOpts = opts;
+      return OkAsync(undefined);
+    });
+    expect(terminalOpts !== undefined && "payload" in terminalOpts).toBe(false);
+  });
+
   it("exposes dispatch metadata to every middleware", async () => {
     // GIVEN
     const seen: Array<{ handlerName: string; isRpc: boolean }> = [];

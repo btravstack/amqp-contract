@@ -128,6 +128,48 @@ export type WorkerInferRpcHeaders<
     : undefined;
 
 /**
+ * Typed constructors for an RPC's declared errors, handed to the handler via
+ * its helpers argument: `errors.ORDER_NOT_FOUND({ orderId })` builds the
+ * `RpcError` with per-code data inference and autocomplete — the
+ * constructor-bag form of the free `rpcError(code, data)` factory (org DNA,
+ * mirroring temporal-contract's `helpers.errors`).
+ */
+export type WorkerInferRpcErrorConstructors<
+  TContract extends ContractDefinition,
+  TName extends InferRpcNames<TContract>,
+> =
+  InferRpc<TContract, TName> extends RpcDefinition<
+    MessageDefinition,
+    MessageDefinition,
+    QueueEntry,
+    infer TErrors
+  >
+    ? TErrors extends RpcErrorMap
+      ? {
+          [K in keyof TErrors & string]: (
+            data: InferSchemaInput<TErrors[K]["payload"]>,
+            message?: string,
+          ) => RpcError<K, InferSchemaInput<TErrors[K]["payload"]>>;
+        }
+      : EmptyContext
+    : EmptyContext;
+
+/**
+ * The helpers object every handler receives as its third argument: the
+ * middleware-produced `context` and (for RPC handlers with a declared
+ * `errors` map) the typed error `constructors`.
+ */
+export type WorkerHandlerHelpers<
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+  TErrors = EmptyContext,
+> = {
+  /** Context produced by `createContext` and the middleware chain. */
+  readonly context: TContext;
+  /** Typed constructors for the contract-declared errors (empty for consumers). */
+  readonly errors: TErrors;
+};
+
+/**
  * Infer the typed error union for an RPC handler — one `RpcError<code, data>`
  * member per entry in the RPC's `errors` map, with `data` typed as the
  * declared schema's *input* (the worker validates before replying). Resolves
@@ -225,9 +267,11 @@ export type WorkerInferRpcConsumedMessage<
 // error handling. Regular consumers return `void`; RPC handlers return the
 // response payload. RetryableError → exponential backoff retry; NonRetryableError → DLQ.
 //
-// Every handler additionally receives a third `context` argument, populated by
-// the worker's middleware chain (an empty object when no middleware is
-// configured). `TContext` defaults to `EmptyContext` so handlers that ignore
+// Every handler additionally receives a third `helpers` argument —
+// `{ context, errors }`: `context` is produced by `createContext` and the
+// middleware chain (an empty object when neither is configured); `errors`
+// carries typed constructors for the RPC's declared errors (empty for
+// consumers). `TContext` defaults to `EmptyContext` so handlers that ignore
 // the argument keep their existing two-parameter shape.
 
 /**
@@ -241,7 +285,7 @@ export type WorkerInferConsumerHandler<
 > = (
   message: WorkerInferConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
-  context: TContext,
+  helpers: WorkerHandlerHelpers<TContext>,
 ) => AsyncResult<void, HandlerError>;
 
 /**
@@ -261,7 +305,7 @@ export type WorkerInferRpcHandler<
 > = (
   message: WorkerInferRpcConsumedMessage<TContract, TName>,
   rawMessage: ConsumeMessage,
-  context: TContext,
+  helpers: WorkerHandlerHelpers<TContext, WorkerInferRpcErrorConstructors<TContract, TName>>,
 ) => AsyncResult<
   WorkerInferRpcResponse<TContract, TName>,
   HandlerError | WorkerInferRpcErrors<TContract, TName>

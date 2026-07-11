@@ -169,6 +169,8 @@ const handlers = defineHandlers(contract, {
 });
 ```
 
+Handlers can also build declared errors through the typed constructor bag in their third argument — `ErrAsync(errors.ORDER_NOT_FOUND({ orderId }))` — with per-code data inference and autocomplete (see [Middleware & Interceptors](./middleware-and-interceptors.md#typed-error-constructors-helperserrors)).
+
 A returned `RpcError` is the RPC's _business-failure channel_, not a processing failure: the worker validates `data` against the declared schema, publishes an error reply to the caller, and **acks the request — business errors are never retried**. Only `RetryableError` / `NonRetryableError` enter the retry/DLQ pipeline.
 
 **Client side** — the `call()` error union gains the declared `RpcError<code, data>` members. Discriminate with `isRpcError` and narrow on `code`:
