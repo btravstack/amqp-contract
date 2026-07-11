@@ -80,6 +80,13 @@ function validateHandlers<TContract extends ContractDefinition>(
   contract: TContract,
   handlers: object,
 ): void {
+  // JavaScript callers can pass null/undefined despite the type — surface a
+  // clear error instead of the TypeError Object.keys would throw.
+  if (handlers === null || typeof handlers !== "object") {
+    throw new Error(
+      "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+    );
+  }
   for (const handlerName of Object.keys(handlers)) {
     validateHandlerTargetExists(contract, handlerName);
   }

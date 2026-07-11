@@ -59,4 +59,24 @@ describe("TypedAmqpWorker.create cleanup", () => {
     }
     expect(_getConnectionCountForTesting()).toBe(0);
   });
+
+  it("returns Err (does not throw) when handlers is missing entirely", async () => {
+    const contract: ContractDefinition = {};
+
+    // Cast to bypass the type system — a JavaScript caller can omit handlers,
+    // and create() must stay throw-free per the error model.
+    const result = await TypedAmqpWorker.create({
+      contract,
+      handlers: undefined as never,
+      urls: ["amqp://localhost:1"],
+    });
+
+    expect(result).toBeErr();
+    if (result.isErr()) {
+      expect(result.error.message).toBe(
+        "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+      );
+    }
+    expect(_getConnectionCountForTesting()).toBe(0);
+  });
 });
