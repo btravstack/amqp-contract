@@ -159,7 +159,7 @@ const client = await TypedAmqpClient.create({
   contract,
   connection,
   telemetry: customTelemetryProvider,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -169,7 +169,7 @@ const worker = await TypedAmqpWorker.create({
   connection,
   handlers,
   telemetry: customTelemetryProvider,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```

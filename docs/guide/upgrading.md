@@ -7,6 +7,27 @@ description: Migration notes for major versions of amqp-contract, including the 
 
 All six `@amqp-contract/*` packages version together, so upgrade them in lockstep. This page summarizes the changes that require action; the full history lives in the [GitHub Releases](https://github.com/btravstack/amqp-contract/releases) and each package's `CHANGELOG.md`.
 
+## 2.3.x → 2.4.x
+
+Upgrades [`unthrown`](https://github.com/btravstack/unthrown) to `4.1.0`. Since `unthrown` is a **peer dependency**, bump your own copy to `^4.1.0`:
+
+```bash
+pnpm add unthrown@^4.1
+```
+
+unthrown 4.1 **renames** two operator families for consistency; the old names still work but are deprecated and will be removed in the next unthrown major:
+
+| Deprecated (unthrown ≤ 4.0 name) | Use instead        |
+| -------------------------------- | ------------------ |
+| `.orElse(f)`                     | `.flatMapErr(f)`   |
+| `.recover(f)`                    | `.recoverErr(f)`   |
+| `.unwrap()`                      | `.get()`           |
+| `.unwrapErr()`                   | `.getErr()`        |
+| `.unwrapOr(fallback)`            | `.getOr(fallback)` |
+| `.unwrapOrElse(f)`               | `.getOrElse(f)`    |
+
+No amqp-contract API changes — but all documentation and examples now use the new names, so snippets like the throw-on-failure escape hatch read `.getOrElse((e) => { throw e; })`.
+
 ## 2.2.x → 2.3.x
 
 Upgrades [`unthrown`](https://github.com/btravstack/unthrown) to `4.0.0`. Since `unthrown` is a **peer dependency**, bump your own copy to `^4.0.0`:

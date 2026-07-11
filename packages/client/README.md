@@ -28,7 +28,7 @@ const client = (
     contract,
     urls: ["amqp://localhost"],
   })
-).unwrap();
+).get();
 
 // Publish message with explicit error handling
 const result = await client.publish("orderCreated", {

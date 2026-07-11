@@ -82,7 +82,7 @@ describe("chainInterceptors", () => {
     // GIVEN
     let attempts = 0;
     const retryOnce: PublishInterceptor = (_args, next) =>
-      next().orElse(
+      next().flatMapErr(
         (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : Err(error).toAsync()),
       );
 

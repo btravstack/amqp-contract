@@ -7,7 +7,7 @@ description: Frequently asked questions about amqp-contract, type-safe AMQP/Rabb
 
 ## Why doesn't `client.publish()` throw on failure?
 
-Every fallible operation returns a `Result` / `AsyncResult` (from [`unthrown`](https://github.com/btravstack/unthrown)) instead of throwing — `await client.publish(...)` gives you a `Result` that you `.match()` or chain. (`unthrown` 4 gates `.unwrap()` to infallible results, so to throw on failure you unwrap with `.unwrapOrElse((e) => { throw e })` — see [Getting the value out](/guide/error-model#getting-the-value-out).) This makes failure handling explicit and type-checked rather than an invisible `try`/`catch` obligation. The [Error Model guide](/guide/error-model) explains the full `Ok` / `Err` / `Defect` model.
+Every fallible operation returns a `Result` / `AsyncResult` (from [`unthrown`](https://github.com/btravstack/unthrown)) instead of throwing — `await client.publish(...)` gives you a `Result` that you `.match()` or chain. (`unthrown` 4 gates `.get()` to infallible results, so to throw on failure you unwrap with `.getOrElse((e) => { throw e })` — see [Getting the value out](/guide/error-model#getting-the-value-out).) This makes failure handling explicit and type-checked rather than an invisible `try`/`catch` obligation. The [Error Model guide](/guide/error-model) explains the full `Ok` / `Err` / `Defect` model.
 
 ## Which schema libraries can I use?
 

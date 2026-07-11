@@ -60,7 +60,7 @@ const worker = (
     urls: ["amqp://localhost"],
     logger, // Optional: logs message consumption and errors
   })
-).unwrap();
+).get();
 
 // Worker is already consuming messages
 
@@ -114,7 +114,7 @@ const worker = (
     },
     urls: ["amqp://localhost"],
   })
-).unwrap();
+).get();
 ```
 
 See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.

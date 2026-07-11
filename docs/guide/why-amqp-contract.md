@@ -148,7 +148,7 @@ const contract = defineContract({
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -170,7 +170,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```

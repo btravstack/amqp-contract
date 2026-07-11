@@ -222,7 +222,7 @@ export type CreateWorkerOptions<
  *   urls: ['amqp://localhost'],
  * });
  *
- * const worker = result.unwrap();
+ * const worker = result.get();
  *
  * // Close when done
  * await worker.close();
@@ -425,7 +425,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     const cancellations = Array.from(this.consumerTags).map((consumerTag) =>
       // Swallow per-consumer cancel errors during close — they are best-effort
       // cleanup and we still want to release the underlying connection.
-      this.amqpClient.cancel(consumerTag).orElse((error) => {
+      this.amqpClient.cancel(consumerTag).flatMapErr((error) => {
         this.logger?.warn("Failed to cancel consumer during close", { consumerTag, error });
         return Ok(undefined);
       }),
@@ -762,7 +762,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     consumer: ConsumerDefinition,
     name: HandlerName<TContract>,
   ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
-    return this.parseAndValidateMessage(msg, consumer, name).orElse((parseError) => {
+    return this.parseAndValidateMessage(msg, consumer, name).flatMapErr((parseError) => {
       this.amqpClient.nack(msg, false, false);
       return Err(parseError).toAsync();
     });
@@ -873,7 +873,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               state.messageHandled = true;
             }),
           )
-          .orElse((handlerError: HandlerError | RpcError) => {
+          .flatMapErr((handlerError: HandlerError | RpcError) => {
             // A contract-declared RpcError is the RPC's business-failure
             // channel, not a processing failure: publish it back to the
             // caller and ack the request. Only if the error reply itself
@@ -890,7 +890,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                   this.amqpClient.ack(msg);
                   state.messageHandled = true;
                 })
-                .orElse((replyError: HandlerError) =>
+                .flatMapErr((replyError: HandlerError) =>
                   this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
                 );
             }

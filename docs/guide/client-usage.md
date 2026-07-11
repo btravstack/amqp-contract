@@ -4,7 +4,7 @@ Learn how to use the type-safe AMQP client to publish messages.
 
 ## Creating a Client
 
-Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) unwrap with `.unwrapOrElse((e) => { throw e })`, since [unthrown 4 gates `.unwrap()`](./error-model.md#getting-the-value-out) to infallible results:
+Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) unwrap with `.getOrElse((e) => { throw e })`, since [unthrown 4 gates `.get()`](./error-model.md#getting-the-value-out) to infallible results:
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
@@ -13,7 +13,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -30,7 +30,7 @@ const client = await TypedAmqpClient.create({
     priority: 5,
     headers: { "x-app-version": "1.0.0" },
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -204,7 +204,7 @@ async function main() {
     client = await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 

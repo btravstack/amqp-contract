@@ -32,7 +32,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
             ...options,
-          }).unwrapOrElse((e) => {
+          }).getOrElse((e) => {
             throw e;
           });
 
@@ -45,7 +45,7 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            await client.close().unwrapOrElse((e) => {
+            await client.close().getOrElse((e) => {
               throw e;
             });
           } catch (error) {
@@ -267,7 +267,7 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      await client.close().unwrapOrElse((e) => {
+      await client.close().getOrElse((e) => {
         throw e;
       });
     });
@@ -323,7 +323,7 @@ describe("AmqpClient Integration", () => {
         }),
       ]);
 
-      await client.close().unwrapOrElse((e) => {
+      await client.close().getOrElse((e) => {
         throw e;
       });
     });

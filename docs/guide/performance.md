@@ -82,10 +82,10 @@ amqp-contract automatically shares connections across clients and workers with t
 
 ```typescript
 // These share the same underlying connection
-const client = await TypedAmqpClient.create({ contract, urls }).unwrapOrElse((e) => {
+const client = await TypedAmqpClient.create({ contract, urls }).getOrElse((e) => {
   throw e;
 });
-const worker = await TypedAmqpWorker.create({ contract, handlers, urls }).unwrapOrElse((e) => {
+const worker = await TypedAmqpWorker.create({ contract, handlers, urls }).getOrElse((e) => {
   throw e;
 });
 ```
@@ -104,7 +104,7 @@ const client = await TypedAmqpClient.create({
       clientProperties: { connection_name: "publisher" },
     },
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -118,7 +118,7 @@ const worker = await TypedAmqpWorker.create({
       clientProperties: { connection_name: "consumer" },
     },
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -134,7 +134,7 @@ const client = await TypedAmqpClient.create({
   connectionOptions: {
     heartbeatIntervalInSeconds: 60, // Default: 0 (disabled)
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```

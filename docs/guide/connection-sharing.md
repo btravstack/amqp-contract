@@ -37,7 +37,7 @@ const client = await TypedAmqpClient.create({
   connectionOptions: {
     heartbeatIntervalInSeconds: 30,
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -65,7 +65,7 @@ const worker = await TypedAmqpWorker.create({
         });
     },
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -118,7 +118,7 @@ When you create multiple clients or workers with the same URLs and connection op
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← URLs match
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -128,7 +128,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -152,14 +152,14 @@ You can create multiple clients and workers - they automatically share connectio
 const orderClient = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"], // ← Same URLs
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
 const notificationClient = await TypedAmqpClient.create({
   contract: notificationContract,
   urls: ["amqp://localhost"], // ← Same URLs
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -169,7 +169,7 @@ const orderWorker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -179,7 +179,7 @@ const notificationWorker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -195,14 +195,14 @@ If you need separate connections (e.g., for different RabbitMQ clusters), just u
 const mainClient = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://main-cluster"], // ← Different URLs
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
 const analyticsClient = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://analytics-cluster"], // ← Different URLs
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -227,7 +227,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   connectionOptions, // ← Same options
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -238,7 +238,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -246,7 +246,7 @@ const worker = await TypedAmqpWorker.create({
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← No options
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -256,7 +256,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -279,7 +279,7 @@ const AMQP_CONFIG = {
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   ...AMQP_CONFIG,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -289,7 +289,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```
@@ -304,7 +304,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   connectionOptions: { heartbeatIntervalInSeconds: 30 }, // ← Options A
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -315,7 +315,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -392,7 +392,7 @@ Connection sharing is **completely backward compatible** and happens automatical
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"], // ← Connection automatically created
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -402,7 +402,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     /* ... */
   },
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -423,7 +423,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
    const client = await TypedAmqpClient.create({
      contract,
      urls: ["amqp://localhost:5672"],
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    const worker = await TypedAmqpWorker.create({
@@ -432,7 +432,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
 
@@ -441,7 +441,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
    const client = await TypedAmqpClient.create({
      contract,
      urls,
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    const worker = await TypedAmqpWorker.create({
@@ -450,7 +450,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    ```
@@ -463,7 +463,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      contract,
      urls: ["amqp://localhost"],
      connectionOptions: { heartbeatIntervalInSeconds: 30 },
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    const worker = await TypedAmqpWorker.create({
@@ -473,7 +473,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
 
@@ -483,7 +483,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      contract,
      urls: ["amqp://localhost"],
      connectionOptions,
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    const worker = await TypedAmqpWorker.create({
@@ -493,7 +493,7 @@ Connection sharing is automatic when URLs and connection options match. If you s
      handlers: {
        /* ... */
      },
-   }).unwrapOrElse((e) => {
+   }).getOrElse((e) => {
      throw e;
    });
    ```

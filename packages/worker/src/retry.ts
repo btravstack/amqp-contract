@@ -366,7 +366,7 @@ function publishForRetry(
       });
       return Ok(undefined);
     })
-    .orElse((publishError) => {
+    .flatMapErr((publishError) => {
       // Publish threw (network error, channel close, etc.). Same policy: do
       // not ack the original; the redelivery path is the recovery mechanism.
       ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {

@@ -71,7 +71,7 @@ import { randomUUID } from "node:crypto";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -82,7 +82,7 @@ await client
     currency: "USD",
     idempotencyKey: randomUUID(),
   })
-  .unwrapOrElse((e) => {
+  .getOrElse((e) => {
     throw e;
   });
 ```
@@ -129,7 +129,7 @@ const worker = await TypedAmqpWorker.create({
     chargeCustomer: [chargeHandler, { prefetch: 5 }],
   },
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 

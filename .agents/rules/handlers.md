@@ -171,7 +171,7 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 | `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                        |
 | `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                                                                                    |
 | `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)                                                                                 |
-| `.orElse(f)`                    | Recover from an error with another `Result` / `AsyncResult`                                                                                           |
+| `.flatMapErr(f)`                | Recover from an error with another `Result` / `AsyncResult`                                                                                           |
 | `.tap(f)` / `.tapErr(f)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`)                                                                       |
 | `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                                                                                            |
 
@@ -183,8 +183,8 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 | `r.isOk()` / `r.isErr()` / `r.isDefect()` | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here. |
 | `.match({ ok, err, defect })`             | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                                                                                      |
 | `matchTags(r, { Ok, Defect, ...tags })`   | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                                                                                |
-| `.unwrapOr(default)`                      | Extract the value or fall back                                                                                                                                                                                      |
-| `.unwrap()` / `.unwrapErr()`              | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
+| `.getOr(default)`                         | Extract the value or fall back                                                                                                                                                                                      |
+| `.get()` / `.getErr()`                    | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
 
 ## Public exports
 

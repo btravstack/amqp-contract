@@ -309,7 +309,7 @@ import { orderContract } from "@amqp-contract-examples/basic-order-processing-co
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"],
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 
@@ -386,7 +386,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).unwrapOrElse((e) => {
+}).getOrElse((e) => {
   throw e;
 });
 ```

@@ -8,18 +8,18 @@ This page lists every error type the library can produce, where it surfaces, and
 
 The safe way to consume a result is `.match({ ok, err, defect })` — it forces you to handle every channel.
 
-`unthrown` 4 makes `.unwrap()` **type-gated**: it compiles only on a result whose error channel is empty (`E = never`), so `Ok(x).unwrap()` works but `(await client.publish(...)).unwrap()` on a fallible result is a compile error. When you genuinely want to throw on failure (a script, a test, an example), use `.unwrapOrElse()` — it returns the value on `Ok`, runs your callback on `Err` (throw to surface it), and rethrows a `Defect`'s cause:
+`unthrown` 4 makes `.get()` **type-gated**: it compiles only on a result whose error channel is empty (`E = never`), so `Ok(x).get()` works but `(await client.publish(...)).get()` on a fallible result is a compile error. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrElse()` — it returns the value on `Ok`, runs your callback on `Err` (throw to surface it), and rethrows a `Defect`'s cause:
 
 ```ts
 // throws on Err (and rethrows a Defect) — the escape hatch, not the default
-const client = await TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] }).unwrapOrElse(
+const client = await TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] }).getOrElse(
   (e) => {
     throw e;
   },
 );
 ```
 
-Prefer `.match()` / `.recover()` / `.orElse()` in real code; reach for the `.unwrapOrElse((e) => { throw e })` form only where throwing is acceptable.
+Prefer `.match()` / `.recoverErr()` / `.flatMapErr()` in real code; reach for the `.getOrElse((e) => { throw e })` form only where throwing is acceptable.
 
 ## Error hierarchy
 

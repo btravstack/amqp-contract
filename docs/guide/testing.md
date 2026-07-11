@@ -123,7 +123,7 @@ describe("Order Processing Contract", () => {
     const client = await TypedAmqpClient.create({
       contract,
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -138,7 +138,7 @@ describe("Order Processing Contract", () => {
         },
       },
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 

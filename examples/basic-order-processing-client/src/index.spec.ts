@@ -10,7 +10,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -32,7 +32,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -42,7 +42,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -59,7 +59,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result).toEqual(Ok(undefined));
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });
@@ -69,7 +69,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).unwrapOrElse((e) => {
+    }).getOrElse((e) => {
       throw e;
     });
 
@@ -90,7 +90,7 @@ describe("Basic Order Processing Client Integration", () => {
     expect(result.isErr()).toBe(true);
 
     // CLEANUP
-    await client.close().unwrapOrElse((e) => {
+    await client.close().getOrElse((e) => {
       throw e;
     });
   });

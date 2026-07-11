@@ -141,7 +141,7 @@ describe("Feature Integration", () => {
 
     // WHEN
     const client = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
-    (await client.waitForConnect()).unwrap();
+    (await client.waitForConnect()).get();
 
     // THEN
     await expect(amqpChannel.checkExchange("test")).resolves.toBeDefined();

@@ -653,7 +653,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     // Set up the reply future + pending entry up front so a reply that arrives
     // racing the publish round-trip can find a slot. Cleanup on preflight
-    // failure happens in the `.orElse` below.
+    // failure happens in the `.flatMapErr` below.
     let resolveCall!: (result: CallResult) => void;
     const callPromise = new Promise<CallResult>((res) => {
       resolveCall = res;
@@ -736,7 +736,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return validateRequest()
       .flatMap((validated) => publishRequest(validated))
       .flatMap(() => callResultAsync)
-      .orElse((error: InterceptorCallError) => {
+      .flatMapErr((error: InterceptorCallError) => {
         // If preflight failed (validate or publish), the pending entry still
         // exists and the timer is alive. Clean both up so the call doesn't
         // leak. Timer-fired errors and reply-resolved errors have already
@@ -762,7 +762,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     this.pendingCalls.clear();
 
     const cancelReply: AsyncResult<void, TechnicalError> = this.replyConsumerTag
-      ? this.amqpClient.cancel(this.replyConsumerTag).orElse((error) => {
+      ? this.amqpClient.cancel(this.replyConsumerTag).flatMapErr((error) => {
           this.logger?.warn("Failed to cancel RPC reply consumer during close", { error });
           return Ok(undefined);
         })
