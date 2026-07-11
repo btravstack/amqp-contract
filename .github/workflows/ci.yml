@@ -184,8 +184,10 @@ jobs:
     runs-on: ubuntu-latest
     # Only on PRs: fail if a versioned package changed without a changeset
     # (docs/examples/tests are private and unversioned, they don't trigger it).
-    # `pnpm changeset add --empty` opts a PR out explicitly.
-    if: github.event_name == 'pull_request'
+    # `pnpm changeset add --empty` opts a PR out explicitly. The changesets
+    # "Version Packages" PR is exempt — it *consumes* the changesets while
+    # bumping every package, which is exactly the condition this gate rejects.
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
