@@ -1,4 +1,5 @@
 import type { MessageDefinition, QueueEntry, RpcDefinition, RpcErrorMap } from "../types.js";
+import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./validate.js";
 
 /**
  * Define an RPC operation: a request/response pair flowing over a request
@@ -61,6 +62,17 @@ export function defineRpc<
   queue: TQueue,
   messages: { request: TRequestMessage; response: TResponseMessage; errors?: TErrors },
 ): RpcDefinition<TRequestMessage, TResponseMessage, TQueue, TErrors> {
+  _internal_assertKnownKeys("RPC", "(anonymous)", messages, ["request", "response", "errors"]);
+  _internal_assertStandardSchema("RPC request payload schema", messages.request?.payload);
+  _internal_assertStandardSchema("RPC response payload schema", messages.response?.payload);
+  if (messages.errors !== undefined) {
+    for (const [code, definition] of Object.entries(messages.errors)) {
+      _internal_assertStandardSchema(
+        `RPC error "${code}" data schema`,
+        (definition as { payload?: unknown } | undefined)?.payload,
+      );
+    }
+  }
   return {
     queue,
     request: messages.request,

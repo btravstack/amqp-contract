@@ -8,6 +8,8 @@ export {
 } from "./amqp-client.js";
 export {
   _getConnectionCountForTesting,
+  _internal_getConnectionCount,
+  _internal_resetConnections,
   _resetConnectionsForTesting,
 } from "./connection-manager.js";
 export {
@@ -22,6 +24,7 @@ export type { Logger, LoggerContext } from "./logger.js";
 export { safeJsonParse } from "./parsing.js";
 export { setupAmqpTopology } from "./setup.js";
 export {
+  _internal_resetTelemetryCache,
   _resetTelemetryCacheForTesting,
   defaultTelemetryProvider,
   endSpanError,

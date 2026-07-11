@@ -1,11 +1,11 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
-import { _getConnectionCountForTesting, _resetConnectionsForTesting } from "@amqp-contract/core";
+import { _internal_getConnectionCount, _internal_resetConnections } from "@amqp-contract/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TypedAmqpClient } from "./client.js";
 
 describe("TypedAmqpClient.create cleanup", () => {
   beforeEach(async () => {
-    await _resetConnectionsForTesting();
+    await _internal_resetConnections();
   });
 
   it("releases the pooled connection when waitForConnect times out", async () => {
@@ -20,6 +20,6 @@ describe("TypedAmqpClient.create cleanup", () => {
     });
 
     expect(result).toBeErr();
-    expect(_getConnectionCountForTesting()).toBe(0);
+    expect(_internal_getConnectionCount()).toBe(0);
   });
 });

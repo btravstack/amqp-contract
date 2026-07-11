@@ -1,3 +1,4 @@
+import { summarizeIssues } from "@amqp-contract/contract";
 import { TaggedError } from "unthrown";
 
 /**
@@ -43,7 +44,21 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
 }> {
   constructor(source: string, issues: unknown) {
     super({ source, issues });
-    this.message = `Message validation failed for "${source}"`;
+    // Render the issues into the message via the shared formatter when they
+    // look like Standard Schema issues; keep the plain message otherwise
+    // (issues is typed unknown — defensive against foreign shapes).
+    const summary = Array.isArray(issues)
+      ? ((): string | undefined => {
+          try {
+            return summarizeIssues(issues as Parameters<typeof summarizeIssues>[0]);
+          } catch {
+            return undefined;
+          }
+        })()
+      : undefined;
+    this.message = summary
+      ? `Message validation failed for "${source}": ${summary}`
+      : `Message validation failed for "${source}"`;
   }
 }
 
