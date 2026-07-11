@@ -187,7 +187,12 @@ jobs:
     # `pnpm changeset add --empty` opts a PR out explicitly. The changesets
     # "Version Packages" PR is exempt — it *consumes* the changesets while
     # bumping every package, which is exactly the condition this gate rejects.
-    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+    # Fork PRs cannot claim the exemption by naming their branch
+    # changeset-release/main — the head repo must be this repository.
+    if: >-
+      github.event_name == 'pull_request' &&
+      !(github.head_ref == 'changeset-release/main' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - name: Checkout
         uses: actions/checkout@v7
