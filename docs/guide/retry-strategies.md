@@ -135,6 +135,6 @@ If you need the failure context to be visible on poison messages too, prefer a q
 ## Pitfalls
 
 - **No DLX configured.** `nack(requeue=false)` will drop the message. The worker logs a warning, but you'll lose the body. Always set `deadLetter` if you care about poison messages.
-- **Throwing instead of returning.** A handler that throws an exception bypasses the AsyncResult/Result framework. The worker has a defensive try/catch that nacks to DLQ, but you've lost the chance to classify the error. Always return `Err(...).toAsync()`.
+- **Throwing instead of returning.** A handler that throws an exception bypasses the AsyncResult/Result framework. The worker has a defensive try/catch that nacks to DLQ, but you've lost the chance to classify the error. Always return `ErrAsync(...)`.
 - **Mixing modes per handler.** Retry is a property of the queue, not the handler. If you want different policies for different work, give them different queues.
 - **Tuning `maxRetries` without DLQ inspection.** Pick a number that makes sense for your latency budget; the right answer almost always lives in the DLQ telemetry, not in your head.

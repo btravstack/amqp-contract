@@ -1,7 +1,7 @@
 import type { ResolvedTtlBackoffRetryOptions } from "@amqp-contract/contract";
 import type { AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { Err, Ok } from "unthrown";
+import { ErrAsync, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { _internalForTesting } from "./retry.js";
 
@@ -158,12 +158,12 @@ function createMockClient(publishImpl: () => ReturnType<AmqpClient["publish"]>):
 
 describe("publishForRetry", () => {
   it("acks the original message only AFTER a successful retry publish", async () => {
-    const { client, ack, publish } = createMockClient(() => Ok(true).toAsync());
+    const { client, ack, publish } = createMockClient(() => OkAsync(true));
     const callOrder: string[] = [];
     (client.ack as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push("ack"));
     (client.publish as ReturnType<typeof vi.fn>).mockImplementation(() => {
       callOrder.push("publish");
-      return Ok(true).toAsync();
+      return OkAsync(true);
     });
 
     const msg = createMockConsumeMessage();
@@ -187,7 +187,7 @@ describe("publishForRetry", () => {
   });
 
   it("does NOT ack the original when publish reports the channel buffer is full", async () => {
-    const { client, ack, nack, publish } = createMockClient(() => Ok(false).toAsync());
+    const { client, ack, nack, publish } = createMockClient(() => OkAsync(false));
 
     const msg = createMockConsumeMessage();
 
@@ -213,7 +213,7 @@ describe("publishForRetry", () => {
 
   it("does NOT ack the original when publish itself rejects", async () => {
     const { client, ack, nack, publish } = createMockClient(() =>
-      Err(new Error("publish exploded") as never).toAsync(),
+      ErrAsync(new Error("publish exploded") as never),
     );
 
     const msg = createMockConsumeMessage();
@@ -238,7 +238,7 @@ describe("publishForRetry", () => {
   });
 
   it("propagates retry headers and increments x-retry-count on publish", async () => {
-    const { client, publish } = createMockClient(() => Ok(true).toAsync());
+    const { client, publish } = createMockClient(() => OkAsync(true));
 
     const msg = createMockConsumeMessage({
       properties: {

@@ -10,7 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker, type WorkerInferHandlers, defineHandlers } from "@amqp-contract/worker";
-import { Ok } from "unthrown";
+import { Ok, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 
@@ -139,7 +139,7 @@ describe("Client and Worker Integration", () => {
       });
 
       // GIVEN
-      const mockHandler = vi.fn().mockReturnValue(Ok(undefined).toAsync());
+      const mockHandler = vi.fn().mockReturnValue(OkAsync(undefined));
       await workerFactory(contract, {
         processOrder: mockHandler,
       });
@@ -224,7 +224,7 @@ describe("Client and Worker Integration", () => {
       const receivedMessages: unknown[] = [];
       const mockHandler = vi.fn().mockImplementation((message: unknown) => {
         receivedMessages.push(message);
-        return Ok(undefined).toAsync();
+        return OkAsync(undefined);
       });
       await workerFactory(contract, {
         processEvent: mockHandler,
@@ -290,7 +290,7 @@ describe("Client and Worker Integration", () => {
         },
       });
 
-      const mockHandler = vi.fn().mockReturnValue(Ok(undefined).toAsync());
+      const mockHandler = vi.fn().mockReturnValue(OkAsync(undefined));
       await workerFactory(contract, {
         processStrict: mockHandler,
       });
@@ -366,8 +366,8 @@ describe("Client and Worker Integration", () => {
       });
 
       // GIVEN
-      const emailHandler = vi.fn().mockReturnValue(Ok(undefined).toAsync());
-      const smsHandler = vi.fn().mockReturnValue(Ok(undefined).toAsync());
+      const emailHandler = vi.fn().mockReturnValue(OkAsync(undefined));
+      const smsHandler = vi.fn().mockReturnValue(OkAsync(undefined));
 
       await workerFactory(contract, {
         processEmail: emailHandler,

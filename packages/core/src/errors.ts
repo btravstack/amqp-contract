@@ -119,7 +119,7 @@ export function isRpcError(error: unknown): error is RpcError {
  *
  * const handler = ({ payload }) => {
  *   if (!orders.has(payload.orderId)) {
- *     return Err(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId })).toAsync();
+ *     return ErrAsync(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId }));
  *   }
  *   // ...
  * };

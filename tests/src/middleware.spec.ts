@@ -19,7 +19,7 @@ import {
   type CreateWorkerOptions,
   type EmptyContext,
 } from "@amqp-contract/worker";
-import { Err, Ok } from "unthrown";
+import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -132,7 +132,7 @@ describe("worker middleware", () => {
       handlers: {
         processOrder: (_message, _raw, context) => {
           resolveSeen(context);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       },
     });
@@ -161,12 +161,12 @@ describe("worker middleware", () => {
       contract,
       middleware: defineMiddleware((_args, _next) => {
         resolveBlocked();
-        return Err(nonRetryable("blocked by middleware")).toAsync();
+        return ErrAsync(nonRetryable("blocked by middleware"));
       }),
       handlers: {
         processOrder: () => {
           handlerRan = true;
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       },
     });
@@ -190,12 +190,12 @@ describe("worker middleware", () => {
       contract,
       middleware: defineMiddleware((args, next) => {
         if (args.rawMessage.properties.headers?.["x-blocked"] === "yes") {
-          return Err(rpcError("BLOCKED", { reason: "header said so" })).toAsync();
+          return ErrAsync(rpcError("BLOCKED", { reason: "header said so" }));
         }
         return next();
       }),
       handlers: {
-        calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+        calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
     const client = await clientFactory({ contract });
@@ -236,7 +236,7 @@ describe("client interceptors", () => {
       handlers: {
         processOrder: (_message, raw) => {
           resolveHeaders(raw.properties.headers);
-          return Ok(undefined).toAsync();
+          return OkAsync(undefined);
         },
       },
     });
@@ -265,7 +265,7 @@ describe("client interceptors", () => {
     await workerFactory({
       contract,
       handlers: {
-        calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+        calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
 

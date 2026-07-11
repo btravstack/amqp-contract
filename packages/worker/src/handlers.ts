@@ -146,7 +146,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const calculateHandler = defineHandler(
  *   rpcContract,
  *   'calculate',
- *   ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+ *   ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
  * );
  * ```
  */
@@ -227,7 +227,7 @@ export function defineHandler<
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => Ok({ sum: payload.a + payload.b }).toAsync(),
+ *   calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
  * });
  * ```
  */

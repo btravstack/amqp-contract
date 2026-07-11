@@ -69,7 +69,7 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  * const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
  *   const tenantId = args.rawMessage.properties.headers?.['x-tenant-id'];
  *   if (typeof tenantId !== 'string') {
- *     return Err(nonRetryable('Missing x-tenant-id header')).toAsync();
+ *     return ErrAsync(nonRetryable('Missing x-tenant-id header'));
  *   }
  *   return next({ context: { tenantId } });
  * });

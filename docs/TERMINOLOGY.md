@@ -92,7 +92,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ payload }) => {
       // Handle message
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   urls,

@@ -185,13 +185,13 @@ export function retryable(message: string, cause?: unknown): RetryableError {
  *
  * const handler = ({ payload }) => {
  *   if (!isValidPayload(payload)) {
- *     return Err(nonRetryable('Invalid payload format')).toAsync();
+ *     return ErrAsync(nonRetryable('Invalid payload format'));
  *   }
- *   return Ok(undefined).toAsync();
+ *   return OkAsync(undefined);
  * };
  *
  * // Equivalent to:
- * // return Err(new NonRetryableError('Invalid payload format')).toAsync();
+ * // return ErrAsync(new NonRetryableError('Invalid payload format'));
  * ```
  */
 export function nonRetryable(message: string, cause?: unknown): NonRetryableError {

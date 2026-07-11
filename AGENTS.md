@@ -34,8 +34,8 @@ This is the canonical list — sub-files reference these rather than restating t
 - Handlers return `AsyncResult<void, HandlerError>` (regular consumer) or `AsyncResult<TResponse, HandlerError>` (RPC). No `async`/`await` in handler signatures.
 - `await asyncResult` resolves to a `Result<T, E>` — it does **not** throw on `Err`.
 - `result.match({ ok, err, defect })` is **boxed and has three branches**. Positional `match(okFn, errFn)` is the old neverthrow shape and is not supported.
-- Build async results with `Ok(value).toAsync()` / `Err(error).toAsync()` — there is no `okAsync` / `errAsync`.
-- Wrap promises with the free function `fromPromise(promise, qualify)` (not a static `ResultAsync.fromPromise`); `qualify(cause, defect)` maps the rejection reason to `E` (or, for an unexpected failure, a defect via the `defect` callback it receives — `defect(cause)`) and is required. There is no standalone `Defect` import in unthrown 3.x.
+- Build async results with `OkAsync(value)` / `ErrAsync(error)` (added in unthrown 4.1 — the canonical sugar for `OkAsync(value)` / `ErrAsync(error)`, which remain valid). The lowercase neverthrow forms `okAsync` / `errAsync` do not exist.
+- Wrap promises with the free function `fromPromise(promise, qualify)` (not a static `ResultAsync.fromPromise`); `qualify(cause, defect)` maps the rejection reason to `E` (or, for an unexpected failure, a defect via the `defect` callback it receives — `defect(cause)`) and is required. There is no standalone `Defect` constructor export — the `defect` callback is the only way to route a cause to the defect channel.
 - `.isOk()` / `.isErr()` / `.isDefect()` are type guards that **narrow `this`** (since unthrown 0.2.0), so `if (result.isErr()) result.error` works. **Prefer the method form** — the standalone `isOk(result)` / `isErr(result)` / `isDefect(result)` functions narrow identically but are not used in this codebase.
 
 ### Topology and contract authoring
@@ -74,7 +74,7 @@ These have been re-introduced more than once across recent migrations / reviews 
 - **Wrapping `client.publish(...)` in `fromPromise(...)`.** `publish` already returns an `AsyncResult` — wrap it again and you get `AsyncResult<AsyncResult<...>>`. Chain `.map` / `.mapErr` / `.flatMap` directly.
 - **Calling `fromPromise(p)` without the `qualify` mapper.** The mapper is a required second argument with signature `(cause, defect) => E | defect(cause)` — return a modeled error, or call the `defect` callback for an unexpected failure. The fix to the opaque "expected 2 arguments, got 1" error is always: pass the mapper.
 - **Using positional `result.match(okFn, errFn)`.** That's the old neverthrow shape. unthrown's `match` is boxed with three branches: `result.match({ ok, err, defect })`.
-- **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `Ok(v).toAsync()` / `Err(e).toAsync()`, the `AsyncResult` type, and `.getOrThrow()`.
+- **Reaching for `okAsync` / `errAsync` or `ResultAsync` / `_unsafeUnwrap`.** Those are neverthrow. Use `OkAsync(v)` / `ErrAsync(e)`, the `AsyncResult` type, and `.getOrThrow()` (tests/scripts/examples only — prefer `.match` / `.recoverErr` / `.flatMapErr` in real code; `.get()` compiles only when `E = never`).
 - **Using lowercase `ok` / `err` / `defect` constructors.** unthrown 1.0 renamed them to **`Ok` / `Err` / `Defect`** (the lowercase forms are removed). The `.match({ ok, err, defect })` handler keys stay lowercase, though — those are case branches, not constructors.
 - **Adding a publishable package without `repository`, `homepage`, `bugs`, `author`, `license`** — npm will reject with a 422 on provenance validation under Trusted Publishing.
 - **Hardcoding a dep version in a `package.json`.** Use `"catalog:"` and add the actual version once in `pnpm-workspace.yaml`.

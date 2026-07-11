@@ -164,7 +164,7 @@ const worker = await TypedAmqpWorker.create({
       console.log(payload.orderId); // ✅ Fully typed!
       console.log(payload.customerId); // ✅ Autocomplete!
       console.log(payload.amount); // ✅ Type safe!
-      return Ok(undefined).toAsync();
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],

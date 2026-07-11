@@ -99,7 +99,7 @@ export type CallInterceptorNext = (patch?: {
  * ```typescript
  * const retryOnce: CallInterceptor = (args, next) =>
  *   next().flatMapErr((error) =>
- *     error instanceof RpcTimeoutError ? next() : Err(error).toAsync(),
+ *     error instanceof RpcTimeoutError ? next() : ErrAsync(error),
  *   );
  * ```
  */
