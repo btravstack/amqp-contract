@@ -309,9 +309,7 @@ import { orderContract } from "@amqp-contract-examples/basic-order-processing-co
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Publish new order with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -386,9 +384,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ## Message Routing Table

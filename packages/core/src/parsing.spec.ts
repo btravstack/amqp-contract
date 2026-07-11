@@ -8,22 +8,13 @@ describe("safeJsonParse", () => {
     const result = safeJsonParse(buffer, () => new TechnicalError("unused"));
 
     expect(result).toBeOk();
-    expect(
-      result.getOrElse((e) => {
-        throw e;
-      }),
-    ).toEqual({ a: 1, b: "two" });
+    expect(result.getOrThrow()).toEqual({ a: 1, b: "two" });
   });
 
   it("parses primitive JSON values", () => {
-    const rethrow = (e: unknown): never => {
-      throw e;
-    };
-    expect(safeJsonParse(Buffer.from("42"), () => new Error()).getOrElse(rethrow)).toBe(42);
-    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error()).getOrElse(rethrow)).toBe(
-      "hello",
-    );
-    expect(safeJsonParse(Buffer.from("null"), () => new Error()).getOrElse(rethrow)).toBeNull();
+    expect(safeJsonParse(Buffer.from("42"), () => new Error()).getOrThrow()).toBe(42);
+    expect(safeJsonParse(Buffer.from('"hello"'), () => new Error()).getOrThrow()).toBe("hello");
+    expect(safeJsonParse(Buffer.from("null"), () => new Error()).getOrThrow()).toBeNull();
   });
 
   it("invokes the error mapper with the underlying parse error and returns Err", () => {

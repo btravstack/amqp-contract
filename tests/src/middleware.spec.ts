@@ -40,7 +40,7 @@ const it = baseIt.extend<{
       await use(async (options) => {
         const worker = (
           await TypedAmqpWorker.create({ ...options, urls: [amqpConnectionUrl] })
-        ).get();
+        ).getOrThrow();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -49,7 +49,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .then((r) => r.get())
+            .then((r) => r.getOrThrow())
             .catch(() => undefined),
         ),
       );
@@ -61,7 +61,7 @@ const it = baseIt.extend<{
       await use(async (options) => {
         const client = (
           await TypedAmqpClient.create({ ...options, urls: [amqpConnectionUrl] })
-        ).get();
+        ).getOrThrow();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -70,7 +70,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .then((r) => r.get())
+            .then((r) => r.getOrThrow())
             .catch(() => undefined),
         ),
       );
@@ -140,7 +140,7 @@ describe("worker middleware", () => {
 
     (
       await client.publish("createOrder", { orderId: "1" }, { headers: { "x-tenant-id": "acme" } })
-    ).get();
+    ).getOrThrow();
 
     await expect(seen).resolves.toEqual({ tenantId: "acme", greeting: "hi acme" });
   });
@@ -172,7 +172,7 @@ describe("worker middleware", () => {
     });
     const client = await clientFactory({ contract });
 
-    (await client.publish("createOrder", { orderId: "1" })).get();
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
 
     await blocked;
     // Give the dispatch loop a beat to (not) run the handler after the guard.
@@ -251,7 +251,7 @@ describe("client interceptors", () => {
 
     const client = await clientFactory({ contract, publishInterceptors: [stampTrace] });
 
-    (await client.publish("createOrder", { orderId: "1" })).get();
+    (await client.publish("createOrder", { orderId: "1" })).getOrThrow();
 
     await expect(headersSeen).resolves.toMatchObject({ traceparent: "00-abc-def-01" });
   });

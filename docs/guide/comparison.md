@@ -69,9 +69,7 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract, // Resources declared automatically!
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 
 // Publish - fully typed and validated!
 const result = await client.publish("orderCreated", {
@@ -136,9 +134,7 @@ const worker = await TypedAmqpWorker.create({
     }, // ✅ Auto-acknowledgment on success!
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 :::

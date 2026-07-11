@@ -42,7 +42,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => { throw e; });
+}).getOrThrow();
 
 // Publish with gzip compression
 await client
@@ -97,9 +97,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 The worker automatically:

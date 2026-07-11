@@ -184,7 +184,7 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 | `.match({ ok, err, defect })`             | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                                                                                      |
 | `matchTags(r, { Ok, Defect, ...tags })`   | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                                                                                |
 | `.getOr(default)`                         | Extract the value or fall back                                                                                                                                                                                      |
-| `.get()` / `.getErr()`                    | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
+| `.getOrThrow()` / `.getErr()`             | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
 
 ## Public exports
 

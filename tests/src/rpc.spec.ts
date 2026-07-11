@@ -39,7 +39,7 @@ const it = baseIt.extend<{
             handlers,
             urls: [amqpConnectionUrl],
           })
-        ).get();
+        ).getOrThrow();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -48,7 +48,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .then((r) => r.get())
+            .then((r) => r.getOrThrow())
             .catch(() => undefined),
         ),
       );
@@ -63,7 +63,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
           })
-        ).get();
+        ).getOrThrow();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -72,7 +72,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .then((r) => r.get())
+            .then((r) => r.getOrThrow())
             .catch(() => undefined),
         ),
       );
@@ -168,7 +168,7 @@ describe("TypedAmqpClient RPC", () => {
     // the publish has completed and the pending-call entry is registered.
     await handlerStartedPromise;
 
-    (await client.close()).get();
+    (await client.close()).getOrThrow();
 
     const result = await callFuture;
     expect(result.isErr()).toBe(true);

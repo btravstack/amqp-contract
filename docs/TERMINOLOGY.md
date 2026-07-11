@@ -82,13 +82,9 @@ When implementing the contract, we use our terms:
 import { Ok } from "unthrown";
 
 // Client = runtime publisher
-const client = await TypedAmqpClient.create({ contract, urls }).getOrElse((e) => {
-  throw e;
-});
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
 
-await client.publish("orderCreated", message).getOrElse((e) => {
-  throw e;
-});
+await client.publish("orderCreated", message).getOrThrow();
 
 // Worker = runtime consumer
 const worker = await TypedAmqpWorker.create({
@@ -100,9 +96,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 These terms (`TypedAmqpClient`, `TypedAmqpWorker`) describe the **runtime components** that implement the contract.
@@ -158,21 +152,15 @@ await publisher.publish(exchange, routingKey, message);
 const consumer = await createConsumer(queue, handler);
 
 // amqp-contract uses:
-const client = await TypedAmqpClient.create({ contract, urls }).getOrElse((e) => {
-  throw e;
-});
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
 
-await client.publish("orderCreated", message).getOrElse((e) => {
-  throw e;
-});
+await client.publish("orderCreated", message).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder: handler },
   urls,
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 The functionality is identical; only the naming differs.

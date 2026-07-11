@@ -26,9 +26,7 @@ describe("Basic Order Processing Worker Integration", () => {
         fulfillOrder: () => Ok(undefined).toAsync(),
       }),
       urls: [amqpConnectionUrl],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     try {
       const newOrder = {
@@ -54,9 +52,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(processedOrders).toEqual([newOrder]);
     } finally {
-      await worker.close().getOrElse((e) => {
-        throw e;
-      });
+      await worker.close().getOrThrow();
     }
   });
 
@@ -82,9 +78,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.getOrElse((e) => {
-      throw e;
-    });
+    const worker = workerResult.getOrThrow();
 
     try {
       // WHEN
@@ -121,9 +115,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(notifications.length).toBeGreaterThanOrEqual(2);
     } finally {
-      await worker.close().getOrElse((e) => {
-        throw e;
-      });
+      await worker.close().getOrThrow();
     }
   });
 
@@ -153,9 +145,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.getOrElse((e) => {
-      throw e;
-    });
+    const worker = workerResult.getOrThrow();
 
     try {
       const newOrder = {
@@ -182,9 +172,7 @@ describe("Basic Order Processing Worker Integration", () => {
       expect(processedOrders.length).toBeGreaterThanOrEqual(1);
       expect(notifications.length).toBeGreaterThan(0); // Receives all events
     } finally {
-      await worker.close().getOrElse((e) => {
-        throw e;
-      });
+      await worker.close().getOrThrow();
     }
   });
 
@@ -208,9 +196,7 @@ describe("Basic Order Processing Worker Integration", () => {
         },
       }),
       urls: [amqpConnectionUrl],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     try {
       const command = {
@@ -234,9 +220,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(fulfilled).toEqual([command]);
     } finally {
-      await worker.close().getOrElse((e) => {
-        throw e;
-      });
+      await worker.close().getOrThrow();
     }
   });
 });

@@ -4,7 +4,7 @@ Learn how to use the type-safe AMQP client to publish messages.
 
 ## Creating a Client
 
-Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) unwrap with `.getOrElse((e) => { throw e })`, since [unthrown 4 gates `.get()`](./error-model.md#getting-the-value-out) to infallible results:
+Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) extract with [`.getOrThrow()`](./error-model.md#getting-the-value-out), since unthrown gates `.get()` to infallible results:
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
@@ -13,9 +13,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 ### Default Publish Options
@@ -30,9 +28,7 @@ const client = await TypedAmqpClient.create({
     priority: 5,
     headers: { "x-app-version": "1.0.0" },
   },
-}).getOrElse((e) => {
-  throw e;
-});
+}).getOrThrow();
 ```
 
 Default publish options can be overridden by options passed to individual `publish` calls.
@@ -204,9 +200,7 @@ async function main() {
     client = await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
-    }).getOrElse((e) => {
-      throw e;
-    });
+    }).getOrThrow();
 
     const result = await client.publish("orderCreated", {
       orderId: "ORD-123",
