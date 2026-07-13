@@ -55,8 +55,8 @@ catalogs:
       specifier: 2.0.1
       version: 2.0.1
     arktype:
-      specifier: 2.2.1
-      version: 2.2.1
+      specifier: 2.2.2
+      version: 2.2.2
     knip:
       specifier: 6.23.0
       version: 6.23.0
@@ -351,7 +351,7 @@ importers:
         version: 3.6.0
       '@orpc/arktype':
         specifier: 'catalog:'
-        version: 1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.1)
+        version: 1.14.6(@ark/schema@0.56.1)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.2)
       '@orpc/valibot':
         specifier: 'catalog:'
         version: 1.14.6(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(@orpc/server@1.14.6(@opentelemetry/api@1.9.1))(valibot@1.4.2(typescript@6.0.3))
@@ -366,7 +366,7 @@ importers:
         version: 4.1.9(vitest@4.1.9)
       arktype:
         specifier: 'catalog:'
-        version: 2.2.1
+        version: 2.2.2
       publint:
         specifier: 'catalog:'
         version: 0.3.21
@@ -798,11 +798,11 @@ packages:
     resolution: {integrity: sha512-M5F0ePyN6h2Z6XxRiyIPqjGbltotXLjR0CKA0uKspsDu0QmgTNYvRb4RSQPMUs2ZXZHCCYpbaZbFbYOXLxCjUA==}
     engines: {node: '>=20'}
 
-  '@ark/schema@0.56.0':
-    resolution: {integrity: sha512-ECg3hox/6Z/nLajxXqNhgPtNdHWC9zNsDyskwO28WinoFEnWow4IsERNz9AnXRhTZJnYIlAJ4uGn3nlLk65vZA==}
+  '@ark/schema@0.56.1':
+    resolution: {integrity: sha512-1Cf2g9nKD8K/3JGRu+gCCfYw5d4qR8YLLjDs5W5kpmaButCYWAPFUJqSXyBATPjglzCd4tIkp398iPYVs8MjRA==}
 
-  '@ark/util@0.56.0':
-    resolution: {integrity: sha512-BghfRC8b9pNs3vBoDJhcta0/c1J1rsoS1+HgVUreMFPdhz/CRAKReAu57YEllNaSy98rWAdY1gE+gFup7OXpgA==}
+  '@ark/util@0.56.1':
+    resolution: {integrity: sha512-Tp1rTik3q5Z+jAeeDxr5JZpmVIw0miti1ykSEHyZv5Pw3TIJl2xbN6KTacOxITp0l3s9ytlrWd30Zvqcy5vzoQ==}
 
   '@asyncapi/parser@3.6.0':
     resolution: {integrity: sha512-6S0Yr8vI418a1IrpGsOYbfWVo9+aHvSqN2oSkiY0YJltS/C7oDOt9e0mo6hSld8bg+EeKrtgkVmpW4obh1JFvA==}
@@ -3012,11 +3012,11 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
-  arkregex@0.0.6:
-    resolution: {integrity: sha512-9mvuMKQuibfWhBrsNYhsKhNb6k9oEHoAJ/FvDiqe8h+E9Siwe0/cro1WVOGgpajXQ9ZHd24yCOf2k35Q/QqUQw==}
+  arkregex@0.0.7:
+    resolution: {integrity: sha512-O/Ltrn9EUSn3ui0KVzfyrWGDUsHlzKxDVBtpQxL/6JmLRMAZAebfSNf/A/J5Ny5S6QIwrXX+RfXsu888HMs35A==}
 
-  arktype@2.2.1:
-    resolution: {integrity: sha512-CWPJxNoSxrS+NYGB3ufwc/blFonESEW5vBQyYPVS0rf4STu8VWoAWfKJSl5vVVm56h4yxpwbODeYwy6XFKvojA==}
+  arktype@2.2.2:
+    resolution: {integrity: sha512-YYf1xhL2dh5aPZFlsY0RAsxv5HZqfLGLptH2ZP3JidTmsGRW8VOymhPjjMTkerL12vR2YtX0SK4c1mATtae8SA==}
 
   array-buffer-byte-length@1.0.2:
     resolution: {integrity: sha512-LHE+8BuR7RYGDKvnrmcuSq3tDcKv9OFEXQt/HpbZhY7V6h0zlUXutnAD82GiFx9rdieCMjkvtcsPqBwgUl1Iiw==}
@@ -5820,11 +5820,11 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.1
 
-  '@ark/schema@0.56.0':
+  '@ark/schema@0.56.1':
     dependencies:
-      '@ark/util': 0.56.0
+      '@ark/util': 0.56.1
 
-  '@ark/util@0.56.0': {}
+  '@ark/util@0.56.1': {}
 
   '@asyncapi/parser@3.6.0':
     dependencies:
@@ -6552,12 +6552,12 @@ snapshots:
 
   '@opentelemetry/api@1.9.1': {}
 
-  '@orpc/arktype@1.14.6(@ark/schema@0.56.0)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.1)':
+  '@orpc/arktype@1.14.6(@ark/schema@0.56.1)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.6(@opentelemetry/api@1.9.1))(arktype@2.2.2)':
     dependencies:
-      '@ark/schema': 0.56.0
+      '@ark/schema': 0.56.1
       '@orpc/contract': 1.14.6(@opentelemetry/api@1.9.1)
       '@orpc/openapi': 1.14.6(@opentelemetry/api@1.9.1)
-      arktype: 2.2.1
+      arktype: 2.2.2
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - crossws
@@ -7984,15 +7984,15 @@ snapshots:
 
   argparse@2.0.1: {}
 
-  arkregex@0.0.6:
+  arkregex@0.0.7:
     dependencies:
-      '@ark/util': 0.56.0
+      '@ark/util': 0.56.1
 
-  arktype@2.2.1:
+  arktype@2.2.2:
     dependencies:
-      '@ark/schema': 0.56.0
-      '@ark/util': 0.56.0
-      arkregex: 0.0.6
+      '@ark/schema': 0.56.1
+      '@ark/util': 0.56.1
+      arkregex: 0.0.7
 
   array-buffer-byte-length@1.0.2:
     dependencies:
