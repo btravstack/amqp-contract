@@ -41,7 +41,7 @@ catalog:
   knip: 6.23.0
   lefthook: 2.1.9
   mermaid: 11.16.0
-  oxfmt: 0.56.0
+  oxfmt: 0.57.0
   oxlint: 1.71.0
   publint: 0.3.21
   pino: 10.3.1
