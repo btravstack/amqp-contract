@@ -23,8 +23,8 @@ catalog:
   "@asyncapi/parser": 3.6.0
   "@btravstack/theme": 1.5.0
   "@changesets/cli": 2.31.0
-  "@commitlint/cli": 21.1.0
-  "@commitlint/config-conventional": 21.1.0
+  "@commitlint/cli": 21.2.0
+  "@commitlint/config-conventional": 21.2.0
   "@opentelemetry/api": 1.9.1
   "@orpc/arktype": 1.14.6
   "@orpc/openapi": 1.14.7
