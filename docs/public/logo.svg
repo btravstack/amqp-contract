@@ -1,37 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="24 0 100 152" width="100" height="152" fill="none">
-  <!-- ears: left upright, right flopped OUTWARD -->
-  <g transform="rotate(-7 58 66)">
-    <rect x="50" y="12" width="17" height="58" rx="8.5" fill="#FF6600"/>
-    <rect x="54.5" y="20" width="8" height="42" rx="4" fill="#FFB380"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 4 124 130" width="114" height="120" fill="none">
+  <!-- ears: chunky, rounded, gentle outward tilts -->
+  <g transform="rotate(-14 74 62)">
+    <rect x="65" y="16" width="18" height="48" rx="9" fill="#FF6600"/>
+    <rect x="70" y="24" width="8" height="32" rx="4" fill="#FFB380"/>
   </g>
-  <g transform="rotate(30 92 66)">
-    <rect x="84" y="14" width="17" height="56" rx="8.5" fill="#FF6600"/>
-    <rect x="88.5" y="22" width="8" height="40" rx="4" fill="#FFB380"/>
+  <g transform="rotate(16 100 62)">
+    <rect x="91" y="14" width="18" height="48" rx="9" fill="#FF6600"/>
+    <rect x="96" y="22" width="8" height="32" rx="4" fill="#FFB380"/>
   </g>
-  <!-- head -->
-  <rect x="40" y="62" width="66" height="56" rx="26" fill="#FF6600"/>
+  <!-- soft round head -->
+  <path d="M86,56 C66,56 53,69 53,87 C53,104 68,117 86,117 C104,117 119,104 119,87 C119,69 106,56 86,56 Z" fill="#FF6600"/>
+  <!-- stuffed cheek (left, toward the beet) -->
+  <circle cx="66" cy="97" r="4" fill="#EE9CC4" opacity="0.9"/>
+  <circle cx="106" cy="97" r="4" fill="#EE9CC4" opacity="0.85"/>
   <!-- blissful closed eyes -->
-  <path d="M52,91 Q58,97 64,91" stroke="#4A1D00" stroke-width="3" stroke-linecap="round" fill="none"/>
-  <path d="M82,91 Q88,97 94,91" stroke="#4A1D00" stroke-width="3" stroke-linecap="round" fill="none"/>
-  <circle cx="47" cy="101" r="4.4" fill="#EE9CC4" opacity="0.85"/>
-  <circle cx="99" cy="101" r="4.4" fill="#EE9CC4" opacity="0.85"/>
-  <g stroke="#4A1D00" stroke-width="1.6" opacity="0.55" stroke-linecap="round">
-    <path d="M50,105 L38,103"/><path d="M50,109 L39,112"/>
-    <path d="M96,105 L108,103"/><path d="M96,109 L107,112"/>
+  <path d="M70,84 Q76,90 82,84" stroke="#4A1D00" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M94,84 Q100,90 106,84" stroke="#4A1D00" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- nose + little content smile -->
+  <path d="M85,94 L88,98 L91,94" stroke="#4A1D00" stroke-width="2.4" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M83,103 Q88,107 93,103" stroke="#4A1D00" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <!-- the beetroot: upright, leaves up, a bite taken from its right side -->
+  <g transform="translate(34,96) rotate(-10)">
+    <path d="M2,-24 C0,-30 1,-35 4,-39" stroke="#2C8B4E" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+    <path d="M4,-39 C-1,-41 -3,-47 1,-49 C6,-51 9,-46 8,-42 C7,-40 6,-39 4,-39 Z" fill="#3DAE62"/>
+    <path d="M-4,-25 C-9,-29 -15,-30 -18,-26 C-21,-22 -18,-18 -13,-18 C-9,-18 -6,-21 -4,-25 Z" fill="#2C8B4E"/>
+    <path d="M0,-24 C-11,-24 -18,-16 -18,-7 C-18,5 -9,14 0,20 C3,18 7,14 10,10 C4,8 4,2 9,0 C3,-2 3,-8 8,-10 C12,-13 13,-17 11,-20 C8,-23 5,-24 0,-24 Z" fill="#CE3D80"/>
+    <path d="M-10,-21 C-15,-17 -18,-12 -18,-7 C-18,2 -12,10 -4,16 C-9,6 -11,-8 -10,-21 Z" fill="#8E1A52" opacity="0.55"/>
+    <path d="M0,20 C0,25 2,28 0,32" stroke="#8E1A52" stroke-width="2.4" stroke-linecap="round" fill="none"/>
   </g>
-  <!-- the beetroot, corn-on-the-cob style -->
-  <g transform="translate(76,132)">
-    <path d="M-30,-2 C-38,-8 -47,-9 -52,-4 C-56,0 -53,6 -47,6 C-41,6 -34,3 -30,-2 Z" fill="#2C8B4E"/>
-    <path d="M-31,3 C-40,3 -47,8 -47,14 C-47,19 -41,21 -37,17 C-33,14 -31,9 -31,3 Z" fill="#3DAE62"/>
-    <path d="M-31,0 C-31,-11 -22,-17 -10,-17 C6,-17 20,-9 27,0 C20,9 6,17 -10,17 C-22,17 -31,11 -31,0 Z" fill="#CE3D80"/>
-    <path d="M8,-13 C17,-9 24,-4 27,0 C24,4 17,9 8,13 C13,5 13,-5 8,-13 Z" fill="#8E1A52" opacity="0.85"/>
-    <path d="M27,0 C32,-1 36,1 40,-2" stroke="#8E1A52" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-    <circle cx="-6" cy="-22" r="1.8" fill="#CE3D80"/>
-    <circle cx="6" cy="-25" r="1.4" fill="#CE3D80" opacity="0.8"/>
-  </g>
-  <!-- buck teeth sunk into the beet -->
-  <rect x="65.5" y="112" width="7" height="10" rx="2.2" fill="#FFFFFF"/>
-  <rect x="73.5" y="112" width="7" height="10" rx="2.2" fill="#FFFFFF"/>
-  <!-- paws gripping the beet, in the lighter fur -->
-  <g transform="rotate(14 55 124)"><rect x="47" y="120" width="15" height="10" rx="5" fill="#FFB380"/></g>
-  <g transform="rotate(-14 91 124)"><rect x="84" y="120" width="15" height="10" rx="5" fill="#FFB380"/></g></svg>
+  <!-- crumbs drifting toward the mouth -->
+  <circle cx="57" cy="90" r="1.8" fill="#CE3D80"/>
+  <circle cx="63" cy="84" r="1.4" fill="#CE3D80" opacity="0.8"/></svg>
