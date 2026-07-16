@@ -8,7 +8,8 @@ hero:
   text: "Type-safe contracts for AMQP/RabbitMQ"
   tagline: End-to-end type safety · Runtime validation · Reliable retry patterns
   image:
-    src: /logo.svg
+    light: /logo-light.svg
+    dark: /logo-dark.svg
     alt: amqp-contract
   actions:
     - theme: brand

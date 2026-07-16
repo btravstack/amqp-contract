@@ -1,1 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 44 120 120" width="120" height="120" fill="none"><defs><linearGradient id="beetBody" x1="0" y1="0" x2="1" y2="0.6"><stop offset="0%" stop-color="#E45A96"></stop><stop offset="55%" stop-color="#B82E6E"></stop><stop offset="100%" stop-color="#7A1646"></stop></linearGradient><linearGradient id="leaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#54C77B"></stop><stop offset="100%" stop-color="#2C8B4E"></stop></linearGradient><radialGradient id="beetHi" cx="35%" cy="28%" r="55%"><stop offset="0%" stop-color="#fff" stop-opacity="0.5"></stop><stop offset="100%" stop-color="#fff" stop-opacity="0"></stop></radialGradient></defs><g fill="#EFE7D8"><rect x="77" y="50" width="17" height="52" rx="8.5"></rect><rect x="106" y="50" width="17" height="52" rx="8.5"></rect><rect x="64" y="92" width="72" height="64" rx="22"></rect></g><rect x="83" y="112" width="11" height="11" rx="3.5" fill="#B82E6E"></rect><rect x="106" y="112" width="11" height="11" rx="3.5" fill="#B82E6E"></rect><line x1="92" y1="131" x2="108" y2="131" stroke="#B82E6E" stroke-width="3.4" stroke-linecap="round"></line><g transform="translate(100,133) scale(0.85) rotate(19)"><path d="M0,4 C-5.5,-6 -5.5,-18 0,-27 C5.5,-18 5.5,-6 0,4 Z" fill="url(#leaf)" transform="rotate(180)"></path><path d="M0,2 C-5,-6 -5,-16 0,-24 C5,-16 5,-6 0,2 Z" fill="url(#leaf)" transform="rotate(151)"></path><path d="M0,2 C-5,-6 -5,-16 0,-24 C5,-16 5,-6 0,2 Z" fill="url(#leaf)" transform="rotate(209)"></path></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="28 6 88 128" width="106" height="122" fill="none">
+  <g transform="rotate(-24 58 76)">
+    <rect x="50" y="22" width="17" height="58" rx="8.5" fill="#FF6600"/>
+    <rect x="54.5" y="30" width="8" height="42" rx="4" fill="#FFB380"/>
+  </g>
+  <rect x="82" y="16" width="17" height="60" rx="8.5" fill="#FF6600"/>
+  <rect x="86.5" y="24" width="8" height="44" rx="4" fill="#FFB380"/>
+  <rect x="40" y="68" width="66" height="56" rx="26" fill="#FF6600"/>
+  <circle cx="60" cy="92" r="4.6" fill="#4A1D00"/>
+  <circle cx="61.4" cy="90.6" r="1.6" fill="#FFFFFF"/>
+  <circle cx="86" cy="92" r="4.6" fill="#4A1D00"/>
+  <circle cx="87.4" cy="90.6" r="1.6" fill="#FFFFFF"/>
+  <path d="M69,100 L73,104 L77,100" stroke="#4A1D00" stroke-width="2.4" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  <rect x="67" y="105" width="6" height="8" rx="1.8" fill="#FFFFFF"/>
+  <rect x="73.5" y="105" width="6" height="8" rx="1.8" fill="#FFFFFF"/>
+  <circle cx="49" cy="101" r="4" fill="#EE9CC4" opacity="0.8"/>
+  <circle cx="97" cy="101" r="4" fill="#EE9CC4" opacity="0.8"/>
+  <g stroke="#4A1D00" stroke-width="1.6" opacity="0.55" stroke-linecap="round">
+    <path d="M52,95 L40,92"/><path d="M52,100 L41,102"/>
+    <path d="M94,95 L106,92"/><path d="M94,100 L105,102"/>
+  </g>
+  <g transform="translate(82,112) rotate(30)">
+    <path d="M0,0 C-2,-6 -1,-12 3,-16" stroke="#2C8B4E" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M3,-16 C-1,-19 -2,-25 2,-27 C7,-29 10,-24 9,-20 C8,-17 6,-16 3,-16 Z" fill="#3DAE62"/>
+  </g></svg>
