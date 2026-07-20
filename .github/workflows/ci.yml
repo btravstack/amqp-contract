@@ -221,7 +221,7 @@ jobs:
         uses: pnpm/action-setup@v6
 
       - name: Setup Node 22
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22.19"
           cache: pnpm
