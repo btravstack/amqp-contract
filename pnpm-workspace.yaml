@@ -11,6 +11,11 @@ strictPeerDependencies: true
 peerDependencyRules:
   ignoreMissing:
     - search-insights
+  allowedVersions:
+    # @vitejs/plugin-vue@5.x declares peerDep vite@^5, but we force all vite
+    # to 8.0.16 via the overrides below to fix GHSA-fx2h-pf6j-xcff.
+    # vitepress 1.6.4 is compatible with vite 8.x at runtime.
+    "@vitejs/plugin-vue>vite": ">=5.0.0"
 
 packages:
   - packages/*
@@ -83,6 +88,16 @@ overrides:
   # transitively. Types-only, so this has no runtime effect. `catalog:` keeps it
   # in sync with the catalog entry above (single source of truth).
   "@types/node": "catalog:"
+  # Fix GHSA-3jxr-9vmj-r5cp: brace-expansion DoS via exponential-time expansion
+  "brace-expansion@1": "1.1.16"
+  "brace-expansion@2": "2.1.2"
+  "brace-expansion@5": "5.0.7"
+  # Fix GHSA-52cp-r559-cp3m: js-yaml YAML merge-key chains quadratic CPU
+  "js-yaml@3": "3.15.0"
+  "js-yaml@4": "4.3.0"
+  # Fix GHSA-fx2h-pf6j-xcff: vite server.fs.deny bypass (no patch in 5.x;
+  # force to the already-installed patched version used by vitest)
+  vite: "8.0.16"
 
 allowBuilds:
   cpu-features: true
