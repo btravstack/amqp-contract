@@ -95,8 +95,12 @@ overrides:
   # Fix GHSA-52cp-r559-cp3m: js-yaml YAML merge-key chains quadratic CPU
   "js-yaml@3": "3.15.0"
   "js-yaml@4": "4.3.0"
-  # Fix GHSA-fx2h-pf6j-xcff: vite server.fs.deny bypass (no patch in 5.x;
-  # force to the already-installed patched version used by vitest)
+  # Fix GHSA-fx2h-pf6j-xcff: vite server.fs.deny bypass on Windows alternate
+  # paths. Advisory covers vite <=6.4.2 (no 5.x patch), vite 7.0–7.3.4, and
+  # vite 8.0.0–8.0.15. The patched versions are 6.4.3, 7.3.5, and 8.0.16.
+  # vite@8.0.16 is already pulled in by vitest; pinning globally avoids
+  # installing the vulnerable vite@5.4.21 that vitepress 1.6.4 would otherwise
+  # use (vite 8 is the current major; latest at the time of writing is 8.1.5).
   vite: "8.0.16"
 
 allowBuilds:
