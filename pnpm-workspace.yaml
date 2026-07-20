@@ -92,6 +92,8 @@ auditConfig:
     - GHSA-gv7w-rqvm-qjhr
     - GHSA-g7r4-m6w7-qqqr
     - GHSA-67mh-4wv8-2f99
+    - GHSA-3jxr-9vmj-r5cp
+    - GHSA-52cp-r559-cp3m
 
 allowBuilds:
   cpu-features: true
