@@ -84,17 +84,6 @@ overrides:
   # in sync with the catalog entry above (single source of truth).
   "@types/node": "catalog:"
 
-auditConfig:
-  ignoreGhsas:
-    - GHSA-fx2h-pf6j-xcff
-    - GHSA-v6wh-96g9-6wx3
-    - GHSA-4w7w-66w2-5vf9
-    - GHSA-gv7w-rqvm-qjhr
-    - GHSA-g7r4-m6w7-qqqr
-    - GHSA-67mh-4wv8-2f99
-    - GHSA-3jxr-9vmj-r5cp
-    - GHSA-52cp-r559-cp3m
-
 allowBuilds:
   cpu-features: true
   esbuild: true
