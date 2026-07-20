@@ -33,7 +33,7 @@ catalog:
   "@standard-schema/spec": 1.1.0
   "@types/node": 24.13.2
   "@unthrown/vitest": 4.1.0
-  "@arethetypeswrong/cli": 0.18.4
+  "@arethetypeswrong/cli": 0.18.5
   "@vitest/coverage-v8": 4.1.9
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1
