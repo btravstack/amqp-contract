@@ -203,12 +203,8 @@ export const contract = defineContract({
 
 ```typescript
 const contract = defineContract({
-  publishers: {
-    /* ... */
-  },
-  consumers: {
-    /* ... */
-  },
+  publishers: {/* ... */},
+  consumers: {/* ... */},
 });
 ```
 
@@ -526,9 +522,7 @@ const contract = defineContract({
     orderCreated: orderCreatedEvent,
     orderUpdated: orderUpdatedPublisher,
   },
-  consumers: {
-    /* ... */
-  },
+  consumers: {/* ... */},
 });
 ```
 
@@ -751,9 +745,7 @@ const failedOrderEvent = defineEventPublisher(ordersDlx, orderMessage, {
 
 // 5. Compose the contract - DLX exchange is auto-extracted from queue's deadLetter config
 export const contract = defineContract({
-  publishers: {
-    /* ... */
-  },
+  publishers: {/* ... */},
   consumers: {
     processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
     // DLX consumer: binds ordersDlxQueue to ordersDlx with routing key "order.failed"

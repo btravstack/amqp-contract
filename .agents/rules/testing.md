@@ -81,9 +81,7 @@ describe("Feature Name", () => {
   describe("specific function/method", () => {
     it("should do something specific", () => {
       // GIVEN
-      const input = {
-        /* ... */
-      };
+      const input = {/* ... */};
 
       // WHEN
       const result = functionUnderTest(input);

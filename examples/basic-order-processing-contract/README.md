@@ -23,9 +23,7 @@ const client = await TypedAmqpClient.create({
   urls: ["amqp://localhost"],
 }).getOrThrow();
 
-await client.publish("orderCreated", {
-  /* fully typed */
-});
+await client.publish("orderCreated", {/* fully typed */});
 ```
 
 ## Patterns Demonstrated

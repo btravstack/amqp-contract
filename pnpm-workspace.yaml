@@ -81,9 +81,10 @@ overrides:
   # GHSA-67mh-4wv8-2f99 (moderate): vite `server.fs.deny` bypass + esbuild
   # dev-server CORS (dev-server only; the docs ship as static HTML). Reaches us
   # via docs > vitepress > vite. vitepress 1.6.x pins vite ^5.4.14 with no
-  # patched 5.x, so pull vite up to 6.4.3 (first fixed release) — this also drags
-  # esbuild up to a patched 0.25.x. The `vitepress build` is verified against it.
-  vite: 6.4.3
+  # patched 5.x, so lift any pre-6.4.3 vite to 6.4.3 (first fixed release) — this
+  # also drags esbuild up to a patched 0.25.x. The `vitepress build` is verified
+  # against it.
+  "vite@<6.4.3": "6.4.3"
   # GHSA-cmwh-pvxp-8882 (moderate) + GHSA-vxr8-fq34-vvx9 (low): dompurify XSS /
   # mXSS, via docs > mermaid > dompurify. 3.4.11 is the first fixed release.
   dompurify: 3.4.11

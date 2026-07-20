@@ -199,9 +199,7 @@ Unsupported encodings throw errors during consumption:
 Test compression with your actual data:
 
 ```typescript
-const testData = {
-  /* your typical message */
-};
+const testData = {/* your typical message */};
 const json = JSON.stringify(testData);
 console.log("Original size:", json.length, "bytes");
 
