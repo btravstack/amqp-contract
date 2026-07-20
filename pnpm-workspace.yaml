@@ -31,7 +31,7 @@ catalog:
   "@orpc/valibot": 1.14.6
   "@orpc/zod": 1.14.6
   "@standard-schema/spec": 1.1.0
-  "@types/node": 24.13.2
+  "@types/node": 24.13.3
   "@unthrown/vitest": 4.1.0
   "@arethetypeswrong/cli": 0.18.4
   "@vitest/coverage-v8": 4.1.9
