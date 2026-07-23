@@ -20,6 +20,8 @@
   "ignoreDependencies": [
     "typedoc-plugin-markdown",
     "@amqp-contract/typedoc",
-    "@amqp-contract/tsconfig"
+    "@amqp-contract/tsconfig",
+    "@btravstack/typedoc",
+    "@btravstack/oxlint"
   ]
 }

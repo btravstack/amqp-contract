@@ -6,5 +6,9 @@
   "license": "MIT",
   "exports": {
     "./base.json": "./base.json"
+  },
+  "dependencies": {
+    "@btravstack/typedoc": "catalog:",
+    "typedoc-plugin-markdown": "catalog:"
   }
 }

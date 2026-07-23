@@ -15,5 +15,6 @@
   "linked": [],
   "access": "public",
   "baseBranch": "main",
-  "updateInternalDependencies": "patch"
+  "updateInternalDependencies": "patch",
+  "ignore": ["@amqp-contract/tsconfig", "@amqp-contract/typedoc"]
 }
