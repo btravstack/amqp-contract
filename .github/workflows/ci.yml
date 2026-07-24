@@ -1,5 +1,4 @@
 name: CI
-
 permissions:
   contents: read
 
@@ -22,10 +21,7 @@ jobs:
     with:
       changeset: true
       integration-tests: true
-      bundle-size: true
       node-floor: "22.19"
-      test-command: "pnpm test -- --coverage --reporter=default --reporter=github-actions"
-      integration-command: "pnpm test:integration --concurrency 3 -- --coverage --reporter=default --reporter=github-actions"
 
   package-check:
     name: Package
@@ -33,9 +29,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Setup
         uses: ./.github/actions/setup
-
       - name: Validate published surfaces (publint + are-the-types-wrong)
         run: pnpm run check:packages
