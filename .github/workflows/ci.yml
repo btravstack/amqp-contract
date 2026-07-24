@@ -1,4 +1,5 @@
 name: CI
+
 permissions:
   contents: read
 
@@ -17,62 +18,14 @@ env:
 
 jobs:
   ci:
-    uses: btravstack/config/.github/workflows/ci-reusable.yml@main
+    uses: btravstack/config/.github/workflows/ci-reusable.yml@workflows-v1
     with:
       changeset: true
+      integration-tests: true
+      bundle-size: true
+      node-floor: "22.19"
       test-command: "pnpm test -- --coverage --reporter=default --reporter=github-actions"
-
-  # --- bespoke jobs, kept verbatim (needs: build -> needs: ci) ---
-  test-integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup
-        uses: ./.github/actions/setup
-
-      - name: Run integration tests
-        run: pnpm test:integration --concurrency 3 -- --coverage --reporter=default --reporter=github-actions
-
-      - name: Upload Integration Coverage Report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: integration-coverage-report
-          path: ./**/coverage/
-          retention-days: 30
-
-  bundle-size:
-    name: Bundle Size
-    runs-on: ubuntu-latest
-    needs: ci
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup
-        uses: ./.github/actions/setup
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Report bundle sizes
-        run: |
-          echo "## Bundle Sizes" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Package | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
-          for pkg in packages/*/dist; do
-            if [ -d "$pkg" ]; then
-              size=$(du -sh "$pkg" 2>/dev/null | cut -f1)
-              name=$(basename $(dirname "$pkg"))
-              echo "| $name | $size |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
+      integration-command: "pnpm test:integration --concurrency 3 -- --coverage --reporter=default --reporter=github-actions"
 
   package-check:
     name: Package
@@ -86,28 +39,3 @@ jobs:
 
       - name: Validate published surfaces (publint + are-the-types-wrong)
         run: pnpm run check:packages
-
-  node-floor:
-    name: Node 22 (engine floor)
-    runs-on: ubuntu-latest
-    # CI otherwise runs the .node-version (24). Exercise the declared
-    # `engines.node` floor so published packages are verified on the oldest
-    # supported Node.
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v7
-        with:
-          node-version: "22.19"
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and unit-test on the engine floor
-        run: pnpm build && pnpm test
