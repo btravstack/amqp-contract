@@ -8,6 +8,7 @@ import {
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { Err, ErrAsync, Ok, OkAsync, type AsyncResult } from "unthrown";
+
 import { NonRetryableError } from "./errors.js";
 
 type RetryContext = {

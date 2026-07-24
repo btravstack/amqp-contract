@@ -1,6 +1,7 @@
 import { TechnicalError } from "@amqp-contract/core";
 import { ErrAsync, OkAsync, type AsyncResult } from "unthrown";
 import { describe, expect, it } from "vitest";
+
 import {
   chainInterceptors,
   type PublishError,

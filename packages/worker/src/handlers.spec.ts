@@ -1,5 +1,3 @@
-import { ErrAsync, OkAsync } from "unthrown";
-import { NonRetryableError, RetryableError } from "./errors.js";
 import {
   defineConsumer,
   defineContract,
@@ -7,10 +5,13 @@ import {
   defineQueue,
   defineRpc,
 } from "@amqp-contract/contract";
-import { defineHandler, defineHandlers } from "./handlers.js";
-import { describe, expect, it } from "vitest";
 import type { ConsumeMessage } from "amqplib";
+import { ErrAsync, OkAsync } from "unthrown";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
+
+import { NonRetryableError, RetryableError } from "./errors.js";
+import { defineHandler, defineHandlers } from "./handlers.js";
 
 /**
  * Creates a mock ConsumeMessage for testing purposes.

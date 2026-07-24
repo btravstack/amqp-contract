@@ -10,6 +10,7 @@ import {
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
+
 import { RetryableError } from "../errors.js";
 import { defineHandler, defineHandlers } from "../handlers.js";
 import { TypedAmqpWorker } from "../worker.js";

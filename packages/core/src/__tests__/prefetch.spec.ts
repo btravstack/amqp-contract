@@ -2,6 +2,7 @@ import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/
 import type { ContractDefinition } from "@amqp-contract/contract";
 import { it } from "@amqp-contract/testing/extension";
 import { beforeEach, describe, expect, vi } from "vitest";
+
 import { AmqpClient } from "../amqp-client.js";
 
 /**

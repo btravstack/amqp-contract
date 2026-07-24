@@ -1,6 +1,7 @@
 import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, it } from "vitest";
+
 import { nonRetryable } from "./errors.js";
 import { composeMiddleware, defineMiddleware, type WorkerMiddlewareArgs } from "./middleware.js";
 

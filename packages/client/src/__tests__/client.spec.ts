@@ -1,5 +1,5 @@
 import {
-  ContractDefinition,
+  type ContractDefinition,
   defineContract,
   defineEventConsumer,
   defineEventPublisher,
@@ -11,7 +11,8 @@ import {
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { describe, expect } from "vitest";
 import { z } from "zod";
-import { CreateClientOptions, TypedAmqpClient } from "../client.js";
+
+import { type CreateClientOptions, TypedAmqpClient } from "../client.js";
 
 const it = baseIt.extend<{
   clientFactory: <TContract extends ContractDefinition>(

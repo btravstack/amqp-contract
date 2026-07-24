@@ -1,6 +1,6 @@
 import { isRpcError, TypedAmqpClient, type PublishInterceptor } from "@amqp-contract/client";
 import {
-  ContractDefinition,
+  type ContractDefinition,
   defineCommandConsumer,
   defineCommandPublisher,
   defineContract,

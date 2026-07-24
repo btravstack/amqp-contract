@@ -1,6 +1,7 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
 import { extractQueue } from "@amqp-contract/contract";
 import type { Channel } from "amqplib";
+
 import { TechnicalError } from "./errors.js";
 
 /**

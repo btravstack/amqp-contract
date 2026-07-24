@@ -1,7 +1,7 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { RetryableError, TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
-import { fromPromise } from "unthrown";
 import pino from "pino";
+import { fromPromise } from "unthrown";
 import { z } from "zod";
 
 const env = z

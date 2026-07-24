@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect } from "vitest";
 import type { ContractDefinition } from "@amqp-contract/contract";
 import {
   defineConsumer,
@@ -9,10 +8,12 @@ import {
   defineQueueBinding,
   extractQueue,
 } from "@amqp-contract/contract";
-import { AmqpClient } from "../amqp-client.js";
-import type { ConsumeMessage } from "amqplib";
 import { it } from "@amqp-contract/testing/extension";
+import type { ConsumeMessage } from "amqplib";
+import { beforeEach, describe, expect } from "vitest";
 import { z } from "zod";
+
+import { AmqpClient } from "../amqp-client.js";
 
 describe("Priority Queue", () => {
   beforeEach(async () => {

@@ -1,8 +1,8 @@
-import { OkAsync } from "unthrown";
-import { TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
-import { describe, expect, vi } from "vitest";
-import { it } from "@amqp-contract/testing/extension";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
+import { it } from "@amqp-contract/testing/extension";
+import { TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
+import { OkAsync } from "unthrown";
+import { describe, expect, vi } from "vitest";
 
 describe("Basic Order Processing Worker Integration", () => {
   it("should process new orders from order.created queue", async ({

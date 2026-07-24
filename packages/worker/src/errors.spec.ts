@@ -1,3 +1,5 @@
+import { describe, expect, it } from "vitest";
+
 import {
   NonRetryableError,
   RetryableError,
@@ -10,7 +12,6 @@ import {
   retryable,
 } from "./errors.js";
 import type { HandlerError } from "./errors.js";
-import { describe, expect, it } from "vitest";
 
 describe("Type Guards", () => {
   describe("isRetryableError", () => {

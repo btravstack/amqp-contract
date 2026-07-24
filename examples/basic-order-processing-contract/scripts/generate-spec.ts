@@ -1,5 +1,6 @@
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+
 import { orderContract } from "../src/index.js";
 
 const generator = new AsyncAPIGenerator({

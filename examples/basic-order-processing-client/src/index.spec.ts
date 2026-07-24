@@ -1,8 +1,8 @@
-import { describe, expect } from "vitest";
-import { Ok } from "unthrown";
+import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { it } from "@amqp-contract/testing/extension";
-import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
+import { Ok } from "unthrown";
+import { describe, expect } from "vitest";
 
 describe("Basic Order Processing Client Integration", () => {
   it("should publish a new order successfully", async ({ amqpConnectionUrl }) => {

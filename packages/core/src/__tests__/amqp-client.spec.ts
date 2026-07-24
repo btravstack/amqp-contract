@@ -1,4 +1,3 @@
-import { beforeEach, describe, expect } from "vitest";
 import type { ContractDefinition } from "@amqp-contract/contract";
 import {
   defineContract,
@@ -10,9 +9,11 @@ import {
   defineQueue,
   defineQueueBinding,
 } from "@amqp-contract/contract";
-import { z } from "zod";
-import { AmqpClient } from "../amqp-client.js";
 import { it } from "@amqp-contract/testing/extension";
+import { beforeEach, describe, expect } from "vitest";
+import { z } from "zod";
+
+import { AmqpClient } from "../amqp-client.js";
 
 describe("AmqpClient Integration", () => {
   beforeEach(async () => {

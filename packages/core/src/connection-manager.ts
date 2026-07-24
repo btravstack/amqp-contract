@@ -1,7 +1,7 @@
 import amqp, {
-  AmqpConnectionManager,
-  AmqpConnectionManagerOptions,
-  ConnectionUrl,
+  type AmqpConnectionManager,
+  type AmqpConnectionManagerOptions,
+  type ConnectionUrl,
 } from "amqp-connection-manager";
 
 /**

@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   type TelemetryProvider,
   _internal_resetTelemetryCache,
@@ -9,7 +11,6 @@ import {
   startConsumeSpan,
   startPublishSpan,
 } from "./telemetry.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** Provider where all instruments are unavailable */
 const noopProvider: TelemetryProvider = {

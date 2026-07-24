@@ -10,6 +10,7 @@ import type { TelemetryProvider } from "@amqp-contract/core";
 import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
+
 import { TypedAmqpWorker } from "../worker.js";
 import { it } from "./fixture.js";
 

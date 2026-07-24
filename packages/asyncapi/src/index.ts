@@ -1,12 +1,3 @@
-import {
-  AsyncAPIObject,
-  ChannelObject,
-  ChannelsObject,
-  MessageObject,
-  MessagesObject,
-  OperationsObject,
-} from "@asyncapi/parser/esm/spec-types/v3.js";
-import { ConditionalSchemaConverter, JSONSchema } from "@orpc/openapi";
 import type {
   BindingDefinition,
   ContractDefinition,
@@ -17,6 +8,15 @@ import type {
   QueueDefinition,
 } from "@amqp-contract/contract";
 import { extractConsumer, extractQueue } from "@amqp-contract/contract";
+import {
+  type AsyncAPIObject,
+  type ChannelObject,
+  type ChannelsObject,
+  type MessageObject,
+  type MessagesObject,
+  type OperationsObject,
+} from "@asyncapi/parser/esm/spec-types/v3.js";
+import { type ConditionalSchemaConverter, type JSONSchema } from "@orpc/openapi";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**

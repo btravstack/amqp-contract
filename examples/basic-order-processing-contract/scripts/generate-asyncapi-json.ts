@@ -1,5 +1,6 @@
-import { spec } from "./generate-spec.js";
 import { writeFileSync } from "node:fs";
+
+import { spec } from "./generate-spec.js";
 
 const outputPath = "asyncapi.json";
 writeFileSync(outputPath, JSON.stringify(spec, null, 2));

@@ -2,12 +2,12 @@ import {
   isRpcError,
   MessageValidationError,
   RpcCancelledError,
-  RpcError,
+  type RpcError,
   RpcTimeoutError,
   TypedAmqpClient,
 } from "@amqp-contract/client";
 import {
-  ContractDefinition,
+  type ContractDefinition,
   defineContract,
   defineMessage,
   defineQueue,

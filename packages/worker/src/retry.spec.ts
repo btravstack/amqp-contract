@@ -3,6 +3,7 @@ import type { AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { _internalForTesting } from "./retry.js";
 
 const { calculateRetryDelay, publishForRetry } = _internalForTesting;

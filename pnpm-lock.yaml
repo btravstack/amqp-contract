@@ -15,15 +15,18 @@ catalogs:
     '@btravstack/commitlint':
       specifier: 0.1.0
       version: 0.1.0
+    '@btravstack/lefthook':
+      specifier: 0.1.1
+      version: 0.1.1
     '@btravstack/oxlint':
-      specifier: 0.1.0
-      version: 0.1.0
+      specifier: 0.2.1
+      version: 0.2.1
     '@btravstack/theme':
       specifier: 1.7.0
       version: 1.7.0
     '@btravstack/tsconfig':
-      specifier: 0.1.0
-      version: 0.1.0
+      specifier: 0.2.0
+      version: 0.2.0
     '@btravstack/typedoc':
       specifier: 0.1.0
       version: 0.1.0
@@ -155,9 +158,12 @@ importers:
       '@btravstack/commitlint':
         specifier: 'catalog:'
         version: 0.1.0(@commitlint/cli@21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3))
+      '@btravstack/lefthook':
+        specifier: 'catalog:'
+        version: 0.1.1(lefthook@2.1.10)
       '@btravstack/oxlint':
         specifier: 'catalog:'
-        version: 0.1.0(oxlint@1.73.0)
+        version: 0.2.1(oxlint@1.73.0)
       '@changesets/cli':
         specifier: 'catalog:'
         version: 2.31.0(@types/node@26.1.1)
@@ -243,7 +249,7 @@ importers:
         version: link:../../packages/testing
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@types/node':
         specifier: 26.1.1
         version: 26.1.1
@@ -277,7 +283,7 @@ importers:
         version: link:../../packages/asyncapi
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@orpc/zod':
         specifier: 'catalog:'
         version: 1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(zod@4.4.3)
@@ -323,7 +329,7 @@ importers:
         version: link:../../packages/testing
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@types/node':
         specifier: 26.1.1
         version: 26.1.1
@@ -360,7 +366,7 @@ importers:
         version: 3.6.0
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -430,7 +436,7 @@ importers:
         version: 0.18.5
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -485,7 +491,7 @@ importers:
         version: 0.18.5
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -537,7 +543,7 @@ importers:
         version: 0.18.5
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -589,7 +595,7 @@ importers:
         version: 0.18.5
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -635,7 +641,7 @@ importers:
         version: 0.18.5
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -702,7 +708,7 @@ importers:
     devDependencies:
       '@btravstack/tsconfig':
         specifier: 'catalog:'
-        version: 0.1.0
+        version: 0.2.0
       '@types/node':
         specifier: 26.1.1
         version: 26.1.1
@@ -871,8 +877,14 @@ packages:
     peerDependencies:
       '@commitlint/cli': '>=21'
 
-  '@btravstack/oxlint@0.1.0':
-    resolution: {integrity: sha512-/UIfVydE3nEExRqE03vUoAAQSdPqVNOzZl0QSa9ikXftezoLQfNgJcFCKW6+D2cJnM180JR0o0W7dmkQHhLogQ==}
+  '@btravstack/lefthook@0.1.1':
+    resolution: {integrity: sha512-5KFOHHrJzHm5xqtxVtsVWfm862h7ivAlRGWngtSteEZxn3aNdEwIxchts0NBX1ICg+TNL5XcIRmiPIRCyOOOvQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      lefthook: '>=2'
+
+  '@btravstack/oxlint@0.2.1':
+    resolution: {integrity: sha512-BflvYgQL67f0SVlgorKCC9tAZMor0vBpN0wkuO/SSsNsiOYMXlFEVJuUaL/ULwZYsDbeoSrzBblg1LLaIAMnHA==}
     engines: {node: '>=20'}
     peerDependencies:
       oxlint: '>=1'
@@ -886,8 +898,8 @@ packages:
       vue:
         optional: true
 
-  '@btravstack/tsconfig@0.1.0':
-    resolution: {integrity: sha512-xRkISG6jY5vLpaDJCptyOjvmUeyH6M/i6shhoE6WFGBc+JToc/dyO/511Zi6NPYVTHamNbxOG/e6dpclBWIz2A==}
+  '@btravstack/tsconfig@0.2.0':
+    resolution: {integrity: sha512-0VZt4DNJlY+XgAeCS4HybgsG0kdWDGjRwBiDdQZ6pYPUo1ayjM4AIH1oPatL5+YQvICTqrSaXTHSa8DnP+GXbg==}
     engines: {node: '>=20'}
 
   '@btravstack/typedoc@0.1.0':
@@ -5737,7 +5749,11 @@ snapshots:
       '@commitlint/cli': 21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3)
       '@commitlint/config-conventional': 21.2.0
 
-  '@btravstack/oxlint@0.1.0(oxlint@1.73.0)':
+  '@btravstack/lefthook@0.1.1(lefthook@2.1.10)':
+    dependencies:
+      lefthook: 2.1.10
+
+  '@btravstack/oxlint@0.2.1(oxlint@1.73.0)':
     dependencies:
       oxlint: 1.73.0
 
@@ -5747,7 +5763,7 @@ snapshots:
     optionalDependencies:
       vue: 3.5.35(typescript@6.0.3)
 
-  '@btravstack/tsconfig@0.1.0': {}
+  '@btravstack/tsconfig@0.2.0': {}
 
   '@btravstack/typedoc@0.1.0(typedoc-plugin-markdown@4.12.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))':
     dependencies:

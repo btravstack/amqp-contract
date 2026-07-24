@@ -15,6 +15,7 @@ import { type } from "arktype";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+
 import { AsyncAPIGenerator } from "./index.js";
 
 describe("AsyncAPIGenerator", () => {

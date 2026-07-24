@@ -3,6 +3,7 @@ import type {
   InferConsumerNames,
   InferRpcNames,
 } from "@amqp-contract/contract";
+
 import type { EmptyContext } from "./middleware.js";
 import type {
   WorkerInferConsumerHandler,
@@ -11,7 +12,7 @@ import type {
   WorkerInferRpcHandler,
   WorkerInferRpcHandlerEntry,
 } from "./types.js";
-import { ConsumerOptions } from "./worker.js";
+import { type ConsumerOptions } from "./worker.js";
 
 // =============================================================================
 // Helper Functions

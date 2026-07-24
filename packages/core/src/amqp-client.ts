@@ -16,6 +16,7 @@ import {
   type AsyncResult,
   type Result,
 } from "unthrown";
+
 import { ConnectionManagerSingleton } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
 import { setupAmqpTopology } from "./setup.js";

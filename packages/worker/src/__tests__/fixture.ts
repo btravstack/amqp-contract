@@ -1,7 +1,8 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
-import { TypedAmqpWorker } from "../worker.js";
-import type { WorkerInferHandlers } from "../types.js";
 import { it as baseIt } from "@amqp-contract/testing/extension";
+
+import type { WorkerInferHandlers } from "../types.js";
+import { TypedAmqpWorker } from "../worker.js";
 
 export const it = baseIt.extend<{
   workerFactory: <TContract extends ContractDefinition>(

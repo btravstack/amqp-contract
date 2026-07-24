@@ -1,8 +1,5 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "ignorePatterns": ["pnpm-lock.yaml"],
-  "organizeImports": {
-    "sortImports": true,
-    "separateGroups": true
-  }
+  "sortImports": true
 }

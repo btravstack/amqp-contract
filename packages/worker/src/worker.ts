@@ -9,7 +9,7 @@ import {
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
-  ConsumerOptions as AmqpClientConsumerOptions,
+  type ConsumerOptions as AmqpClientConsumerOptions,
   type Logger,
   RPC_ERROR_CODE_HEADER,
   RpcError,
@@ -37,6 +37,7 @@ import {
   type AsyncResult,
   type Result,
 } from "unthrown";
+
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
