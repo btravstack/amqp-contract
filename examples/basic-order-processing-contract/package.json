@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@amqp-contract/asyncapi": "workspace:*",
-    "@amqp-contract/tsconfig": "workspace:*",
+    "@btravstack/tsconfig": "catalog:",
     "@orpc/zod": "catalog:",
     "@types/node": "catalog:",
     "tsdown": "catalog:",

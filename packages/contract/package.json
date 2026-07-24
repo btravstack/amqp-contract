@@ -60,9 +60,9 @@
     "@standard-schema/spec": "catalog:"
   },
   "devDependencies": {
-    "@amqp-contract/tsconfig": "workspace:*",
-    "@amqp-contract/typedoc": "workspace:*",
     "@arethetypeswrong/cli": "catalog:",
+    "@btravstack/tsconfig": "catalog:",
+    "@btravstack/typedoc": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "publint": "catalog:",

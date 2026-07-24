@@ -17,11 +17,5 @@
       "project": ["scripts/**/*.ts"]
     }
   },
-  "ignoreDependencies": [
-    "typedoc-plugin-markdown",
-    "@amqp-contract/typedoc",
-    "@amqp-contract/tsconfig",
-    "@btravstack/typedoc",
-    "@btravstack/oxlint"
-  ]
+  "ignoreDependencies": ["typedoc-plugin-markdown", "@btravstack/typedoc", "@btravstack/oxlint"]
 }
