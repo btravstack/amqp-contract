@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import {
   extractQueue,
   type CompressionAlgorithm,
@@ -9,7 +11,7 @@ import {
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
-  PublishOptions as AmqpClientPublishOptions,
+  type PublishOptions as AmqpClientPublishOptions,
   type Logger,
   MessagingSemanticConventions,
   RPC_ERROR_CODE_HEADER,
@@ -36,7 +38,7 @@ import {
   type AsyncResult,
   type Result,
 } from "unthrown";
-import { randomUUID } from "node:crypto";
+
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
 import { chainInterceptors } from "./interceptors.js";

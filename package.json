@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@btravstack/commitlint": "catalog:",
+    "@btravstack/lefthook": "catalog:",
     "@btravstack/oxlint": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",

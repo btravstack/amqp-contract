@@ -14,9 +14,10 @@ catalog:
   "@arethetypeswrong/cli": 0.18.5
   "@asyncapi/parser": 3.6.0
   "@btravstack/commitlint": 0.1.0
-  "@btravstack/oxlint": 0.1.0
+  "@btravstack/lefthook": 0.1.1
+  "@btravstack/oxlint": 0.2.1
   "@btravstack/theme": 1.7.0
-  "@btravstack/tsconfig": 0.1.0
+  "@btravstack/tsconfig": 0.2.0
   "@btravstack/typedoc": 0.1.0
   "@changesets/cli": 2.31.0
   "@commitlint/cli": 21.2.1
@@ -114,6 +115,7 @@ minimumReleaseAgeStrict: true
 # published versions can be adopted immediately.
 minimumReleaseAgeExclude:
   - "@btravstack/commitlint"
+  - "@btravstack/lefthook"
   - "@btravstack/oxlint"
   - "@btravstack/theme"
   - "@btravstack/tsconfig"

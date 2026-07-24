@@ -1,6 +1,8 @@
-import YAML from "yaml";
-import { spec } from "./generate-spec.js";
 import { writeFileSync } from "node:fs";
+
+import YAML from "yaml";
+
+import { spec } from "./generate-spec.js";
 
 const outputPath = "asyncapi.yaml";
 writeFileSync(outputPath, YAML.stringify(spec));

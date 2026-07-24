@@ -1,7 +1,8 @@
+import { promisify } from "node:util";
+import { gunzip, inflate } from "node:zlib";
+
 import { TechnicalError } from "@amqp-contract/core";
 import { ErrAsync, fromPromise, OkAsync, type AsyncResult } from "unthrown";
-import { gunzip, inflate } from "node:zlib";
-import { promisify } from "node:util";
 
 const gunzipAsync = promisify(gunzip);
 const inflateAsync = promisify(inflate);

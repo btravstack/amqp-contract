@@ -1,5 +1,5 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-import { PublishOptions, TypedAmqpClient } from "@amqp-contract/client";
+import { type PublishOptions, TypedAmqpClient } from "@amqp-contract/client";
 import pino from "pino";
 import { z } from "zod";
 

@@ -15,6 +15,7 @@ import {
 import { OkAsync } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
+
 import { defineHandlers } from "./handlers.js";
 import type { WorkerInferConsumedMessage } from "./types.js";
 

@@ -1,6 +1,7 @@
 import type { RpcError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import type { AsyncResult } from "unthrown";
+
 import type { HandlerError } from "./errors.js";
 
 /**

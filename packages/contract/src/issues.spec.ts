@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { formatIssue, summarizeIssues } from "./issues.js";
 
 describe("formatIssue", () => {

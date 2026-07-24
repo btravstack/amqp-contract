@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect } from "vitest";
 import type { ContractDefinition } from "@amqp-contract/contract";
 import { defineExchange, defineQueue } from "@amqp-contract/contract";
-import { AmqpClient } from "../amqp-client.js";
 import { it } from "@amqp-contract/testing/extension";
+import { beforeEach, describe, expect } from "vitest";
+
+import { AmqpClient } from "../amqp-client.js";
 
 describe("Dead Letter Exchange Support", () => {
   beforeEach(async () => {

@@ -11,6 +11,7 @@ import type { ConsumeMessage } from "amqplib";
 import { OkAsync } from "unthrown";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+
 import { NonRetryableError, RetryableError } from "./errors.js";
 import { handleError } from "./retry.js";
 

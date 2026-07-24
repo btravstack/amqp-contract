@@ -16,6 +16,7 @@ import type { TechnicalError } from "@amqp-contract/core";
 import type { AsyncResult } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
+
 import type { TypedAmqpClient } from "./client.js";
 import type { MessageValidationError } from "./errors.js";
 import type { ClientInferPublisherInput } from "./types.js";

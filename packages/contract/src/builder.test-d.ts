@@ -5,6 +5,7 @@
 
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
+
 import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "./builder.js";
 import {
   defineCommandConsumer,

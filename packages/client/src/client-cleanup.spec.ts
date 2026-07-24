@@ -1,6 +1,7 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
 import { _internal_getConnectionCount, _internal_resetConnections } from "@amqp-contract/core";
 import { beforeEach, describe, expect, it } from "vitest";
+
 import { TypedAmqpClient } from "./client.js";
 
 describe("TypedAmqpClient.create cleanup", () => {

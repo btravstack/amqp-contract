@@ -1,6 +1,7 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
 import type { MessageDefinition } from "../types.js";
 import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./validate.js";
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**
  * Define a message definition with payload and optional headers/metadata.

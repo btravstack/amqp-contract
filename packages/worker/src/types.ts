@@ -13,9 +13,10 @@ import type { RpcError } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
 import type { AsyncResult } from "unthrown";
+
 import type { HandlerError } from "./errors.js";
 import type { EmptyContext } from "./middleware.js";
-import { ConsumerOptions } from "./worker.js";
+import { type ConsumerOptions } from "./worker.js";
 
 /**
  * Infer the output type from a schema (used by consumers after validation)

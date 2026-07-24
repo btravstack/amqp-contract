@@ -1,6 +1,6 @@
 import { TypedAmqpClient } from "@amqp-contract/client";
 import {
-  ContractDefinition,
+  type ContractDefinition,
   defineContract,
   defineEventConsumer,
   defineEventPublisher,

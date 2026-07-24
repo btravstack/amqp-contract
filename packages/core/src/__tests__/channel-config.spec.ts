@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, vi } from "vitest";
 import type { ContractDefinition } from "@amqp-contract/contract";
 import { defineExchange } from "@amqp-contract/contract";
-import { AmqpClient } from "../amqp-client.js";
-import type { Channel } from "amqplib";
 import { it } from "@amqp-contract/testing/extension";
+import type { Channel } from "amqplib";
+import { beforeEach, describe, expect, vi } from "vitest";
+
+import { AmqpClient } from "../amqp-client.js";
 
 describe("AmqpClient Channel Configuration", () => {
   beforeEach(async () => {

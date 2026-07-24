@@ -6,7 +6,6 @@ import "@amqp-contract/contract";
 import "@amqp-contract/core";
 import "@amqp-contract/testing/global-setup";
 import "@amqp-contract/worker";
-
 import { cp, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

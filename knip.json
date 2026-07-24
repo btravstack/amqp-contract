@@ -17,5 +17,10 @@
       "project": ["scripts/**/*.ts"]
     }
   },
-  "ignoreDependencies": ["typedoc-plugin-markdown", "@btravstack/typedoc", "@btravstack/oxlint"]
+  "ignoreDependencies": [
+    "typedoc-plugin-markdown",
+    "@btravstack/typedoc",
+    "@btravstack/oxlint",
+    "@btravstack/lefthook"
+  ]
 }

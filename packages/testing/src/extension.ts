@@ -9,8 +9,9 @@
  * @packageDocumentation
  */
 
-import amqpLib, { Options, type Channel, type ChannelModel } from "amqplib";
 import { randomUUID } from "node:crypto";
+
+import amqpLib, { type Options, type Channel, type ChannelModel } from "amqplib";
 import { inject, vi, it as vitestIt } from "vitest";
 
 export const it = vitestIt.extend<{

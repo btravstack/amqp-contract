@@ -12,8 +12,8 @@ import type {
   ResolvedTtlBackoffRetryOptions,
   TtlBackoffRetryOptions,
 } from "../types.js";
-import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 import { wrapWithTtlBackoffInfrastructure } from "./ttl-backoff.js";
+import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 
 /**
  * Resolve immediate-requeue retry options with defaults.

@@ -1,16 +1,10 @@
+# Shared hooks come from @btravstack/lefthook (format + lint + commit-msg).
+extends:
+  - node_modules/@btravstack/lefthook/lefthook.yml
+
+# Repo-specific excludes (the shared base sets none so they merge in here).
 pre-commit:
-  parallel: true
   commands:
     format:
-      glob: "**/*.{ts,tsx,js,jsx,json,yaml,yml,md}"
-      exclude: "pnpm-lock.yaml"
-      run: pnpm oxfmt {staged_files}
-      stage_fixed: true
-    lint:
-      glob: "**/*.{ts,tsx,js,jsx}"
-      run: pnpm oxlint {staged_files}
-
-commit-msg:
-  commands:
-    commitlint:
-      run: pnpm exec commitlint --edit {1}
+      exclude:
+        - "pnpm-lock.yaml"

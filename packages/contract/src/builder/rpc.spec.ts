@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+
 import { defineContract } from "./contract.js";
 import { defineMessage } from "./message.js";
 import { defineQueue } from "./queue.js";

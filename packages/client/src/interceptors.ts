@@ -1,5 +1,6 @@
 import type { MessageValidationError, RpcError, TechnicalError } from "@amqp-contract/core";
 import type { AsyncResult } from "unthrown";
+
 import type { CallOptions, PublishOptions } from "./client.js";
 import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
 

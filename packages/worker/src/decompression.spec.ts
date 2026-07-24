@@ -1,7 +1,9 @@
-import { deflate, gzip } from "node:zlib";
-import { describe, expect, it } from "vitest";
-import { decompressBuffer } from "./decompression.js";
 import { promisify } from "node:util";
+import { deflate, gzip } from "node:zlib";
+
+import { describe, expect, it } from "vitest";
+
+import { decompressBuffer } from "./decompression.js";
 
 const gzipAsync = promisify(gzip);
 const deflateAsync = promisify(deflate);

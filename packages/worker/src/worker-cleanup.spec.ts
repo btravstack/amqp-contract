@@ -8,6 +8,7 @@ import {
 import { _internal_getConnectionCount, _internal_resetConnections } from "@amqp-contract/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
+
 import { TypedAmqpWorker } from "./worker.js";
 
 describe("TypedAmqpWorker.create cleanup", () => {
