@@ -21,7 +21,7 @@ jobs:
     with:
       changeset: true
       integration-tests: true
-      node-floor: "22.19"
+      node-versions: '["", "22.19"]'
 
   package-check:
     name: Package
