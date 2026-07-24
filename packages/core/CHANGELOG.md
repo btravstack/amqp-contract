@@ -1,5 +1,12 @@
 # @amqp-contract/core
 
+## 2.4.1
+
+### Patch Changes
+
+- 32895df: Consume the shared `@btravstack/tsconfig` / `@btravstack/typedoc` published config directly (the local `tools/*` packages are removed; consumers now extend `@btravstack/*` and take it from the catalog).
+  - @amqp-contract/contract@2.4.1
+
 ## 2.4.0
 
 ### Minor Changes

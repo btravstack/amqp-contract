@@ -1,5 +1,13 @@
 # @amqp-contract/worker
 
+## 2.4.1
+
+### Patch Changes
+
+- Updated dependencies [32895df]
+  - @amqp-contract/core@2.4.1
+  - @amqp-contract/contract@2.4.1
+
 ## 2.4.0
 
 ### Minor Changes
