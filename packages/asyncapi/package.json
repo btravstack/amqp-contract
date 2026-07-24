@@ -62,10 +62,10 @@
     "@standard-schema/spec": "catalog:"
   },
   "devDependencies": {
-    "@amqp-contract/tsconfig": "workspace:*",
-    "@amqp-contract/typedoc": "workspace:*",
     "@arethetypeswrong/cli": "catalog:",
     "@asyncapi/parser": "catalog:",
+    "@btravstack/tsconfig": "catalog:",
+    "@btravstack/typedoc": "catalog:",
     "@orpc/arktype": "catalog:",
     "@orpc/valibot": "catalog:",
     "@orpc/zod": "catalog:",

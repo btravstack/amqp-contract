@@ -1,5 +1,5 @@
 {
-  "extends": "../tools/tsconfig/base.json",
+  "extends": "@btravstack/tsconfig/base.json",
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./dist"

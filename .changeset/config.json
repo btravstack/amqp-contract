@@ -16,5 +16,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@amqp-contract/tsconfig", "@amqp-contract/typedoc"]
+  "ignore": ["@amqp-contract-examples/*", "@amqp-contract/docs", "@amqp-contract/tests"]
 }

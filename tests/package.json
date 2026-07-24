@@ -16,6 +16,7 @@
     "unthrown": "catalog:"
   },
   "devDependencies": {
+    "@btravstack/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

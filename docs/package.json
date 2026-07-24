@@ -20,7 +20,6 @@
     "@amqp-contract/worker": "workspace:*"
   },
   "devDependencies": {
-    "@amqp-contract/tsconfig": "workspace:*",
     "@btravstack/theme": "catalog:",
     "@types/node": "catalog:",
     "mermaid": "catalog:",
