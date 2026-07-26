@@ -862,7 +862,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     // let sync throws escape to the defect channel instead of the DLQ.
     const createContext = this.createContext;
     const seed: AsyncResult<Record<string, unknown>, HandlerError> = createContext
-      ? fromPromise<Record<string, unknown>, HandlerError>(
+      ? fromPromise(
           Promise.resolve().then(() =>
             createContext({
               handlerName: String(name),
