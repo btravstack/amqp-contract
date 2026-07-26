@@ -1,5 +1,18 @@
 # @amqp-contract/core
 
+## 3.0.0-beta.0
+
+### Major Changes
+
+- 9222c06: Adopt unthrown v5 (beta): error combinators and `match`'s `err` handler now take a ts-pattern matcher callback; peer bumped to `^5.0.0-beta.3`.
+
+### Patch Changes
+
+- fa87d3f: Adopt @btravstack/tsconfig@0.2.0 (verbatimModuleSyntax), @btravstack/oxlint@0.2.1 (consistent-type-imports), @btravstack/lefthook, and the oxfmt sortImports fix.
+- 32895df: Consume the shared `@btravstack/tsconfig` / `@btravstack/typedoc` published config directly (the local `tools/*` packages are removed; consumers now extend `@btravstack/*` and take it from the catalog).
+- Updated dependencies [9222c06]
+  - @amqp-contract/contract@3.0.0-beta.0
+
 ## 2.4.0
 
 ### Minor Changes
