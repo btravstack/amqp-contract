@@ -73,13 +73,17 @@ overrides:
   # Newly disclosed; reaches us only through dev/build tooling. fast-uri is added
   # to minimumReleaseAgeExclude below because 3.1.4 is younger than the 7-day cutoff.
   "fast-uri@<3.1.4": "3.1.4"
-  # GHSA-3jxr-9vmj-r5cp (High): brace-expansion ReDoS. Three distinct lines are
+  # GHSA-3jxr-9vmj-r5cp (High, ReDoS) + GHSA-mh99-v99m-4gvg (High, DoS via
+  # unbounded expansion length): brace-expansion. Three distinct lines are
   # present: 1.x via @asyncapi/parser > spectral, 2.x via testcontainers >
-  # archiver, and 5.x via typedoc > minimatch. Each is pulled to its patched
-  # release.
+  # archiver, and 5.x via typedoc > minimatch. The 5.x line is pulled to 5.0.8
+  # (the only release patched for GHSA-mh99); the 1.x/2.x lines stay on their
+  # ReDoS-patched releases — GHSA-mh99 has NO patched release for them (its
+  # vulnerable range is <=5.0.7), so that advisory is ignored via
+  # auditConfig.ignoreGhsas below rather than force-upgrading across majors.
   "brace-expansion@1": "1.1.16"
   "brace-expansion@2": "2.1.2"
-  "brace-expansion@5": "5.0.7"
+  "brace-expansion@5": "5.0.8"
   # GHSA-52cp-r559-cp3m (High) + GHSA-h67p-54hq-rp68 (moderate): js-yaml
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
@@ -125,6 +129,21 @@ minimumReleaseAgeExclude:
   # Temporary: fast-uri 3.1.4 (the GHSA-v2hh-gcrm-f6hx override above) is younger
   # than the 7-day cutoff. Remove once 3.1.4 is 7 days old (published 2026-07-19).
   - fast-uri
+  # Temporary: brace-expansion 5.0.8 (the GHSA-mh99-v99m-4gvg override above) is
+  # younger than the 7-day cutoff. Remove once 5.0.8 is 7 days old (published
+  # 2026-07-23).
+  - brace-expansion
+
+# GHSA-mh99-v99m-4gvg (brace-expansion DoS via unbounded expansion length) has a
+# patched release ONLY on the 5.x line (>=5.0.8, applied via the override above);
+# the 1.x/2.x lines resolved under @asyncapi/parser > spectral and
+# testcontainers > archiver have no patched release, and forcing them to 5.x
+# across majors is unsafe. Accepted risk: the expansion input at those sites is
+# library-internal glob patterns, never user input. Remove this ignore as soon as
+# upstream ships patched 1.x/2.x releases (or the parents move to minimatch@10).
+auditConfig:
+  ignoreGhsas:
+    - GHSA-mh99-v99m-4gvg
 
 allowBuilds:
   cpu-features: true
