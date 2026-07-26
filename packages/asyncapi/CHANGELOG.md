@@ -1,5 +1,16 @@
 # @amqp-contract/asyncapi
 
+## 3.0.0-beta.0
+
+### Major Changes
+
+- 9222c06: Adopt unthrown v5 (beta): error combinators and `match`'s `err` handler now take a ts-pattern matcher callback; peer bumped to `^5.0.0-beta.3`.
+
+### Patch Changes
+
+- Updated dependencies [9222c06]
+  - @amqp-contract/contract@3.0.0-beta.0
+
 ## 2.4.0
 
 ### Patch Changes

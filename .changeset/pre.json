@@ -9,5 +9,5 @@
     "@amqp-contract/testing": "2.4.0",
     "@amqp-contract/worker": "2.4.0"
   },
-  "changesets": []
+  "changesets": ["adopt-btravstack-0.2", "adopt-unthrown-v5-beta", "consume-btravstack-config"]
 }
