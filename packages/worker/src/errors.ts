@@ -11,7 +11,9 @@ export { isRpcError, MessageValidationError, RpcError, rpcError } from "@amqp-co
  *
  * Built on unthrown's {@link TaggedError}, so it carries a namespaced `_tag` of
  * `"@amqp-contract/RetryableError"` (to avoid colliding with other libraries'
- * tags in a shared `matchTags`) for exhaustive dispatch; the `Error.name` is
+ * tags in a shared error matcher) for exhaustive dispatch via
+ * `result.match({ ok, defect, err: (matcher) =>
+ * matcher.with(tag("@amqp-contract/RetryableError"), …) })`; the `Error.name` is
  * kept bare (`"RetryableError"`).
  */
 export class RetryableError extends TaggedError("@amqp-contract/RetryableError", {
@@ -49,7 +51,8 @@ export class NonRetryableError extends TaggedError("@amqp-contract/NonRetryableE
  * Any handler-signalled error — the union a handler may put in the `Err`
  * channel of its `AsyncResult`. Discriminate on `_tag`
  * (`"@amqp-contract/RetryableError"` / `"@amqp-contract/NonRetryableError"`),
- * e.g. with `matchTags`.
+ * e.g. with the error matcher (`matcher.with(tag("@amqp-contract/RetryableError"),
+ * …)`).
  *
  * Previously an abstract base class; now a tagged union, because unthrown's
  * `TaggedError` mints a distinct base class per tag. Use {@link isHandlerError}

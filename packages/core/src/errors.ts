@@ -8,9 +8,11 @@ import { TaggedError } from "unthrown";
  * and other runtime errors. This error is shared across core, worker, and client packages.
  *
  * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
- * `"@amqp-contract/TechnicalError"` for exhaustive dispatch via `matchTags`. The
- * tag is namespaced to avoid colliding with other libraries' tags in a shared
- * `matchTags`; the human-facing `Error.name` is kept bare (`"TechnicalError"`).
+ * `"@amqp-contract/TechnicalError"` for exhaustive dispatch via the error
+ * matcher (`result.match({ ok, defect, err: (matcher) =>
+ * matcher.with(tag("@amqp-contract/TechnicalError"), …) })`). The tag is
+ * namespaced to avoid colliding with other libraries' tags in a shared matcher;
+ * the human-facing `Error.name` is kept bare (`"TechnicalError"`).
  * Remains a real `Error` (and a *modeled* error — it lives in the `E` channel of
  * a `Result`, never the `Defect` channel).
  */
@@ -86,8 +88,9 @@ export const RPC_ERROR_CODE_HEADER = "x-amqp-contract-error-code";
  * `Err(RpcError<code, data>)` with `data` re-validated on arrival.
  *
  * Carries a `_tag` of `"@amqp-contract/RpcError"` for exhaustive dispatch via
- * `matchTags`; the `Error.name` is kept bare (`"RpcError"`). Discriminate
- * between codes on the `code` property.
+ * the error matcher (`result.match({ ok, defect, err: (matcher) =>
+ * matcher.with(tag("@amqp-contract/RpcError"), …) })`); the `Error.name` is kept
+ * bare (`"RpcError"`). Discriminate between codes on the `code` property.
  */
 export class RpcError<TCode extends string = string, TData = unknown> extends TaggedError(
   "@amqp-contract/RpcError",
@@ -109,7 +112,8 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
  * Type guard to check if an error is an {@link RpcError}.
  *
  * Narrowing to a specific code (and thus a typed `data`) is done on the
- * `code` property after the guard, or via `matchTags` on the `_tag`.
+ * `code` property after the guard, or via the error matcher on the `_tag`
+ * (`matcher.with(tag("@amqp-contract/RpcError"), …)`).
  */
 export function isRpcError(error: unknown): error is RpcError {
   return error instanceof RpcError;

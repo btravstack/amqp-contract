@@ -35,6 +35,7 @@ import {
   fromSafePromise,
   Ok,
   OkAsync,
+  P,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -537,11 +538,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         endSpanSuccess(span);
         recordPublishMetric(this.telemetry, exchange.name, routingKey, true, durationMs);
       })
-      .tapErr((error) => {
-        const durationMs = Date.now() - startTime;
-        endSpanError(span, error);
-        recordPublishMetric(this.telemetry, exchange.name, routingKey, false, durationMs);
-      });
+      .tapErr((matcher) =>
+        matcher.with(P._, (error) => {
+          const durationMs = Date.now() - startTime;
+          endSpanError(span, error);
+          recordPublishMetric(this.telemetry, exchange.name, routingKey, false, durationMs);
+        }),
+      );
   }
 
   /**
@@ -559,7 +562,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * const result = await client.call('calculate', { a: 1, b: 2 }, { timeoutMs: 5_000 });
    * result.match({
    *   ok: (value) => console.log(value.sum), // 3
-   *   err: (error) => console.error(error),
+   *   err: (matcher) => matcher.with(P._, (error) => console.error(error)),
    *   defect: (cause) => console.error(cause),
    * });
    * ```
@@ -614,11 +617,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         endSpanSuccess(span);
         recordPublishMetric(this.telemetry, "", queueName, true, durationMs);
       })
-      .tapErr((error) => {
-        const durationMs = Date.now() - startTime;
-        endSpanError(span, error);
-        recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
-      });
+      .tapErr((matcher) =>
+        matcher.with(P._, (error) => {
+          const durationMs = Date.now() - startTime;
+          endSpanError(span, error);
+          recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
+        }),
+      );
 
     // Safe: executeCall resolves with the schema-validated response, and its
     // wire-level error union is the widened form of CallError.
@@ -747,17 +752,19 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return validateRequest()
       .flatMap((validated) => publishRequest(validated))
       .flatMap(() => callResultAsync)
-      .flatMapErr((error: InterceptorCallError) => {
-        // If preflight failed (validate or publish), the pending entry still
-        // exists and the timer is alive. Clean both up so the call doesn't
-        // leak. Timer-fired errors and reply-resolved errors have already
-        // cleaned the entry, so the .has() check guards against double cleanup.
-        if (this.pendingCalls.has(correlationId)) {
-          clearTimeout(timer);
-          this.pendingCalls.delete(correlationId);
-        }
-        return ErrAsync(error);
-      });
+      .flatMapErr((matcher) =>
+        matcher.with(P._, (error: InterceptorCallError) => {
+          // If preflight failed (validate or publish), the pending entry still
+          // exists and the timer is alive. Clean both up so the call doesn't
+          // leak. Timer-fired errors and reply-resolved errors have already
+          // cleaned the entry, so the .has() check guards against double cleanup.
+          if (this.pendingCalls.has(correlationId)) {
+            clearTimeout(timer);
+            this.pendingCalls.delete(correlationId);
+          }
+          return ErrAsync(error);
+        }),
+      );
   }
 
   /**
@@ -773,10 +780,12 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     this.pendingCalls.clear();
 
     const cancelReply: AsyncResult<void, TechnicalError> = this.replyConsumerTag
-      ? this.amqpClient.cancel(this.replyConsumerTag).flatMapErr((error) => {
-          this.logger?.warn("Failed to cancel RPC reply consumer during close", { error });
-          return Ok(undefined);
-        })
+      ? this.amqpClient.cancel(this.replyConsumerTag).flatMapErr((matcher) =>
+          matcher.with(P._, (error) => {
+            this.logger?.warn("Failed to cancel RPC reply consumer during close", { error });
+            return Ok(undefined);
+          }),
+        )
       : OkAsync(undefined);
 
     return cancelReply.flatMap(() => this.amqpClient.close());

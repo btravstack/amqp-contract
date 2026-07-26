@@ -83,7 +83,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "unthrown": "^4.1.0"
+    "unthrown": "^5.0.0-beta.2"
   },
   "engines": {
     "node": ">=22.19"

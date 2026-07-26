@@ -99,8 +99,10 @@ export type CallInterceptorNext = (patch?: {
  * @example Retry timed-out calls once
  * ```typescript
  * const retryOnce: CallInterceptor = (args, next) =>
- *   next().flatMapErr((error) =>
- *     error instanceof RpcTimeoutError ? next() : ErrAsync(error),
+ *   next().flatMapErr((matcher) =>
+ *     matcher.with(P._, (error) =>
+ *       error instanceof RpcTimeoutError ? next() : ErrAsync(error),
+ *     ),
  *   );
  * ```
  */

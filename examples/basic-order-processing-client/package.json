@@ -13,6 +13,7 @@
     "@amqp-contract/client": "workspace:*",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
+    "unthrown": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -22,7 +23,6 @@
     "@vitest/coverage-v8": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "unthrown": "catalog:",
     "vitest": "catalog:"
   }
 }

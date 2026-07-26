@@ -169,22 +169,22 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 | `ErrAsync(error)`               | Lift a failed sync `Result` into an `AsyncResult`                                                                                                     |
 | `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required. |
 | `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                        |
-| `.map(f)` / `.mapErr(f)`        | Transform the OK value / the error                                                                                                                    |
+| `.map(f)` / `.mapErr(m)`        | Transform the OK value / the error. `mapErr` takes a ts-pattern matcher callback: `.mapErr((matcher) => matcher.with(P._, (error) => …))`             |
 | `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)                                                                                 |
-| `.flatMapErr(f)`                | Recover from an error with another `Result` / `AsyncResult`                                                                                           |
-| `.tap(f)` / `.tapErr(f)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`)                                                                       |
+| `.flatMapErr(m)`                | Recover from an error with another `Result` / `AsyncResult`; takes the same ts-pattern matcher callback as `mapErr`                                   |
+| `.tap(f)` / `.tapErr(m)`        | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`). `tapErr` takes the same matcher callback (its branch must be sync)   |
 | `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                                                                                            |
 
 `Result<T, E>` (sync; a union of `Ok` / `Err` / `Defect`):
 
-| Method / function                         | Description                                                                                                                                                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Ok(value)` / `Err(error)`                | Construct a successful / failed `Result`                                                                                                                                                                            |
-| `r.isOk()` / `r.isErr()` / `r.isDefect()` | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here. |
-| `.match({ ok, err, defect })`             | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported)                                                                                                                      |
-| `matchTags(r, { Ok, Defect, ...tags })`   | Exhaustive dispatch on a tagged-error union's `_tag`                                                                                                                                                                |
-| `.getOr(default)`                         | Extract the value or fall back                                                                                                                                                                                      |
-| `.getOrThrow()` / `.getErr()`             | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
+| Method / function                                          | Description                                                                                                                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Ok(value)` / `Err(error)`                                 | Construct a successful / failed `Result`                                                                                                                                                                            |
+| `r.isOk()` / `r.isErr()` / `r.isDefect()`                  | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here. |
+| `.match({ ok, err, defect })`                              | Boxed pattern match with three branches (positional `match(okFn, errFn)` is **not** supported). `err` takes the ts-pattern matcher: `err: (matcher) => matcher.with(P._, (error) => …)`                             |
+| `r.match({ ok, defect, err: (m) => m.with(tag("…"), …) })` | Exhaustive per-tag dispatch on a tagged-error union's `_tag` via the error matcher (replaces the removed `matchTags`)                                                                                               |
+| `.getOr(default)`                                          | Extract the value or fall back                                                                                                                                                                                      |
+| `.getOrThrow()` / `.getErr()`                              | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                            |
 
 ## Public exports
 
