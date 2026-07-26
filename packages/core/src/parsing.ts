@@ -21,14 +21,17 @@ import { fromThrowable, type NotThenable, type Result } from "unthrown";
  * );
  * ```
  */
-export function safeJsonParse<E>(buffer: Buffer, errorFn: (raw: unknown) => E): Result<unknown, E> {
-  // unthrown v5 intersects `qualify`'s return with `NotThenable`, which
-  // TypeScript cannot prove for an unconstrained `E`. Domain error types are
-  // never thenables (they extend `Error`), so re-assert it at this single
-  // boundary — `NotThenable<E>` collapses to `unknown` for every real,
-  // non-thenable `E`, so callers see the plain `E` unchanged.
+export function safeJsonParse<E>(
+  buffer: Buffer,
+  // `errorFn`'s return is constrained `NotThenable` at THIS boundary — the same
+  // requirement unthrown v5's `fromThrowable` qualify carries — so it flows to
+  // `qualify` with no cast, and a thenable error type is rejected here at the
+  // call site instead of being silently accepted. For every real domain error
+  // (extends `Error`), `NotThenable<E>` is `unknown`, so callers just see `E`.
+  errorFn: (raw: unknown) => E & NotThenable<E>,
+): Result<unknown, E> {
   return fromThrowable(
     () => JSON.parse(buffer.toString()) as unknown,
-    (raw): E & NotThenable<E> => errorFn(raw) as E & NotThenable<E>,
+    (raw) => errorFn(raw),
   )();
 }
