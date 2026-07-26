@@ -1,0 +1,13 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "@amqp-contract/asyncapi": "2.4.0",
+    "@amqp-contract/client": "2.4.0",
+    "@amqp-contract/contract": "2.4.0",
+    "@amqp-contract/core": "2.4.0",
+    "@amqp-contract/testing": "2.4.0",
+    "@amqp-contract/worker": "2.4.0"
+  },
+  "changesets": []
+}

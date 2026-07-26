@@ -1,6 +1,7 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { type PublishOptions, TypedAmqpClient } from "@amqp-contract/client";
 import pino from "pino";
+import { P } from "unthrown";
 import { z } from "zod";
 
 const env = z
@@ -26,7 +27,9 @@ async function main() {
     contract: orderContract,
     urls: [env.AMQP_URL],
   })
-    .tapErr((error) => logger.error({ error }, "Failed to create client"))
+    .tapErr((matcher) =>
+      matcher.with(P._, (error) => logger.error({ error }, "Failed to create client")),
+    )
     .getOrThrow();
 
   logger.info("Client ready");
@@ -44,7 +47,11 @@ async function main() {
   ): Promise<void> => {
     await client
       .publish(publisherName, message, options)
-      .tapErr((error) => logger.error({ error }, `Failed to publish: ${publisherName}`))
+      .tapErr((matcher) =>
+        matcher.with(P._, (error) =>
+          logger.error({ error }, `Failed to publish: ${publisherName}`),
+        ),
+      )
       .tap(() => logger.debug(`Successfully published to ${publisherName}`))
       .getOrThrow();
   };

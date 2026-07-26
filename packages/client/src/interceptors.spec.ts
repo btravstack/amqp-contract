@@ -1,5 +1,5 @@
 import { TechnicalError } from "@amqp-contract/core";
-import { ErrAsync, OkAsync, type AsyncResult } from "unthrown";
+import { ErrAsync, OkAsync, P, type AsyncResult } from "unthrown";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -83,8 +83,11 @@ describe("chainInterceptors", () => {
     // GIVEN
     let attempts = 0;
     const retryOnce: PublishInterceptor = (_args, next) =>
-      next().flatMapErr(
-        (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
+      next().flatMapErr((matcher) =>
+        matcher.with(
+          P._,
+          (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
+        ),
       );
 
     // WHEN
