@@ -34,7 +34,7 @@ import {
   fromSafePromise,
   Ok,
   OkAsync,
-  P,
+  tag,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -486,7 +486,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       // Swallow per-consumer cancel errors during close — they are best-effort
       // cleanup and we still want to release the underlying connection.
       this.amqpClient.cancel(consumerTag).flatMapErrCases((matcher) =>
-        matcher.with(P._, (error) => {
+        matcher.with(tag("@amqp-contract/TechnicalError"), (error) => {
           this.logger?.warn("Failed to cancel consumer during close", { consumerTag, error });
           return Ok(undefined);
         }),
@@ -802,7 +802,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       .publish("", replyTo, body, options)
       .mapErrCases((matcher) =>
         matcher.with(
-          P._,
+          tag("@amqp-contract/TechnicalError"),
           (error): HandlerError => new NonRetryableError("Failed to publish RPC reply", error),
         ),
       )
@@ -827,7 +827,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     name: HandlerName<TContract>,
   ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
     return this.parseAndValidateMessage(msg, consumer, name).flatMapErrCases((matcher) =>
-      matcher.with(P._, (parseError) => {
+      matcher.with(tag("@amqp-contract/TechnicalError"), (parseError) => {
         this.amqpClient.nack(msg, false, false);
         return ErrAsync(parseError);
       }),
@@ -894,7 +894,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         )
           .mapErrCases((matcher) =>
             matcher.with(
-              P._,
+              tag("@amqp-contract/TechnicalError"),
               (error): HandlerError =>
                 new NonRetryableError(
                   "Middleware-substituted payload failed schema validation",
@@ -974,7 +974,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
     return this.parseAndValidateOrNack(msg, consumer, name)
       .tapErrCases((matcher) =>
-        matcher.with(P._, (parseError) => {
+        matcher.with(tag("@amqp-contract/TechnicalError"), (parseError) => {
           this.logger?.error("Failed to parse/validate message; sending to DLQ", {
             consumerName: String(name),
             queueName,
@@ -998,40 +998,48 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             }),
           )
           .flatMapErrCases((matcher) =>
-            matcher.with(P._, (handlerError) => {
-              // A contract-declared RpcError is the RPC's business-failure
-              // channel, not a processing failure: publish it back to the
-              // caller and ack the request. Only if the error reply itself
-              // cannot be produced (undeclared code, schema mismatch, publish
-              // failure) does the failure fall through to retry/DLQ routing.
-              if (isRpcError(handlerError) && view.isRpc) {
-                return this.publishRpcErrorReply(msg, view, name, handlerError)
-                  .tap(() => {
-                    this.logger?.info("RPC handler replied with a typed error", {
-                      consumerName: String(name),
-                      queueName,
-                      errorCode: handlerError.code,
-                    });
-                    this.amqpClient.ack(msg);
-                    state.messageHandled = true;
-                  })
-                  .flatMapErrCases((replyMatcher) =>
-                    replyMatcher.with(P._, (replyError: HandlerError) =>
-                      this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
-                    ),
-                  );
-              }
-              // An RpcError from a non-RPC consumer is type-impossible but
-              // runtime-reachable through casts; treat it as a permanent
-              // failure rather than crashing the dispatch loop.
-              const routableError: HandlerError = isRpcError(handlerError)
-                ? new NonRetryableError(
-                    `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
-                    handlerError,
-                  )
-                : handlerError;
-              return this.routeHandlerError(routableError, msg, name, consumer, queueName, state);
-            }),
+            matcher.with(
+              tag("@amqp-contract/RetryableError"),
+              tag("@amqp-contract/NonRetryableError"),
+              tag("@amqp-contract/RpcError"),
+              (handlerError) => {
+                // A contract-declared RpcError is the RPC's business-failure
+                // channel, not a processing failure: publish it back to the
+                // caller and ack the request. Only if the error reply itself
+                // cannot be produced (undeclared code, schema mismatch, publish
+                // failure) does the failure fall through to retry/DLQ routing.
+                if (isRpcError(handlerError) && view.isRpc) {
+                  return this.publishRpcErrorReply(msg, view, name, handlerError)
+                    .tap(() => {
+                      this.logger?.info("RPC handler replied with a typed error", {
+                        consumerName: String(name),
+                        queueName,
+                        errorCode: handlerError.code,
+                      });
+                      this.amqpClient.ack(msg);
+                      state.messageHandled = true;
+                    })
+                    .flatMapErrCases((replyMatcher) =>
+                      replyMatcher.with(
+                        tag("@amqp-contract/RetryableError"),
+                        tag("@amqp-contract/NonRetryableError"),
+                        (replyError: HandlerError) =>
+                          this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
+                      ),
+                    );
+                }
+                // An RpcError from a non-RPC consumer is type-impossible but
+                // runtime-reachable through casts; treat it as a permanent
+                // failure rather than crashing the dispatch loop.
+                const routableError: HandlerError = isRpcError(handlerError)
+                  ? new NonRetryableError(
+                      `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
+                      handlerError,
+                    )
+                  : handlerError;
+                return this.routeHandlerError(routableError, msg, name, consumer, queueName, state);
+              },
+            ),
           ),
       )
       .tap(() => {
@@ -1057,7 +1065,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         }
       })
       .tapErrCases((matcher) =>
-        matcher.with(P._, (error) => {
+        matcher.with(tag("@amqp-contract/TechnicalError"), (error) => {
           // Routed handler failures arrive here wrapped in a `TechnicalError`
           // with the original `HandlerError` carried via `cause`. Surface the
           // original to the span so the recorded `exception.type` is the
@@ -1201,7 +1209,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       .map(() => undefined)
       .mapErrCases((matcher) =>
         matcher.with(
-          P._,
+          tag("@amqp-contract/TechnicalError"),
           (error) => new TechnicalError(`Failed to start consuming for "${String(name)}"`, error),
         ),
       );

@@ -102,6 +102,6 @@ Replaces `neverthrow` with [`unthrown`](https://github.com/btravstack/unthrown) 
 
 The table shows the constructors as they were on amqp-contract 1.x (lowercase `ok` / `err`); if you're upgrading straight to 2.0+, use the capitalized `Ok` / `Err` forms from the [1.x → 2.0](#_1-x-→-2-0) section instead.
 
-Error classes (`TechnicalError`, `RetryableError`, …) became `TaggedError`s with namespaced tags (e.g. `"@amqp-contract/TechnicalError"`) for exhaustive dispatch via the error matcher (`result.match({ ok, defect, err: (matcher) => matcher.with(tag("@amqp-contract/TechnicalError"), …) })`); their `Error.name` and constructors are unchanged.
+Error classes (`TechnicalError`, `RetryableError`, …) became `TaggedError`s with namespaced tags (e.g. `"@amqp-contract/TechnicalError"`) for exhaustive dispatch via the error matcher (`result.match({ ok, defect, errCases: (matcher) => matcher.with(tag("@amqp-contract/TechnicalError"), …) })`); their `Error.name` and constructors are unchanged.
 
 See the [Error Model guide](/guide/error-model) for the full picture of how results flow through the API.

@@ -27,7 +27,8 @@ Connection sharing is **completely automatic** when you use the same URLs:
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
-import { TypedAmqpWorker } from "@amqp-contract/worker";
+import { RetryableError, TypedAmqpWorker } from "@amqp-contract/worker";
+import { tag } from "unthrown";
 import { contract } from "./contract";
 
 // 1. Create client - automatically creates connection
@@ -57,10 +58,16 @@ const worker = await TypedAmqpWorker.create({
         .map(() => {
           console.log("Order processed event published");
         })
-        .mapErr((error) => {
-          console.error("Failed to publish:", error);
-          return new RetryableError("Failed to publish", error);
-        });
+        .mapErrCases((matcher) =>
+          matcher.with(
+            tag("@amqp-contract/TechnicalError"),
+            tag("@amqp-contract/MessageValidationError"),
+            (error) => {
+              console.error("Failed to publish:", error);
+              return new RetryableError("Failed to publish", error);
+            },
+          ),
+        );
     },
   },
 }).getOrThrow();

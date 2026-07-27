@@ -176,6 +176,8 @@ const worker = await TypedAmqpWorker.create({
 Schema validation happens automatically at network boundaries:
 
 ```typescript
+import { tag } from "unthrown";
+
 // ✅ Validation happens automatically
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
@@ -185,7 +187,12 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("Published"),
-  err: (error) => console.error("Validation failed:", error),
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (error) => console.error("Validation failed:", error),
+    ),
   defect: (cause) => {
     throw cause;
   },

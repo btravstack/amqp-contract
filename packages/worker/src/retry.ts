@@ -7,7 +7,7 @@ import {
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { Err, ErrAsync, Ok, OkAsync, P, type AsyncResult } from "unthrown";
+import { Err, ErrAsync, Ok, OkAsync, tag, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
@@ -368,7 +368,7 @@ function publishForRetry(
       return Ok(undefined);
     })
     .flatMapErrCases((matcher) =>
-      matcher.with(P._, (publishError) => {
+      matcher.with(tag("@amqp-contract/TechnicalError"), (publishError) => {
         // Publish threw (network error, channel close, etc.). Same policy: do
         // not ack the original; the redelivery path is the recovery mechanism.
         ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
