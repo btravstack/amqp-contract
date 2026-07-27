@@ -1,4 +1,4 @@
-import type { MessageValidationError, RpcError, TechnicalError } from "@amqp-contract/core";
+import type { MessageValidationError, RpcError } from "@amqp-contract/core";
 import type { AsyncResult } from "unthrown";
 
 import type { CallOptions, PublishOptions } from "./client.js";
@@ -6,21 +6,18 @@ import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
 
 /**
  * Error union a publish interceptor chain resolves with — identical to the
- * error channel of `client.publish(...)`.
+ * error channel of `client.publish(...)`. Infrastructure failures are not
+ * modeled here: they surface through the `Defect` channel.
  */
-export type PublishError = TechnicalError | MessageValidationError;
+export type PublishError = MessageValidationError;
 
 /**
  * Error union a call interceptor chain resolves with. The `RpcError` member
  * is the widened (untyped) form; the public `client.call(...)` signature
- * narrows it to the RPC's declared error union.
+ * narrows it to the RPC's declared error union. Infrastructure failures are
+ * not modeled here: they surface through the `Defect` channel.
  */
-export type CallError =
-  | TechnicalError
-  | MessageValidationError
-  | RpcTimeoutError
-  | RpcCancelledError
-  | RpcError;
+export type CallError = MessageValidationError | RpcTimeoutError | RpcCancelledError | RpcError;
 
 /**
  * Arguments a publish interceptor observes. `message` is the pre-validation
@@ -103,7 +100,6 @@ export type CallInterceptorNext = (patch?: {
  * const retryOnce: CallInterceptor = (args, next) =>
  *   next().flatMapErrCases((matcher) =>
  *     matcher.with(
- *       tag("@amqp-contract/TechnicalError"),
  *       tag("@amqp-contract/MessageValidationError"),
  *       tag("@amqp-contract/RpcTimeoutError"),
  *       tag("@amqp-contract/RpcCancelledError"),

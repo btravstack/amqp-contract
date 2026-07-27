@@ -81,7 +81,7 @@ describe("Worker defensive nack guard", () => {
       },
       urls: [amqpConnectionUrl],
       telemetry: provider,
-    }).getOrThrow();
+    }).get();
 
     try {
       // WHEN we publish two messages back to back. The first triggers the
@@ -112,7 +112,7 @@ describe("Worker defensive nack guard", () => {
       // channel.
       expect(processed.length).toBe(2);
     } finally {
-      await worker.close().getOrThrow();
+      await worker.close().get();
     }
   }, 15_000);
 });

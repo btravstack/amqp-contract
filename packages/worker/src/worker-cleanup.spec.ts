@@ -5,7 +5,11 @@ import {
   defineQueue,
   type ContractDefinition,
 } from "@amqp-contract/contract";
-import { _internal_getConnectionCount, _internal_resetConnections } from "@amqp-contract/core";
+import {
+  _internal_getConnectionCount,
+  _internal_resetConnections,
+  TechnicalError,
+} from "@amqp-contract/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -28,7 +32,7 @@ describe("TypedAmqpWorker.create cleanup", () => {
       connectTimeoutMs: 200,
     });
 
-    expect(result).toBeErr();
+    expect(result).toBeDefect();
     expect(_internal_getConnectionCount()).toBe(0);
   });
 
@@ -51,9 +55,10 @@ describe("TypedAmqpWorker.create cleanup", () => {
       urls: ["amqp://localhost:1"],
     });
 
-    expect(result).toBeErr();
-    if (result.isErr()) {
-      expect(result.error.message).toBe(
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
+      expect((result.cause as TechnicalError).message).toBe(
         "Missing handlers for contract entries: processOrder. " +
           "Every `consumers` and `rpcs` key requires a handler.",
       );
@@ -61,7 +66,7 @@ describe("TypedAmqpWorker.create cleanup", () => {
     expect(_internal_getConnectionCount()).toBe(0);
   });
 
-  it("returns Err (does not throw) when handlers is missing entirely", async () => {
+  it("returns a Defect (does not throw) when handlers is missing entirely", async () => {
     const contract: ContractDefinition = {};
 
     // Cast to bypass the type system — a JavaScript caller can omit handlers,
@@ -72,9 +77,10 @@ describe("TypedAmqpWorker.create cleanup", () => {
       urls: ["amqp://localhost:1"],
     });
 
-    expect(result).toBeErr();
-    if (result.isErr()) {
-      expect(result.error.message).toBe(
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
+      expect((result.cause as TechnicalError).message).toBe(
         "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
       );
     }

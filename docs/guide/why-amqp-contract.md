@@ -148,7 +148,7 @@ const contract = defineContract({
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows these fields!
@@ -168,7 +168,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 ### 2. Automatic Validation
@@ -188,12 +188,11 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("Validation failed:", error),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("Validation failed:", error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });

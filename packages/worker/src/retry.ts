@@ -7,7 +7,7 @@ import {
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { Err, ErrAsync, Ok, OkAsync, tag, type AsyncResult } from "unthrown";
+import { fromSafeThrowable, Ok, OkAsync, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
@@ -40,7 +40,7 @@ export function handleError(
   msg: ConsumeMessage,
   consumerName: string,
   consumer: ConsumerDefinition,
-): AsyncResult<void, TechnicalError> {
+): AsyncResult<void, never> {
   // NonRetryableError -> send directly to DLQ without retrying.
   // The caller already logged the original error; we only emit a routing
   // decision log inside `sendToDLQ`.
@@ -90,7 +90,7 @@ function handleErrorImmediateRequeue(
   consumerName: string,
   consumer: ConsumerDefinition,
   config: ResolvedImmediateRequeueRetryOptions,
-): AsyncResult<void, TechnicalError> {
+): AsyncResult<void, never> {
   const queue = extractQueue(consumer.queue);
   const queueName = queue.name;
 
@@ -171,13 +171,18 @@ function handleErrorTtlBackoff(
   consumerName: string,
   consumer: ConsumerDefinition,
   config: ResolvedTtlBackoffRetryOptions,
-): AsyncResult<void, TechnicalError> {
+): AsyncResult<void, never> {
   if (!isQueueWithTtlBackoffInfrastructure(consumer.queue)) {
     ctx.logger?.error("Queue does not have TTL-backoff infrastructure", {
       consumerName,
       queueName: consumer.queue.name,
     });
-    return ErrAsync(new TechnicalError("Queue does not have TTL-backoff infrastructure"));
+    // A queue configured for ttl-backoff without the wait/retry infrastructure
+    // is a contract/setup bug, not a modeled failure — route it to the defect
+    // channel.
+    return fromSafeThrowable((): void => {
+      throw new TechnicalError("Queue does not have TTL-backoff infrastructure");
+    })().toAsync();
   }
 
   const queueEntry = consumer.queue;
@@ -310,7 +315,7 @@ function publishForRetry(
     delayMs?: number;
     error: Error;
   },
-): AsyncResult<void, TechnicalError> {
+): AsyncResult<void, never> {
   // Get retry count from headers
   const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
   const newRetryCount = retryCount + 1;
@@ -348,13 +353,9 @@ function publishForRetry(
       if (!published) {
         // Publish was rejected (channel buffer full / channel error). Do NOT
         // ack the original — leave it un-ack'd so the broker / channel manager
-        // can redeliver it once the channel recovers.
-        ctx.logger?.error("Failed to publish message for retry (write buffer full)", {
-          queueName,
-          retryCount: newRetryCount,
-          ...(delayMs !== undefined ? { delayMs } : {}),
-        });
-        return Err(new TechnicalError("Failed to publish message for retry (write buffer full)"));
+        // can redeliver it once the channel recovers. The throw routes to the
+        // defect channel (a publish infrastructure failure is unexpected).
+        throw new TechnicalError("Failed to publish message for retry (write buffer full)");
       }
 
       // Publish confirmed by the broker — safe to ack the original now.
@@ -367,19 +368,18 @@ function publishForRetry(
       });
       return Ok(undefined);
     })
-    .flatMapErrCases((matcher) =>
-      matcher.with(tag("@amqp-contract/TechnicalError"), (publishError) => {
-        // Publish threw (network error, channel close, etc.). Same policy: do
-        // not ack the original; the redelivery path is the recovery mechanism.
-        ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
-          queueName,
-          retryCount: newRetryCount,
-          ...(delayMs !== undefined ? { delayMs } : {}),
-          error: publishError,
-        });
-        return Err(publishError);
-      }),
-    );
+    .tapDefect((publishError) => {
+      // The retry publish failed (channel buffer full, network error, channel
+      // close). Same policy: do not ack the original; the redelivery path is
+      // the recovery mechanism. Observed here so the failure is logged before
+      // the defect flows on unchanged.
+      ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
+        queueName,
+        retryCount: newRetryCount,
+        ...(delayMs !== undefined ? { delayMs } : {}),
+        error: publishError,
+      });
+    });
 }
 
 /**

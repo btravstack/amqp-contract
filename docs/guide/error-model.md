@@ -8,14 +8,21 @@ This page lists every error type the library can produce, where it surfaces, and
 
 The safe way to consume a result is `.match({ ok, errCases, defect })` — it forces you to handle every channel. The `errCases` handler receives a [ts-pattern](https://github.com/gvergnaud/ts-pattern) matcher over the error union, so every error case must be handled explicitly (no blanket `err` callback).
 
-`unthrown` makes `.get()` **type-gated**: it compiles only when the error channel is empty (`E = never`) — and the gate applies identically on a `Result` and on its `AsyncResult` mirror. `Ok(x).get()` works; calling `.get()` on anything fallible — `client.publish(...)` returns `AsyncResult<void, TechnicalError | MessageValidationError>` — is a compile error whether you extract on the `AsyncResult` directly or on the awaited `Result`. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
+`unthrown` makes `.get()` **type-gated**: it compiles only when the error channel is empty (`E = never`) — and the gate applies identically on a `Result` and on its `AsyncResult` mirror. `Ok(x).get()` works; so does extracting the result of `TypedAmqpClient.create(...)`, whose modeled channel is empty — `AsyncResult<TypedAmqpClient, never>`, because its infrastructure failures are [defects](#framework-defects), not modeled errors. `.get()` still panics on a `Defect`, rethrowing its cause, so a failed `create()` throws the underlying `TechnicalError`:
 
 ```ts
-// throws on Err (and rethrows a Defect) — the escape hatch, not the default
+// E = never, so `.get()` compiles — and still rethrows a Defect's cause on failure
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
+```
+
+Calling `.get()` on a still-fallible result — `client.publish(...)` returns `AsyncResult<void, MessageValidationError>` — is a compile error whether you extract on the `AsyncResult` directly or on the awaited `Result`. When you genuinely want to throw on such a result (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
+
+```ts
+// throws the MessageValidationError on Err (and rethrows a Defect) — the escape hatch, not the default
+await client.publish("orderCreated", { orderId: "1" }).getOrThrow();
 ```
 
 Prefer `.match()` / `.recoverErrCases()` / `.flatMapErrCases()` in real code; reach for `.getOrThrow()` only where throwing is acceptable. (`.getOrElse(f)` is the non-throwing cousin: it computes a fallback from the error instead.)
@@ -28,7 +35,7 @@ Error
 │   ├── RetryableError               — go through queue retry mode
 │   └── NonRetryableError            — straight to DLQ, skip retry
 ├── RpcError<code, data>             (typed business error declared on an RPC)
-├── TechnicalError                   (any AMQP / framework failure)
+├── TechnicalError                   (AMQP / framework failure — surfaced as a Defect, never in E)
 └── MessageValidationError           (Standard Schema validation issue)
 
 RpcCancelledError                    (client-side RPC, worker shut down)
@@ -102,11 +109,13 @@ if (isHandlerError(err)) {
 }
 ```
 
-## Framework errors
+## Framework defects
 
-### `TechnicalError`
+### `TechnicalError` (the defect channel)
 
-Any failure of the AMQP transport itself: connection lost, channel closed, broker rejected an assert, etc. Returned from `@amqp-contract/core` operations. Carries an optional `cause` chain.
+Any failure of the AMQP transport itself — connection lost, channel closed, broker rejected an assert, a publish that never reached the broker, a compression/JSON-parse error, a thrown schema validator — is **unexpected**, not an anticipated domain outcome. So amqp-contract surfaces it through unthrown's third **`Defect`** channel, **never** as a modeled `Err`. A `TechnicalError` instance is the defect's `cause`: it carries an optional `cause` chain of its own (the original amqplib / amqp-connection-manager error) and is exported from `@amqp-contract/core` for logging and `instanceof` checks.
+
+Because a `TechnicalError` is a defect, you handle it in the **`defect`** arm of `.match(...)` — or observe/recover it with `.tapDefect(...)` / `.recoverDefect(...)` — not in the `errCases` matcher. It is not part of any operation's `E`, so it never appears in an exhaustive error match:
 
 ```ts
 import { TechnicalError } from "@amqp-contract/core";
@@ -115,18 +124,16 @@ import { tag } from "unthrown";
 const result = await client.publish("orderCreated", { orderId: "1" });
 result.match({
   ok: () => console.log("ok"),
+  // publish's modeled channel is just MessageValidationError now
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (err) => {
-        if (err instanceof TechnicalError) {
-          // err.cause holds the original amqplib / amqp-connection-manager error
-        }
-      },
-    ),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (err) => {
+      // an anticipated, modeled failure — the payload was invalid before it went on the wire
+    }),
   defect: (cause) => {
-    throw cause;
+    // a transport failure arrives here, with a TechnicalError as its cause
+    if (cause instanceof TechnicalError) {
+      // cause.cause holds the original amqplib / amqp-connection-manager error
+    }
   },
 });
 ```
@@ -198,7 +205,7 @@ Error `data` is validated twice: on the worker before the reply is published, an
 The type system prevents undeclared codes, but a cast (or two services running different contract versions) can bypass it. The runtime holds the line:
 
 - **Worker**: an undeclared code or `data` failing its schema is a contract violation — the reply is not published and the request routes to the DLQ as a `NonRetryableError`. The caller times out.
-- **Client**: an error reply whose code the local contract doesn't declare resolves to `Err(TechnicalError)`; error data failing its schema resolves to `Err(MessageValidationError)`.
+- **Client**: an error reply whose code the local contract doesn't declare resolves to a **`Defect`** (with a `TechnicalError` cause — an undeclared code is an unexpected contract mismatch, not a modeled outcome); error data failing its schema resolves to `Err(MessageValidationError)`.
 
 ### Wire format
 
@@ -216,6 +223,7 @@ The client was closed (`client.close()`) while a call was still pending. All in-
 
 ```ts
 import { RpcTimeoutError, RpcCancelledError } from "@amqp-contract/client";
+import { TechnicalError } from "@amqp-contract/core";
 import { tag } from "unthrown";
 
 const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000 });
@@ -223,7 +231,6 @@ result.match({
   ok: (response) => /* ... */,
   errCases: (matcher) =>
     matcher.with(
-      tag("@amqp-contract/TechnicalError"),
       tag("@amqp-contract/MessageValidationError"),
       tag("@amqp-contract/RpcTimeoutError"),
       tag("@amqp-contract/RpcCancelledError"),
@@ -233,10 +240,10 @@ result.match({
         if (err instanceof RpcTimeoutError) /* retry, or fall back */;
         if (err instanceof RpcCancelledError) /* shutting down */;
         if (err instanceof MessageValidationError) /* response shape wrong */;
-        if (err instanceof TechnicalError) /* transport problem */;
       },
     ),
   defect: (cause) => {
+    if (cause instanceof TechnicalError) /* transport problem — unexpected, surfaced as a defect */;
     throw cause;
   },
 });

@@ -70,7 +70,7 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract, // Resources declared automatically!
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 // Publish - fully typed and validated!
 const result = await client.publish("orderCreated", {
@@ -82,12 +82,11 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("✅ Published"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("❌ Failed:", error),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("❌ Failed:", error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 }); // ✅ Automatic validation!
@@ -140,7 +139,7 @@ const worker = await TypedAmqpWorker.create({
     }, // ✅ Auto-acknowledgment on success!
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 :::

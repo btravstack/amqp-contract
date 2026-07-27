@@ -1,4 +1,4 @@
-import { TechnicalError } from "@amqp-contract/core";
+import { MessageValidationError } from "@amqp-contract/core";
 import { ErrAsync, OkAsync, tag, type AsyncResult } from "unthrown";
 import { describe, expect, it } from "vitest";
 
@@ -14,6 +14,11 @@ const baseArgs: PublishInterceptorArgs = {
   message: { orderId: "1" },
   options: {},
 };
+
+// A modeled publish error (the interceptor channel no longer carries
+// TechnicalError — infrastructure failures are defects now).
+const publishError = (message: string): MessageValidationError =>
+  new MessageValidationError("orderCreated", [{ message }]);
 
 describe("chainInterceptors", () => {
   it("runs interceptors left-to-right with the first as outermost", async () => {
@@ -65,7 +70,7 @@ describe("chainInterceptors", () => {
 
   it("short-circuits when an interceptor returns without calling next", async () => {
     // GIVEN
-    const block: PublishInterceptor = () => ErrAsync(new TechnicalError("blocked"));
+    const block: PublishInterceptor = () => ErrAsync(publishError("blocked"));
     let terminalRan = false;
 
     // WHEN
@@ -85,7 +90,6 @@ describe("chainInterceptors", () => {
     const retryOnce: PublishInterceptor = (_args, next) =>
       next().flatMapErrCases((matcher) =>
         matcher.with(
-          tag("@amqp-contract/TechnicalError"),
           tag("@amqp-contract/MessageValidationError"),
           (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
         ),
@@ -94,7 +98,7 @@ describe("chainInterceptors", () => {
     // WHEN
     const result = await chainInterceptors([retryOnce], baseArgs, () => {
       attempts += 1;
-      return attempts < 2 ? ErrAsync(new TechnicalError("transient")) : OkAsync(undefined);
+      return attempts < 2 ? ErrAsync(publishError("transient")) : OkAsync(undefined);
     });
 
     // THEN
@@ -107,7 +111,7 @@ describe("chainInterceptors", () => {
     const result = await chainInterceptors([], baseArgs, (args) =>
       args.publisherName === "orderCreated"
         ? OkAsync(undefined)
-        : ErrAsync(new TechnicalError("wrong args")),
+        : ErrAsync(publishError("wrong args")),
     );
 
     // THEN

@@ -12,7 +12,6 @@ import {
   defineMessage,
   defineQueue,
 } from "@amqp-contract/contract";
-import type { TechnicalError } from "@amqp-contract/core";
 import type { AsyncResult } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
@@ -55,7 +54,7 @@ describe("publish payload inference", () => {
   test("should accept a valid payload and return a typed AsyncResult", () => {
     expectTypeOf(
       client.publish("orderCreated", { orderId: "ORD-123", amount: 99.99 }),
-    ).toEqualTypeOf<AsyncResult<void, TechnicalError | MessageValidationError>>();
+    ).toEqualTypeOf<AsyncResult<void, MessageValidationError>>();
   });
 
   test("should reject invalid payloads at compile time", () => {

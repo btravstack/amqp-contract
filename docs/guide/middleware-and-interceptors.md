@@ -21,7 +21,7 @@ import {
   TypedAmqpWorker,
   type EmptyContext,
 } from "@amqp-contract/worker";
-import { ErrAsync, tag } from "unthrown";
+import { ErrAsync } from "unthrown";
 
 const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
@@ -44,15 +44,15 @@ const worker = await TypedAmqpWorker.create({
   middleware: composeMiddleware(auth, timing),
   handlers: {
     // helpers.context is typed as { tenantId: string } — proven by the middleware
-    // processFor returns AsyncResult<T, TechnicalError>; escalate that failure
-    // to a non-retryable handler error.
+    // processFor surfaces transport failures as defects (AsyncResult<T, never>);
+    // escalate that defect to a non-retryable handler error with recoverDefect.
     processOrder: ({ payload }, _raw, { context }) =>
-      processFor(context.tenantId, payload).mapErrCases((matcher) =>
-        matcher.with(tag("@amqp-contract/TechnicalError"), (e) => nonRetryable("failed", e)),
+      processFor(context.tenantId, payload).recoverDefect((cause) =>
+        ErrAsync(nonRetryable("failed", cause)),
       ),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 `composeMiddleware(outermost, ..., innermost)` runs left-to-right; context types accumulate across the chain, and the final context type is what handlers receive in `helpers.context`. Without `createContext` or `middleware`, handlers get an empty object (`EmptyContext`).
@@ -77,7 +77,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: ({ payload }, _raw, { context }) => context.orderRepo.process(payload),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 [demesne](https://btravstack.github.io/demesne/)'s `Layer.forkScope` is the recommended `createContext` implementation for DI-managed graphs: build the app graph once at startup, fork a request scope per message.
@@ -130,7 +130,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   publishInterceptors: [stampTrace],
-}).getOrThrow();
+}).get();
 ```
 
 ### Call interceptors
@@ -144,7 +144,6 @@ import { ErrAsync, tag } from "unthrown";
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
   next().flatMapErrCases((matcher) =>
     matcher.with(
-      tag("@amqp-contract/TechnicalError"),
       tag("@amqp-contract/MessageValidationError"),
       tag("@amqp-contract/RpcTimeoutError"),
       tag("@amqp-contract/RpcCancelledError"),
@@ -152,6 +151,8 @@ const retryTimeoutsOnce: CallInterceptor = (args, next) =>
       (error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)),
     ),
   );
+// A transport failure is a defect, not a modeled error — it flows through
+// flatMapErrCases untouched; use `.recoverDefect(...)` if you need to act on it.
 ```
 
 The first interceptor in either array is the **outermost**. Telemetry spans stay outside the chain, so interceptor work is covered by the existing OpenTelemetry instrumentation.

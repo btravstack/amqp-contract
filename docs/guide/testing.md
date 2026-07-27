@@ -123,7 +123,7 @@ describe("Order Processing Contract", () => {
     const client = await TypedAmqpClient.create({
       contract,
       urls: [amqpConnectionUrl],
-    }).getOrThrow();
+    }).get();
 
     // Create worker with handler
     const receivedPayloads: unknown[] = [];
@@ -136,7 +136,7 @@ describe("Order Processing Contract", () => {
         },
       },
       urls: [amqpConnectionUrl],
-    }).getOrThrow();
+    }).get();
 
     // Publish message
     const result = await client.publish("orderCreated", {

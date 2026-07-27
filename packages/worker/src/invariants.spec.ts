@@ -95,7 +95,7 @@ describe("invariants: handler-error routing", () => {
       mockMessage({ "x-delivery-count": 1 }),
       "processOrder",
       consumer,
-    ).getOrThrow();
+    ).get();
     expect(below.nack).toHaveBeenCalledWith(expect.anything(), false, true);
 
     // At the budget: permanent failure, DLQ.
@@ -106,7 +106,7 @@ describe("invariants: handler-error routing", () => {
       mockMessage({ "x-delivery-count": 2 }),
       "processOrder",
       consumer,
-    ).getOrThrow();
+    ).get();
     expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false);
   });
 });

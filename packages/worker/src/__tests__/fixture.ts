@@ -26,7 +26,7 @@ export const it = baseIt.extend<{
             handlers,
             urls: [amqpConnectionUrl],
             logger: console,
-          }).getOrThrow();
+          }).get();
 
           workers.push(worker);
           return worker;
@@ -37,7 +37,7 @@ export const it = baseIt.extend<{
       await Promise.all(
         workers.map(async (worker) => {
           try {
-            await worker.close().getOrThrow();
+            await worker.close().get();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console

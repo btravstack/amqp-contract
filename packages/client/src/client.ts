@@ -30,12 +30,11 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import {
   Err,
-  ErrAsync,
   fromPromise,
   fromSafePromise,
+  fromSafeThrowable,
   Ok,
   OkAsync,
-  tag,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -69,6 +68,19 @@ import type {
 const DIRECT_REPLY_TO = "amq.rabbitmq.reply-to";
 
 /**
+ * Mint a `Defect`-carrying `Result` from a {@link TechnicalError}, for the
+ * imperative reply-consumer paths (outside a combinator callback) that must
+ * resolve a pending call with an unexpected infrastructure failure. Uses the
+ * `fromSafeThrowable` boundary — the sanctioned way to route a throw to a
+ * `Defect` without a public defect constructor.
+ */
+function technicalDefect(error: TechnicalError): Result<never, never> {
+  return fromSafeThrowable((): never => {
+    throw error;
+  })();
+}
+
+/**
  * In-flight RPC call tracked by `TypedAmqpClient`. The reply consumer
  * looks up entries by `correlationId` when responses arrive.
  */
@@ -78,13 +90,14 @@ type PendingCall = {
   /**
    * The RPC's declared `errors` map (code → message definition), used to
    * validate the `data` of a typed error reply. Undefined when the RPC
-   * declares no errors — any error reply then resolves to a TechnicalError.
+   * declares no errors — any error reply then resolves to a `Defect` (a
+   * {@link TechnicalError} cause).
    */
   rpcErrorSchemas?: RpcErrorMap | undefined;
   resolve: (
     result: Result<
       unknown,
-      TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError | RpcError
+      MessageValidationError | RpcTimeoutError | RpcCancelledError | RpcError
     >,
   ) => void;
   timer: ReturnType<typeof setTimeout>;
@@ -124,9 +137,9 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
   defaultPublishOptions?: PublishOptions | undefined;
   /**
    * Maximum time in ms to wait for the AMQP connection to become ready before
-   * `create()` resolves to an `Err(TechnicalError)`. Defaults to 30s
-   * (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null` to
-   * disable the timeout and let amqp-connection-manager retry indefinitely.
+   * `create()` resolves to a `Defect` (a `TechnicalError` cause). Defaults
+   * to 30s (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null`
+   * to disable the timeout and let amqp-connection-manager retry indefinitely.
    */
   connectTimeoutMs?: number | null | undefined;
   /**
@@ -209,7 +222,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     connectTimeoutMs,
     publishInterceptors,
     callInterceptors,
-  }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, TechnicalError> {
+  }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, never> {
     const client = new TypedAmqpClient(
       contract,
       new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs }),
@@ -224,13 +237,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       .waitForConnectionReady()
       .flatMap(() => client.setupReplyConsumerIfNeeded());
 
-    const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, TechnicalError>> => {
+    const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, never>> => {
       const setupResult = await setup;
       if (!setupResult.isOk()) {
         const closeResult = await client.close();
-        if (closeResult.isErr()) {
+        if (closeResult.isDefect()) {
           logger?.warn("Failed to close client after connection failure", {
-            error: closeResult.error,
+            error: closeResult.cause,
           });
         }
       }
@@ -247,7 +260,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * once. Replies for every in-flight call arrive on this single consumer and
    * are demultiplexed by `correlationId`.
    */
-  private setupReplyConsumerIfNeeded(): AsyncResult<void, TechnicalError> {
+  private setupReplyConsumerIfNeeded(): AsyncResult<void, never> {
     const rpcs = this.contract.rpcs ?? {};
     if (Object.keys(rpcs).length === 0) {
       return OkAsync(undefined);
@@ -299,7 +312,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     );
     if (!parseResult.isOk()) {
       pending.resolve(
-        Err(
+        technicalDefect(
           parseResult.isErr()
             ? parseResult.error
             : new TechnicalError(
@@ -329,7 +342,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       rawValidation = pending.responseSchema["~standard"].validate(parsed);
     } catch (error: unknown) {
       pending.resolve(
-        Err(new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error)),
+        technicalDefect(
+          new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
+        ),
       );
       return;
     }
@@ -346,7 +361,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       },
       (error: unknown) => {
         pending.resolve(
-          Err(new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error)),
+          technicalDefect(
+            new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
+          ),
         );
       },
     );
@@ -357,10 +374,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * schema in the RPC's declared `errors` map, validate the reply's `data`
    * against it, and resolve the caller with `Err(RpcError<code, data>)`.
    *
-   * An error code the contract does not declare resolves to a TechnicalError —
-   * it means the two sides run different contract versions (or the worker
-   * bypassed the type system), and the client has no schema to give the data
-   * a type under.
+   * An error code the contract does not declare resolves to a `Defect` (a
+   * {@link TechnicalError} cause) — it means the two sides run different
+   * contract versions (or the worker bypassed the type system), and the client
+   * has no schema to give the data a type under.
    */
   private resolveRpcErrorReply(pending: PendingCall, errorCode: string, parsed: unknown): void {
     // `Object.hasOwn` rather than plain indexing so prototype properties
@@ -371,7 +388,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         : undefined;
     if (!errorSchema) {
       pending.resolve(
-        Err(
+        technicalDefect(
           new TechnicalError(
             `RPC "${pending.rpcName}" replied with undeclared error code "${errorCode}"`,
           ),
@@ -394,7 +411,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       rawValidation = errorSchema.payload["~standard"].validate(body.data);
     } catch (error: unknown) {
       pending.resolve(
-        Err(new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error)),
+        technicalDefect(
+          new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
+        ),
       );
       return;
     }
@@ -411,7 +430,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       },
       (error: unknown) => {
         pending.resolve(
-          Err(
+          technicalDefect(
             new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
           ),
         );
@@ -435,7 +454,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     publisherName: TName,
     message: ClientInferPublisherInput<TContract, TName>,
     options?: PublishOptions,
-  ): AsyncResult<void, TechnicalError | MessageValidationError> {
+  ): AsyncResult<void, MessageValidationError> {
     const startTime = Date.now();
     // Non-null assertions safe: TypeScript guarantees these exist for valid TName
     const publisher = this.contract.publishers![publisherName as string]!;
@@ -446,19 +465,17 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: String(publisherName),
     });
 
-    const validateMessage = (
-      rawMessage: unknown,
-    ): AsyncResult<unknown, TechnicalError | MessageValidationError> => {
+    const validateMessage = (rawMessage: unknown): AsyncResult<unknown, MessageValidationError> => {
       const validationResult = publisher.message.payload["~standard"].validate(rawMessage);
       const promise =
         validationResult instanceof Promise ? validationResult : Promise.resolve(validationResult);
-      return fromPromise(
-        promise,
-        (error): TechnicalError | MessageValidationError =>
-          new TechnicalError("Validation failed", error),
+      // A thrown/rejected validator is an unexpected infrastructure fault →
+      // defect; schema `issues` are the modeled MessageValidationError.
+      return fromPromise(promise, (error, defect) =>
+        defect(new TechnicalError("Validation failed", error)),
       ).flatMap((validation) => {
         if (validation.issues) {
-          return Err<TechnicalError | MessageValidationError>(
+          return Err<MessageValidationError>(
             new MessageValidationError(String(publisherName), validation.issues),
           );
         }
@@ -469,7 +486,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     const publishMessage = (
       validatedMessage: unknown,
       callOptions: PublishOptions,
-    ): AsyncResult<void, TechnicalError> => {
+    ): AsyncResult<void, never> => {
       // Merge default options with provided options
       const mergedOptions = { ...this.defaultPublishOptions, ...callOptions };
 
@@ -478,7 +495,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       const publishOptions: AmqpClientPublishOptions = { ...restOptions };
 
       // Prepare payload and options based on compression configuration
-      const preparePayload = (): AsyncResult<Buffer | unknown, TechnicalError> => {
+      const preparePayload = (): AsyncResult<Buffer | unknown, never> => {
         if (compression) {
           // Compress the message payload
           const messageBuffer = Buffer.from(JSON.stringify(validatedMessage));
@@ -495,10 +512,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
           .publish(publisher.exchange.name, publisher.routingKey ?? "", payload, publishOptions)
           .flatMap((published) => {
             if (!published) {
-              return Err<TechnicalError>(
-                new TechnicalError(
-                  `Failed to publish message for publisher "${String(publisherName)}": Channel rejected the message (buffer full or other channel issue)`,
-                ),
+              // A full write buffer / rejected message is an unexpected publish
+              // failure → defect (the throw routes it there).
+              throw new TechnicalError(
+                `Failed to publish message for publisher "${String(publisherName)}": Channel rejected the message (buffer full or other channel issue)`,
               );
             }
 
@@ -538,17 +555,14 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         endSpanSuccess(span);
         recordPublishMetric(this.telemetry, exchange.name, routingKey, true, durationMs);
       })
-      .tapErrCases((matcher) =>
-        matcher.with(
-          tag("@amqp-contract/TechnicalError"),
-          tag("@amqp-contract/MessageValidationError"),
-          (error) => {
-            const durationMs = Date.now() - startTime;
-            endSpanError(span, error);
-            recordPublishMetric(this.telemetry, exchange.name, routingKey, false, durationMs);
-          },
-        ),
-      );
+      .tapFailure((failure) => {
+        // Record failure telemetry for both channels: a modeled
+        // MessageValidationError (`Err`) and an infrastructure `Defect`.
+        const durationMs = Date.now() - startTime;
+        const reported = failure.tag === "Err" ? failure.error : failure.cause;
+        endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
+        recordPublishMetric(this.telemetry, exchange.name, routingKey, false, durationMs);
+      });
   }
 
   /**
@@ -568,13 +582,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    *   ok: (value) => console.log(value.sum), // 3
    *   errCases: (matcher) =>
    *     matcher.with(
-   *       tag("@amqp-contract/TechnicalError"),
    *       tag("@amqp-contract/MessageValidationError"),
    *       tag("@amqp-contract/RpcTimeoutError"),
    *       tag("@amqp-contract/RpcCancelledError"),
    *       tag("@amqp-contract/RpcError"),
    *       (error) => console.error(error),
    *     ),
+   *   // Transport/infrastructure failures surface here, never in `errCases`.
    *   defect: (cause) => console.error(cause),
    * });
    * ```
@@ -585,7 +599,6 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     options: CallOptions,
   ): AsyncResult<
     ClientInferRpcResponseOutput<TContract, TName>,
-    | TechnicalError
     | MessageValidationError
     | RpcTimeoutError
     | RpcCancelledError
@@ -593,7 +606,6 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   > {
     type ResponseType = ClientInferRpcResponseOutput<TContract, TName>;
     type CallError =
-      | TechnicalError
       | MessageValidationError
       | RpcTimeoutError
       | RpcCancelledError
@@ -629,20 +641,14 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         endSpanSuccess(span);
         recordPublishMetric(this.telemetry, "", queueName, true, durationMs);
       })
-      .tapErrCases((matcher) =>
-        matcher.with(
-          tag("@amqp-contract/TechnicalError"),
-          tag("@amqp-contract/MessageValidationError"),
-          tag("@amqp-contract/RpcTimeoutError"),
-          tag("@amqp-contract/RpcCancelledError"),
-          tag("@amqp-contract/RpcError"),
-          (error) => {
-            const durationMs = Date.now() - startTime;
-            endSpanError(span, error);
-            recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
-          },
-        ),
-      );
+      .tapFailure((failure) => {
+        // Record failure telemetry for both channels: modeled RPC/validation
+        // errors (`Err`) and infrastructure `Defect`s.
+        const durationMs = Date.now() - startTime;
+        const reported = failure.tag === "Err" ? failure.error : failure.cause;
+        endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
+        recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
+      });
 
     // Safe: executeCall resolves with the schema-validated response, and its
     // wire-level error union is the widened form of CallError.
@@ -673,11 +679,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       options.timeoutMs <= 0 ||
       options.timeoutMs > TIMEOUT_MAX_MS
     ) {
-      return ErrAsync<InterceptorCallError>(
+      return technicalDefect(
         new TechnicalError(
           `Invalid timeoutMs for RPC call to "${rpcName}": expected a finite positive number ≤ ${TIMEOUT_MAX_MS}, got ${String(options.timeoutMs)}`,
         ),
-      );
+      ).toAsync();
     }
 
     const requestSchema = rpc.request.payload;
@@ -713,34 +719,30 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       timer,
     });
 
-    const validateRequest = (): AsyncResult<unknown, TechnicalError | MessageValidationError> => {
+    const validateRequest = (): AsyncResult<unknown, MessageValidationError> => {
       // Wrap the validate call — a Standard Schema implementation may throw
       // synchronously, and that throw would otherwise escape the chain and
-      // leave the pending-call entry/timer dangling until timeout.
+      // leave the pending-call entry/timer dangling until timeout. A thrown /
+      // rejected validator is an unexpected infrastructure fault → defect;
+      // schema `issues` are the modeled MessageValidationError.
       let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
       try {
         rawValidation = requestSchema["~standard"].validate(request);
       } catch (error: unknown) {
-        return ErrAsync<TechnicalError | MessageValidationError>(
-          new TechnicalError("RPC request validation threw", error),
-        );
+        return technicalDefect(new TechnicalError("RPC request validation threw", error)).toAsync();
       }
       const validationPromise =
         rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-      return fromPromise(
-        validationPromise,
-        (error): TechnicalError | MessageValidationError =>
-          new TechnicalError("RPC request validation threw", error),
+      return fromPromise(validationPromise, (error, defect) =>
+        defect(new TechnicalError("RPC request validation threw", error)),
       ).flatMap((validation) =>
         validation.issues
-          ? Err<TechnicalError | MessageValidationError>(
-              new MessageValidationError(rpcName, validation.issues),
-            )
+          ? Err<MessageValidationError>(new MessageValidationError(rpcName, validation.issues))
           : Ok(validation.value),
       );
     };
 
-    const publishRequest = (validatedRequest: unknown): AsyncResult<void, TechnicalError> => {
+    const publishRequest = (validatedRequest: unknown): AsyncResult<void, never> => {
       // Merge `defaultPublishOptions` (persistent, priority, headers, …) with
       // the per-call options, then layer the RPC-managed fields on top so they
       // cannot be overridden. `compression` is intentionally dropped: RPC v1
@@ -757,47 +759,38 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       };
       return this.amqpClient
         .publish("", queueName, validatedRequest, publishOptions)
-        .flatMap((published) =>
-          published
-            ? Ok(undefined)
-            : Err<TechnicalError>(
-                new TechnicalError(
-                  `Failed to publish RPC request for "${rpcName}": channel buffer full`,
-                ),
-              ),
-        );
+        .flatMap((published): Result<void, never> => {
+          if (!published) {
+            // A full write buffer is an unexpected publish failure → defect.
+            throw new TechnicalError(
+              `Failed to publish RPC request for "${rpcName}": channel buffer full`,
+            );
+          }
+          return Ok(undefined);
+        });
     };
 
     return validateRequest()
       .flatMap((validated) => publishRequest(validated))
       .flatMap(() => callResultAsync)
-      .flatMapErrCases((matcher) =>
-        matcher.with(
-          tag("@amqp-contract/TechnicalError"),
-          tag("@amqp-contract/MessageValidationError"),
-          tag("@amqp-contract/RpcTimeoutError"),
-          tag("@amqp-contract/RpcCancelledError"),
-          tag("@amqp-contract/RpcError"),
-          (error: InterceptorCallError) => {
-            // If preflight failed (validate or publish), the pending entry still
-            // exists and the timer is alive. Clean both up so the call doesn't
-            // leak. Timer-fired errors and reply-resolved errors have already
-            // cleaned the entry, so the .has() check guards against double cleanup.
-            if (this.pendingCalls.has(correlationId)) {
-              clearTimeout(timer);
-              this.pendingCalls.delete(correlationId);
-            }
-            return ErrAsync(error);
-          },
-        ),
-      );
+      .tapFailure(() => {
+        // Preflight failure (invalid timeout, request validation, or publish)
+        // leaves the pending entry + timer alive — clean both up on ANY failure,
+        // modeled `Err` or infrastructure `Defect`. Timer-fired and
+        // reply-resolved failures have already cleared the entry, so the
+        // `.has()` check guards against double cleanup.
+        if (this.pendingCalls.has(correlationId)) {
+          clearTimeout(timer);
+          this.pendingCalls.delete(correlationId);
+        }
+      });
   }
 
   /**
    * Close the channel and connection. Cancels the reply consumer (if any) and
    * rejects every in-flight RPC call with `RpcCancelledError`.
    */
-  close(): AsyncResult<void, TechnicalError> {
+  close(): AsyncResult<void, never> {
     // Reject pending calls first — once close() runs, no reply will arrive.
     for (const [, pending] of this.pendingCalls) {
       clearTimeout(pending.timer);
@@ -805,19 +798,19 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     }
     this.pendingCalls.clear();
 
-    const cancelReply: AsyncResult<void, TechnicalError> = this.replyConsumerTag
-      ? this.amqpClient.cancel(this.replyConsumerTag).flatMapErrCases((matcher) =>
-          matcher.with(tag("@amqp-contract/TechnicalError"), (error) => {
-            this.logger?.warn("Failed to cancel RPC reply consumer during close", { error });
-            return Ok(undefined);
-          }),
-        )
+    const cancelReply: AsyncResult<void, never> = this.replyConsumerTag
+      ? // Swallow a cancel failure during close — it is best-effort cleanup and
+        // surfaces as a `Defect` now, so recover it back to `Ok`.
+        this.amqpClient.cancel(this.replyConsumerTag).recoverDefect((cause) => {
+          this.logger?.warn("Failed to cancel RPC reply consumer during close", { error: cause });
+          return Ok(undefined);
+        })
       : OkAsync(undefined);
 
     return cancelReply.flatMap(() => this.amqpClient.close());
   }
 
-  private waitForConnectionReady(): AsyncResult<void, TechnicalError> {
+  private waitForConnectionReady(): AsyncResult<void, never> {
     return this.amqpClient.waitForConnect();
   }
 }

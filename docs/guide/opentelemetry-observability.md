@@ -159,7 +159,7 @@ const client = await TypedAmqpClient.create({
   contract,
   connection,
   telemetry: customTelemetryProvider,
-}).getOrThrow();
+}).get();
 
 // Use in worker
 const worker = await TypedAmqpWorker.create({
@@ -167,7 +167,7 @@ const worker = await TypedAmqpWorker.create({
   connection,
   handlers,
   telemetry: customTelemetryProvider,
-}).getOrThrow();
+}).get();
 ```
 
 ## Best Practices

@@ -1,7 +1,7 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { RetryableError, TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
 import pino from "pino";
-import { fromPromise, tag } from "unthrown";
+import { fromPromise } from "unthrown";
 import { z } from "zod";
 
 const env = z
@@ -165,12 +165,8 @@ async function main() {
       },
     }),
     urls: [env.AMQP_URL],
-  }).tapErrCases((matcher) =>
-    matcher.with(tag("@amqp-contract/TechnicalError"), (error) =>
-      logger.error({ error }, "Failed to create worker"),
-    ),
-  );
-  const worker = await workerResult.getOrThrow();
+  }).tapDefect((cause) => logger.error({ error: cause }, "Failed to create worker"));
+  const worker = await workerResult.get();
 
   logger.info("Worker ready, waiting for messages...");
   logger.info("=".repeat(60));
@@ -189,7 +185,7 @@ async function main() {
   // Handle graceful shutdown
   process.on("SIGINT", async () => {
     logger.info("Shutting down worker...");
-    await worker.close().getOrThrow();
+    await worker.close().get();
     process.exit(0);
   });
 }

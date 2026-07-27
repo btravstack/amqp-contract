@@ -8,10 +8,9 @@ import type {
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
 import {
-  Err,
-  ErrAsync,
   fromPromise,
   fromSafePromise,
+  fromSafeThrowable,
   Ok,
   type AsyncResult,
   type Result,
@@ -128,7 +127,10 @@ export type ConsumerOptions = Options.Consume & {
  * - Automatic AMQP topology setup (exchanges, queues, bindings) from contract
  * - Channel creation with JSON serialization enabled by default
  *
- * All operations return `AsyncResult<T, TechnicalError>` for consistent error handling.
+ * All operations return `AsyncResult<T, never>`: infrastructure failures are
+ * **unexpected**, so they surface through the `Defect` channel (with a
+ * {@link TechnicalError} as the defect's `cause` for logging), never as a
+ * modeled `Err`.
  *
  * @example
  * ```typescript
@@ -238,17 +240,18 @@ export class AmqpClient {
    * Wait for the channel to be connected and ready.
    *
    * If `connectTimeoutMs` was provided in the constructor options, the returned
-   * AsyncResult resolves to `Err(TechnicalError)` once the timeout elapses.
-   * Without a timeout, this waits forever — amqp-connection-manager retries
-   * connections indefinitely and never errors on its own.
+   * AsyncResult resolves to a `Defect` (a {@link TechnicalError} cause) once the
+   * timeout elapses. Without a timeout, this waits forever —
+   * amqp-connection-manager retries connections indefinitely and never errors on
+   * its own.
    *
    * NOTE: When using `AmqpClient` directly (not via `TypedAmqpClient` /
    * `TypedAmqpWorker`), the constructor has already incremented the pooled
-   * connection's reference count. Callers must invoke `close()` on the error
+   * connection's reference count. Callers must invoke `close()` on the failure
    * path to release the connection — `waitForConnect` does not do this
    * automatically. The typed factories handle this cleanup for you.
    */
-  waitForConnect(): AsyncResult<void, TechnicalError> {
+  waitForConnect(): AsyncResult<void, never> {
     const connectPromise = this.channelWrapper.waitForConnect();
     const timeoutMs = this.connectTimeoutMs;
 
@@ -271,13 +274,13 @@ export class AmqpClient {
             );
           });
 
-    return fromPromise(
-      racedPromise,
-      (error: unknown) =>
+    return fromPromise(racedPromise, (error: unknown, defect) =>
+      defect(
         new TechnicalError(
           "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
           error,
         ),
+      ),
     );
   }
 
@@ -291,13 +294,15 @@ export class AmqpClient {
     routingKey: string,
     content: Buffer | unknown,
     options?: PublishOptions,
-  ): AsyncResult<boolean, TechnicalError> {
+  ): AsyncResult<boolean, never> {
     return fromPromise(
       this.channelWrapper.publish(exchange, routingKey, content, options),
-      (error: unknown) =>
-        new TechnicalError(
-          `Failed to publish message to exchange "${exchange}" (routing key "${routingKey}")`,
-          error,
+      (error: unknown, defect) =>
+        defect(
+          new TechnicalError(
+            `Failed to publish message to exchange "${exchange}" (routing key "${routingKey}")`,
+            error,
+          ),
         ),
     );
   }
@@ -311,11 +316,11 @@ export class AmqpClient {
     queue: string,
     content: Buffer | unknown,
     options?: PublishOptions,
-  ): AsyncResult<boolean, TechnicalError> {
+  ): AsyncResult<boolean, never> {
     return fromPromise(
       this.channelWrapper.sendToQueue(queue, content, options),
-      (error: unknown) =>
-        new TechnicalError(`Failed to publish message to queue "${queue}"`, error),
+      (error: unknown, defect) =>
+        defect(new TechnicalError(`Failed to publish message to queue "${queue}"`, error)),
     );
   }
 
@@ -340,7 +345,7 @@ export class AmqpClient {
     queue: string,
     callback: ConsumeCallback,
     options?: ConsumerOptions,
-  ): AsyncResult<string, TechnicalError> {
+  ): AsyncResult<string, never> {
     // Split prefetch out of the options that go to consume(...).
     const { prefetch, ...consumeOptions } = options ?? {};
 
@@ -351,11 +356,13 @@ export class AmqpClient {
     // travel to the broker, which either rejects or interprets unexpectedly.
     if (prefetch !== undefined) {
       if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
-        return ErrAsync(
-          new TechnicalError(
+        // A misconfigured prefetch is a programming fault, not a modeled
+        // failure — surface it through the defect channel.
+        return fromSafeThrowable((): string => {
+          throw new TechnicalError(
             `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
-          ),
-        );
+          );
+        })().toAsync();
       }
     }
 
@@ -401,16 +408,15 @@ export class AmqpClient {
       return reply;
     })();
 
-    return fromPromise(
-      consumePromise,
-      (error: unknown) => new TechnicalError("Failed to start consuming messages", error),
+    return fromPromise(consumePromise, (error: unknown, defect) =>
+      defect(new TechnicalError("Failed to start consuming messages", error)),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
   }
 
   /**
    * Cancel a consumer by its consumer tag.
    */
-  cancel(consumerTag: string): AsyncResult<void, TechnicalError> {
+  cancel(consumerTag: string): AsyncResult<void, never> {
     return fromPromise(
       (async () => {
         // Drop the prefetch setup whether or not the cancel itself succeeds.
@@ -431,7 +437,7 @@ export class AmqpClient {
           }
         }
       })(),
-      (error: unknown) => new TechnicalError("Failed to cancel consumer", error),
+      (error: unknown, defect) => defect(new TechnicalError("Failed to cancel consumer", error)),
     ).map(() => undefined);
   }
 
@@ -493,34 +499,35 @@ export class AmqpClient {
    * Both steps run regardless of each other's outcome; if both fail, the
    * errors are wrapped in an AggregateError.
    */
-  close(): AsyncResult<void, TechnicalError> {
-    const inner = (async (): Promise<Result<void, TechnicalError>> => {
+  close(): AsyncResult<void, never> {
+    const inner = (async (): Promise<Result<void, never>> => {
       const channelResult = await fromPromise(
         this.channelWrapper.close(),
-        (error: unknown) => new TechnicalError("Failed to close channel", error),
+        (error: unknown, defect) => defect(new TechnicalError("Failed to close channel", error)),
       );
       const releaseResult = await fromPromise(
         ConnectionManagerSingleton.getInstance().releaseConnection(
           this.urls,
           this.connectionOptions,
         ),
-        (error: unknown) => new TechnicalError("Failed to release connection", error),
+        (error: unknown, defect) =>
+          defect(new TechnicalError("Failed to release connection", error)),
       );
 
-      if (channelResult.isErr() && releaseResult.isErr()) {
-        return Err(
-          new TechnicalError(
+      if (channelResult.isDefect() && releaseResult.isDefect()) {
+        // Both steps failed — combine their defect causes. The throw is
+        // adopted by `fromSafePromise` below and re-emerges as a single Defect.
+        throw new TechnicalError(
+          "Failed to close channel and release connection",
+          new AggregateError(
+            [channelResult.cause, releaseResult.cause],
             "Failed to close channel and release connection",
-            new AggregateError(
-              [channelResult.error, releaseResult.error],
-              "Failed to close channel and release connection",
-            ),
           ),
         );
       }
 
-      if (channelResult.isErr()) return channelResult;
-      if (releaseResult.isErr()) return releaseResult;
+      if (channelResult.isDefect()) return channelResult;
+      if (releaseResult.isDefect()) return releaseResult;
       return Ok(undefined);
     })();
 

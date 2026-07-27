@@ -134,15 +134,13 @@ Error: Connection closed: 320 (CONNECTION-FORCED)
    result.match({
      ok: () => console.log("Published"),
      errCases: (matcher) =>
-       matcher.with(
-         tag("@amqp-contract/TechnicalError"),
-         tag("@amqp-contract/MessageValidationError"),
-         (error) => {
-           console.error("Failed:", error);
-           // Don't ignore errors!
-         },
-       ),
+       matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {
+         console.error("Failed:", error);
+         // Don't ignore errors!
+       }),
      defect: (cause) => {
+       // transport failures (TechnicalError) surface here as defects
+       console.error("Technical failure:", cause);
        throw cause;
      },
    });
@@ -151,8 +149,8 @@ Error: Connection closed: 320 (CONNECTION-FORCED)
 4. **Graceful shutdown:**
    ```typescript
    process.on("SIGINT", async () => {
-     await worker.close().getOrThrow();
-     await client.close().getOrThrow();
+     await worker.close().get();
+     await client.close().get();
      process.exit(0);
    });
    ```
@@ -421,16 +419,16 @@ const orderMessage = defineMessage(
      const client = await TypedAmqpClient.create({
        contract,
        urls: ["amqp://localhost"],
-     }).getOrThrow();
+     }).get();
      await client.publish("sendEmail", message).getOrThrow();
-     await client.close().getOrThrow();
+     await client.close().get();
    }
 
    // ✅ Reuse connection
    const client = await TypedAmqpClient.create({
      contract,
      urls: ["amqp://localhost"],
-   }).getOrThrow();
+   }).get();
 
    async function publishMessage() {
      await client.publish("sendEmail", message).getOrThrow();
@@ -442,8 +440,8 @@ const orderMessage = defineMessage(
    ```typescript
    // ✅ Always close connections
    process.on("SIGINT", async () => {
-     await worker.close().getOrThrow();
-     await client.close().getOrThrow();
+     await worker.close().get();
+     await client.close().get();
      process.exit(0);
    });
    ```
@@ -486,7 +484,7 @@ const orderMessage = defineMessage(
          { prefetch: 10 }, // Process up to 10 messages concurrently
        ],
      },
-   }).getOrThrow();
+   }).get();
    ```
 
 2. **Heavy computation in handlers:**
@@ -555,7 +553,7 @@ Error: Connection timeout
          timeout: 10000, // 10 seconds
        },
      },
-   }).getOrThrow();
+   }).get();
    ```
 
 2. **Use connection pooling:**
@@ -602,7 +600,7 @@ Error: Queue 'order-processing' not found
    const client = await TypedAmqpClient.create({
      contract,
      urls: ["amqp://localhost"],
-   }).getOrThrow();
+   }).get();
    ```
 
 ### Messages not routing

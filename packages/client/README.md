@@ -27,7 +27,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 // Publish message with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -37,12 +37,11 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published successfully"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("Publish failed:", error),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("Publish failed:", error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -56,13 +55,13 @@ await client.close();
 The client uses `Result` types from [unthrown](https://github.com/btravstack/unthrown) for explicit error handling. Runtime errors are part of the type signature:
 
 ```typescript
-publish(): Result<boolean, TechnicalError | MessageValidationError>
+publish(): AsyncResult<void, MessageValidationError>
 ```
 
 **Error Types:**
 
-- `TechnicalError` - Runtime failures (channel buffer full, network issues, etc.)
-- `MessageValidationError` - Message fails schema validation
+- `MessageValidationError` - Message fails schema validation (a modeled `Err` in `E`)
+- `TechnicalError` - Runtime failures (channel buffer full, network issues, etc.), surfaced as a **defect** (handled in the `defect` arm of `match`, or via `recoverDefect` / `tapDefect`), never a modeled error
 
 **Programming Errors** (client not initialized, invalid publisher name) throw exceptions since they indicate bugs caught by TypeScript at compile-time.
 

@@ -74,12 +74,12 @@ result.match({
   ok: (value) => console.log(value.sum), // 5
   errCases: (matcher) =>
     matcher.with(
-      tag("@amqp-contract/TechnicalError"),
       tag("@amqp-contract/MessageValidationError"),
       tag("@amqp-contract/RpcTimeoutError"),
       tag("@amqp-contract/RpcCancelledError"),
       (error) => console.error(error),
     ),
+  // transport failures (TechnicalError) surface here as defects, not modeled errors
   defect: (cause) => console.error(cause),
 });
 ```
@@ -130,22 +130,22 @@ Helpers and type guards: `retryable()`, `nonRetryable()` factory functions; `isR
 
 ### Raised by the framework around handlers
 
-| Error                    | When                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried.                                |
-| `TechnicalError`         | Transport-level failure (connection, channel, broker). Returned by `@amqp-contract/core` and surfaced via the client / worker public APIs. |
+| Error                    | When                                                                                                                                                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried. A modeled `Err` in `E`.                                                                                                 |
+| `TechnicalError`         | Transport-level failure (connection, channel, broker). Surfaced as a **`Defect`** (its `cause`), **not** a modeled `Err` — handle it in the `defect` arm of `match` (or `recoverDefect` / `tapDefect`), never in the error matcher. |
 
 ### Client-side (returned from `client.publish` / `client.call`)
 
 | Error                    | When                                                                                                                                                                                     |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MessageValidationError` | Outbound payload failed the request/publisher schema before the message hit the broker.                                                                                                  |
-| `TechnicalError`         | Publish failed at the broker (channel buffer full, connection lost, etc.).                                                                                                               |
+| `MessageValidationError` | Outbound payload failed the request/publisher schema before the message hit the broker. A modeled `Err`.                                                                                 |
+| `TechnicalError`         | Publish/transport failed at the broker (channel buffer full, connection lost, etc.). Surfaced as a **`Defect`** (its `cause`), never a modeled `Err` — handle it in the `defect` arm.    |
 | `RpcTimeoutError`        | RPC call's `timeoutMs` elapsed before a reply arrived. Pending state is cleared. A reply that arrives later is logged at `warn` and counted via `recordLateRpcReply` (it isn't retried). |
 | `RpcCancelledError`      | RPC was in flight when `client.close()` was called. All pending calls fail with this so callers don't hang.                                                                              |
 
-`publish()` returns `AsyncResult<void, TechnicalError | MessageValidationError>`.
-`call()` returns `AsyncResult<TResponse, TechnicalError | MessageValidationError | RpcTimeoutError | RpcCancelledError>`.
+`publish()` returns `AsyncResult<void, MessageValidationError>` (a transport failure is a `Defect`, not in `E`).
+`call()` returns `AsyncResult<TResponse, MessageValidationError | RpcTimeoutError | RpcCancelledError>` (plus any declared `RpcError`s; a transport failure is a `Defect`, not in `E`).
 
 ```typescript
 // Conditional error mapping inside fromPromise's qualify
@@ -172,28 +172,28 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 `AsyncResult<T, E>` (async; `await` resolves to a `Result<T, E>`):
 
-| Method                          | Description                                                                                                                                                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OkAsync(value)`                | Lift a successful sync `Result` into an `AsyncResult`                                                                                                                                                                     |
-| `ErrAsync(error)`               | Lift a failed sync `Result` into an `AsyncResult`                                                                                                                                                                         |
-| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required.                                                                     |
-| `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                                                                                            |
-| `.map(f)` / `.mapErrCases(m)`   | Transform the OK value / the error. `mapErrCases` takes an exhaustive ts-pattern matcher callback listing every error case: `.mapErrCases((matcher) => matcher.with(tag("@amqp-contract/TechnicalError"), (error) => …))` |
-| `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)                                                                                                                                                     |
-| `.flatMapErrCases(m)`           | Recover from an error with another `Result` / `AsyncResult`; takes the same exhaustive ts-pattern matcher callback as `mapErrCases`                                                                                       |
-| `.tap(f)` / `.tapErrCases(m)`   | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`). `tapErrCases` takes the same matcher callback (its branch must be sync)                                                                  |
-| `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                                                                                                                                                                |
+| Method                          | Description                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OkAsync(value)`                | Lift a successful sync `Result` into an `AsyncResult`                                                                                                                                                                                                                                                                   |
+| `ErrAsync(error)`               | Lift a failed sync `Result` into an `AsyncResult`                                                                                                                                                                                                                                                                       |
+| `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required.                                                                                                                                                                   |
+| `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                                                                                                                                                                                          |
+| `.map(f)` / `.mapErrCases(m)`   | Transform the OK value / the error. `mapErrCases` takes an exhaustive ts-pattern matcher callback listing every modeled error case: `.mapErrCases((matcher) => matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => …))` (a `TechnicalError` is a defect — recover it with `.recoverDefect`, not here) |
+| `.flatMap(f)`                   | Chain another `Result` / `AsyncResult` (was `.andThen` in neverthrow)                                                                                                                                                                                                                                                   |
+| `.flatMapErrCases(m)`           | Recover from an error with another `Result` / `AsyncResult`; takes the same exhaustive ts-pattern matcher callback as `mapErrCases`                                                                                                                                                                                     |
+| `.tap(f)` / `.tapErrCases(m)`   | Side effect on OK / error without changing the value (was `.andTee` / `.orTee`). `tapErrCases` takes the same matcher callback (its branch must be sync)                                                                                                                                                                |
+| `await asyncResult`             | Resolves to a `Result<T, E>` — no exception, even on `Err`                                                                                                                                                                                                                                                              |
 
 `Result<T, E>` (sync; a union of `Ok` / `Err` / `Defect`):
 
-| Method / function                                               | Description                                                                                                                                                                                                                             |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Ok(value)` / `Err(error)`                                      | Construct a successful / failed `Result`                                                                                                                                                                                                |
-| `r.isOk()` / `r.isErr()` / `r.isDefect()`                       | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here.                     |
-| `.match({ ok, errCases, defect })`                              | Pattern match with three branches (positional `match(okFn, errFn)` is **not** supported). `errCases` takes the exhaustive ts-pattern matcher: `errCases: (matcher) => matcher.with(tag("@amqp-contract/TechnicalError"), (error) => …)` |
-| `r.match({ ok, defect, errCases: (m) => m.with(tag("…"), …) })` | Exhaustive per-tag dispatch on a tagged-error union's `_tag` via the error matcher (replaces the removed `matchTags`)                                                                                                                   |
-| `.getOr(default)`                                               | Extract the value or fall back                                                                                                                                                                                                          |
-| `.getOrThrow()` / `.getErr()`                                   | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                                                |
+| Method / function                                               | Description                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Ok(value)` / `Err(error)`                                      | Construct a successful / failed `Result`                                                                                                                                                                                                                                                                                       |
+| `r.isOk()` / `r.isErr()` / `r.isDefect()`                       | **Preferred** narrowing form — the methods narrow `this` (unthrown 0.2.0+), so `if (r.isErr()) r.error` works. Standalone `isOk(r)` / `isErr(r)` / `isDefect(r)` functions narrow identically but aren't used here.                                                                                                            |
+| `.match({ ok, errCases, defect })`                              | Pattern match with three branches (positional `match(okFn, errFn)` is **not** supported). `errCases` takes the exhaustive ts-pattern matcher over the **modeled** errors: `errCases: (matcher) => matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => …)`; a `TechnicalError` arrives in the `defect` branch |
+| `r.match({ ok, defect, errCases: (m) => m.with(tag("…"), …) })` | Exhaustive per-tag dispatch on a tagged-error union's `_tag` via the error matcher (replaces the removed `matchTags`)                                                                                                                                                                                                          |
+| `.getOr(default)`                                               | Extract the value or fall back                                                                                                                                                                                                                                                                                                 |
+| `.getOrThrow()` / `.getErr()`                                   | Throw on the wrong variant; re-throws a `Defect`'s cause. Use sparingly.                                                                                                                                                                                                                                                       |
 
 ## Public exports
 

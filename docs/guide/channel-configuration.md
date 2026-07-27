@@ -327,7 +327,7 @@ describe("Channel Configuration", () => {
     const connectResult = await client.waitForConnect();
     expect(connectResult.isOk()).toBe(true);
 
-    await client.close().getOrThrow();
+    await client.close().get();
   });
 });
 ```

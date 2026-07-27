@@ -58,7 +58,7 @@ const worker = await TypedAmqpWorker.create({
   },
   urls: ["amqp://localhost"],
   logger, // Optional: logs message consumption and errors
-}).getOrThrow();
+}).get();
 
 // Worker is already consuming messages
 
@@ -110,7 +110,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.
@@ -145,10 +145,10 @@ handlers: {
 
 Worker defines error classes:
 
-- `TechnicalError` - Runtime failures (parsing, processing)
-- `MessageValidationError` - Message fails schema validation
+- `MessageValidationError` - Message fails schema validation (a modeled `Err`)
 - `RetryableError` - Signals that the error is transient and should be retried
 - `NonRetryableError` - Signals permanent failure, message is sent to DLQ (if configured) or dropped
+- `TechnicalError` - Runtime failures (parsing, processing), surfaced as a **defect** (handled in the `defect` arm of `match`, or via `recoverDefect` / `tapDefect`), never a modeled error
 
 ## API
 
