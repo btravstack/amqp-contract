@@ -743,7 +743,6 @@ For the most explicit error handling, use safe handlers that return `AsyncResult
 ```typescript
 import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync, fromPromise, type AsyncResult, type Result } from "unthrown";
-import { match } from "ts-pattern";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -756,12 +755,9 @@ const worker = await TypedAmqpWorker.create({
 
       // Qualify the rejection at the boundary into a modeled HandlerError.
       return fromPromise(processPayment(payload), (error) =>
-        match(error)
-          .when(
-            (e) => e instanceof PaymentDeclinedError,
-            () => new NonRetryableError("Payment declined", error),
-          )
-          .otherwise(() => new RetryableError("Payment failed", error)),
+        error instanceof PaymentDeclinedError
+          ? new NonRetryableError("Payment declined", error)
+          : new RetryableError("Payment failed", error),
       ).map(() => undefined);
     }),
   },

@@ -6,7 +6,7 @@ This page lists every error type the library can produce, where it surfaces, and
 
 ## Getting the value out
 
-The safe way to consume a result is `.match({ ok, errCases, defect })` — it forces you to handle every channel. The `errCases` handler receives a [ts-pattern](https://github.com/gvergnaud/ts-pattern) matcher over the error union, so every error case must be handled explicitly (no blanket `err` callback).
+The safe way to consume a result is `.match({ ok, errCases, defect })` — it forces you to handle every channel. The `errCases` handler receives unthrown's exhaustive matcher over the error union, so every error case must be handled explicitly (no blanket `err` callback).
 
 `unthrown` makes `.get()` **type-gated**: it compiles only when the error channel is empty (`E = never`) — and the gate applies identically on a `Result` and on its `AsyncResult` mirror. `Ok(x).get()` works; so does extracting the result of `TypedAmqpClient.create(...)`, whose modeled channel is empty — `AsyncResult<TypedAmqpClient, never>`, because its infrastructure failures are [defects](#framework-defects), not modeled errors. `.get()` still panics on a `Defect`, rethrowing its cause, so a failed `create()` throws the underlying `TechnicalError`:
 
