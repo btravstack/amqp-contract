@@ -14,25 +14,25 @@ const deflateAsync = promisify(deflate);
  *
  * @param buffer - The buffer to compress
  * @param algorithm - The compression algorithm to use
- * @returns An AsyncResult resolving to the compressed buffer or a TechnicalError
+ * @returns An AsyncResult resolving to the compressed buffer. A compression
+ *   failure is an infrastructure fault, so it surfaces through the `Defect`
+ *   channel (with a {@link TechnicalError} cause), never a modeled `Err`.
  *
  * @internal
  */
 export function compressBuffer(
   buffer: Buffer,
   algorithm: CompressionAlgorithm,
-): AsyncResult<Buffer, TechnicalError> {
+): AsyncResult<Buffer, never> {
   return match(algorithm)
     .with("gzip", () =>
-      fromPromise(
-        gzipAsync(buffer),
-        (error) => new TechnicalError("Failed to compress with gzip", error),
+      fromPromise(gzipAsync(buffer), (error, defect) =>
+        defect(new TechnicalError("Failed to compress with gzip", error)),
       ),
     )
     .with("deflate", () =>
-      fromPromise(
-        deflateAsync(buffer),
-        (error) => new TechnicalError("Failed to compress with deflate", error),
+      fromPromise(deflateAsync(buffer), (error, defect) =>
+        defect(new TechnicalError("Failed to compress with deflate", error)),
       ),
     )
     .exhaustive();

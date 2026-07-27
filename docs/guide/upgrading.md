@@ -7,6 +7,42 @@ description: Migration notes for major versions of amqp-contract, including the 
 
 All six `@amqp-contract/*` packages version together, so upgrade them in lockstep. This page summarizes the changes that require action; the full history lives in the [GitHub Releases](https://github.com/btravstack/amqp-contract/releases) and each package's `CHANGELOG.md`.
 
+## 2.4.x → 3.0
+
+**`TechnicalError` moved from the modeled error channel to the defect channel.** Infrastructure/transport failures (connection, publish, consume, cancel, close, compression/decompression, JSON parse, and thrown/rejected schema validators) are unexpected, so they now surface as an unthrown **`Defect`** (with a `TechnicalError` as the defect's `cause`, still exported for logging and `instanceof` checks) — never as a modeled `Err`. Only anticipated _domain_ failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, and the worker's `RetryableError` / `NonRetryableError`.
+
+This is **breaking** for any call site that matched `TechnicalError` as a modeled error:
+
+- **Matching `tag("@amqp-contract/TechnicalError")` in an error matcher** (`match`'s `errCases`, `mapErrCases`, `flatMapErrCases`, `tapErrCases`, `recoverErrCases`, `flatTapErrCases`) no longer type-checks — drop that case and handle the failure in the **`defect`** arm of `.match(...)`, or with `.recoverDefect(...)` / `.tapDefect(...)`. The defect's `cause` is the `TechnicalError` instance.
+
+  ```diff
+    result.match({
+      ok: () => {/* ... */},
+  -   errCases: (matcher) =>
+  -     matcher.with(
+  -       tag("@amqp-contract/TechnicalError"),
+  -       tag("@amqp-contract/MessageValidationError"),
+  -       (error) => {/* ... */},
+  -     ),
+  +   errCases: (matcher) =>
+  +     matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {/* ... */}),
+  -   defect: (cause) => { throw cause; },
+  +   defect: (cause) => {
+  +     // a TechnicalError arrives here now
+  +     throw cause;
+  +   },
+    });
+  ```
+
+- **Error channels narrow.** `client.publish(...)` is now `AsyncResult<void, MessageValidationError>`; `client.call(...)` drops `TechnicalError` from its union (leaving `MessageValidationError | RpcTimeoutError | RpcCancelledError | <declared RpcErrors>`).
+
+- **`create()` / `close()` (and the `AmqpClient` operations) now have an empty modeled channel (`E = never`).** `.getOrThrow()` is type-gated to a _non-empty_ error channel, so it no longer compiles on them — extract their success with **`.get()`** instead (a failed one still panics, rethrowing the underlying `TechnicalError`). `.getOrThrow()` on `publish(...)` / `call(...)` is unaffected — those still carry a modeled `E`.
+
+  ```diff
+  - const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
+  + const client = await TypedAmqpClient.create({ contract, urls }).get();
+  ```
+
 ## 2.3.x → 2.4.x
 
 Upgrades [`unthrown`](https://github.com/btravstack/unthrown) to `4.1.0`. Since `unthrown` is a **peer dependency**, bump your own copy to `^4.1.0`:
@@ -102,6 +138,6 @@ Replaces `neverthrow` with [`unthrown`](https://github.com/btravstack/unthrown) 
 
 The table shows the constructors as they were on amqp-contract 1.x (lowercase `ok` / `err`); if you're upgrading straight to 2.0+, use the capitalized `Ok` / `Err` forms from the [1.x → 2.0](#_1-x-→-2-0) section instead.
 
-Error classes (`TechnicalError`, `RetryableError`, …) became `TaggedError`s with namespaced tags (e.g. `"@amqp-contract/TechnicalError"`) for exhaustive dispatch via the error matcher (`result.match({ ok, defect, errCases: (matcher) => matcher.with(tag("@amqp-contract/TechnicalError"), …) })`); their `Error.name` and constructors are unchanged.
+Error classes (`RetryableError`, `MessageValidationError`, …) became `TaggedError`s with namespaced tags (e.g. `"@amqp-contract/MessageValidationError"`) for exhaustive dispatch via the error matcher (`result.match({ ok, defect, errCases: (matcher) => matcher.with(tag("@amqp-contract/MessageValidationError"), …) })`); their `Error.name` and constructors are unchanged. (`TechnicalError` is also a `TaggedError`, but as of [3.0](#_2-4-x-→-3-0) it surfaces through the **defect** channel, not the error matcher — see that section.)
 
 See the [Error Model guide](/guide/error-model) for the full picture of how results flow through the API.

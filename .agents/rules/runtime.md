@@ -36,7 +36,7 @@ When adding a new public method to `TypedAmqpClient` / `TypedAmqpWorker`, wrap i
 Both ends support gzip and deflate, controlled by the publisher:
 
 - **Client** opts in per-publish via `options.compression: 'gzip' | 'deflate'`. The body is compressed and `contentEncoding` is set automatically — don't set `contentEncoding` yourself when using `compression`.
-- **Worker** decompresses transparently before validation, based on `properties.contentEncoding`. Unknown encodings produce a `TechnicalError` (parse failure → DLQ via single `nack`, never enters retry).
+- **Worker** decompresses transparently before validation, based on `properties.contentEncoding`. Unknown encodings surface as a `Defect` (its cause a `TechnicalError`) — parse failure → DLQ via single `nack`, never enters retry.
 - **RPC requests don't carry compression.** The worker's parse/validate path _does_ decompress an RPC request fine if it sees `contentEncoding`, and replies are always uncompressed — so a compressed RPC request would round-trip mechanically. Even so, `client.call()` deliberately strips any inherited `compression` from `defaultPublishOptions` before publishing, so the on-wire convention stays consistent (no compression in either direction of an RPC). If you're wiring a new code path involving RPCs, mirror that — don't compress RPC requests.
 
 The `CompressionAlgorithm` type is exported from `@amqp-contract/contract`.

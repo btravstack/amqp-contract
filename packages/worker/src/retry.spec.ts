@@ -1,7 +1,7 @@
 import type { ResolvedTtlBackoffRetryOptions } from "@amqp-contract/contract";
 import { TechnicalError, type AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { ErrAsync, OkAsync } from "unthrown";
+import { fromSafeThrowable, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { _internalForTesting } from "./retry.js";
@@ -203,7 +203,9 @@ describe("publishForRetry", () => {
       },
     );
 
-    expect(result).toBeErr();
+    // A full write buffer is an unexpected publish failure — it surfaces as a
+    // Defect (with a TechnicalError cause), not a modeled Err.
+    expect(result).toBeDefect();
     expect(publish).toHaveBeenCalledTimes(1);
     // The whole point of the fix: the original message must remain un-ack'd
     // so amqp-connection-manager / the broker can redeliver it instead of
@@ -213,10 +215,12 @@ describe("publishForRetry", () => {
   });
 
   it("does NOT ack the original when publish itself rejects", async () => {
-    // `amqpClient.publish` qualifies every rejection to a `TechnicalError`, so
-    // that is the in-contract error the retry publish's error matcher handles.
+    // `amqpClient.publish` routes every rejection to the defect channel (with a
+    // `TechnicalError` cause), so the retry publish surfaces a Defect here.
     const { client, ack, nack, publish } = createMockClient(() =>
-      ErrAsync(new TechnicalError("publish exploded")),
+      fromSafeThrowable((): boolean => {
+        throw new TechnicalError("publish exploded");
+      })().toAsync(),
     );
 
     const msg = createMockConsumeMessage();
@@ -234,7 +238,7 @@ describe("publishForRetry", () => {
       },
     );
 
-    expect(result).toBeErr();
+    expect(result).toBeDefect();
     expect(publish).toHaveBeenCalledTimes(1);
     expect(ack).not.toHaveBeenCalled();
     expect(nack).not.toHaveBeenCalled();

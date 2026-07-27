@@ -217,7 +217,7 @@ async function main() {
   const client = await TypedAmqpClient.create({
     contract,
     urls: ["amqp://localhost"],
-  }).getOrThrow();
+  }).get();
 
   console.log("✅ Connected to RabbitMQ");
 
@@ -231,12 +231,11 @@ async function main() {
   result.match({
     ok: () => console.log("📧 Email message published!"),
     errCases: (matcher) =>
-      matcher.with(
-        tag("@amqp-contract/TechnicalError"),
-        tag("@amqp-contract/MessageValidationError"),
-        (error) => console.error("❌ Failed:", error.message),
+      matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("❌ Failed:", error.message),
       ),
     defect: (cause) => {
+      // transport failures (TechnicalError) surface here as defects
       throw cause;
     },
   });
@@ -278,7 +277,7 @@ async function main() {
       },
     },
     urls: ["amqp://localhost"],
-  }).getOrThrow();
+  }).get();
 
   console.log("✅ Worker ready, waiting for messages...\n");
   console.log("Press Ctrl+C to stop\n");

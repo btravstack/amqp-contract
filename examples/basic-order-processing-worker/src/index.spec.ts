@@ -26,7 +26,7 @@ describe("Basic Order Processing Worker Integration", () => {
         fulfillOrder: () => OkAsync(undefined),
       }),
       urls: [amqpConnectionUrl],
-    }).getOrThrow();
+    }).get();
 
     try {
       const newOrder = {
@@ -52,7 +52,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(processedOrders).toEqual([newOrder]);
     } finally {
-      await worker.close().getOrThrow();
+      await worker.close().get();
     }
   });
 
@@ -78,7 +78,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.getOrThrow();
+    const worker = workerResult.get();
 
     try {
       // WHEN
@@ -115,7 +115,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(notifications.length).toBeGreaterThanOrEqual(2);
     } finally {
-      await worker.close().getOrThrow();
+      await worker.close().get();
     }
   });
 
@@ -145,7 +145,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.getOrThrow();
+    const worker = workerResult.get();
 
     try {
       const newOrder = {
@@ -172,7 +172,7 @@ describe("Basic Order Processing Worker Integration", () => {
       expect(processedOrders.length).toBeGreaterThanOrEqual(1);
       expect(notifications.length).toBeGreaterThan(0); // Receives all events
     } finally {
-      await worker.close().getOrThrow();
+      await worker.close().get();
     }
   });
 
@@ -196,7 +196,7 @@ describe("Basic Order Processing Worker Integration", () => {
         },
       }),
       urls: [amqpConnectionUrl],
-    }).getOrThrow();
+    }).get();
 
     try {
       const command = {
@@ -220,7 +220,7 @@ describe("Basic Order Processing Worker Integration", () => {
       });
       expect(fulfilled).toEqual([command]);
     } finally {
-      await worker.close().getOrThrow();
+      await worker.close().get();
     }
   });
 });

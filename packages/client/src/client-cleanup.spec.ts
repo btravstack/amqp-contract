@@ -20,7 +20,9 @@ describe("TypedAmqpClient.create cleanup", () => {
       connectTimeoutMs: 200,
     });
 
-    expect(result).toBeErr();
+    // A connect timeout is an infrastructure failure — it surfaces as a Defect
+    // (with a TechnicalError cause), not a modeled Err.
+    expect(result).toBeDefect();
     expect(_internal_getConnectionCount()).toBe(0);
   });
 });

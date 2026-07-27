@@ -201,9 +201,11 @@ describe("TypedAmqpClient RPC", () => {
 
     const result = await client.call("calculate", { a: 1, b: 1 }, { timeoutMs: value });
 
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error).toBeInstanceOf(TechnicalError);
+    // An invalid timeout is a programming/infrastructure fault, so it surfaces
+    // as a Defect (with a TechnicalError cause), not a modeled Err.
+    expect(result.isDefect()).toBe(true);
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
     }
   });
 });

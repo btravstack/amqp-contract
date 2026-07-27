@@ -310,7 +310,7 @@ import { tag } from "unthrown";
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 // Publish new order with explicit error handling
 const result = await client.publish("orderCreated", {
@@ -324,15 +324,12 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Order published successfully"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => {
-        console.error("Failed to publish:", error.message);
-        // Handle error appropriately
-      },
-    ),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {
+      console.error("Failed to publish:", error.message);
+      // Handle error appropriately
+    }),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -347,12 +344,11 @@ const updateResult = await client.publish("orderUpdated", {
 updateResult.match({
   ok: () => console.log("Status update published"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("Failed:", error),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("Failed:", error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -395,7 +391,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrThrow();
+}).get();
 ```
 
 ## Message Routing Table

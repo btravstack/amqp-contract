@@ -4,17 +4,22 @@ import { TaggedError } from "unthrown";
 /**
  * Error for technical/runtime failures that cannot be prevented by TypeScript.
  *
- * This includes AMQP connection failures, channel issues, validation failures,
- * and other runtime errors. This error is shared across core, worker, and client packages.
+ * This includes AMQP connection failures, channel issues, compression/parse
+ * faults, and other unexpected runtime errors. Shared across core, worker, and
+ * client packages.
+ *
+ * These failures are **unexpected**, so `@amqp-contract` surfaces them through
+ * unthrown's **defect** channel, not the modeled `E` channel: a `TechnicalError`
+ * instance is carried as the `cause` of a `Defect` (so its message/cause survive
+ * for logging), and is handled in the `defect` arm of `result.match({ ok,
+ * errCases, defect })` — or via `recoverDefect` / `tapDefect` — never matched in
+ * `errCases`. It is deliberately absent from every operation's `E` (only
+ * anticipated domain failures live there).
  *
  * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
- * `"@amqp-contract/TechnicalError"` for exhaustive dispatch via the error
- * matcher (`result.match({ ok, defect, errCases: (matcher) =>
- * matcher.with(tag("@amqp-contract/TechnicalError"), …) })`). The tag is
- * namespaced to avoid colliding with other libraries' tags in a shared matcher;
- * the human-facing `Error.name` is kept bare (`"TechnicalError"`).
- * Remains a real `Error` (and a *modeled* error — it lives in the `E` channel of
- * a `Result`, never the `Defect` channel).
+ * `"@amqp-contract/TechnicalError"` (namespaced to avoid colliding with other
+ * libraries' tags); the human-facing `Error.name` is kept bare
+ * (`"TechnicalError"`). Remains a real `Error`.
  */
 export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError", {
   name: "TechnicalError",
@@ -77,7 +82,8 @@ export const RPC_ERROR_CODE_HEADER = "x-amqp-contract-error-code";
 
 /**
  * A typed, contract-declared RPC error — the business-failure channel of an
- * RPC, as opposed to the transport failures modeled by {@link TechnicalError}.
+ * RPC, as opposed to transport failures (which surface as a `Defect` with a
+ * {@link TechnicalError} cause).
  *
  * Declared per-RPC via `defineRpc(queue, { request, response, errors })`,
  * where each error code maps to a message definition validating the error's

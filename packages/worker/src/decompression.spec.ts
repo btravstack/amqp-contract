@@ -12,7 +12,7 @@ describe("Decompression utilities", () => {
   describe("decompressBuffer", () => {
     it("should return buffer as-is when no content-encoding is provided", async () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
-      const result = await decompressBuffer(testData, undefined).getOrThrow();
+      const result = await decompressBuffer(testData, undefined).get();
 
       expect(result).toEqual(testData);
     });
@@ -21,7 +21,7 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "gzip").getOrThrow();
+      const decompressed = await decompressBuffer(compressed, "gzip").get();
 
       expect(decompressed).toEqual(testData);
     });
@@ -30,7 +30,7 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await deflateAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "deflate").getOrThrow();
+      const decompressed = await decompressBuffer(compressed, "deflate").get();
 
       expect(decompressed).toEqual(testData);
     });
@@ -39,22 +39,24 @@ describe("Decompression utilities", () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
       const compressed = await gzipAsync(testData);
 
-      const decompressed = await decompressBuffer(compressed, "GZIP").getOrThrow();
+      const decompressed = await decompressBuffer(compressed, "GZIP").get();
 
       expect(decompressed).toEqual(testData);
     });
 
-    it("should return error for unknown content-encoding with helpful message", async () => {
+    it("should surface a defect for unknown content-encoding with a helpful message", async () => {
       const testData = Buffer.from(JSON.stringify({ message: "Hello, World!" }));
 
       const result = await decompressBuffer(testData, "brotli");
 
-      expect(result).toBeErr();
-      if (!result.isErr()) throw new Error("expected Err");
-      const error = result.error;
-      expect(error.message).toContain('Unsupported content-encoding: "brotli"');
-      expect(error.message).toContain("Supported encodings are: gzip, deflate");
-      expect(error.message).toContain("Please check your publisher configuration");
+      // An unsupported content-encoding is an infrastructure/producer fault, so
+      // it lands in the defect channel (with a TechnicalError cause), not `E`.
+      expect(result).toBeDefect();
+      if (!result.isDefect()) throw new Error("expected Defect");
+      const message = (result.cause as Error).message;
+      expect(message).toContain('Unsupported content-encoding: "brotli"');
+      expect(message).toContain("Supported encodings are: gzip, deflate");
+      expect(message).toContain("Please check your publisher configuration");
     });
 
     it("should decompress large data correctly", async () => {
@@ -69,7 +71,7 @@ describe("Decompression utilities", () => {
       );
 
       const compressed = await gzipAsync(largeData);
-      const decompressed = await decompressBuffer(compressed, "gzip").getOrThrow();
+      const decompressed = await decompressBuffer(compressed, "gzip").get();
 
       expect(decompressed).toEqual(largeData);
     });

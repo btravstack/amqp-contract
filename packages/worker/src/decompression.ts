@@ -2,7 +2,7 @@ import { promisify } from "node:util";
 import { gunzip, inflate } from "node:zlib";
 
 import { TechnicalError } from "@amqp-contract/core";
-import { ErrAsync, fromPromise, OkAsync, type AsyncResult } from "unthrown";
+import { fromPromise, fromSafeThrowable, OkAsync, type AsyncResult } from "unthrown";
 
 const gunzipAsync = promisify(gunzip);
 const inflateAsync = promisify(inflate);
@@ -29,14 +29,16 @@ function isSupportedEncoding(encoding: string): encoding is SupportedEncoding {
  *
  * @param buffer - The buffer to decompress
  * @param contentEncoding - The content-encoding header value (e.g., 'gzip', 'deflate')
- * @returns An AsyncResult resolving to the decompressed buffer or a TechnicalError
+ * @returns An AsyncResult resolving to the decompressed buffer. Decompression
+ *   failures are infrastructure faults, so they surface through the `Defect`
+ *   channel (with a {@link TechnicalError} cause), never a modeled `Err`.
  *
  * @internal
  */
 export function decompressBuffer(
   buffer: Buffer,
   contentEncoding: string | undefined,
-): AsyncResult<Buffer, TechnicalError> {
+): AsyncResult<Buffer, never> {
   if (!contentEncoding) {
     return OkAsync(buffer);
   }
@@ -44,25 +46,23 @@ export function decompressBuffer(
   const normalizedEncoding = contentEncoding.toLowerCase();
 
   if (!isSupportedEncoding(normalizedEncoding)) {
-    return ErrAsync(
-      new TechnicalError(
+    return fromSafeThrowable((): Buffer => {
+      throw new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
           `Supported encodings are: ${SUPPORTED_ENCODINGS.join(", ")}. ` +
           `Please check your publisher configuration.`,
-      ),
-    );
+      );
+    })().toAsync();
   }
 
   switch (normalizedEncoding) {
     case "gzip":
-      return fromPromise(
-        gunzipAsync(buffer),
-        (error) => new TechnicalError("Failed to decompress gzip", error),
+      return fromPromise(gunzipAsync(buffer), (error, defect) =>
+        defect(new TechnicalError("Failed to decompress gzip", error)),
       );
     case "deflate":
-      return fromPromise(
-        inflateAsync(buffer),
-        (error) => new TechnicalError("Failed to decompress deflate", error),
+      return fromPromise(inflateAsync(buffer), (error, defect) =>
+        defect(new TechnicalError("Failed to decompress deflate", error)),
       );
   }
 }

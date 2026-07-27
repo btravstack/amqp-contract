@@ -1,7 +1,6 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { type PublishOptions, TypedAmqpClient } from "@amqp-contract/client";
 import pino from "pino";
-import { tag } from "unthrown";
 import { z } from "zod";
 
 const env = z
@@ -27,12 +26,8 @@ async function main() {
     contract: orderContract,
     urls: [env.AMQP_URL],
   })
-    .tapErrCases((matcher) =>
-      matcher.with(tag("@amqp-contract/TechnicalError"), (error) =>
-        logger.error({ error }, "Failed to create client"),
-      ),
-    )
-    .getOrThrow();
+    .tapDefect((cause) => logger.error({ error: cause }, "Failed to create client"))
+    .get();
 
   logger.info("Client ready");
   logger.info("=".repeat(60));
@@ -49,11 +44,10 @@ async function main() {
   ): Promise<void> => {
     await client
       .publish(publisherName, message, options)
-      .tapErrCases((matcher) =>
-        matcher.with(
-          tag("@amqp-contract/TechnicalError"),
-          tag("@amqp-contract/MessageValidationError"),
-          (error) => logger.error({ error }, `Failed to publish: ${publisherName}`),
+      .tapFailure((failure) =>
+        logger.error(
+          { error: failure.tag === "Err" ? failure.error : failure.cause },
+          `Failed to publish: ${publisherName}`,
         ),
       )
       .tap(() => logger.debug(`Successfully published to ${publisherName}`))
@@ -147,7 +141,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Clean up
-  await client.close().getOrThrow();
+  await client.close().get();
   logger.info("Publisher stopped");
   process.exit(0);
 }

@@ -59,7 +59,7 @@ const contract = defineContract({
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123", // ✅ TypeScript knows!
@@ -70,12 +70,11 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("Failed:", error),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("Failed:", error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -102,13 +101,12 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published"),
   errCases: (matcher) =>
-    // Handle MessageValidationError or TechnicalError
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("Failed:", error.message),
+    // Handle the modeled MessageValidationError
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("Failed:", error.message),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });

@@ -28,7 +28,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 1. **Event publisher**: `defineEventPublisher(exchange, message, { routingKey })`. One publisher, many consumers.
 2. **Command publisher**: derived from `defineCommandConsumer(...)` via `defineCommandPublisher(consumer)`. Many publishers, one consumer.
 3. **Add to `defineContract`** under `publishers: { ... }`.
-4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, TechnicalError | MessageValidationError>`.
+4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, MessageValidationError>` (a transport failure surfaces as a `Defect`, not in `E`).
 5. **Changeset** — minor bump if it's part of the public contract surface.
 
 ## Add a new publishable package

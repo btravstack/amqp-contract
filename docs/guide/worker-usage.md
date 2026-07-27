@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 console.log("✅ Worker ready!");
 ```
@@ -57,7 +57,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 In production code, prefer `defineHandler` so handler logic lives in its own module and can be unit-tested.
@@ -85,7 +85,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrThrow();
+}).get();
 ```
 
 ### Type Safety
@@ -105,7 +105,7 @@ const workerResult = await TypedAmqpWorker.create({
     // Missing processOrder handler!
   },
   urls: ['amqp://localhost'],
-}).getOrThrow();
+}).get();
 
 // ✅ All handlers present
 const worker = await TypedAmqpWorker.create({
@@ -115,7 +115,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   urls: ['amqp://localhost'],
-}).getOrThrow();
+}).get();
 
 console.log('✅ All handlers present');
 ```
@@ -172,7 +172,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 ### Benefits
@@ -227,7 +227,7 @@ const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: orderHandlers,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 ## Starting Consumers
@@ -244,7 +244,7 @@ const worker = await TypedAmqpWorker.create({
     notifyOrder: ({ payload }) => { ... },
   },
   connection,
-}).getOrThrow();
+}).get();
 // Worker is already consuming messages from all queues
 console.log('Worker ready, waiting for messages...');
 ```
@@ -268,7 +268,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   connection,
-}).getOrThrow();
+}).get();
 ```
 
 ### Manual Acknowledgment
@@ -293,7 +293,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 **Acknowledgment behavior:**
@@ -349,7 +349,7 @@ async function main() {
       },
     }),
     urls: ["amqp://localhost"],
-  }).getOrThrow();
+  }).get();
 
   console.log("✅ Worker ready!");
 
@@ -395,7 +395,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 ### Default Consumer Options
@@ -419,7 +419,7 @@ const worker = await TypedAmqpWorker.create({
   defaultConsumerOptions: {
     prefetch: 10,
   },
-}).getOrThrow();
+}).get();
 ```
 
 `defaultConsumerOptions` are applied to every consumer handler. When a handler is defined with tuple syntax, per-handler options override these defaults.
@@ -501,7 +501,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 **How Immediate-Requeue works:**
@@ -568,7 +568,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 **How TTL-Backoff works:**
@@ -701,7 +701,7 @@ const worker = await TypedAmqpWorker.create({
     ],
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 #### NonRetryableError
@@ -727,7 +727,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 **NonRetryableError behavior:**
@@ -766,7 +766,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 **When to use which error type:**
@@ -883,7 +883,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 console.log("✅ Worker ready with retry enabled!");
 ```

@@ -4,7 +4,7 @@ Learn how to use the type-safe AMQP client to publish messages.
 
 ## Creating a Client
 
-Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, TechnicalError>` — `await` yields a `Result` you pattern-match with `.match()`, or (to throw on failure) extract with [`.getOrThrow()`](./error-model.md#getting-the-value-out), since unthrown gates `.get()` to infallible results:
+Create a type-safe client from your contract. `TypedAmqpClient.create(...)` returns `AsyncResult<TypedAmqpClient, never>` — its modeled error channel is empty because infrastructure failures surface as [defects](./error-model.md#framework-defects), not modeled errors. `await` yields a `Result` you pattern-match with `.match()`, or extract with [`.get()`](./error-model.md#getting-the-value-out) (unthrown gates `.get()` to infallible results — a failed `create()` still panics, rethrowing the underlying `TechnicalError`):
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
@@ -13,7 +13,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 ### Default Publish Options
@@ -28,7 +28,7 @@ const client = await TypedAmqpClient.create({
     priority: 5,
     headers: { "x-app-version": "1.0.0" },
   },
-}).getOrThrow();
+}).get();
 ```
 
 Default publish options can be overridden by options passed to individual `publish` calls.
@@ -52,12 +52,11 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("✅ Published"),
   errCases: (matcher) =>
-    matcher.with(
-      tag("@amqp-contract/TechnicalError"),
-      tag("@amqp-contract/MessageValidationError"),
-      (error) => console.error("❌ Failed:", error.message),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error("❌ Invalid payload:", error.message),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -93,12 +92,11 @@ const result = await client.publish('orderCreated', {
 result.match({
   ok: () => console.log('Published'),
   errCases: (matcher) =>
-    matcher.with(
-      tag('@amqp-contract/TechnicalError'),
-      tag('@amqp-contract/MessageValidationError'),
-      (error) => console.error('Validation failed:', error),
+    matcher.with(tag('@amqp-contract/MessageValidationError'), (error) =>
+      console.error('Validation failed:', error),
     ),
   defect: (cause) => {
+    // transport failures (TechnicalError) surface here as defects
     throw cause;
   },
 });
@@ -179,14 +177,12 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("✅ Published"),
   errCases: (matcher) =>
-    matcher
-      .with(tag("@amqp-contract/MessageValidationError"), (err) =>
-        console.error("Validation failed:", err.issues),
-      )
-      .with(tag("@amqp-contract/TechnicalError"), (err) =>
-        console.error("Technical error:", err.message),
-      ),
+    matcher.with(tag("@amqp-contract/MessageValidationError"), (err) =>
+      console.error("Validation failed:", err.issues),
+    ),
   defect: (cause) => {
+    // network / runtime failures (TechnicalError) surface here as defects
+    console.error("Technical error:", cause);
     throw cause;
   },
 });
@@ -194,8 +190,8 @@ result.match({
 
 **Error Types:**
 
-- `MessageValidationError` - Schema validation failed
-- `TechnicalError` - Network or runtime failures
+- `MessageValidationError` - Schema validation failed (a modeled `Err` in `E`)
+- `TechnicalError` - Network or runtime failures, surfaced as a **defect** (handled in the `defect` arm), not a modeled error
 
 **Note:** Programming errors (like invalid publisher name) still throw exceptions, since TypeScript should catch those at compile-time.
 
@@ -213,7 +209,7 @@ async function main() {
     client = await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
-    }).getOrThrow();
+    }).get();
 
     const result = await client.publish("orderCreated", {
       orderId: "ORD-123",
@@ -224,14 +220,12 @@ async function main() {
     result.match({
       ok: () => console.log("✅ Message published"),
       errCases: (matcher) =>
-        matcher
-          .with(tag("@amqp-contract/MessageValidationError"), (err) =>
-            console.error("❌ Validation failed:", err.issues),
-          )
-          .with(tag("@amqp-contract/TechnicalError"), (err) =>
-            console.error("❌ Technical error:", err.message),
-          ),
+        matcher.with(tag("@amqp-contract/MessageValidationError"), (err) =>
+          console.error("❌ Validation failed:", err.issues),
+        ),
       defect: (cause) => {
+        // transport failures (TechnicalError) surface here as defects
+        console.error("❌ Technical error:", cause);
         throw cause;
       },
     });

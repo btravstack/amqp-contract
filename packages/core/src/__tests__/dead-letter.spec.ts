@@ -37,7 +37,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().getOrThrow();
+    await client.waitForConnect().get();
 
     // THEN - Check that the queue was created with dead letter configuration
     const queueInfo = await amqpChannel.checkQueue("test-queue-with-dlx");
@@ -49,7 +49,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().getOrThrow();
+    await client.close().get();
     await amqpChannel.deleteQueue("test-queue-with-dlx");
     await amqpChannel.deleteExchange("test-dlx");
   });
@@ -82,7 +82,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().getOrThrow();
+    await client.waitForConnect().get();
 
     // THEN - Check that the queue was created
     const queueInfo = await amqpChannel.checkQueue("test-queue-dlx-no-key");
@@ -93,7 +93,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().getOrThrow();
+    await client.close().get();
     await amqpChannel.deleteQueue("test-queue-dlx-no-key");
     await amqpChannel.deleteExchange("test-dlx-no-key");
   });
@@ -119,7 +119,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().getOrThrow();
+    await client.waitForConnect().get();
 
     // THEN - Check that the queue was created normally
     const queueInfo = await amqpChannel.checkQueue("test-queue-no-dlx");
@@ -130,7 +130,7 @@ describe("Dead Letter Exchange Support", () => {
     );
 
     // CLEANUP
-    await client.close().getOrThrow();
+    await client.close().get();
     await amqpChannel.deleteQueue("test-queue-no-dlx");
   });
 
@@ -167,7 +167,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().getOrThrow();
+    await client.waitForConnect().get();
 
     // THEN - All resources should be created with correct structure
     const mainQueueInfo = await amqpChannel.checkQueue("test-main-queue");
@@ -196,7 +196,7 @@ describe("Dead Letter Exchange Support", () => {
     expect(dlxInfo).toBeDefined();
 
     // CLEANUP
-    await client.close().getOrThrow();
+    await client.close().get();
     await amqpChannel.deleteQueue("test-main-queue");
     await amqpChannel.deleteQueue("test-dlx-queue");
     await amqpChannel.deleteExchange("test-main-exchange");
@@ -248,6 +248,6 @@ describe("Dead Letter Exchange Support", () => {
     });
 
     // CLEANUP
-    await client.close().getOrThrow();
+    await client.close().get();
   });
 });

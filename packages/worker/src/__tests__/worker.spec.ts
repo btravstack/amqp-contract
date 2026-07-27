@@ -645,7 +645,7 @@ describe("AmqpWorker Integration", () => {
       },
       urls: [amqpConnectionUrl],
       logger: mockLogger,
-    }).getOrThrow();
+    }).get();
 
     // Wait for worker setup
     const WORKER_SETUP_WAIT_MS = 500;
@@ -683,6 +683,6 @@ describe("AmqpWorker Integration", () => {
     expect(unexpectedWarnings).toHaveLength(0);
 
     // Clean up
-    await worker.close().getOrThrow();
+    await worker.close().get();
   });
 });
