@@ -40,6 +40,8 @@ By default, messages are `persistent` for message durability, but this can be ov
 Publish messages with full type safety and explicit error handling:
 
 ```typescript
+import { tag } from "unthrown";
+
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
   customerId: "CUST-456",
@@ -49,7 +51,12 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("✅ Published"),
-  err: (error) => console.error("❌ Failed:", error.message),
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (error) => console.error("❌ Failed:", error.message),
+    ),
   defect: (cause) => {
     throw cause;
   },
@@ -66,6 +73,8 @@ The client enforces:
 - ✅ **Explicit errors** - Returned via `Result` type
 
 ```typescript
+import { tag } from 'unthrown';
+
 // ❌ TypeScript error: 'unknownPublisher' not in contract
 const result = await client.publish('unknownPublisher', { ... });
 
@@ -83,7 +92,12 @@ const result = await client.publish('orderCreated', {
 
 result.match({
   ok: () => console.log('Published'),
-  err: (error) => console.error('Validation failed:', error),
+  errCases: (matcher) =>
+    matcher.with(
+      tag('@amqp-contract/TechnicalError'),
+      tag('@amqp-contract/MessageValidationError'),
+      (error) => console.error('Validation failed:', error),
+    ),
   defect: (cause) => {
     throw cause;
   },
@@ -155,8 +169,7 @@ await client.close();
 Errors are returned via `Result` types, not thrown:
 
 ```typescript
-import { MessageValidationError, TechnicalError } from "@amqp-contract/client";
-import { match, P } from "ts-pattern";
+import { tag } from "unthrown";
 
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
@@ -165,13 +178,14 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("✅ Published"),
-  err: (error) =>
-    match(error)
-      .with(P.instanceOf(MessageValidationError), (err) =>
+  errCases: (matcher) =>
+    matcher
+      .with(tag("@amqp-contract/MessageValidationError"), (err) =>
         console.error("Validation failed:", err.issues),
       )
-      .with(P.instanceOf(TechnicalError), (err) => console.error("Technical error:", err.message))
-      .exhaustive(),
+      .with(tag("@amqp-contract/TechnicalError"), (err) =>
+        console.error("Technical error:", err.message),
+      ),
   defect: (cause) => {
     throw cause;
   },
@@ -189,8 +203,7 @@ result.match({
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
-import { MessageValidationError, TechnicalError } from "@amqp-contract/client";
-import { match, P } from "ts-pattern";
+import { tag } from "unthrown";
 import { contract } from "./contract";
 
 async function main() {
@@ -210,15 +223,14 @@ async function main() {
     });
     result.match({
       ok: () => console.log("✅ Message published"),
-      err: (error) =>
-        match(error)
-          .with(P.instanceOf(MessageValidationError), (err) =>
+      errCases: (matcher) =>
+        matcher
+          .with(tag("@amqp-contract/MessageValidationError"), (err) =>
             console.error("❌ Validation failed:", err.issues),
           )
-          .with(P.instanceOf(TechnicalError), (err) =>
+          .with(tag("@amqp-contract/TechnicalError"), (err) =>
             console.error("❌ Technical error:", err.message),
-          )
-          .exhaustive(),
+          ),
       defect: (cause) => {
         throw cause;
       },

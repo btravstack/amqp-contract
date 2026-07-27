@@ -333,12 +333,11 @@ async function main() {
 
         return fromPromise(
           Promise.all([saveToDatabase(payload), sendConfirmation(payload.customerId)]),
-        )
-          .map(() => undefined)
-          .mapErr((error) => {
+          (error) => {
             console.error("Processing failed:", error);
             return new RetryableError("Order processing failed", error);
-          });
+          },
+        ).map(() => undefined);
       },
 
       notifyOrder: ({ payload }) => {
@@ -879,9 +878,8 @@ const worker = await TypedAmqpWorker.create({
           inventoryService.reserve(payload),
           notificationService.send(payload),
         ]),
-      )
-        .map(() => undefined)
-        .mapErr((error) => new RetryableError("Order processing failed", error));
+        (error) => new RetryableError("Order processing failed", error),
+      ).map(() => undefined);
     },
   },
   urls: ["amqp://localhost"],

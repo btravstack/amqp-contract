@@ -21,7 +21,7 @@ import {
   TypedAmqpWorker,
   type EmptyContext,
 } from "@amqp-contract/worker";
-import { ErrAsync } from "unthrown";
+import { ErrAsync, tag } from "unthrown";
 
 const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
@@ -44,8 +44,12 @@ const worker = await TypedAmqpWorker.create({
   middleware: composeMiddleware(auth, timing),
   handlers: {
     // helpers.context is typed as { tenantId: string } — proven by the middleware
+    // processFor returns AsyncResult<T, TechnicalError>; escalate that failure
+    // to a non-retryable handler error.
     processOrder: ({ payload }, _raw, { context }) =>
-      processFor(context.tenantId, payload).mapErr((e) => nonRetryable("failed", e)),
+      processFor(context.tenantId, payload).mapErrCases((matcher) =>
+        matcher.with(tag("@amqp-contract/TechnicalError"), (e) => nonRetryable("failed", e)),
+      ),
   },
   urls: ["amqp://localhost"],
 }).getOrThrow();
@@ -135,10 +139,19 @@ Wrap the full RPC round trip (request validation, publish, reply await). They ca
 
 ```ts
 import { RpcTimeoutError, type CallInterceptor } from "@amqp-contract/client";
-import { ErrAsync } from "unthrown";
+import { ErrAsync, tag } from "unthrown";
 
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
-  next().flatMapErr((error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)));
+  next().flatMapErrCases((matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      tag("@amqp-contract/RpcTimeoutError"),
+      tag("@amqp-contract/RpcCancelledError"),
+      tag("@amqp-contract/RpcError"),
+      (error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)),
+    ),
+  );
 ```
 
 The first interceptor in either array is the **outermost**. Telemetry spans stay outside the chain, so interceptor work is covered by the existing OpenTelemetry instrumentation.

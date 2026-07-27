@@ -98,12 +98,17 @@ export type CallInterceptorNext = (patch?: {
  *
  * @example Retry timed-out calls once
  * ```typescript
- * import { ErrAsync, P } from "unthrown";
+ * import { ErrAsync, tag } from "unthrown";
  *
  * const retryOnce: CallInterceptor = (args, next) =>
  *   next().flatMapErrCases((matcher) =>
- *     matcher.with(P._, (error) =>
- *       error instanceof RpcTimeoutError ? next() : ErrAsync(error),
+ *     matcher.with(
+ *       tag("@amqp-contract/TechnicalError"),
+ *       tag("@amqp-contract/MessageValidationError"),
+ *       tag("@amqp-contract/RpcTimeoutError"),
+ *       tag("@amqp-contract/RpcCancelledError"),
+ *       tag("@amqp-contract/RpcError"),
+ *       (error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)),
  *     ),
  *   );
  * ```

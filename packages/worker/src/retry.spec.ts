@@ -1,5 +1,5 @@
 import type { ResolvedTtlBackoffRetryOptions } from "@amqp-contract/contract";
-import type { AmqpClient } from "@amqp-contract/core";
+import { TechnicalError, type AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -213,8 +213,10 @@ describe("publishForRetry", () => {
   });
 
   it("does NOT ack the original when publish itself rejects", async () => {
+    // `amqpClient.publish` qualifies every rejection to a `TechnicalError`, so
+    // that is the in-contract error the retry publish's error matcher handles.
     const { client, ack, nack, publish } = createMockClient(() =>
-      ErrAsync(new Error("publish exploded") as never),
+      ErrAsync(new TechnicalError("publish exploded")),
     );
 
     const msg = createMockConsumeMessage();

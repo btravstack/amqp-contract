@@ -1,12 +1,12 @@
 # Error Model
 
-amqp-contract uses [`unthrown`](https://github.com/btravstack/unthrown)'s `AsyncResult<T, E>` everywhere — there are no thrown exceptions in the public API, no `try/catch` to remember. Errors are values you propagate, transform, and inspect. unthrown adds a third **`Defect`** channel for genuinely unexpected failures, so `match` has an `ok` / `err` / `defect` shape.
+amqp-contract uses [`unthrown`](https://github.com/btravstack/unthrown)'s `AsyncResult<T, E>` everywhere — there are no thrown exceptions in the public API, no `try/catch` to remember. Errors are values you propagate, transform, and inspect. unthrown adds a third **`Defect`** channel for genuinely unexpected failures, so `match` has an `ok` / `errCases` / `defect` shape.
 
 This page lists every error type the library can produce, where it surfaces, and what you should do with it.
 
 ## Getting the value out
 
-The safe way to consume a result is `.match({ ok, err, defect })` — it forces you to handle every channel.
+The safe way to consume a result is `.match({ ok, errCases, defect })` — it forces you to handle every channel. The `errCases` handler receives a [ts-pattern](https://github.com/gvergnaud/ts-pattern) matcher over the error union, so every error case must be handled explicitly (no blanket `err` callback).
 
 `unthrown` makes `.get()` **type-gated**: it compiles only when the error channel is empty (`E = never`) — and the gate applies identically on a `Result` and on its `AsyncResult` mirror. `Ok(x).get()` works; calling `.get()` on anything fallible — `client.publish(...)` returns `AsyncResult<void, TechnicalError | MessageValidationError>` — is a compile error whether you extract on the `AsyncResult` directly or on the awaited `Result`. When you genuinely want to throw on failure (a script, a test, an example), use `.getOrThrow()` — it returns the value on `Ok`, throws the `Err` value, and rethrows a `Defect`'s cause:
 
@@ -18,7 +18,7 @@ const client = await TypedAmqpClient.create({
 }).getOrThrow();
 ```
 
-Prefer `.match()` / `.recoverErr()` / `.flatMapErr()` in real code; reach for `.getOrThrow()` only where throwing is acceptable. (`.getOrElse(f)` is the non-throwing cousin: it computes a fallback from the error instead.)
+Prefer `.match()` / `.recoverErrCases()` / `.flatMapErrCases()` in real code; reach for `.getOrThrow()` only where throwing is acceptable. (`.getOrElse(f)` is the non-throwing cousin: it computes a fallback from the error instead.)
 
 ## Error hierarchy
 
@@ -110,15 +110,21 @@ Any failure of the AMQP transport itself: connection lost, channel closed, broke
 
 ```ts
 import { TechnicalError } from "@amqp-contract/core";
+import { tag } from "unthrown";
 
 const result = await client.publish("orderCreated", { orderId: "1" });
 result.match({
   ok: () => console.log("ok"),
-  err: (err) => {
-    if (err instanceof TechnicalError) {
-      // err.cause holds the original amqplib / amqp-connection-manager error
-    }
-  },
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (err) => {
+        if (err instanceof TechnicalError) {
+          // err.cause holds the original amqplib / amqp-connection-manager error
+        }
+      },
+    ),
   defect: (cause) => {
     throw cause;
   },
@@ -210,17 +216,26 @@ The client was closed (`client.close()`) while a call was still pending. All in-
 
 ```ts
 import { RpcTimeoutError, RpcCancelledError } from "@amqp-contract/client";
+import { tag } from "unthrown";
 
 const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 5_000 });
 result.match({
   ok: (response) => /* ... */,
-  err: (err) => {
-    if (isRpcError(err)) /* declared business error — narrow on err.code */;
-    if (err instanceof RpcTimeoutError) /* retry, or fall back */;
-    if (err instanceof RpcCancelledError) /* shutting down */;
-    if (err instanceof MessageValidationError) /* response shape wrong */;
-    if (err instanceof TechnicalError) /* transport problem */;
-  },
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      tag("@amqp-contract/RpcTimeoutError"),
+      tag("@amqp-contract/RpcCancelledError"),
+      tag("@amqp-contract/RpcError"),
+      (err) => {
+        if (isRpcError(err)) /* declared business error — narrow on err.code */;
+        if (err instanceof RpcTimeoutError) /* retry, or fall back */;
+        if (err instanceof RpcCancelledError) /* shutting down */;
+        if (err instanceof MessageValidationError) /* response shape wrong */;
+        if (err instanceof TechnicalError) /* transport problem */;
+      },
+    ),
   defect: (cause) => {
     throw cause;
   },
@@ -233,7 +248,7 @@ Two reasons:
 
 1. **Async errors that don't reject Promises silently.** A handler that throws synchronously inside a AsyncResult chain would normally crash the consume loop. Returning `Err(...)` makes failure a value the worker can route deterministically (DLQ, retry, ack).
 
-2. **Type-safe error union.** `AsyncResult<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match({ ok, err, defect })`. A thrown `unknown` gives no such guarantees.
+2. **Type-safe error union.** `AsyncResult<T, MyError | OtherError>` lets TypeScript force you to handle every variant via `.match({ ok, errCases, defect })` — the `errCases` matcher is exhaustive, so a new error variant is a compile error at every call site until handled. A thrown `unknown` gives no such guarantees.
 
 ## Defensive guards
 

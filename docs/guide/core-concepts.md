@@ -24,6 +24,7 @@ Define once, use everywhere with full type safety.
 Type safety flows automatically from your contract:
 
 ```typescript
+import { tag } from "unthrown";
 import { z } from "zod";
 
 // 1. Define resources and message
@@ -68,7 +69,12 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("Published"),
-  err: (error) => console.error("Failed:", error),
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (error) => console.error("Failed:", error),
+    ),
   defect: (cause) => {
     throw cause;
   },
@@ -85,6 +91,8 @@ Messages are validated automatically at network boundaries:
 Invalid messages are caught early with clear error messages.
 
 ```typescript
+import { tag } from "unthrown";
+
 // This returns a validation error (doesn't throw)
 const result = await client.publish("orderCreated", {
   orderId: "ORD-123",
@@ -93,10 +101,13 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("Published"),
-  err: (error) => {
+  errCases: (matcher) =>
     // Handle MessageValidationError or TechnicalError
-    console.error("Failed:", error.message);
-  },
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (error) => console.error("Failed:", error.message),
+    ),
   defect: (cause) => {
     throw cause;
   },

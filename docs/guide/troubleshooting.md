@@ -127,14 +127,21 @@ Error: Connection closed: 320 (CONNECTION-FORCED)
 3. **Handle errors properly:**
 
    ```typescript
+   import { tag } from "unthrown";
+
    const result = await client.publish("sendEmail", message);
 
    result.match({
      ok: () => console.log("Published"),
-     err: (error) => {
-       console.error("Failed:", error);
-       // Don't ignore errors!
-     },
+     errCases: (matcher) =>
+       matcher.with(
+         tag("@amqp-contract/TechnicalError"),
+         tag("@amqp-contract/MessageValidationError"),
+         (error) => {
+           console.error("Failed:", error);
+           // Don't ignore errors!
+         },
+       ),
      defect: (cause) => {
        throw cause;
      },

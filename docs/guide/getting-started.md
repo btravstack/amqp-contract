@@ -207,6 +207,7 @@ Create `publisher.ts` - publishes a message:
 ```typescript
 // publisher.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
+import { tag } from "unthrown";
 import { contract } from "./contract.js";
 
 async function main() {
@@ -229,7 +230,12 @@ async function main() {
 
   result.match({
     ok: () => console.log("📧 Email message published!"),
-    err: (error) => console.error("❌ Failed:", error.message),
+    errCases: (matcher) =>
+      matcher.with(
+        tag("@amqp-contract/TechnicalError"),
+        tag("@amqp-contract/MessageValidationError"),
+        (error) => console.error("❌ Failed:", error.message),
+      ),
     defect: (cause) => {
       throw cause;
     },

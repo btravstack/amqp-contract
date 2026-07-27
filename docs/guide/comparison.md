@@ -63,6 +63,7 @@ await connection.close();
 
 ```typescript [✅ amqp-contract - Type-safe & clean]
 import { TypedAmqpClient } from "@amqp-contract/client";
+import { tag } from "unthrown";
 import { contract } from "./contract.js";
 
 // Create client once
@@ -80,7 +81,12 @@ const result = await client.publish("orderCreated", {
 
 result.match({
   ok: () => console.log("✅ Published"),
-  err: (error) => console.error("❌ Failed:", error),
+  errCases: (matcher) =>
+    matcher.with(
+      tag("@amqp-contract/TechnicalError"),
+      tag("@amqp-contract/MessageValidationError"),
+      (error) => console.error("❌ Failed:", error),
+    ),
   defect: (cause) => {
     throw cause;
   },

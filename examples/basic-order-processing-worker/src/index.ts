@@ -1,7 +1,7 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { RetryableError, TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
 import pino from "pino";
-import { fromPromise, P } from "unthrown";
+import { fromPromise, tag } from "unthrown";
 import { z } from "zod";
 
 const env = z
@@ -166,7 +166,9 @@ async function main() {
     }),
     urls: [env.AMQP_URL],
   }).tapErrCases((matcher) =>
-    matcher.with(P._, (error) => logger.error({ error }, "Failed to create worker")),
+    matcher.with(tag("@amqp-contract/TechnicalError"), (error) =>
+      logger.error({ error }, "Failed to create worker"),
+    ),
   );
   const worker = await workerResult.getOrThrow();
 
