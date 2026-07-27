@@ -13,7 +13,6 @@
     "@amqp-contract/worker": "workspace:*",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
-    "ts-pattern": "catalog:",
     "unthrown": "catalog:",
     "zod": "catalog:"
   },

@@ -28,7 +28,7 @@ catalog:
   "@orpc/zod": 1.14.8
   "@standard-schema/spec": 1.1.0
   "@types/node": 26.1.1
-  "@unthrown/vitest": 5.0.0-beta.5
+  "@unthrown/vitest": 5.0.0-beta.6
   "@vitest/coverage-v8": 4.1.10
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1
@@ -42,14 +42,13 @@ catalog:
   pino-pretty: 13.1.3
   publint: 0.3.21
   testcontainers: 12.0.4
-  ts-pattern: 5.9.0
   tsdown: 0.22.12
   tsx: 4.23.1
   turbo: 2.10.5
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.12.0
   typescript: 6.0.3
-  unthrown: 5.0.0-beta.5
+  unthrown: 5.0.0-beta.6
   valibot: 1.4.2
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17

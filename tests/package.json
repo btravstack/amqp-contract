@@ -13,7 +13,6 @@
     "@amqp-contract/core": "workspace:*",
     "@amqp-contract/testing": "workspace:*",
     "@amqp-contract/worker": "workspace:*",
-    "ts-pattern": "catalog:",
     "unthrown": "catalog:"
   },
   "devDependencies": {

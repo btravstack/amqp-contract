@@ -55,8 +55,8 @@ catalogs:
       specifier: 1.1.0
       version: 1.1.0
     '@unthrown/vitest':
-      specifier: 5.0.0-beta.5
-      version: 5.0.0-beta.5
+      specifier: 5.0.0-beta.6
+      version: 5.0.0-beta.6
     '@vitest/coverage-v8':
       specifier: 4.1.10
       version: 4.1.10
@@ -96,9 +96,6 @@ catalogs:
     testcontainers:
       specifier: 12.0.4
       version: 12.0.4
-    ts-pattern:
-      specifier: 5.9.0
-      version: 5.9.0
     tsdown:
       specifier: 0.22.12
       version: 0.22.12
@@ -118,8 +115,8 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     unthrown:
-      specifier: 5.0.0-beta.5
-      version: 5.0.0-beta.5
+      specifier: 5.0.0-beta.6
+      version: 5.0.0-beta.6
     valibot:
       specifier: 1.4.2
       version: 1.4.2
@@ -240,12 +237,9 @@ importers:
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.3
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -320,12 +314,9 @@ importers:
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.3
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -430,9 +421,6 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -451,7 +439,7 @@ importers:
         version: 26.1.1
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(unthrown@5.0.0-beta.5(ts-pattern@5.9.0))(vitest@4.1.10)
+        version: 5.0.0-beta.6(unthrown@5.0.0-beta.6)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -478,7 +466,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
@@ -561,16 +549,13 @@ importers:
         version: 26.1.1
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(unthrown@5.0.0-beta.5(ts-pattern@5.9.0))(vitest@4.1.10)
+        version: 5.0.0-beta.6(unthrown@5.0.0-beta.6)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
       publint:
         specifier: 'catalog:'
         version: 0.3.21
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
       tsdown:
         specifier: 'catalog:'
         version: 0.22.12(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.21.3)(publint@0.3.21)(tsx@4.23.1)(typescript@6.0.3)
@@ -582,7 +567,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
@@ -659,7 +644,7 @@ importers:
         version: 26.1.1
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(unthrown@5.0.0-beta.5(ts-pattern@5.9.0))(vitest@4.1.10)
+        version: 5.0.0-beta.6(unthrown@5.0.0-beta.6)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -672,9 +657,6 @@ importers:
       publint:
         specifier: 'catalog:'
         version: 0.3.21
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
       tsdown:
         specifier: 'catalog:'
         version: 0.22.12(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.21.3)(publint@0.3.21)(tsx@4.23.1)(typescript@6.0.3)
@@ -689,7 +671,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
@@ -714,12 +696,9 @@ importers:
       '@amqp-contract/worker':
         specifier: workspace:*
         version: link:../packages/worker
-      ts-pattern:
-        specifier: 'catalog:'
-        version: 5.9.0
       unthrown:
         specifier: 'catalog:'
-        version: 5.0.0-beta.5(ts-pattern@5.9.0)
+        version: 5.0.0-beta.6
     devDependencies:
       '@btravstack/tsconfig':
         specifier: 'catalog:'
@@ -2690,11 +2669,11 @@ packages:
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
 
-  '@unthrown/vitest@5.0.0-beta.5':
-    resolution: {integrity: sha512-MN9kChh+cAPcRIBVv+BaDA3olisvkHPCOHD4vnZMJyPJI4kHB+prWyJDifXZlSvWJwTPnoverF/LnvMvFVdvhg==}
+  '@unthrown/vitest@5.0.0-beta.6':
+    resolution: {integrity: sha512-FOByiJWRrqYYjP4Jtc1yz2KbR+R/Ra4xgKUJ3hbo5UzGxl4ngIEaYWA0WhQB4oNAgr9B0c7ZR6PC+D2dBlyYCQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      unthrown: ^5.0.0-beta.5
+      unthrown: ^5.0.0-beta.6
       vitest: ^4
 
   '@upsetjs/venn.js@2.0.0':
@@ -5167,9 +5146,6 @@ packages:
     resolution: {integrity: sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==}
     engines: {node: '>=6.10'}
 
-  ts-pattern@5.9.0:
-    resolution: {integrity: sha512-6s5V71mX8qBUmlgbrfL33xDUwO0fq48rxAu2LBE11WBeGdpCPOsXksQbZJHvHwhrd3QjUusd3mAOM5Gg0mFBLg==}
-
   tsdown@0.22.12:
     resolution: {integrity: sha512-IzGRfGwSsufXJWOcQ0tmECKMG/dbxhUwDOySTS7JE1AM8pkB9+bpcTPs8bTxxSNrSvGocSczrBlOh97tZObq9Q==}
     engines: {node: ^22.18.0 || >=24.11.0}
@@ -5309,11 +5285,9 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  unthrown@5.0.0-beta.5:
-    resolution: {integrity: sha512-2s9/QdXkJTCQr6+Zb3RZihjPklmuY6ueORZBMBD9S9M2f8ZRuyexLWYVJbgI4sIMK6cnQ2u8uCQikrvHVaupCw==}
+  unthrown@5.0.0-beta.6:
+    resolution: {integrity: sha512-9100slIHO94qvPtCT9ISBpEXGOU8QN2amMtLCNBy6cVtGJQe7fwZHkSHsjPuNeqQGO/2MLFqRBJwSimAnceloA==}
     engines: {node: '>=20'}
-    peerDependencies:
-      ts-pattern: ^5
 
   urijs@1.19.11:
     resolution: {integrity: sha512-HXgFDgDommxn5/bIv0cnQZsPhHDA90NPHD6+c/v21U5+Sx5hoP8+dP9IZXBU1gIfvdRfhG8cel9QNPeionfcCQ==}
@@ -7433,9 +7407,9 @@ snapshots:
 
   '@ungap/structured-clone@1.3.1': {}
 
-  '@unthrown/vitest@5.0.0-beta.5(unthrown@5.0.0-beta.5(ts-pattern@5.9.0))(vitest@4.1.10)':
+  '@unthrown/vitest@5.0.0-beta.6(unthrown@5.0.0-beta.6)(vitest@4.1.10)':
     dependencies:
-      unthrown: 5.0.0-beta.5(ts-pattern@5.9.0)
+      unthrown: 5.0.0-beta.6
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
 
   '@upsetjs/venn.js@2.0.0':
@@ -10169,8 +10143,6 @@ snapshots:
 
   ts-dedent@2.2.0: {}
 
-  ts-pattern@5.9.0: {}
-
   tsdown@0.22.12(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.21.3)(publint@0.3.21)(tsx@4.23.1)(typescript@6.0.3):
     dependencies:
       ansis: 4.3.1
@@ -10321,9 +10293,7 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  unthrown@5.0.0-beta.5(ts-pattern@5.9.0):
-    dependencies:
-      ts-pattern: 5.9.0
+  unthrown@5.0.0-beta.6: {}
 
   urijs@1.19.11: {}
 
