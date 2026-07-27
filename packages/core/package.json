@@ -83,6 +83,7 @@
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.0.0",
+    "ts-pattern": "^5",
     "unthrown": "^5.0.0-beta.5"
   },
   "peerDependenciesMeta": {
