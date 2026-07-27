@@ -73,6 +73,7 @@
     "@unthrown/vitest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "publint": "catalog:",
+    "ts-pattern": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
     "typescript": "catalog:",
@@ -82,7 +83,7 @@
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.0.0",
-    "unthrown": "^5.0.0-beta.3"
+    "unthrown": "^5.0.0-beta.5"
   },
   "peerDependenciesMeta": {
     "@opentelemetry/api": {

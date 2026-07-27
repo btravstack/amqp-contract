@@ -28,7 +28,7 @@ catalog:
   "@orpc/zod": 1.14.8
   "@standard-schema/spec": 1.1.0
   "@types/node": 26.1.1
-  "@unthrown/vitest": 5.0.0-beta.3
+  "@unthrown/vitest": 5.0.0-beta.5
   "@vitest/coverage-v8": 4.1.10
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1
@@ -49,7 +49,7 @@ catalog:
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.12.0
   typescript: 6.0.3
-  unthrown: 5.0.0-beta.3
+  unthrown: 5.0.0-beta.5
   valibot: 1.4.2
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17

@@ -27,7 +27,7 @@ async function main() {
     contract: orderContract,
     urls: [env.AMQP_URL],
   })
-    .tapErr((matcher) =>
+    .tapErrCases((matcher) =>
       matcher.with(P._, (error) => logger.error({ error }, "Failed to create client")),
     )
     .getOrThrow();
@@ -47,7 +47,7 @@ async function main() {
   ): Promise<void> => {
     await client
       .publish(publisherName, message, options)
-      .tapErr((matcher) =>
+      .tapErrCases((matcher) =>
         matcher.with(P._, (error) =>
           logger.error({ error }, `Failed to publish: ${publisherName}`),
         ),
