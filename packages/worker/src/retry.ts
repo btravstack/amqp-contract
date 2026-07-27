@@ -367,7 +367,7 @@ function publishForRetry(
       });
       return Ok(undefined);
     })
-    .flatMapErr((matcher) =>
+    .flatMapErrCases((matcher) =>
       matcher.with(P._, (publishError) => {
         // Publish threw (network error, channel close, etc.). Same policy: do
         // not ack the original; the redelivery path is the recovery mechanism.

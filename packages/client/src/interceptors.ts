@@ -101,7 +101,7 @@ export type CallInterceptorNext = (patch?: {
  * import { ErrAsync, P } from "unthrown";
  *
  * const retryOnce: CallInterceptor = (args, next) =>
- *   next().flatMapErr((matcher) =>
+ *   next().flatMapErrCases((matcher) =>
  *     matcher.with(P._, (error) =>
  *       error instanceof RpcTimeoutError ? next() : ErrAsync(error),
  *     ),

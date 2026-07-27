@@ -12,7 +12,7 @@ export { isRpcError, MessageValidationError, RpcError, rpcError } from "@amqp-co
  * Built on unthrown's {@link TaggedError}, so it carries a namespaced `_tag` of
  * `"@amqp-contract/RetryableError"` (to avoid colliding with other libraries'
  * tags in a shared error matcher) for exhaustive dispatch via
- * `result.match({ ok, defect, err: (matcher) =>
+ * `result.match({ ok, defect, errCases: (matcher) =>
  * matcher.with(tag("@amqp-contract/RetryableError"), …) })`; the `Error.name` is
  * kept bare (`"RetryableError"`).
  */

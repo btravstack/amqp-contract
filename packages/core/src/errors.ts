@@ -9,7 +9,7 @@ import { TaggedError } from "unthrown";
  *
  * Built on unthrown's {@link TaggedError}, so it carries a `_tag` of
  * `"@amqp-contract/TechnicalError"` for exhaustive dispatch via the error
- * matcher (`result.match({ ok, defect, err: (matcher) =>
+ * matcher (`result.match({ ok, defect, errCases: (matcher) =>
  * matcher.with(tag("@amqp-contract/TechnicalError"), …) })`). The tag is
  * namespaced to avoid colliding with other libraries' tags in a shared matcher;
  * the human-facing `Error.name` is kept bare (`"TechnicalError"`).
@@ -88,7 +88,7 @@ export const RPC_ERROR_CODE_HEADER = "x-amqp-contract-error-code";
  * `Err(RpcError<code, data>)` with `data` re-validated on arrival.
  *
  * Carries a `_tag` of `"@amqp-contract/RpcError"` for exhaustive dispatch via
- * the error matcher (`result.match({ ok, defect, err: (matcher) =>
+ * the error matcher (`result.match({ ok, defect, errCases: (matcher) =>
  * matcher.with(tag("@amqp-contract/RpcError"), …) })`); the `Error.name` is kept
  * bare (`"RpcError"`). Discriminate between codes on the `code` property.
  */

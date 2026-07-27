@@ -165,7 +165,7 @@ async function main() {
       },
     }),
     urls: [env.AMQP_URL],
-  }).tapErr((matcher) =>
+  }).tapErrCases((matcher) =>
     matcher.with(P._, (error) => logger.error({ error }, "Failed to create worker")),
   );
   const worker = await workerResult.getOrThrow();

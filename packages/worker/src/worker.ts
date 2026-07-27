@@ -485,7 +485,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     const cancellations = Array.from(this.consumerTags).map((consumerTag) =>
       // Swallow per-consumer cancel errors during close — they are best-effort
       // cleanup and we still want to release the underlying connection.
-      this.amqpClient.cancel(consumerTag).flatMapErr((matcher) =>
+      this.amqpClient.cancel(consumerTag).flatMapErrCases((matcher) =>
         matcher.with(P._, (error) => {
           this.logger?.warn("Failed to cancel consumer during close", { consumerTag, error });
           return Ok(undefined);
@@ -800,7 +800,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<void, HandlerError> {
     return this.amqpClient
       .publish("", replyTo, body, options)
-      .mapErr((matcher) =>
+      .mapErrCases((matcher) =>
         matcher.with(
           P._,
           (error): HandlerError => new NonRetryableError("Failed to publish RPC reply", error),
@@ -826,7 +826,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     consumer: ConsumerDefinition,
     name: HandlerName<TContract>,
   ): AsyncResult<{ payload: unknown; headers: unknown }, TechnicalError> {
-    return this.parseAndValidateMessage(msg, consumer, name).flatMapErr((matcher) =>
+    return this.parseAndValidateMessage(msg, consumer, name).flatMapErrCases((matcher) =>
       matcher.with(P._, (parseError) => {
         this.amqpClient.nack(msg, false, false);
         return ErrAsync(parseError);
@@ -892,7 +892,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           opts.payload,
           { consumerName: String(name), field: "middleware-substituted payload" },
         )
-          .mapErr((matcher) =>
+          .mapErrCases((matcher) =>
             matcher.with(
               P._,
               (error): HandlerError =>
@@ -973,7 +973,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     });
 
     return this.parseAndValidateOrNack(msg, consumer, name)
-      .tapErr((matcher) =>
+      .tapErrCases((matcher) =>
         matcher.with(P._, (parseError) => {
           this.logger?.error("Failed to parse/validate message; sending to DLQ", {
             consumerName: String(name),
@@ -997,7 +997,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               state.messageHandled = true;
             }),
           )
-          .flatMapErr((matcher) =>
+          .flatMapErrCases((matcher) =>
             matcher.with(P._, (handlerError) => {
               // A contract-declared RpcError is the RPC's business-failure
               // channel, not a processing failure: publish it back to the
@@ -1015,7 +1015,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                     this.amqpClient.ack(msg);
                     state.messageHandled = true;
                   })
-                  .flatMapErr((replyMatcher) =>
+                  .flatMapErrCases((replyMatcher) =>
                     replyMatcher.with(P._, (replyError: HandlerError) =>
                       this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
                     ),
@@ -1056,7 +1056,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           });
         }
       })
-      .tapErr((matcher) =>
+      .tapErrCases((matcher) =>
         matcher.with(P._, (error) => {
           // Routed handler failures arrive here wrapped in a `TechnicalError`
           // with the original `HandlerError` carried via `cause`. Surface the
@@ -1199,7 +1199,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         this.consumerTags.add(consumerTag);
       })
       .map(() => undefined)
-      .mapErr((matcher) =>
+      .mapErrCases((matcher) =>
         matcher.with(
           P._,
           (error) => new TechnicalError(`Failed to start consuming for "${String(name)}"`, error),

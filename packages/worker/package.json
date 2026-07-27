@@ -74,6 +74,7 @@
     "amqp-connection-manager": "catalog:",
     "amqplib": "catalog:",
     "publint": "catalog:",
+    "ts-pattern": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
@@ -83,7 +84,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "unthrown": "^5.0.0-beta.3"
+    "unthrown": "^5.0.0-beta.5"
   },
   "engines": {
     "node": ">=22.19"
