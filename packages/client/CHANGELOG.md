@@ -1,5 +1,49 @@
 # @amqp-contract/client
 
+## 3.0.0-beta.1
+
+### Patch Changes
+
+- 4124750: Bump `unthrown` to `5.0.0-beta.5`. This tracks two beta breaking changes:
+  `match`'s error handler key is renamed `err` → `errCases`, and the bare error
+  combinators gained the `*Cases` suffix (`mapErr` → `mapErrCases`, `flatMapErr` →
+  `flatMapErrCases`, `tapErr` → `tapErrCases`). `unthrown` also now declares
+  `ts-pattern` as a peer dependency, so `ts-pattern` (`^5`) is added to the
+  packages that build against unthrown. The peer range is raised to
+  `^5.0.0-beta.5`.
+- 7e458e0: Bump `unthrown` to `5.0.0-beta.6`, whose exhaustive matcher is now built-in
+  (same `.with(…)` / `tag` / `P` call-site shape). The compression helper's
+  `match` import moves from `ts-pattern` to `unthrown`; with that, `ts-pattern`
+  is removed entirely (catalog entry, dependencies, devDependencies, and the
+  peerDependencies added for beta.5's peer requirement) — `unthrown` has zero
+  runtime dependencies, so nothing needs installing alongside it. The `unthrown`
+  peer range is raised to `^5.0.0-beta.6`.
+- bcbe3dc: Move `TechnicalError` out of the modeled error channel and into the **defect**
+  channel. Infrastructure/transport failures (connection, publish, consume,
+  cancel, close, compression/decompression, JSON parse, and thrown/rejected
+  schema validators) are unexpected, so they now surface as an unthrown `Defect`
+  (with a `TechnicalError` as the defect's `cause` for logging), never as a
+  modeled `Err`. The `TechnicalError` class is still exported and used as the
+  defect cause. Only _anticipated domain_ failures remain in `E`:
+  `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`,
+  and the worker's `RetryableError`/`NonRetryableError`.
+
+  **Breaking.** Consumers that matched `tag("@amqp-contract/TechnicalError")` in
+  an error matcher (`match`'s `errCases`, `mapErrCases`, `tapErrCases`, …) must
+  move that handling to the `defect` arm of `match` (or `recoverDefect` /
+  `tapDefect`). Error channels narrow accordingly: `client.publish(...)` is now
+  `AsyncResult<void, MessageValidationError>`; `client.call(...)` drops
+  `TechnicalError` from its union; and `create()`/`close()`/the `AmqpClient`
+  operations now have an empty modeled channel (`E = never`) — extract their
+  success with `.get()` (a failed one still panics on the defect) instead of
+  `.getOrThrow()`.
+
+- Updated dependencies [4124750]
+- Updated dependencies [7e458e0]
+- Updated dependencies [bcbe3dc]
+  - @amqp-contract/core@3.0.0-beta.1
+  - @amqp-contract/contract@3.0.0-beta.1
+
 ## 3.0.0-beta.0
 
 ### Major Changes
