@@ -466,11 +466,18 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     });
 
     const validateMessage = (rawMessage: unknown): AsyncResult<unknown, MessageValidationError> => {
-      const validationResult = publisher.message.payload["~standard"].validate(rawMessage);
+      // A thrown/rejected validator is an unexpected infrastructure fault →
+      // defect; schema `issues` are the modeled MessageValidationError. Guard the
+      // synchronous call too — a validator that throws before returning would
+      // otherwise escape `publish()` as a raw throw instead of a defect.
+      let validationResult: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
+      try {
+        validationResult = publisher.message.payload["~standard"].validate(rawMessage);
+      } catch (error) {
+        return technicalDefect(new TechnicalError("Validation failed", error)).toAsync();
+      }
       const promise =
         validationResult instanceof Promise ? validationResult : Promise.resolve(validationResult);
-      // A thrown/rejected validator is an unexpected infrastructure fault →
-      // defect; schema `issues` are the modeled MessageValidationError.
       return fromPromise(promise, (error, defect) =>
         defect(new TechnicalError("Validation failed", error)),
       ).flatMap((validation) => {

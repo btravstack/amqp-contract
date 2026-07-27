@@ -557,7 +557,15 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     data: unknown,
     context: { consumerName: string; field: string },
   ): AsyncResult<unknown, never> {
-    const rawValidation = schema["~standard"].validate(data);
+    // A validator that throws *synchronously* (header schemas are validated
+    // eagerly while the chain is built) would escape before fromPromise wraps
+    // it — guard the call so it surfaces on the defect channel like a rejection.
+    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
+    try {
+      rawValidation = schema["~standard"].validate(data);
+    } catch (error) {
+      return technicalDefect(new TechnicalError(`Error validating ${context.field}`, error));
+    }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
 
