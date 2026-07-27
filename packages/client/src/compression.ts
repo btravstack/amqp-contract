@@ -3,8 +3,7 @@ import { deflate, gzip } from "node:zlib";
 
 import type { CompressionAlgorithm } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
-import { match } from "ts-pattern";
-import { fromPromise, type AsyncResult } from "unthrown";
+import { fromPromise, match, type AsyncResult } from "unthrown";
 
 const gzipAsync = promisify(gzip);
 const deflateAsync = promisify(deflate);
