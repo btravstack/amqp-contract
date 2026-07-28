@@ -41,7 +41,8 @@
     },
     "@amqp-contract/docs#build": {
       "dependsOn": ["^build", "^build:docs"],
-      "outputs": [".vitepress/dist/**"]
+      "outputs": [".vitepress/dist/**"],
+      "env": ["DOCS_BASE", "DOCS_VERSIONS"]
     },
     "check:package": {
       "dependsOn": ["build"],

@@ -17,6 +17,7 @@
       "project": ["scripts/**/*.ts"]
     }
   },
+  "ignore": [".github/scripts/inject-docs-version-nav.ts"],
   "ignoreDependencies": [
     "typedoc-plugin-markdown",
     "@btravstack/typedoc",
