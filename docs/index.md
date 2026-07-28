@@ -14,10 +14,10 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/getting-started
+      link: /tutorial/getting-started
     - theme: alt
       text: Why amqp-contract?
-      link: /guide/why-amqp-contract
+      link: /explanation/why-amqp-contract
     - theme: alt
       text: GitHub
       link: https://github.com/btravstack/amqp-contract
@@ -92,7 +92,7 @@ import { contract } from "./contract";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 await client
   .publish("orderCreated", {
@@ -104,7 +104,7 @@ await client
 
 ```typescript [3. Consume]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { OkAsync, type AsyncResult, type Result } from "unthrown";
+import { OkAsync } from "unthrown";
 import { contract } from "./contract";
 
 const worker = await TypedAmqpWorker.create({
@@ -116,7 +116,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 ```
 
 :::

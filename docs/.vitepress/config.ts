@@ -49,6 +49,80 @@ const VERSION_NAV = DOCS_VERSIONS
   ? [{ text: DOCS_VERSIONS.current, items: DOCS_VERSIONS.items }]
   : [];
 
+// Sitemap URLs of the pre-3.0 redirect tombstones, collected by
+// `transformPageData` (which runs for every page before the sitemap is
+// generated) and subtracted from the sitemap below. Derived rather than
+// hardcoded so a new stub is excluded automatically.
+const REDIRECT_URLS = new Set<string>();
+
+// The guide is structured by the four Diátaxis modes (https://diataxis.fr/):
+// a learning-oriented Tutorial, task-oriented How-to guides,
+// information-oriented Reference, and understanding-oriented Explanation. One
+// shared sidebar carries all four so any page can reach any other — a reader
+// who arrives at a how-to from a search engine can see the explanation that
+// justifies it, and vice versa.
+const GUIDE_SIDEBAR = [
+  {
+    text: "Tutorial",
+    items: [
+      { text: "Getting started", link: "/tutorial/getting-started" },
+      { text: "Adding request/reply", link: "/tutorial/adding-request-reply" },
+    ],
+  },
+  {
+    text: "How-to guides",
+    items: [
+      { text: "Define a contract", link: "/how-to/define-a-contract" },
+      { text: "Publish messages", link: "/how-to/publish-messages" },
+      { text: "Consume messages", link: "/how-to/consume-messages" },
+      { text: "Use request/reply", link: "/how-to/use-request-reply" },
+      { text: "Retry failed messages", link: "/how-to/retry-failed-messages" },
+      { text: "Route dead letters", link: "/how-to/route-dead-letters" },
+      { text: "Bridge domains", link: "/how-to/bridge-domains" },
+      { text: "Add middleware", link: "/how-to/add-middleware" },
+      { text: "Compress messages", link: "/how-to/compress-messages" },
+      { text: "Share connections", link: "/how-to/share-connections" },
+      { text: "Configure channels", link: "/how-to/configure-channels" },
+      { text: "Add logging", link: "/how-to/add-logging" },
+      { text: "Instrument with OpenTelemetry", link: "/how-to/instrument-with-opentelemetry" },
+      { text: "Generate AsyncAPI", link: "/how-to/generate-asyncapi" },
+      { text: "Test with RabbitMQ", link: "/how-to/test-with-rabbitmq" },
+      { text: "Tune performance", link: "/how-to/tune-performance" },
+      { text: "Upgrade", link: "/how-to/upgrade" },
+      { text: "Troubleshoot", link: "/how-to/troubleshoot" },
+    ],
+  },
+  {
+    text: "Reference",
+    items: [
+      { text: "Error model", link: "/reference/error-model" },
+      { text: "Topology options", link: "/reference/topology-options" },
+      { text: "Schema libraries", link: "/reference/schema-libraries" },
+      { text: "Glossary", link: "/reference/glossary" },
+      { text: "FAQ", link: "/reference/faq" },
+      { text: "API reference", link: "/api/" },
+    ],
+  },
+  {
+    text: "Explanation",
+    items: [
+      { text: "Why amqp-contract?", link: "/explanation/why-amqp-contract" },
+      { text: "Core concepts", link: "/explanation/core-concepts" },
+      { text: "Errors as values", link: "/explanation/errors-as-values" },
+      { text: "The retry model", link: "/explanation/the-retry-model" },
+      { text: "Comparison", link: "/explanation/comparison" },
+    ],
+  },
+  {
+    text: "Examples",
+    items: [
+      { text: "Overview", link: "/examples/" },
+      { text: "Basic order processing", link: "/examples/basic-order-processing" },
+      { text: "Command pattern", link: "/examples/command-pattern" },
+    ],
+  },
+];
+
 // https://vitepress.dev/reference/site-config
 export default withMermaid(
   defineConfig({
@@ -69,6 +143,9 @@ export default withMermaid(
 
     sitemap: {
       hostname: SITE_URL,
+      // Keep the redirect tombstones out of the sitemap — they are `noindex`
+      // stubs preserving pre-3.0 URLs, not pages we want crawled as content.
+      transformItems: (items) => items.filter((item) => !REDIRECT_URLS.has(item.url)),
     },
 
     // Inject canonical URLs and dynamic meta tags for each page to prevent duplicate content issues
@@ -91,6 +168,24 @@ export default withMermaid(
       // Ensure frontmatter and head array exist
       pageData.frontmatter ??= {};
       pageData.frontmatter.head ??= [];
+
+      // Redirect stubs. The 3.0 restructure moved every /guide/ page into a
+      // Diátaxis quadrant; a page with `redirect: /how-to/…` in its frontmatter
+      // is a tombstone kept so inbound links and search results survive the
+      // move. It points its canonical at the DESTINATION (consolidating ranking
+      // there rather than competing with it) and carries a meta refresh, which
+      // is what actually moves a visitor arriving cold from a search result.
+      const redirect = pageData.frontmatter.redirect as string | undefined;
+      if (redirect) {
+        REDIRECT_URLS.add(normalizedPath.replace(/index\.md$/, "").replace(/\.md$/, ".html"));
+        const target = `${SITE_URL}${redirect.replace(/^\/+/, "")}`;
+        pageData.frontmatter.head.push(
+          ["link", { rel: "canonical", href: target }],
+          ["meta", { "http-equiv": "refresh", content: `0; url=${target}` }],
+          ["meta", { name: "robots", content: "noindex, follow" }],
+        );
+        return;
+      }
 
       // Add canonical URL
       pageData.frontmatter.head.push(["link", { rel: "canonical", href: canonicalUrl }]);
@@ -134,7 +229,7 @@ export default withMermaid(
       logo: { light: "/logo-light.svg", dark: "/logo-dark.svg" },
 
       nav: [
-        { text: "Guides", link: "/guide/getting-started" },
+        { text: "Guide", link: "/tutorial/getting-started" },
         { text: "API", link: "/api/" },
         { text: "Examples", link: "/examples/" },
         { text: "Changelog", link: "https://github.com/btravstack/amqp-contract/releases" },
@@ -147,64 +242,13 @@ export default withMermaid(
         ...VERSION_NAV,
       ],
 
+      // One shared sidebar across every guide quadrant — see GUIDE_SIDEBAR.
       sidebar: {
-        "/guide/": [
-          {
-            text: "Getting Started",
-            items: [
-              { text: "Why amqp-contract?", link: "/guide/why-amqp-contract" },
-              { text: "Getting Started", link: "/guide/getting-started" },
-              { text: "Core Concepts", link: "/guide/core-concepts" },
-              { text: "Comparison", link: "/guide/comparison" },
-            ],
-          },
-          {
-            text: "Core Usage",
-            items: [
-              { text: "Defining Contracts", link: "/guide/defining-contracts" },
-              { text: "Client Usage", link: "/guide/client-usage" },
-              { text: "Worker Usage", link: "/guide/worker-usage" },
-              { text: "Error Model", link: "/guide/error-model" },
-              {
-                text: "Middleware & Interceptors",
-                link: "/guide/middleware-and-interceptors",
-              },
-              { text: "Retry Strategies", link: "/guide/retry-strategies" },
-              { text: "Testing", link: "/guide/testing" },
-            ],
-          },
-          {
-            text: "Advanced",
-            items: [
-              { text: "Connection Sharing", link: "/guide/connection-sharing" },
-              { text: "Channel Configuration", link: "/guide/channel-configuration" },
-              { text: "Bridge Exchanges", link: "/guide/bridge-exchanges" },
-              { text: "Message Compression", link: "/guide/message-compression" },
-              { text: "Schema Libraries", link: "/guide/schema-libraries" },
-              { text: "Performance Tuning", link: "/guide/performance" },
-              { text: "AsyncAPI Generation", link: "/guide/asyncapi-generation" },
-              {
-                text: "Observability",
-                collapsed: true,
-                items: [
-                  { text: "Logging", link: "/guide/logging" },
-                  {
-                    text: "OpenTelemetry",
-                    link: "/guide/opentelemetry-observability",
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            text: "Help",
-            items: [
-              { text: "Troubleshooting", link: "/guide/troubleshooting" },
-              { text: "FAQ", link: "/guide/faq" },
-              { text: "Upgrading", link: "/guide/upgrading" },
-            ],
-          },
-        ],
+        "/tutorial/": GUIDE_SIDEBAR,
+        "/how-to/": GUIDE_SIDEBAR,
+        "/reference/": GUIDE_SIDEBAR,
+        "/explanation/": GUIDE_SIDEBAR,
+        "/examples/": GUIDE_SIDEBAR,
         "/api/": [
           {
             text: "Core Packages",
@@ -220,24 +264,13 @@ export default withMermaid(
             text: "Testing",
             items: [{ text: "@amqp-contract/testing", link: "/api/testing/" }],
           },
-        ],
-        "/examples/": [
           {
-            text: "Examples",
+            text: "Guide",
             items: [
-              { text: "Overview", link: "/examples/" },
-              {
-                text: "Basic Order Processing",
-                link: "/examples/basic-order-processing",
-              },
-              {
-                text: "Command Pattern",
-                link: "/examples/command-pattern",
-              },
-              {
-                text: "AsyncAPI Generation",
-                link: "/examples/asyncapi-generation",
-              },
+              { text: "Tutorial", link: "/tutorial/getting-started" },
+              { text: "How-to guides", link: "/how-to/define-a-contract" },
+              { text: "Reference", link: "/reference/error-model" },
+              { text: "Explanation", link: "/explanation/why-amqp-contract" },
             ],
           },
         ],
