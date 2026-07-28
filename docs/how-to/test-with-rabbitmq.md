@@ -103,7 +103,7 @@ it("publishes a valid order", async ({ amqpConnectionUrl }) => {
 
   const result = await client.publish("orderCreated", { orderId: "T-1", amount: 10 });
 
-  expect(result).toEqual(Ok(undefined));
+  expect(result.isOk()).toBe(true);
   await client.close().get();
 });
 ```

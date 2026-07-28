@@ -110,11 +110,24 @@ They usually want different responses — a failure needs investigating, an expi
 There is no built-in replay. Consume from the dead-letter queue and publish back through the normal publisher once you have fixed the cause:
 
 ```typescript
+import { NonRetryableError } from "@amqp-contract/worker";
+import { Err, OkAsync, tag } from "unthrown";
+
 handleFailedOrders: ({ payload }) =>
   shouldReplay(payload)
-    ? client.publish("orderCreated", payload).mapErr(qualifyNonRetryable("replay rejected"))
+    ? client
+        .publish("orderCreated", payload)
+        .mapErrCases((matcher) =>
+          matcher.with(
+            tag("@amqp-contract/MessageValidationError"),
+            (error) => new NonRetryableError("replay rejected", error),
+          ),
+        )
+        .recoverDefect((cause) => Err(new NonRetryableError("replay failed", cause)))
     : OkAsync(undefined),
 ```
+
+Both channels need converting: `publish`'s modeled `MessageValidationError` through `mapErrCases`, and a transport failure — which arrives as a defect — through `recoverDefect`. Without the second, a broker hiccup would dead-letter the replay instead of retrying it.
 
 Do this deliberately, not automatically. A replay loop that re-dead-letters is an infinite loop with extra steps — gate it on a fix having shipped, or on an attempt counter you control.
 
