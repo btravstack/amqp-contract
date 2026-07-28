@@ -22,11 +22,28 @@ const SITE_URL = `${ORIGIN}${BASE}`;
 // rendered as a dropdown at the end of the nav, linking every deployed version
 // with absolute URLs (cross-version links must not inherit this build's base).
 // Absent env → no dropdown (single-version site, local dev).
+type VersionMenu = {
+  current: string;
+  items: { text: string; link: string; target?: string }[];
+};
+
+// The value is machine-generated (deploy-docs.yml stringifies it into
+// GITHUB_OUTPUT), so a parse failure means the workflow is broken — but a bare
+// `SyntaxError` surfacing from inside a VitePress config names neither the
+// variable nor the value, which is a miserable thing to debug from a CI log.
+const parseDocsVersions = (raw: string): VersionMenu => {
+  try {
+    return JSON.parse(raw) as VersionMenu;
+  } catch (cause) {
+    throw new Error(
+      `DOCS_VERSIONS is not valid JSON — expected {"current":…,"items":[…]}, got: ${raw}`,
+      { cause },
+    );
+  }
+};
+
 const DOCS_VERSIONS = process.env.DOCS_VERSIONS
-  ? (JSON.parse(process.env.DOCS_VERSIONS) as {
-      current: string;
-      items: { text: string; link: string; target?: string }[];
-    })
+  ? parseDocsVersions(process.env.DOCS_VERSIONS)
   : undefined;
 const VERSION_NAV = DOCS_VERSIONS
   ? [{ text: DOCS_VERSIONS.current, items: DOCS_VERSIONS.items }]
