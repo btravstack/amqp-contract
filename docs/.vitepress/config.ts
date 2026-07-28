@@ -4,12 +4,40 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 const SITE_DESCRIPTION =
   "Build reliable message-driven applications with end-to-end type safety, automatic schema validation, and AsyncAPI generation for AMQP/RabbitMQ in TypeScript";
 
+// Versioned deploys (deploy-docs.yml): while a prerelease is in progress the
+// workflow builds main's docs a second time as the "beta" site, overriding the
+// base to /amqp-contract/beta/ via DOCS_BASE; the stable site (built from the
+// latest stable tag) stays at the root. Absent env — local dev, plain builds —
+// keeps today's root base.
+// Normalized to a guaranteed leading + trailing slash — a DOCS_BASE typed
+// without one in CI must not corrupt asset routing or canonical URLs.
+const RAW_BASE = process.env.DOCS_BASE ?? "/amqp-contract/";
+const BASE = `/${RAW_BASE.replace(/^\/+|\/+$/g, "")}/`;
+const ORIGIN = "https://btravstack.github.io";
+const SITE_URL = `${ORIGIN}${BASE}`;
+
+// DOCS_VERSIONS — the marker the deploy workflow probes for to detect native
+// version-picker support (legacy tags without it get the dropdown injected at
+// build time instead). JSON: { current: string, items: { text, link }[] } —
+// rendered as a dropdown at the end of the nav, linking every deployed version
+// with absolute URLs (cross-version links must not inherit this build's base).
+// Absent env → no dropdown (single-version site, local dev).
+const DOCS_VERSIONS = process.env.DOCS_VERSIONS
+  ? (JSON.parse(process.env.DOCS_VERSIONS) as {
+      current: string;
+      items: { text: string; link: string; target?: string }[];
+    })
+  : undefined;
+const VERSION_NAV = DOCS_VERSIONS
+  ? [{ text: DOCS_VERSIONS.current, items: DOCS_VERSIONS.items }]
+  : [];
+
 // https://vitepress.dev/reference/site-config
 export default withMermaid(
   defineConfig({
     title: "amqp-contract",
     description: SITE_DESCRIPTION,
-    base: "/amqp-contract/",
+    base: BASE,
     lang: "en-US",
 
     ignoreDeadLinks: [
@@ -23,7 +51,7 @@ export default withMermaid(
     ],
 
     sitemap: {
-      hostname: "https://btravstack.github.io/amqp-contract/",
+      hostname: SITE_URL,
     },
 
     // Inject canonical URLs and dynamic meta tags for each page to prevent duplicate content issues
@@ -36,7 +64,10 @@ export default withMermaid(
       // VitePress provides relativePath without leading slash (e.g., "guide/getting-started.md")
       // Normalize the path by removing any leading slashes just in case
       const normalizedPath = pageData.relativePath.replace(/^\/+/, "");
-      const canonicalUrl = `https://btravstack.github.io/amqp-contract/${normalizedPath}`
+      // Each version canonicalizes to ITSELF — the beta site must not point its
+      // canonical tags at the stable site, or search engines fold the two
+      // together and the beta pages drop out of the index entirely.
+      const canonicalUrl = `${SITE_URL}${normalizedPath}`
         .replace(/index\.md$/, "")
         .replace(/\.md$/, ".html");
 
@@ -92,6 +123,11 @@ export default withMermaid(
         { text: "Changelog", link: "https://github.com/btravstack/amqp-contract/releases" },
         // Back to the btravstack hub (links the docs up to the landing page).
         { text: "btravstack", link: "https://btravstack.github.io/" },
+        // Version dropdown — empty unless DOCS_VERSIONS is set by the deploy
+        // workflow. Keep this LAST: inject-docs-version-nav.ts places the same
+        // dropdown right after the btravstack item on legacy tags, so the
+        // picker sits in the same spot on every version of the site.
+        ...VERSION_NAV,
       ],
 
       sidebar: {
@@ -214,7 +250,7 @@ export default withMermaid(
     },
 
     head: [
-      ["link", { rel: "icon", type: "image/svg+xml", href: "/amqp-contract/logo.svg" }],
+      ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}logo.svg` }],
       // SEO keywords meta tags
       [
         "meta",
@@ -232,7 +268,7 @@ export default withMermaid(
         "meta",
         {
           property: "og:image",
-          content: "https://btravstack.github.io/amqp-contract/og-amqp-contract.png",
+          content: `${SITE_URL}og-amqp-contract.png`,
         },
       ],
       ["meta", { property: "og:image:type", content: "image/png" }],
@@ -251,7 +287,7 @@ export default withMermaid(
         "meta",
         {
           name: "twitter:image",
-          content: "https://btravstack.github.io/amqp-contract/og-amqp-contract.png",
+          content: `${SITE_URL}og-amqp-contract.png`,
         },
       ],
       [
@@ -287,7 +323,7 @@ export default withMermaid(
             price: "0",
             priceCurrency: "USD",
           },
-          url: "https://btravstack.github.io/amqp-contract/",
+          url: SITE_URL,
           author: {
             "@type": "Person",
             name: "Benoit TRAVERS",
@@ -308,7 +344,7 @@ export default withMermaid(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "amqp-contract",
-          url: "https://btravstack.github.io/amqp-contract/",
+          url: SITE_URL,
         }),
       ],
       // Organization JSON-LD for logo display in Google search
@@ -319,10 +355,10 @@ export default withMermaid(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "amqp-contract",
-          url: "https://btravstack.github.io/amqp-contract/",
+          url: SITE_URL,
           logo: {
             "@type": "ImageObject",
-            url: "https://btravstack.github.io/amqp-contract/logo.svg",
+            url: `${SITE_URL}logo.svg`,
           },
           sameAs: ["https://github.com/btravstack/amqp-contract"],
         }),
