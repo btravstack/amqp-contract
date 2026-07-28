@@ -15,9 +15,9 @@ Two upstream changes, neither of which alters amqp-contract's own surface:
   combinators — so it is available on any amqp-contract result, but nothing here
   requires it.
 - `tapErrCases` no longer silently drops a `defect(…)` branch: it now produces a
-  `Defect` carrying an `AggregateError` of `[the branch's cause, the observed
-error]`, matching what a `throw` in the same position already did. This
-  codebase has no `tapErrCases` call sites, so nothing changed here — but a
+  `Defect` whose cause is an `AggregateError` of the branch's cause and the
+  observed error, matching what a `throw` in the same position already did.
+  This codebase has no `tapErrCases` call sites, so nothing changed here — but a
   consumer relying on that branch being dropped will now see a `Defect` surface
   where the pipeline previously carried on with the original `Err`.
 
