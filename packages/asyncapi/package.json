@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/asyncapi",
-  "version": "3.0.0-beta.1",
+  "version": "3.0.0-beta.2",
   "description": "AsyncAPI specification generator for amqp-contract",
   "keywords": [
     "amqp",
