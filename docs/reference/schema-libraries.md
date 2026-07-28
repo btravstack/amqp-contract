@@ -26,18 +26,21 @@ The practical advice: **use Zod unless you have a specific reason not to.** It h
 All three work identically with `defineMessage`:
 
 ```typescript
+import { defineMessage } from "@amqp-contract/contract";
 import { z } from "zod";
 
 defineMessage(z.object({ orderId: z.string(), amount: z.number().positive() }));
 ```
 
 ```typescript
+import { defineMessage } from "@amqp-contract/contract";
 import * as v from "valibot";
 
 defineMessage(v.object({ orderId: v.string(), amount: v.pipe(v.number(), v.minValue(0)) }));
 ```
 
 ```typescript
+import { defineMessage } from "@amqp-contract/contract";
 import { type } from "arktype";
 
 defineMessage(type({ orderId: "string", amount: "number>0" }));
