@@ -1,5 +1,7 @@
 # @amqp-contract/contract
 
+## 3.0.0-beta.3
+
 ## 3.0.0-beta.2
 
 ## 3.0.0-beta.1

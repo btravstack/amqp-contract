@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/core",
-  "version": "3.0.0-beta.2",
+  "version": "3.0.0-beta.3",
   "description": "Core utilities for AMQP setup and management in amqp-contract",
   "keywords": [
     "amqp",
