@@ -43,6 +43,8 @@ calculate: ({ payload }) =>
 ## Call it
 
 ```typescript
+import { P } from "unthrown";
+
 const result = await client.call("calculate", { a: 2, b: 3 }, { timeoutMs: 5_000 });
 
 result.match({
