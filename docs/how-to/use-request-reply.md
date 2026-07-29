@@ -49,9 +49,9 @@ result.match({
   ok: (reply) => console.log(reply.sum),
   errCases: (matcher) =>
     matcher
-      .with(tag("@amqp-contract/RpcTimeoutError"), () => console.error("no reply in time"))
-      .with(tag("@amqp-contract/RpcCancelledError"), () => console.error("client closing"))
-      .with(tag("@amqp-contract/MessageValidationError"), (e) =>
+      .with(P.tag("@amqp-contract/RpcTimeoutError"), () => console.error("no reply in time"))
+      .with(P.tag("@amqp-contract/RpcCancelledError"), () => console.error("client closing"))
+      .with(P.tag("@amqp-contract/MessageValidationError"), (e) =>
         console.error("reply failed its schema", e.issues),
       ),
   defect: (cause) => {

@@ -82,7 +82,7 @@ Replace the body of `publisher.ts` with:
 ```typescript
 // publisher.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
-import { tag } from "unthrown";
+import { P } from "unthrown";
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({
@@ -100,10 +100,10 @@ result.match({
   ok: (reply) => console.log(`deliverable=${reply.deliverable} (${reply.reason})`),
   errCases: (matcher) =>
     matcher
-      .with(tag("@amqp-contract/RpcTimeoutError"), () =>
+      .with(P.tag("@amqp-contract/RpcTimeoutError"), () =>
         console.error("No reply within 5s — is the worker running?"),
       )
-      .with(tag("@amqp-contract/RpcCancelledError"), () =>
+      .with(P.tag("@amqp-contract/RpcCancelledError"), () =>
         console.error("The client closed while the call was in flight."),
       ),
   defect: (cause) => {
@@ -207,13 +207,13 @@ Finally, handle it in `publisher.ts` by adding an arm to the matcher:
 ```typescript
   errCases: (matcher) =>
     matcher
-      .with(tag("@amqp-contract/RpcError"), (error) =>
+      .with(P.tag("@amqp-contract/RpcError"), (error) =>
         console.error(`${error.code}: ${error.message}`, error.data),
       )
-      .with(tag("@amqp-contract/RpcTimeoutError"), () =>
+      .with(P.tag("@amqp-contract/RpcTimeoutError"), () =>
         console.error("No reply within 5s — is the worker running?"),
       )
-      .with(tag("@amqp-contract/RpcCancelledError"), () =>
+      .with(P.tag("@amqp-contract/RpcCancelledError"), () =>
         console.error("The client closed while the call was in flight."),
       ),
 ```

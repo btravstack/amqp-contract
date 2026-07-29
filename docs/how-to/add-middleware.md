@@ -168,15 +168,15 @@ Call interceptors wrap the whole round trip — request validation, publish, and
 
 ```typescript
 import { RpcTimeoutError, type CallInterceptor } from "@amqp-contract/client";
-import { ErrAsync, tag } from "unthrown";
+import { ErrAsync, P } from "unthrown";
 
 const retryTimeoutsOnce: CallInterceptor = (args, next) =>
   next().flatMapErrCases((matcher) =>
     matcher.with(
-      tag("@amqp-contract/MessageValidationError"),
-      tag("@amqp-contract/RpcTimeoutError"),
-      tag("@amqp-contract/RpcCancelledError"),
-      tag("@amqp-contract/RpcError"),
+      P.tag("@amqp-contract/MessageValidationError"),
+      P.tag("@amqp-contract/RpcTimeoutError"),
+      P.tag("@amqp-contract/RpcCancelledError"),
+      P.tag("@amqp-contract/RpcError"),
       (error) => (error instanceof RpcTimeoutError ? next() : ErrAsync(error)),
     ),
   );

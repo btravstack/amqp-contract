@@ -56,7 +56,7 @@ Handling all three is one expression:
 result.match({
   ok: () => reply(202),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (e) => reply(400, e.message)),
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (e) => reply(400, e.message)),
   defect: (cause) => {
     logger.error({ cause }, "broker unreachable");
     reply(503);
@@ -73,9 +73,9 @@ The middle branch is not one function taking the error. It receives a matcher an
 ```typescript
 errCases: (matcher) =>
   matcher
-    .with(tag("@amqp-contract/RpcTimeoutError"), () => …)
-    .with(tag("@amqp-contract/RpcCancelledError"), () => …)
-    .with(tag("@amqp-contract/RpcError"), (e) => …),
+    .with(P.tag("@amqp-contract/RpcTimeoutError"), () => …)
+    .with(P.tag("@amqp-contract/RpcCancelledError"), () => …)
+    .with(P.tag("@amqp-contract/RpcError"), (e) => …),
 ```
 
 The payoff is what happens when the union grows. Add a declared error to an RPC and every `match` over its result stops compiling until the new case is handled. A single `err: (e) => …` callback would keep compiling and silently take the wrong branch — which is exactly the failure mode of `catch`, reintroduced.

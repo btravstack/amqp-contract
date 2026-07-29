@@ -589,10 +589,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    *   ok: (value) => console.log(value.sum), // 3
    *   errCases: (matcher) =>
    *     matcher.with(
-   *       tag("@amqp-contract/MessageValidationError"),
-   *       tag("@amqp-contract/RpcTimeoutError"),
-   *       tag("@amqp-contract/RpcCancelledError"),
-   *       tag("@amqp-contract/RpcError"),
+   *       P.tag("@amqp-contract/MessageValidationError"),
+   *       P.tag("@amqp-contract/RpcTimeoutError"),
+   *       P.tag("@amqp-contract/RpcCancelledError"),
+   *       P.tag("@amqp-contract/RpcError"),
    *       (error) => console.error(error),
    *     ),
    *   // Transport/infrastructure failures surface here, never in `errCases`.
