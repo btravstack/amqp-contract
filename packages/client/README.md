@@ -21,7 +21,7 @@ pnpm add @amqp-contract/client
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { P } from "unthrown";
-import { contract } from "./contract";
+import { contract } from "./contract.js";
 
 // Create client from contract (automatically connects and waits for connection)
 const client = await TypedAmqpClient.create({
@@ -47,7 +47,7 @@ result.match({
 });
 
 // Clean up
-await client.close();
+await client.close().get();
 ```
 
 ## Error Handling

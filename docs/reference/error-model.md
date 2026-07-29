@@ -124,6 +124,7 @@ These are unexpected, so they surface through the **defect** channel, never as a
 
 ```typescript
 import { TechnicalError } from "@amqp-contract/core";
+import { P } from "unthrown";
 
 result.match({
   ok: () => {},
