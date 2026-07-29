@@ -12,6 +12,7 @@
   "changesets": [
     "adopt-btravstack-0.2",
     "adopt-unthrown-v5-beta",
+    "bump-unthrown-5-stable",
     "bump-unthrown-beta-5",
     "bump-unthrown-beta-6",
     "bump-unthrown-beta-7",
