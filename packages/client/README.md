@@ -20,7 +20,7 @@ pnpm add @amqp-contract/client
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
-import { tag } from "unthrown";
+import { P } from "unthrown";
 import { contract } from "./contract";
 
 // Create client from contract (automatically connects and waits for connection)
@@ -37,7 +37,7 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published successfully"),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
       console.error("Publish failed:", error),
     ),
   defect: (cause) => {

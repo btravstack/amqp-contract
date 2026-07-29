@@ -98,7 +98,7 @@ The payload does not satisfy the publisher's schema. `error.issues` carries the 
 
 ```typescript
 errCases: (matcher) =>
-  matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+  matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
     console.error(JSON.stringify(error.issues, null, 2)),
   ),
 ```

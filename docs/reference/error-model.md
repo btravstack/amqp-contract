@@ -127,7 +127,8 @@ import { TechnicalError } from "@amqp-contract/core";
 
 result.match({
   ok: () => {},
-  errCases: (matcher) => matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {}),
+  errCases: (matcher) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {}),
   defect: (cause) => {
     if (cause instanceof TechnicalError) {
       // cause.cause is the original amqplib / amqp-connection-manager error

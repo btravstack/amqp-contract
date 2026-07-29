@@ -52,12 +52,12 @@ The first argument must be a publisher name from the contract; the second is che
 Handle the outcome:
 
 ```typescript
-import { tag } from "unthrown";
+import { P } from "unthrown";
 
 result.match({
   ok: () => console.log("published"),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
       console.error("invalid payload:", error.issues),
     ),
   defect: (cause) => {

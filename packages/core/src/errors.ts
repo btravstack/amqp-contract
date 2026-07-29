@@ -95,7 +95,7 @@ export const RPC_ERROR_CODE_HEADER = "x-amqp-contract-error-code";
  *
  * Carries a `_tag` of `"@amqp-contract/RpcError"` for exhaustive dispatch via
  * the error matcher (`result.match({ ok, defect, errCases: (matcher) =>
- * matcher.with(tag("@amqp-contract/RpcError"), …) })`); the `Error.name` is kept
+ * matcher.with(P.tag("@amqp-contract/RpcError"), …) })`); the `Error.name` is kept
  * bare (`"RpcError"`). Discriminate between codes on the `code` property.
  */
 export class RpcError<TCode extends string = string, TData = unknown> extends TaggedError(
@@ -119,7 +119,7 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
  *
  * Narrowing to a specific code (and thus a typed `data`) is done on the
  * `code` property after the guard, or via the error matcher on the `_tag`
- * (`matcher.with(tag("@amqp-contract/RpcError"), …)`).
+ * (`matcher.with(P.tag("@amqp-contract/RpcError"), …)`).
  */
 export function isRpcError(error: unknown): error is RpcError {
   return error instanceof RpcError;

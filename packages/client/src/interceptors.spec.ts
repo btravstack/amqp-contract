@@ -1,5 +1,5 @@
 import { MessageValidationError } from "@amqp-contract/core";
-import { ErrAsync, OkAsync, tag, type AsyncResult } from "unthrown";
+import { ErrAsync, OkAsync, P, type AsyncResult } from "unthrown";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -90,7 +90,7 @@ describe("chainInterceptors", () => {
     const retryOnce: PublishInterceptor = (_args, next) =>
       next().flatMapErrCases((matcher) =>
         matcher.with(
-          tag("@amqp-contract/MessageValidationError"),
+          P.tag("@amqp-contract/MessageValidationError"),
           (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
         ),
       );

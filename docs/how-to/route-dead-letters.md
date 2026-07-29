@@ -111,7 +111,7 @@ There is no built-in replay. Consume from the dead-letter queue and publish back
 
 ```typescript
 import { NonRetryableError } from "@amqp-contract/worker";
-import { Err, OkAsync, tag } from "unthrown";
+import { Err, OkAsync, P } from "unthrown";
 
 handleFailedOrders: ({ payload }) =>
   shouldReplay(payload)
@@ -119,7 +119,7 @@ handleFailedOrders: ({ payload }) =>
         .publish("orderCreated", payload)
         .mapErrCases((matcher) =>
           matcher.with(
-            tag("@amqp-contract/MessageValidationError"),
+            P.tag("@amqp-contract/MessageValidationError"),
             (error) => new NonRetryableError("replay rejected", error),
           ),
         )

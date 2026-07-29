@@ -305,7 +305,7 @@ The client is in a separate package (`@amqp-contract-examples/basic-order-proces
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-import { tag } from "unthrown";
+import { P } from "unthrown";
 
 const client = await TypedAmqpClient.create({
   contract: orderContract,
@@ -324,7 +324,7 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Order published successfully"),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {
       console.error("Failed to publish:", error.message);
       // Handle error appropriately
     }),
@@ -344,7 +344,7 @@ const updateResult = await client.publish("orderUpdated", {
 updateResult.match({
   ok: () => console.log("Status update published"),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
       console.error("Failed:", error),
     ),
   defect: (cause) => {

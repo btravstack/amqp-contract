@@ -34,7 +34,7 @@ The usual reason to want sharing. The subtlety is not the connection; it is that
 
 ```typescript
 import { RetryableError } from "@amqp-contract/worker";
-import { Err, tag } from "unthrown";
+import { Err, P } from "unthrown";
 
 processOrder: ({ payload }) =>
   client
@@ -43,7 +43,7 @@ processOrder: ({ payload }) =>
     // Modeled validation failure → retryable handler error
     .mapErrCases((matcher) =>
       matcher.with(
-        tag("@amqp-contract/MessageValidationError"),
+        P.tag("@amqp-contract/MessageValidationError"),
         (error) => new RetryableError("failed to publish", error),
       ),
     )

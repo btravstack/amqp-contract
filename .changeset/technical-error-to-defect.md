@@ -14,7 +14,7 @@ defect cause. Only _anticipated domain_ failures remain in `E`:
 `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`,
 and the worker's `RetryableError`/`NonRetryableError`.
 
-**Breaking.** Consumers that matched `tag("@amqp-contract/TechnicalError")` in
+**Breaking.** Consumers that matched `P.tag("@amqp-contract/TechnicalError")` in
 an error matcher (`match`'s `errCases`, `mapErrCases`, `tapErrCases`, …) must
 move that handling to the `defect` arm of `match` (or `recoverDefect` /
 `tapDefect`). Error channels narrow accordingly: `client.publish(...)` is now

@@ -35,7 +35,7 @@ import {
   fromSafeThrowable,
   Ok,
   OkAsync,
-  tag,
+  P,
   type AsyncResult,
   type Result,
 } from "unthrown";
@@ -606,7 +606,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           buffer,
           (error) => new TechnicalError("Failed to parse JSON", error),
         ).mapErrCases((matcher, defect) =>
-          matcher.with(tag("@amqp-contract/TechnicalError"), (error) => defect(error)),
+          matcher.with(P.tag("@amqp-contract/TechnicalError"), (error) => defect(error)),
         ),
       )
       .flatMap((parsed) =>
@@ -1012,9 +1012,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           )
           .flatMapErrCases((matcher) =>
             matcher.with(
-              tag("@amqp-contract/RetryableError"),
-              tag("@amqp-contract/NonRetryableError"),
-              tag("@amqp-contract/RpcError"),
+              P.tag("@amqp-contract/RetryableError"),
+              P.tag("@amqp-contract/NonRetryableError"),
+              P.tag("@amqp-contract/RpcError"),
               (handlerError) => {
                 // A contract-declared RpcError is the RPC's business-failure
                 // channel, not a processing failure: publish it back to the
@@ -1034,8 +1034,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                     })
                     .flatMapErrCases((replyMatcher) =>
                       replyMatcher.with(
-                        tag("@amqp-contract/RetryableError"),
-                        tag("@amqp-contract/NonRetryableError"),
+                        P.tag("@amqp-contract/RetryableError"),
+                        P.tag("@amqp-contract/NonRetryableError"),
                         (replyError: HandlerError) =>
                           this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
                       ),

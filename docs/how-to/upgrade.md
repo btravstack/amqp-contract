@@ -22,11 +22,13 @@ pnpm add unthrown@^5
 `match`'s error key is renamed and now takes an exhaustive matcher rather than a single callback:
 
 ```diff
++ import { P } from "unthrown";
+
   result.match({
     ok: () => {/* … */},
 -   err: (error) => {/* … */},
 +   errCases: (matcher) =>
-+     matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {/* … */}),
++     matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {/* … */}),
     defect: (cause) => { throw cause; },
   });
 ```
@@ -42,7 +44,11 @@ The bare error combinators gain a `*Cases` suffix and the same matcher shape:
 
 Return the **un-terminated** builder — `unthrown` calls `.exhaustive()` for you, so a missing case is a compile error at the call site. `.with(P._, handler)` is the catch-all when you genuinely want uniform handling.
 
-The matcher is built into `unthrown` as of `5.0.0-beta.6`; earlier betas required `ts-pattern` as a peer. If you added `ts-pattern` for beta.5, **remove it** — `unthrown` now has zero runtime dependencies.
+The matcher and its patterns are built into `unthrown` — `match`, `P` and `P.tag` all come from the `unthrown` root export, and it has zero runtime dependencies. If you carried `ts-pattern` only for `unthrown`, **remove it**.
+
+::: tip Tracking the 3.0 betas?
+`unthrown` `5.0.0-beta.9` folded the standalone `tag` export into the pattern namespace as `P.tag`. If you pinned an earlier beta, swap `import { tag }` for `import { P }` and prefix the call sites — the pattern's type and runtime behaviour are unchanged.
+:::
 
 ### `TechnicalError` moved to the defect channel
 
@@ -50,18 +56,18 @@ Infrastructure and transport failures — connection, publish, consume, cancel, 
 
 Only anticipated domain failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, and the worker's `RetryableError` / `NonRetryableError`.
 
-Matching `tag("@amqp-contract/TechnicalError")` in an error matcher no longer typechecks. Move it to the `defect` arm:
+Matching `P.tag("@amqp-contract/TechnicalError")` in an error matcher no longer typechecks. Move it to the `defect` arm:
 
 ```diff
   result.match({
     ok: () => {/* … */},
     errCases: (matcher) =>
 -     matcher.with(
--       tag("@amqp-contract/TechnicalError"),
--       tag("@amqp-contract/MessageValidationError"),
+-       P.tag("@amqp-contract/TechnicalError"),
+-       P.tag("@amqp-contract/MessageValidationError"),
 -       (error) => {/* … */},
 -     ),
-+     matcher.with(tag("@amqp-contract/MessageValidationError"), (error) => {/* … */}),
++     matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {/* … */}),
     defect: (cause) => {
 +     // a TechnicalError arrives here now
       throw cause;

@@ -113,7 +113,7 @@ Create `publisher.ts`:
 ```typescript
 // publisher.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
-import { tag } from "unthrown";
+import { P } from "unthrown";
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({
@@ -132,7 +132,7 @@ const result = await client.publish("sendEmail", {
 result.match({
   ok: () => console.log("Published."),
   errCases: (matcher) =>
-    matcher.with(tag("@amqp-contract/MessageValidationError"), (error) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
       console.error("The message did not match the schema:", error.message),
     ),
   defect: (cause) => {
