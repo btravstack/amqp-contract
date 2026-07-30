@@ -246,11 +246,14 @@ export function defineExchangeBinding(
     } as ExchangeBindingDefinition;
   }
 
+  const routingKey = options?.routingKey;
+  _internal_assertRoutingKeyPresent("Exchange binding", source.name, source.type, routingKey);
+
   return {
     type: "exchange",
     source,
     destination,
-    routingKey: options?.routingKey ?? "",
+    routingKey,
     ...(options?.arguments && { arguments: options.arguments }),
   } as ExchangeBindingDefinition;
 }
