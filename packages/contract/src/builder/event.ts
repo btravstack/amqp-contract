@@ -241,9 +241,10 @@ export function defineEventPublisher<
   },
 ): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
 
-/**
- * Implementation of defineEventPublisher.
- * @internal
+/*
+ * Implementation signature of defineEventPublisher. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineEventPublisher<TMessage extends MessageDefinition>(
   exchange: ExchangeDefinition,
@@ -517,9 +518,10 @@ export function defineEventConsumer<
   },
 ): EventConsumerResult<TMessage, TExchange, TQueueEntry>;
 
-/**
- * Implementation of defineEventConsumer.
- * @internal
+/*
+ * Implementation signature of defineEventConsumer. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineEventConsumer<TMessage extends MessageDefinition>(
   eventPublisher: EventPublisherConfig<TMessage, ExchangeDefinition, string | undefined>,

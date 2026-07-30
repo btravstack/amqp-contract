@@ -1,6 +1,11 @@
+---
+title: Command pattern - amqp-contract
+description: Illustrative walkthrough of a task queue — many publishers, one consumer — built with defineCommandConsumer and defineCommandPublisher.
+---
+
 # Command Pattern
 
-Where the [event pattern](/guide/defining-contracts) is one publisher and many consumers (broadcast), the **command pattern** is the inverse: many publishers, one consumer (a task queue). Use it when work has a single owner and you want producers anywhere in the system to enqueue jobs for it.
+Where the [event pattern](/how-to/define-a-contract#broadcast-an-event-to-many-consumers) is one publisher and many consumers (broadcast), the **command pattern** is the inverse: many publishers, one consumer (a task queue). Use it when work has a single owner and you want producers anywhere in the system to enqueue jobs for it.
 
 This example shows a `payment-service` that owns a `payments` queue and exposes a single command, `chargeCustomer`. Multiple services (orders, subscriptions, refunds) publish to it.
 
@@ -97,7 +102,7 @@ import {
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
-import { fromPromise, type AsyncResult, type Result } from "unthrown";
+import { fromPromise } from "unthrown";
 import { contract } from "@org/payment-contract";
 
 const chargeHandler = declareHandler(contract, "chargeCustomer", ({ payload }) =>
@@ -128,7 +133,7 @@ const worker = await TypedAmqpWorker.create({
 }).get();
 
 process.on("SIGINT", async () => {
-  await worker.close();
+  await worker.close().get();
   process.exit(0);
 });
 ```
@@ -157,6 +162,6 @@ Notes worth calling out:
 
 ## See also
 
-- [Defining Contracts](/guide/defining-contracts) — full reference for both patterns.
-- [Retry Strategies](/guide/retry-strategies) — picking a retry mode.
-- [Bridge Exchanges](/guide/bridge-exchanges) — using the command pattern across domain boundaries.
+- [Define a contract](/how-to/define-a-contract) — full reference for both patterns.
+- [Retry failed messages](/how-to/retry-failed-messages) — picking a retry mode.
+- [Bridge domains](/how-to/bridge-domains) — using the command pattern across domain boundaries.

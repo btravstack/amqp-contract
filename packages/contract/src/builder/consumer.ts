@@ -101,17 +101,19 @@ export function extractConsumer(entry: ConsumerEntry): ConsumerDefinition {
  *
  * const processOrderConsumer = defineConsumer(orderQueue, orderMessage);
  *
- * // Later, when creating a worker, you'll provide a handler for this consumer:
+ * // Later, when creating a worker, you'll provide a handler for this consumer.
+ * // Handlers return AsyncResult<void, HandlerError> (from unthrown):
  * // const worker = await TypedAmqpWorker.create({
  * //   contract,
  * //   handlers: {
- * //     processOrder: async (message) => {
- * //       // message is automatically typed based on the schema
- * //       console.log(message.orderId); // string
- * //     }
+ * //     processOrder: ({ payload }) => {
+ * //       // payload is automatically typed based on the schema
+ * //       console.log(payload.orderId); // string
+ * //       return OkAsync();
+ * //     },
  * //   },
- * //   connection
- * // });
+ * //   urls: ['amqp://localhost'],
+ * // }).get();
  * ```
  *
  * @see defineCommandConsumer - For task queue patterns with automatic schema consistency

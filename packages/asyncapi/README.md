@@ -21,9 +21,9 @@ pnpm add @amqp-contract/asyncapi
 ```typescript
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { writeFileSync } from "fs";
+import { writeFileSync } from "node:fs";
 
-import { contract } from "./contract";
+import { contract } from "./contract.js";
 
 // Create generator with schema converters
 const generator = new AsyncAPIGenerator({

@@ -140,10 +140,8 @@ export type RetryOptions = NoneRetryOptions | ImmediateRequeueRetryOptions | Ttl
 /**
  * Resolved TTL-Backoff retry options with all defaults applied.
  *
- * This type is used internally in queue definitions after `defineQueue` has applied
+ * This is what queue definitions carry after `defineQueue` has applied
  * default values. All fields are required.
- *
- * @internal
  */
 export type ResolvedTtlBackoffRetryOptions = {
   mode: "ttl-backoff";
@@ -160,10 +158,8 @@ export type ResolvedTtlBackoffRetryOptions = {
 /**
  * Resolved Immediate-Requeue retry options with all defaults applied.
  *
- * This type is used internally in queue definitions after `defineQueue` has applied
+ * This is what queue definitions carry after `defineQueue` has applied
  * default values. All fields are required.
- *
- * @internal
  */
 export type ResolvedImmediateRequeueRetryOptions = {
   mode: "immediate-requeue";

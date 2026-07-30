@@ -94,16 +94,11 @@ export function defineQueueBinding(
   { exchange: DirectExchangeDefinition | TopicExchangeDefinition }
 >;
 
-/**
- * Define a binding between a queue and an exchange.
- *
- * This is the implementation function - use the type-specific overloads for better type safety.
- *
- * @param queue - The queue definition or queue with infrastructure to bind
- * @param exchange - The exchange definition
- * @param options - Optional binding configuration
- * @returns A queue binding definition
- * @internal
+/*
+ * Implementation signature of defineQueueBinding — not part of the public
+ * overload set; use the type-specific overloads above. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineQueueBinding(
   queue: QueueEntry,
@@ -228,16 +223,11 @@ export function defineExchangeBinding(
   { source: DirectExchangeDefinition | TopicExchangeDefinition }
 >;
 
-/**
- * Define a binding between two exchanges (exchange-to-exchange routing).
- *
- * This is the implementation function - use the type-specific overloads for better type safety.
- *
- * @param destination - The destination exchange definition
- * @param source - The source exchange definition
- * @param options - Optional binding configuration
- * @returns An exchange binding definition
- * @internal
+/*
+ * Implementation signature of defineExchangeBinding — not part of the public
+ * overload set; use the type-specific overloads above. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineExchangeBinding(
   destination: ExchangeDefinition,

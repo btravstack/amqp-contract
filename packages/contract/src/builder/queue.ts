@@ -103,12 +103,12 @@ function resolveTtlBackoffOptions(
  * });
  *
  * // Queue with TTL-backoff retry (returns infrastructure automatically)
- * const dlx = defineExchange('orders-dlx', { type: 'direct' });
- * const orderQueue = defineQueue('order-processing', {
- *   deadLetter: { exchange: dlx },
+ * const retryDlx = defineExchange('payments-dlx', { type: 'direct' });
+ * const paymentQueue = defineQueue('payment-processing', {
+ *   deadLetter: { exchange: retryDlx },
  *   retry: { mode: 'ttl-backoff', maxRetries: 5 },
  * });
- * // orderQueue is QueueWithTtlBackoffInfrastructure, pass directly to defineContract
+ * // paymentQueue is QueueWithTtlBackoffInfrastructure, pass directly to defineContract
  * ```
  */
 export function defineQueue<TName extends string, TDlx extends ExchangeDefinition>(

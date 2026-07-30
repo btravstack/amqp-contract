@@ -63,7 +63,7 @@ publish(): AsyncResult<void, MessageValidationError>
 - `MessageValidationError` - Message fails schema validation (a modeled `Err` in `E`)
 - `TechnicalError` - Runtime failures (channel buffer full, network issues, etc.), surfaced as a **defect** (handled in the `defect` arm of `match`, or via `recoverDefect` / `tapDefect`), never a modeled error
 
-**Programming Errors** (client not initialized, invalid publisher name) throw exceptions since they indicate bugs caught by TypeScript at compile-time.
+**Programming Errors** (invalid publisher name) throw exceptions since they indicate bugs caught by TypeScript at compile-time.
 
 ## API
 

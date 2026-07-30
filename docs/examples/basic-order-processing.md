@@ -1,17 +1,23 @@
+---
+title: Basic order processing - amqp-contract
+description: Annotated tour of the runnable order-processing example — topic routing with wildcards, typed headers, a dead-letter consumer, and the command pattern in one contract.
+---
+
 # Basic Order Processing
 
-A complete example demonstrating type-safe AMQP messaging with the [RabbitMQ](https://www.rabbitmq.com/) topic pattern.
+A complete example demonstrating type-safe AMQP messaging with the [RabbitMQ](https://www.rabbitmq.com/) topic pattern. This page is an annotated tour of the runnable code under [`examples/`](https://github.com/btravstack/amqp-contract/tree/main/examples) — the snippets below are taken from it, lightly trimmed.
 
 ## Overview
 
 This example showcases:
 
 - ✅ Contract definition with [Zod](https://zod.dev/) schemas
-- ✅ Type-safe message publishing
-- ✅ Type-safe message consumption
+- ✅ Type-safe message publishing and consumption
 - ✅ [RabbitMQ](https://www.rabbitmq.com/) topic exchange with wildcards
-- ✅ Multiple consumers with different routing patterns
-- ✅ Full end-to-end type safety
+- ✅ Typed, validated message headers
+- ✅ The event pattern **and** the command pattern (a task queue) in one contract
+- ✅ A dead-letter exchange with its own consumer
+- ✅ Raw queue arguments (`x-message-ttl`)
 
 ## Architecture
 
@@ -19,7 +25,7 @@ The example consists of three packages:
 
 1. **Contract** - Shared contract definition
 2. **Client** - Publisher application
-3. **Worker** - Consumer application with multiple handlers
+3. **Worker** - Consumer application with six handlers
 
 ```mermaid
 graph LR
@@ -32,7 +38,7 @@ graph LR
     end
 
     subgraph "Worker Package"
-        WorkerApp[⚙️ Consumer App<br/>4 Handlers]
+        WorkerApp[⚙️ Consumer App<br/>6 Handlers]
     end
 
     Contract -.->|import| ClientApp
@@ -49,7 +55,7 @@ graph LR
 
 ## Topic Exchange Pattern
 
-This example demonstrates [RabbitMQ](https://www.rabbitmq.com/)'s powerful topic exchange pattern for flexible message routing.
+Events flow through the `orders` topic exchange; the fulfillment command flows through a dedicated `fulfillment` direct exchange; failures land on the `orders-dlx` dead-letter exchange.
 
 ### Routing Diagram
 
@@ -58,52 +64,43 @@ graph TB
     Publisher[📤 Publisher]
 
     Exchange["🔄 Topic Exchange<br/><b>orders</b>"]
+    Fulfillment["🔄 Direct Exchange<br/><b>fulfillment</b>"]
+    Dlx["🔄 Exchange<br/><b>orders-dlx</b>"]
 
-    Q1["📬 Queue: order-processing<br/>Binding: order.created"]
-    Q2["📬 Queue: order-notifications<br/>Binding: order.#"]
-    Q3["📬 Queue: order-shipping<br/>Binding: order.shipped"]
-    Q4["📬 Queue: order-urgent<br/>Binding: order.*.urgent"]
+    Q1["📬 order-processing<br/>Binding: order.created"]
+    Q2["📬 order-notifications<br/>Binding: order.#"]
+    Q3["📬 order-shipping<br/>Binding: order.shipped"]
+    Q4["📬 order-urgent<br/>Binding: order.*.urgent"]
+    Q5["📬 order-fulfillment<br/>Binding: order.fulfill"]
+    Q6["📬 orders-dlx-queue<br/>Binding: order.failed"]
 
-    H1["⚙️ processOrder"]
-    H2["⚙️ notifyOrder"]
-    H3["⚙️ shipOrder"]
-    H4["⚙️ handleUrgentOrder"]
+    Publisher -->|"order.created / order.updated / order.shipped / order.updated.urgent"| Exchange
+    Publisher -->|"order.fulfill (command)"| Fulfillment
+    Q1 -.->|"failed messages"| Dlx
 
-    Publisher -->|"order.created"| Exchange
-    Publisher -->|"order.updated"| Exchange
-    Publisher -->|"order.shipped"| Exchange
-    Publisher -->|"order.updated.urgent"| Exchange
-
-    Exchange -->|"✓ matches"| Q1
-    Exchange -->|"✓ matches all"| Q2
-    Exchange -->|"✓ matches"| Q3
-    Exchange -->|"✓ matches"| Q4
-
-    Q1 --> H1
-    Q2 --> H2
-    Q3 --> H3
-    Q4 --> H4
+    Exchange --> Q1
+    Exchange --> Q2
+    Exchange --> Q3
+    Exchange --> Q4
+    Fulfillment --> Q5
+    Dlx --> Q6
 
     style Publisher fill:#d4edda
     style Exchange fill:#fff3cd
-    style Q1 fill:#f8d7da
-    style Q2 fill:#f8d7da
-    style Q3 fill:#f8d7da
-    style Q4 fill:#f8d7da
-    style H1 fill:#e1f5ff
-    style H2 fill:#e1f5ff
-    style H3 fill:#e1f5ff
-    style H4 fill:#e1f5ff
+    style Fulfillment fill:#fff3cd
+    style Dlx fill:#f8d7da
 ```
 
 ### Routing Keys
 
 The example uses these routing keys:
 
-- `order.created` - New orders
-- `order.updated` - Regular status updates
-- `order.shipped` - Shipped orders
+- `order.created` - New orders (event)
+- `order.updated` - Regular status updates (event)
+- `order.shipped` - Shipped orders (event)
 - `order.*.urgent` - Urgent updates (wildcard pattern)
+- `order.fulfill` - Fulfillment command (task queue, direct exchange)
+- `order.failed` - Dead-lettered messages (DLX)
 
 ### Routing Patterns
 
@@ -158,56 +155,11 @@ pnpm --filter @amqp-contract-examples/basic-order-processing-worker dev
 pnpm --filter @amqp-contract-examples/basic-order-processing-client dev
 ```
 
-### Expected Output
-
-The client publishes 5 messages, and you'll see the worker process them according to the routing patterns:
-
-**Client Output:**
-
-```
-1️⃣ Publishing NEW ORDER (order.created)
-   ✓ Published order ORD-001
-   → Will be received by: processing & notifications queues
-
-2️⃣ Publishing ORDER UPDATE (order.updated)
-   ✓ Published update for ORD-001
-   → Will be received by: notifications queue only
-
-3️⃣ Publishing ORDER SHIPPED (order.shipped)
-   ✓ Published shipment for ORD-001
-   → Will be received by: notifications & shipping queues
-
-4️⃣ Publishing ANOTHER NEW ORDER (order.created)
-   ✓ Published order ORD-002
-   → Will be received by: processing & notifications queues
-
-5️⃣ Publishing URGENT ORDER UPDATE (order.updated.urgent)
-   ✓ Published urgent update for ORD-002
-   → Will be received by: notifications & urgent queues
-```
-
-**Worker Output:**
-
-```
-Subscribed to:
-  • order.created     → processOrder handler
-  • order.#           → notifyOrder handler (all events)
-  • order.shipped     → shipOrder handler
-  • order.*.urgent    → handleUrgentOrder handler
-
-[PROCESSING] New order received (ORD-001)
-[NOTIFICATIONS] Event received (new_order: ORD-001)
-[NOTIFICATIONS] Event received (status_update: ORD-001)
-[SHIPPING] Shipment notification received (ORD-001)
-[NOTIFICATIONS] Event received (new_order: ORD-002)
-[PROCESSING] New order received (ORD-002)
-[URGENT] Priority order update received! (ORD-002)
-[NOTIFICATIONS] Event received (status_update: ORD-002)
-```
+The client publishes four events (two `order.created`, one `order.updated`, one `order.shipped`, one `order.updated.urgent`) and sends one `order.fulfill` command; the worker logs each handler as messages arrive.
 
 ## Contract Definition
 
-The contract is defined in a separate package (`@amqp-contract-examples/basic-order-processing-contract`) that is shared between the client and worker.
+The contract lives in `@amqp-contract-examples/basic-order-processing-contract`, shared by the client and worker.
 
 ### Message Schemas
 
@@ -225,7 +177,10 @@ const orderSchema = z.object({
     }),
   ),
   totalAmount: z.number().positive(),
-  createdAt: z.string().datetime(),
+  createdAt: z
+    .string()
+    .datetime()
+    .default(() => new Date().toISOString()),
 });
 ```
 
@@ -235,7 +190,29 @@ const orderSchema = z.object({
 const orderStatusSchema = z.object({
   orderId: z.string(),
   status: z.enum(["processing", "shipped", "delivered", "cancelled"]),
-  updatedAt: z.string().datetime(),
+  updatedAt: z
+    .string()
+    .datetime()
+    .default(() => new Date().toISOString()),
+});
+```
+
+**Fulfillment Command Schema** — a command is an instruction to do work, addressed to one owner:
+
+```typescript
+const fulfillmentSchema = z.object({
+  orderId: z.string(),
+  warehouseId: z.string(),
+  priority: z.enum(["standard", "express"]).default("standard"),
+});
+```
+
+**Typed Headers** — validated on consumption like any payload:
+
+```typescript
+const orderHeadersSchema = z.object({
+  eventSource: z.string().default("order-service"),
+  eventVersion: z.number().default(1),
 });
 ```
 
@@ -244,18 +221,37 @@ const orderStatusSchema = z.object({
 ```typescript
 // 1. Define resources first
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const ordersDlx = defineExchange("orders-dlx");
+// A command targets a single owner, so a direct exchange fits.
+const fulfillmentExchange = defineExchange("fulfillment", { type: "direct" });
+
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+  arguments: {
+    "x-message-ttl": 86400000, // 24 hours
+  },
+});
 const orderNotificationsQueue = defineQueue("order-notifications");
 const orderShippingQueue = defineQueue("order-shipping");
 const orderUrgentQueue = defineQueue("order-urgent");
+const orderFulfillmentQueue = defineQueue("order-fulfillment");
+const ordersDlxQueue = defineQueue("orders-dlx-queue");
 
 // 2. Define messages
 const orderMessage = defineMessage(orderSchema, {
+  headers: orderHeadersSchema,
   summary: "Order created event",
-  description: "Emitted when a new order is created",
+  description: "Emitted when a new order is created in the system",
 });
-const orderStatusMessage = defineMessage(orderStatusSchema);
+const orderStatusMessage = defineMessage(orderStatusSchema, {
+  summary: "Order status update event",
+  description: "Emitted when an order status changes",
+});
 const orderUnionMessage = defineMessage(z.union([orderSchema, orderStatusSchema]));
+const fulfillmentMessage = defineMessage(fulfillmentSchema, {
+  summary: "Order fulfillment command",
+  description: "Instructs the fulfillment service to pick, pack, and ship an order",
+});
 
 // 3. Define event publishers
 const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
@@ -265,15 +261,29 @@ const orderShippedEvent = defineEventPublisher(ordersExchange, orderStatusMessag
   routingKey: "order.shipped",
 });
 
-// Virtual event publishers for consumers with different message types or patterns
+// Virtual event publishers exist only to type consumers with a different
+// message type or a wildcard binding — they are not in the publishers section.
 const allOrderEvents = defineEventPublisher(ordersExchange, orderUnionMessage, {
   routingKey: "order.created",
 });
 const urgentOrderEvents = defineEventPublisher(ordersExchange, orderStatusMessage, {
   routingKey: "order.updated.urgent",
 });
+const failedOrderEvent = defineEventPublisher(ordersDlx, orderMessage, {
+  routingKey: "order.failed",
+});
 
-// 4. Compose contract - exchanges, queues, and bindings are auto-extracted
+// 4. Command pattern: the consumer owns the queue; the publisher is derived
+// from it, so callers cannot drift from the owner's contract.
+const fulfillOrder = defineCommandConsumer(
+  orderFulfillmentQueue,
+  fulfillmentExchange,
+  fulfillmentMessage,
+  { routingKey: "order.fulfill" },
+);
+const requestFulfillment = defineCommandPublisher(fulfillOrder);
+
+// 5. Compose contract - exchanges, queues, and bindings are auto-extracted
 export const orderContract = defineContract({
   publishers: {
     orderCreated: orderCreatedEvent,
@@ -284,6 +294,7 @@ export const orderContract = defineContract({
     orderUrgentUpdate: definePublisher(ordersExchange, orderStatusMessage, {
       routingKey: "order.updated.urgent",
     }),
+    requestFulfillment,
   },
   consumers: {
     processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
@@ -294,114 +305,166 @@ export const orderContract = defineContract({
     handleUrgentOrder: defineEventConsumer(urgentOrderEvents, orderUrgentQueue, {
       routingKey: "order.*.urgent",
     }),
+    handleFailedOrders: defineEventConsumer(failedOrderEvent, ordersDlxQueue),
+    fulfillOrder,
   },
 });
 ```
 
+Five publishers, six consumers: four event publishers plus a derived command publisher; four event consumers plus a dead-letter consumer and the command consumer that owns the task queue.
+
 ## Client Implementation
 
-The client is in a separate package (`@amqp-contract-examples/basic-order-processing-client`) that imports the contract:
+The client (`@amqp-contract-examples/basic-order-processing-client`) imports the contract and publishes with full type inference. It also installs a publish interceptor so every publish is logged in one place:
 
 ```typescript
-import { TypedAmqpClient } from "@amqp-contract/client";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-import { P } from "unthrown";
+import { type PublishInterceptor, TypedAmqpClient } from "@amqp-contract/client";
+
+// Logs every publish (before and after) instead of wrapping each call site.
+const logPublishes: PublishInterceptor = (args, next) => {
+  console.debug(`Publishing to ${args.publisherName}`);
+  return next()
+    .tap(() => console.debug(`Successfully published to ${args.publisherName}`))
+    .tapFailure((failure) => console.error(`Failed to publish: ${args.publisherName}`, failure));
+};
 
 const client = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"],
+  publishInterceptors: [logPublishes],
 }).get();
 
-// Publish new order with explicit error handling
-const result = await client.publish("orderCreated", {
-  orderId: "ORD-001",
-  customerId: "CUST-123",
-  items: [{ productId: "PROD-A", quantity: 2, price: 29.99 }],
-  totalAmount: 59.98,
-  createdAt: new Date().toISOString(),
-});
+// Publish a new order. publish() returns an AsyncResult; the demo extracts it
+// with getOrThrow() — production code would usually .match() on the Result.
+await client
+  .publish("orderCreated", {
+    orderId: "ORD-001",
+    customerId: "CUST-123",
+    items: [{ productId: "PROD-A", quantity: 2, price: 29.99 }],
+    totalAmount: 59.98,
+  })
+  .getOrThrow();
 
-result.match({
-  ok: () => console.log("Order published successfully"),
-  errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {
-      console.error("Failed to publish:", error.message);
-      // Handle error appropriately
-    }),
-  defect: (cause) => {
-    // transport failures (TechnicalError) surface here as defects
-    throw cause;
-  },
-});
+// Publish with typed headers — validated against orderHeadersSchema
+await client
+  .publish(
+    "orderCreated",
+    {
+      orderId: "ORD-002",
+      customerId: "CUST-456",
+      items: [{ productId: "PROD-C", quantity: 3, price: 15.99 }],
+      totalAmount: 47.97,
+    },
+    { headers: { eventSource: "new-order-service", eventVersion: 2 } },
+  )
+  .getOrThrow();
 
-// Publish status update
-const updateResult = await client.publish("orderUpdated", {
-  orderId: "ORD-001",
-  status: "processing",
-  updatedAt: new Date().toISOString(),
-});
+// Send the fulfillment COMMAND — addressed to the single fulfillment worker,
+// not broadcast. Payload type and routing key come from the command consumer.
+await client
+  .publish("requestFulfillment", {
+    orderId: "ORD-001",
+    warehouseId: "WH-EU-1",
+    priority: "express",
+  })
+  .getOrThrow();
 
-updateResult.match({
-  ok: () => console.log("Status update published"),
-  errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-      console.error("Failed:", error),
-    ),
-  defect: (cause) => {
-    // transport failures (TechnicalError) surface here as defects
-    throw cause;
-  },
-});
+// Clean up
+await client.close().get();
 ```
 
 ## Worker Implementation
 
-The worker is in a separate package (`@amqp-contract-examples/basic-order-processing-worker`) that imports the contract:
+The worker (`@amqp-contract-examples/basic-order-processing-worker`) provides one handler per consumer. Handlers return `AsyncResult<void, HandlerError>`; async work is wrapped with `fromPromise` and the `qualifyRetryable` factory:
 
 ```typescript
-import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { connect } from "amqplib";
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-
-const connection = await connect("amqp://localhost");
+import { TypedAmqpWorker, declareHandlers, qualifyRetryable } from "@amqp-contract/worker";
+import { fromPromise } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract: orderContract,
-  handlers: {
-    processOrder: ({ payload }) => {
-      console.log(`[PROCESSING] Order ${payload.orderId}`);
-      console.log(`  Customer: ${payload.customerId}`);
-      console.log(`  Total: $${payload.totalAmount}`);
-      return OkAsync(undefined);
+  handlers: declareHandlers(orderContract, {
+    // Event handler for NEW orders (order.created) — headers are typed
+    processOrder: ({ payload, headers }) => {
+      console.log(`[PROCESSING] Order ${payload.orderId}`, {
+        customer: payload.customerId,
+        total: payload.totalAmount,
+        eventSource: headers.eventSource,
+        eventVersion: headers.eventVersion,
+      });
+      return fromPromise(processOrder(payload), qualifyRetryable("Processing failed")).map(
+        () => undefined,
+      );
     },
 
+    // Event handler for ALL order events (order.#) — payload is the union type
     notifyOrder: ({ payload }) => {
-      console.log(`[NOTIFICATION] Order ${payload.orderId} event`);
-      return OkAsync(undefined);
+      if ("items" in payload) {
+        console.log(`[NOTIFICATIONS] New order ${payload.orderId}`);
+      } else {
+        console.log(`[NOTIFICATIONS] Status update ${payload.orderId}: ${payload.status}`);
+      }
+      return fromPromise(sendNotification(payload), qualifyRetryable("Notification failed")).map(
+        () => undefined,
+      );
     },
 
+    // Event handler for SHIPPED orders (order.shipped)
     shipOrder: ({ payload }) => {
       console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
-      return OkAsync(undefined);
+      return fromPromise(prepareShipping(payload), qualifyRetryable("Shipping failed")).map(
+        () => undefined,
+      );
     },
 
+    // Event handler for URGENT orders (order.*.urgent)
     handleUrgentOrder: ({ payload }) => {
-      console.log(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
-      return OkAsync(undefined);
+      console.warn(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
+      return fromPromise(escalate(payload), qualifyRetryable("Urgent handling failed")).map(
+        () => undefined,
+      );
     },
-  },
-  connection,
+
+    // Command handler (task queue): reaches exactly one worker
+    fulfillOrder: ({ payload }) => {
+      console.log(`[FULFILLMENT] Order ${payload.orderId} → ${payload.warehouseId}`);
+      return fromPromise(fulfill(payload), qualifyRetryable("Fulfillment failed")).map(
+        () => undefined,
+      );
+    },
+
+    // Dead-letter handler: messages that failed in order-processing
+    handleFailedOrders: ({ payload }) => {
+      console.error(`[DLX] Failed order ${payload.orderId}`);
+      return fromPromise(recordFailure(payload), qualifyRetryable("DLX handling failed")).map(
+        () => undefined,
+      );
+    },
+  }),
+  urls: ["amqp://localhost"],
 }).get();
+
+// Graceful shutdown: drain in-flight handlers, then close
+process.on("SIGINT", async () => {
+  await worker.close().get();
+  process.exit(0);
+});
 ```
+
+The runnable version also chains `.tapDefect(...)` before `.get()` to log infrastructure failures during creation, and uses [pino](https://getpino.io/) instead of `console`.
 
 ## Message Routing Table
 
-| Message Published | Routing Key            | Queues Receiving                              | Handlers Triggered               |
-| ----------------- | ---------------------- | --------------------------------------------- | -------------------------------- |
-| New Order         | `order.created`        | ✅ order-processing<br>✅ order-notifications | processOrder<br>notifyOrder      |
-| Regular Update    | `order.updated`        | ✅ order-notifications                        | notifyOrder                      |
-| Shipped Order     | `order.shipped`        | ✅ order-notifications<br>✅ order-shipping   | notifyOrder<br>shipOrder         |
-| Urgent Update     | `order.updated.urgent` | ✅ order-notifications<br>✅ order-urgent     | notifyOrder<br>handleUrgentOrder |
+| Message Published   | Routing Key            | Exchange      | Queues Receiving                              | Handlers Triggered               |
+| ------------------- | ---------------------- | ------------- | --------------------------------------------- | -------------------------------- |
+| New Order           | `order.created`        | `orders`      | ✅ order-processing<br>✅ order-notifications | processOrder<br>notifyOrder      |
+| Regular Update      | `order.updated`        | `orders`      | ✅ order-notifications                        | notifyOrder                      |
+| Shipped Order       | `order.shipped`        | `orders`      | ✅ order-notifications<br>✅ order-shipping   | notifyOrder<br>shipOrder         |
+| Urgent Update       | `order.updated.urgent` | `orders`      | ✅ order-notifications<br>✅ order-urgent     | notifyOrder<br>handleUrgentOrder |
+| Fulfillment Command | `order.fulfill`        | `fulfillment` | ✅ order-fulfillment                          | fulfillOrder                     |
+| Failed Message      | `order.failed`         | `orders-dlx`  | ✅ orders-dlx-queue                           | handleFailedOrders               |
 
 ## Message Flow Example
 
@@ -440,10 +503,10 @@ sequenceDiagram
 ## Key Takeaways
 
 1. **Flexible Routing** - Topic patterns enable complex routing without code changes
-2. **Type Safety** - TypeScript ensures correctness at compile time
-3. **Validation** - Zod validates all messages at runtime
-4. **Decoupling** - Publishers don't need to know about consumers
-5. **Scalability** - Easy to add new routing patterns
+2. **Two Patterns, One Contract** - Broadcast events and a single-owner task queue coexist
+3. **Type Safety** - TypeScript ensures correctness at compile time, headers included
+4. **Validation** - Zod validates all messages (and headers) at runtime
+5. **Failure Handling** - The DLX queue has a consumer, so failed messages are observed, not lost
 
 ## Source Code
 
@@ -457,4 +520,4 @@ The complete source code is available in the repository:
 
 - Try modifying the routing keys
 - Add new publishers or consumers
-- Learn about [Client Usage](/guide/client-usage) and [Worker Usage](/guide/worker-usage)
+- Learn about [publishing messages](/how-to/publish-messages) and [consuming messages](/how-to/consume-messages)

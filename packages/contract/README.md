@@ -117,9 +117,9 @@ const contract = defineContract({
 
 📖 **[Read the full documentation →](https://btravstack.github.io/amqp-contract)**
 
-- [Getting Started Guide](https://btravstack.github.io/amqp-contract/guide/defining-contracts)
-- [Event Pattern](https://btravstack.github.io/amqp-contract/guide/defining-contracts#event-pattern)
-- [Command Pattern](https://btravstack.github.io/amqp-contract/guide/defining-contracts#command-pattern)
+- [Define a Contract](https://btravstack.github.io/amqp-contract/how-to/define-a-contract)
+- [Event Pattern](https://btravstack.github.io/amqp-contract/how-to/define-a-contract#broadcast-an-event-to-many-consumers)
+- [Command Pattern](https://btravstack.github.io/amqp-contract/how-to/define-a-contract#send-a-command-to-a-single-owner)
 - [Complete API Reference](https://btravstack.github.io/amqp-contract/api/contract)
 
 ## License

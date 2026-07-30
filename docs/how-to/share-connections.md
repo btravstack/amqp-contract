@@ -121,7 +121,7 @@ afterEach(async () => {
 
 `_internal_getConnectionCount()` returns the current count, which is how you verify sharing is actually happening.
 
-Both are test-only helpers. The older `_resetConnectionsForTesting` / `_getConnectionCountForTesting` names still work but are deprecated.
+Both are test-only helpers.
 
 ## Verify sharing is working
 
