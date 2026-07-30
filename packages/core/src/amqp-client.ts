@@ -149,7 +149,7 @@ export type ConsumerOptions = Options.Consume & {
  * const result = await client.publish('exchange', 'routingKey', { data: 'value' });
  *
  * // Close when done
- * await client.close();
+ * await client.close().get();
  * ```
  */
 export class AmqpClient {
@@ -159,12 +159,19 @@ export class AmqpClient {
   private readonly connectionLease: ConnectionLease;
   /** Resolved timeout in ms; `null` means "wait forever". */
   private readonly connectTimeoutMs: number | null;
+  private readonly logger?: Logger | undefined;
   /**
    * Memoized close result: `close()` is idempotent, so a double close (e.g. a
    * `finally` block plus an error path) performs the teardown once and both
    * callers observe the same outcome.
    */
   private closing?: AsyncResult<void, never>;
+  /**
+   * Bumped on every channel `'connect'` (initial connect included). Delivery
+   * tags are per-channel, so a settle stamped with an older epoch targets a
+   * channel that no longer exists — see {@link ack} / {@link nack}.
+   */
+  private channelEpoch = 0;
 
   /**
    * Create a new AMQP client instance.
@@ -231,7 +238,12 @@ export class AmqpClient {
     // becomes an unhandled rejection and crashes the process. This listener
     // must therefore always exist: it degrades the event to a log line while
     // still letting callers attach their own observers via `on('error', …)`.
+    this.channelWrapper.on("connect", () => {
+      this.channelEpoch += 1;
+    });
+
     const logger = options.logger;
+    this.logger = logger;
     this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
       logger?.error("AMQP channel error", {
         error: error instanceof Error ? error.message : String(error),
@@ -424,12 +436,55 @@ export class AmqpClient {
   }
 
   /**
+   * The current channel epoch — bumped on every channel `'connect'` (initial
+   * connect included). Consumers stamp deliveries with this value and pass it
+   * back via {@link ack} / {@link nack} so a settle can never target a tag
+   * from a previous channel incarnation.
+   */
+  get currentChannelEpoch(): number {
+    return this.channelEpoch;
+  }
+
+  /**
+   * Refuse a settle whose delivery predates the current channel: delivery tags
+   * are per-channel, so forwarding it would either close the channel with 406
+   * PRECONDITION_FAILED or — worse — settle an unrelated in-flight delivery on
+   * the new channel. Skipping is safe: the broker already redelivered the
+   * message when the old channel died (at-least-once holds).
+   */
+  private isStaleDelivery(
+    operation: "ack" | "nack",
+    msg: ConsumeMessage,
+    deliveryEpoch: number | undefined,
+  ): boolean {
+    if (deliveryEpoch === undefined || deliveryEpoch === this.channelEpoch) {
+      return false;
+    }
+    this.logger?.warn(`Skipping ${operation} for a delivery from a previous channel incarnation`, {
+      deliveryTag: msg.fields.deliveryTag,
+      deliveryEpoch,
+      currentEpoch: this.channelEpoch,
+    });
+    return true;
+  }
+
+  /**
    * Acknowledge a message.
    *
    * @param msg - The message to acknowledge
    * @param allUpTo - If true, acknowledge all messages up to and including this one
+   * @param options - Pass the `deliveryEpoch` captured when the message was
+   *   delivered ({@link currentChannelEpoch}) to make the ack reconnect-safe:
+   *   a stale epoch skips the ack (logged) instead of settling a foreign tag.
    */
-  ack(msg: ConsumeMessage, allUpTo = false): void {
+  ack(
+    msg: ConsumeMessage,
+    allUpTo = false,
+    options?: { deliveryEpoch?: number | undefined },
+  ): void {
+    if (this.isStaleDelivery("ack", msg, options?.deliveryEpoch)) {
+      return;
+    }
     this.channelWrapper.ack(msg, allUpTo);
   }
 
@@ -439,8 +494,18 @@ export class AmqpClient {
    * @param msg - The message to nack
    * @param allUpTo - If true, nack all messages up to and including this one
    * @param requeue - If true, requeue the message(s)
+   * @param options - Pass the `deliveryEpoch` captured at delivery time to
+   *   make the nack reconnect-safe (see {@link ack}).
    */
-  nack(msg: ConsumeMessage, allUpTo = false, requeue = true): void {
+  nack(
+    msg: ConsumeMessage,
+    allUpTo = false,
+    requeue = true,
+    options?: { deliveryEpoch?: number | undefined },
+  ): void {
+    if (this.isStaleDelivery("nack", msg, options?.deliveryEpoch)) {
+      return;
+    }
     this.channelWrapper.nack(msg, allUpTo, requeue);
   }
 

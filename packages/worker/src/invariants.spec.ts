@@ -58,7 +58,9 @@ describe("invariants: handler-error routing", () => {
 
     expect(result).toBeOk();
     expect(nack).toHaveBeenCalledTimes(1);
-    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+      deliveryEpoch: undefined,
+    });
     expect(publish).not.toHaveBeenCalled();
     expect(ack).not.toHaveBeenCalled();
   });
@@ -77,7 +79,9 @@ describe("invariants: handler-error routing", () => {
 
     expect(result).toBeOk();
     expect(nack).toHaveBeenCalledTimes(1);
-    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+      deliveryEpoch: undefined,
+    });
     expect(publish).not.toHaveBeenCalled();
   });
 
@@ -96,7 +100,9 @@ describe("invariants: handler-error routing", () => {
       "processOrder",
       consumer,
     ).get();
-    expect(below.nack).toHaveBeenCalledWith(expect.anything(), false, true);
+    expect(below.nack).toHaveBeenCalledWith(expect.anything(), false, true, {
+      deliveryEpoch: undefined,
+    });
 
     // At the budget: permanent failure, DLQ.
     const at = mockClient();
@@ -107,7 +113,9 @@ describe("invariants: handler-error routing", () => {
       "processOrder",
       consumer,
     ).get();
-    expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false);
+    expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+      deliveryEpoch: undefined,
+    });
   });
 
   it("INVARIANT: a classic-queue immediate-requeue retry republishes to THIS queue via the default exchange, never the original exchange", async () => {

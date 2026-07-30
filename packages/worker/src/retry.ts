@@ -14,6 +14,13 @@ import { NonRetryableError } from "./errors.js";
 type RetryContext = {
   amqpClient: AmqpClient;
   logger?: Logger | undefined;
+  /**
+   * Channel epoch captured when the message was delivered
+   * ({@link AmqpClient.currentChannelEpoch}). Stamped onto every ack/nack so
+   * a settle that lands after a reconnect is skipped instead of targeting a
+   * foreign delivery tag on the new channel.
+   */
+  deliveryEpoch?: number | undefined;
 };
 
 /**
@@ -124,7 +131,7 @@ function handleErrorImmediateRequeue(
 
   if (queue.type === "quorum") {
     // For quorum queues, nack with requeue=true to trigger native retry mechanism
-    ctx.amqpClient.nack(msg, false, true);
+    ctx.amqpClient.nack(msg, false, true, { deliveryEpoch: ctx.deliveryEpoch });
     return OkAsync(undefined);
   } else {
     // For classic queues, re-publish the retry copy straight back to THIS
@@ -321,8 +328,10 @@ function publishForRetry(
         throw new TechnicalError("Failed to publish message for retry (write buffer full)");
       }
 
-      // Publish confirmed by the broker — safe to ack the original now.
-      ctx.amqpClient.ack(msg);
+      // Publish confirmed by the broker — safe to ack the original now. The
+      // epoch stamp keeps this safe even when the confirm arrived on a NEW
+      // channel (the publish buffer survives reconnects; delivery tags do not).
+      ctx.amqpClient.ack(msg, false, { deliveryEpoch: ctx.deliveryEpoch });
 
       ctx.logger?.info("Message published for retry", {
         queueName,
@@ -366,7 +375,7 @@ function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDef
   });
 
   // Nack without requeue - relies on DLX configuration
-  ctx.amqpClient.nack(msg, false, false);
+  ctx.amqpClient.nack(msg, false, false, { deliveryEpoch: ctx.deliveryEpoch });
 }
 
 /**
