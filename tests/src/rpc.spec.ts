@@ -8,7 +8,9 @@ import {
 } from "@amqp-contract/client";
 import {
   type ContractDefinition,
+  type ExchangeDefinition,
   defineContract,
+  defineExchange,
   defineMessage,
   defineQueue,
   defineRpc,
@@ -17,7 +19,7 @@ import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { rpcError, TypedAmqpWorker } from "@amqp-contract/worker";
 import { ErrAsync, fromSafePromise, OkAsync } from "unthrown";
-import { describe, expect } from "vitest";
+import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 
 const it = baseIt.extend<{
@@ -37,7 +39,7 @@ const it = baseIt.extend<{
           contract,
           handlers,
           urls: [amqpConnectionUrl],
-        }).getOrThrow();
+        }).get();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -45,8 +47,11 @@ const it = baseIt.extend<{
       await Promise.all(
         workers.map((w) =>
           w
-            .close()
-            .getOrThrow()
+            // Short drain: the cancellation test parks a handler on a
+            // never-resolving promise, and cleanup must not wait the full
+            // default drain timeout for it.
+            .close({ drainTimeoutMs: 500 })
+            .get()
             .catch(() => undefined),
         ),
       );
@@ -59,7 +64,7 @@ const it = baseIt.extend<{
         const client = await TypedAmqpClient.create({
           contract,
           urls: [amqpConnectionUrl],
-        }).getOrThrow();
+        }).get();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -68,7 +73,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .getOrThrow()
+            .get()
             .catch(() => undefined),
         ),
       );
@@ -164,7 +169,7 @@ describe("TypedAmqpClient RPC", () => {
     // the publish has completed and the pending-call entry is registered.
     await handlerStartedPromise;
 
-    await client.close().getOrThrow();
+    await client.close().get();
 
     const result = await callFuture;
     expect(result.isErr()).toBe(true);
@@ -218,8 +223,8 @@ const buildErrorContract = (queueName: string) => {
     request,
     response,
     errors: {
-      NEGATIVE_NUMBERS: defineMessage(z.object({ a: z.number(), b: z.number() })),
-      LIMIT_EXCEEDED: defineMessage(z.object({ limit: z.number() })),
+      NEGATIVE_NUMBERS: { data: z.object({ a: z.number(), b: z.number() }) },
+      LIMIT_EXCEEDED: { data: z.object({ limit: z.number() }) },
     },
   });
   return defineContract({ rpcs: { calculate } });
@@ -346,5 +351,104 @@ describe("TypedAmqpClient RPC typed errors", () => {
     if (result.isErr()) {
       expect(result.error).toBeInstanceOf(RpcTimeoutError);
     }
+  });
+});
+
+// INVARIANT 9 guards: reply preconditions and undeclared codes must route the
+// REQUEST to the DLQ — never produce a malformed reply. The timeout tests
+// above prove "no reply"; these prove the DLQ half.
+describe("TypedAmqpClient RPC DLQ routing", () => {
+  const buildDlqErrorContract = (queueName: string, dlx: ExchangeDefinition) => {
+    const queue = defineQueue(queueName, {
+      type: "classic",
+      durable: false,
+      deadLetter: { exchange: dlx, routingKey: `${queueName}.dlq` },
+    });
+    const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
+    const response = defineMessage(z.object({ sum: z.number() }));
+    const calculate = defineRpc(queue, {
+      request,
+      response,
+      errors: {
+        LIMIT_EXCEEDED: { data: z.object({ limit: z.number() }) },
+      },
+    });
+    return defineContract({ rpcs: { calculate } });
+  };
+
+  it("routes a request to the DLQ when the handler returns an undeclared error code", async ({
+    workerFactory,
+    clientFactory,
+    amqpChannel,
+  }) => {
+    const dlx = defineExchange("rpc-undeclared-dlx", { durable: false });
+    const contract = buildDlqErrorContract("rpc.calculate.undeclared-dlq", dlx);
+
+    await workerFactory(contract, {
+      calculate: () =>
+        ErrAsync(
+          rpcError("NOT_DECLARED", {}) as unknown as RpcError<"LIMIT_EXCEEDED", { limit: number }>,
+        ),
+    });
+    const client = await clientFactory(contract);
+
+    await amqpChannel.assertQueue("rpc-undeclared-dlq-q", { durable: false });
+    await amqpChannel.bindQueue(
+      "rpc-undeclared-dlq-q",
+      dlx.name,
+      "rpc.calculate.undeclared-dlq.dlq",
+    );
+
+    const result = await client.call("calculate", { a: 1, b: 1 }, { timeoutMs: 500 });
+    expect(result.isErr()).toBe(true);
+
+    const dlqMsg = await vi.waitFor(
+      async () => {
+        const msg = await amqpChannel.get("rpc-undeclared-dlq-q", { noAck: false });
+        if (!msg) throw new Error("request not yet in DLQ");
+        return msg;
+      },
+      { timeout: 3_000 },
+    );
+    amqpChannel.ack(dlqMsg);
+    expect(JSON.parse(dlqMsg.content.toString())).toEqual({ a: 1, b: 1 });
+  });
+
+  it("routes a request without replyTo/correlationId to the DLQ instead of replying", async ({
+    workerFactory,
+    amqpChannel,
+  }) => {
+    const dlx = defineExchange("rpc-noreply-dlx", { durable: false });
+    const contract = buildDlqErrorContract("rpc.calculate.noreply-dlq", dlx);
+
+    let handlerCalls = 0;
+    await workerFactory(contract, {
+      calculate: ({ payload }) => {
+        handlerCalls++;
+        return OkAsync({ sum: payload.a + payload.b });
+      },
+    });
+
+    await amqpChannel.assertQueue("rpc-noreply-dlq-q", { durable: false });
+    await amqpChannel.bindQueue("rpc-noreply-dlq-q", dlx.name, "rpc.calculate.noreply-dlq.dlq");
+
+    // Publish straight to the RPC queue with NO replyTo/correlationId — a
+    // misbehaving caller the worker must not crash on and must not answer.
+    amqpChannel.sendToQueue(
+      "rpc.calculate.noreply-dlq",
+      Buffer.from(JSON.stringify({ a: 2, b: 3 })),
+    );
+
+    const dlqMsg = await vi.waitFor(
+      async () => {
+        const msg = await amqpChannel.get("rpc-noreply-dlq-q", { noAck: false });
+        if (!msg) throw new Error("reply-less request not yet in DLQ");
+        return msg;
+      },
+      { timeout: 3_000 },
+    );
+    amqpChannel.ack(dlqMsg);
+    expect(JSON.parse(dlqMsg.content.toString())).toEqual({ a: 2, b: 3 });
+    expect(handlerCalls).toBeGreaterThanOrEqual(1);
   });
 });

@@ -3,7 +3,7 @@ import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, it } from "vitest";
 
 import { nonRetryable } from "./errors.js";
-import { composeMiddleware, defineMiddleware, type WorkerMiddlewareArgs } from "./middleware.js";
+import { composeMiddleware, declareMiddleware, type WorkerMiddlewareArgs } from "./middleware.js";
 
 const baseArgs: WorkerMiddlewareArgs<Record<string, unknown>> = {
   message: { payload: { id: "1" }, headers: undefined },
@@ -17,11 +17,11 @@ describe("composeMiddleware", () => {
   it("runs middleware left-to-right with the first as outermost", async () => {
     // GIVEN
     const order: string[] = [];
-    const outer = defineMiddleware((_args, next) => {
+    const outer = declareMiddleware((_args, next) => {
       order.push("outer:before");
       return next().tap(() => order.push("outer:after"));
     });
-    const inner = defineMiddleware((_args, next) => {
+    const inner = declareMiddleware((_args, next) => {
       order.push("inner:before");
       return next().tap(() => order.push("inner:after"));
     });
@@ -46,10 +46,10 @@ describe("composeMiddleware", () => {
 
   it("accumulates context across the chain", async () => {
     // GIVEN
-    const first = defineMiddleware<Record<never, never>, { a: number }>((_args, next) =>
+    const first = declareMiddleware<Record<never, never>, { a: number }>((_args, next) =>
       next({ context: { a: 1 } }),
     );
-    const second = defineMiddleware<{ a: number }, { a: number; b: string }>((args, next) =>
+    const second = declareMiddleware<{ a: number }, { a: number; b: string }>((args, next) =>
       next({ context: { ...args.context, b: `a=${args.context.a}` } }),
     );
 
@@ -68,10 +68,10 @@ describe("composeMiddleware", () => {
 
   it("merges injected context over the incoming one when a middleware passes only its own fields", async () => {
     // GIVEN — second middleware injects without spreading args.context
-    const first = defineMiddleware<Record<never, never>, { a: number }>((_args, next) =>
+    const first = declareMiddleware<Record<never, never>, { a: number }>((_args, next) =>
       next({ context: { a: 1 } }),
     );
-    const second = defineMiddleware<{ a: number }, { a: number; b: string }>((_args, next) =>
+    const second = declareMiddleware<{ a: number }, { a: number; b: string }>((_args, next) =>
       // Deliberately not spreading: the dispatcher merges over the current context.
       next({ context: { b: "solo" } as { a: number; b: string } }),
     );
@@ -90,7 +90,7 @@ describe("composeMiddleware", () => {
 
   it("short-circuits when a middleware returns without calling next", async () => {
     // GIVEN
-    const guard = defineMiddleware((_args, _next) => ErrAsync(nonRetryable("blocked by guard")));
+    const guard = declareMiddleware((_args, _next) => ErrAsync(nonRetryable("blocked by guard")));
     let handlerRan = false;
 
     // WHEN
@@ -111,8 +111,8 @@ describe("composeMiddleware", () => {
   it("threads substituted payloads to inner middleware and the terminal", async () => {
     // GIVEN — outer substitutes, inner observes the substituted payload
     const seen: unknown[] = [];
-    const substitute = defineMiddleware((_args, next) => next({ payload: { id: "2" } }));
-    const observer = defineMiddleware((args, next) => {
+    const substitute = declareMiddleware((_args, next) => next({ payload: { id: "2" } }));
+    const observer = declareMiddleware((args, next) => {
       seen.push(args.message.payload);
       return next();
     });
@@ -132,7 +132,7 @@ describe("composeMiddleware", () => {
 
   it("omits payload from the terminal opts when nothing substituted", async () => {
     let terminalOpts: { payload?: unknown } | undefined;
-    const passthrough = defineMiddleware((_args, next) => next());
+    const passthrough = declareMiddleware((_args, next) => next());
     const chain = composeMiddleware(passthrough);
     await chain(baseArgs, (opts) => {
       terminalOpts = opts;
@@ -144,7 +144,7 @@ describe("composeMiddleware", () => {
   it("exposes dispatch metadata to every middleware", async () => {
     // GIVEN
     const seen: Array<{ handlerName: string; isRpc: boolean }> = [];
-    const observer = defineMiddleware((args, next) => {
+    const observer = declareMiddleware((args, next) => {
       seen.push({ handlerName: args.handlerName, isRpc: args.isRpc });
       return next();
     });

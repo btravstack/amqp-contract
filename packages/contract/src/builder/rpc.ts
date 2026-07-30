@@ -19,11 +19,13 @@ import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./val
  *   (server side) and outgoing requests (client side).
  * @param messages.response - Schema validated against handler return values
  *   (server side) and incoming replies (client side).
- * @param messages.errors - Optional typed error map: error code → message
- *   definition for the error's `data` payload. Declared errors widen the
- *   handler's `Err` channel (return `Err(rpcError(code, data))`) and the
- *   client's `call()` error union; error data is schema-validated on both
- *   sides. Business errors are replied and acked — never retried.
+ * @param messages.errors - Optional typed error map: error code →
+ *   `{ data, message? }`, where `data` is the Standard Schema for the error's
+ *   payload and `message` an optional default human-readable message.
+ *   Declared errors widen the handler's `Err` channel (return
+ *   `Err(rpcError(code, data))`) and the client's `call()` error union; error
+ *   data is schema-validated on both sides. Business errors are replied and
+ *   acked — never retried.
  *
  * @example
  * ```typescript
@@ -34,7 +36,7 @@ import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./val
  *   request: defineMessage(z.object({ orderId: z.string() })),
  *   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
  *   errors: {
- *     ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+ *     ORDER_NOT_FOUND: { data: z.object({ orderId: z.string() }), message: 'Order not found' },
  *   },
  * });
  *
@@ -67,9 +69,13 @@ export function defineRpc<
   _internal_assertStandardSchema("RPC response payload schema", messages.response?.payload);
   if (messages.errors !== undefined) {
     for (const [code, definition] of Object.entries(messages.errors)) {
+      _internal_assertKnownKeys(`RPC error "${code}"`, "(anonymous)", definition, [
+        "data",
+        "message",
+      ]);
       _internal_assertStandardSchema(
         `RPC error "${code}" data schema`,
-        (definition as { payload?: unknown } | undefined)?.payload,
+        (definition as { data?: unknown } | undefined)?.data,
       );
     }
   }

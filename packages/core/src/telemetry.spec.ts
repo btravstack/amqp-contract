@@ -204,6 +204,63 @@ describe("Telemetry", () => {
     });
   });
 
+  describe("throwing telemetry providers", () => {
+    // Telemetry runs inside the client's and worker's Result chains — a
+    // throwing user-supplied provider must degrade to "no telemetry", never
+    // escape into the data path (where it would convert a successful publish
+    // into a defect or crash the consume callback).
+    const throwingProvider: TelemetryProvider = {
+      getTracer: () => {
+        throw new Error("provider bug: getTracer");
+      },
+      getPublishCounter: () => {
+        throw new Error("provider bug: getPublishCounter");
+      },
+      getConsumeCounter: () => {
+        throw new Error("provider bug: getConsumeCounter");
+      },
+      getPublishLatencyHistogram: () => {
+        throw new Error("provider bug: getPublishLatencyHistogram");
+      },
+      getConsumeLatencyHistogram: () => {
+        throw new Error("provider bug: getConsumeLatencyHistogram");
+      },
+      getLateRpcReplyCounter: () => {
+        throw new Error("provider bug: getLateRpcReplyCounter");
+      },
+    };
+
+    it("startPublishSpan/startConsumeSpan return undefined instead of throwing", () => {
+      expect(startPublishSpan(throwingProvider, "x", "rk")).toBeUndefined();
+      expect(startConsumeSpan(throwingProvider, "q", "consumer")).toBeUndefined();
+    });
+
+    it("record* helpers swallow provider throws", () => {
+      expect(() => recordPublishMetric(throwingProvider, "x", "rk", true, 10)).not.toThrow();
+      expect(() => recordConsumeMetric(throwingProvider, "q", "consumer", true, 10)).not.toThrow();
+    });
+
+    it("endSpanSuccess/endSpanError swallow a throwing span", () => {
+      const throwingSpan = {
+        setStatus: () => {
+          throw new Error("span bug");
+        },
+        setAttribute: () => {
+          throw new Error("span bug");
+        },
+        recordException: () => {
+          throw new Error("span bug");
+        },
+        end: () => {
+          throw new Error("span bug");
+        },
+      };
+      const span = throwingSpan as unknown as ReturnType<typeof startPublishSpan>;
+      expect(() => endSpanSuccess(span)).not.toThrow();
+      expect(() => endSpanError(span, new Error("op failed"))).not.toThrow();
+    });
+  });
+
   describe("recordConsumeMetric", () => {
     it("should do nothing when counter and histogram are undefined", () => {
       expect(() =>

@@ -1251,7 +1251,26 @@ describe("AsyncAPIGenerator", () => {
   });
 
   describe("without schema converters", () => {
-    it("should generate document with generic object schemas", async () => {
+    it("should throw by default when no converter matches (faithful-spec default)", async () => {
+      // GIVEN
+      const exchange = defineExchange("generic", { type: "fanout" });
+      const message = defineMessage(z.object({ id: z.string() }));
+      const contract = defineContract({
+        publishers: { publish: definePublisher(exchange, message) },
+      });
+
+      const generator = new AsyncAPIGenerator();
+
+      // WHEN / THEN — a spec that silently degrades schemas to placeholders
+      // lies to its consumers; failing is the default.
+      await expect(
+        generator.generate(contract, {
+          info: { title: "Generic API", version: "1.0.0" },
+        }),
+      ).rejects.toThrow(/No schema converter matched/);
+    });
+
+    it("should generate document with generic object schemas when opted out", async () => {
       // GIVEN
       const exchange = defineExchange("generic", { type: "fanout" });
 
@@ -1267,7 +1286,7 @@ describe("AsyncAPIGenerator", () => {
         },
       });
 
-      const generator = new AsyncAPIGenerator();
+      const generator = new AsyncAPIGenerator({ failOnMissingConverter: false });
 
       // WHEN
       const asyncapiDoc = await generator.generate(contract, {

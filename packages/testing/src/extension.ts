@@ -14,7 +14,23 @@ import { randomUUID } from "node:crypto";
 import amqpLib, { type Options, type Channel, type ChannelModel } from "amqplib";
 import { inject, vi, it as vitestIt } from "vitest";
 
-export const it = vitestIt.extend<{
+/**
+ * Options for the message-wait function returned by the `initConsumer`
+ * fixture.
+ */
+export type WaitForMessagesOptions = {
+  /** Number of messages to wait for. Defaults to 1. */
+  count?: number;
+  /** Maximum time in ms to wait before rejecting. Defaults to 5000. */
+  timeoutMs?: number;
+};
+
+/**
+ * The AMQP test fixtures provided by the {@link it} extension — named so
+ * helpers accepting fixture values (`amqpChannel`, `publishMessage`, …) can
+ * be typed without re-deriving the record from `it`.
+ */
+export type AmqpTestFixtures = {
   vhost: string;
   amqpConnectionUrl: string;
   amqpConnection: ChannelModel;
@@ -28,10 +44,10 @@ export const it = vitestIt.extend<{
   initConsumer: (
     exchange: string,
     routingKey: string,
-  ) => Promise<
-    (options?: { nbEvents?: number; timeout?: number }) => Promise<amqpLib.ConsumeMessage[]>
-  >;
-}>({
+  ) => Promise<(options?: WaitForMessagesOptions) => Promise<amqpLib.ConsumeMessage[]>>;
+};
+
+export const it = vitestIt.extend<AmqpTestFixtures>({
   /**
    * Test fixture that provides an isolated RabbitMQ virtual host (vhost) for the test.
    *
@@ -163,7 +179,7 @@ export const it = vitestIt.extend<{
    *
    * @param exchange - The name of the exchange to bind the queue to
    * @param routingKey - The routing key pattern for message filtering
-   * @returns A function that accepts optional configuration ({ nbEvents?, timeout? }) and returns a Promise that resolves to an array of ConsumeMessage objects
+   * @returns A function that accepts optional configuration ({ count?, timeoutMs? }) and returns a Promise that resolves to an array of ConsumeMessage objects
    *
    * @example
    * ```typescript
@@ -177,7 +193,7 @@ export const it = vitestIt.extend<{
    *   // With custom options
    *   publishMessage('my-exchange', 'routing.key', { data: 'test2' });
    *   publishMessage('my-exchange', 'routing.key', { data: 'test3' });
-   *   const messages2 = await waitForMessages({ nbEvents: 2, timeout: 10000 });
+   *   const messages2 = await waitForMessages({ count: 2, timeoutMs: 10000 });
    *   expect(messages2).toHaveLength(2);
    * });
    * ```
@@ -188,9 +204,7 @@ export const it = vitestIt.extend<{
     async function initConsumer(
       exchange: string,
       routingKey: string,
-    ): Promise<
-      (options?: { nbEvents?: number; timeout?: number }) => Promise<amqpLib.ConsumeMessage[]>
-    > {
+    ): Promise<(options?: WaitForMessagesOptions) => Promise<amqpLib.ConsumeMessage[]>> {
       const queue = randomUUID();
 
       await amqpChannel.assertQueue(queue);
@@ -210,18 +224,16 @@ export const it = vitestIt.extend<{
       consumerTags.push(consumer.consumerTag);
 
       return async (options = {}) => {
-        const { nbEvents = 1, timeout = 5000 } = options;
+        const { count = 1, timeoutMs = 5000 } = options;
         await vi.waitFor(
           () => {
-            if (messages.length < nbEvents) {
-              throw new Error(
-                `Expected ${nbEvents} message(s) but only received ${messages.length}`,
-              );
+            if (messages.length < count) {
+              throw new Error(`Expected ${count} message(s) but only received ${messages.length}`);
             }
           },
-          { timeout },
+          { timeout: timeoutMs },
         );
-        return messages.splice(0, nbEvents);
+        return messages.splice(0, count);
       };
     }
 

@@ -106,6 +106,42 @@ describe("chainInterceptors", () => {
     expect(result.isOk()).toBe(true);
   });
 
+  it("adopts a synchronously-throwing interceptor as a Defect (never a raw throw)", async () => {
+    // GIVEN an interceptor that violates its contract by throwing instead of
+    // returning an AsyncResult
+    const boom = new Error("interceptor bug");
+    const throwing: PublishInterceptor = () => {
+      throw boom;
+    };
+    let terminalRan = false;
+
+    // WHEN — the call itself must not throw
+    const result = await chainInterceptors([throwing], baseArgs, () => {
+      terminalRan = true;
+      return OkAsync(undefined);
+    });
+
+    // THEN
+    expect(terminalRan).toBe(false);
+    expect(result.isDefect()).toBe(true);
+    if (result.isDefect()) {
+      expect(result.cause).toBe(boom);
+    }
+  });
+
+  it("adopts a synchronously-throwing terminal as a Defect", async () => {
+    // GIVEN
+    const boom = new Error("terminal bug");
+
+    // WHEN
+    const result = await chainInterceptors([], baseArgs, () => {
+      throw boom;
+    });
+
+    // THEN
+    expect(result.isDefect()).toBe(true);
+  });
+
   it("runs the terminal directly when no interceptors are configured", async () => {
     // WHEN
     const result = await chainInterceptors([], baseArgs, (args) =>

@@ -43,8 +43,13 @@ import {
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
-import { missingHandlerNames } from "./handlers.js";
-import type { AnyWorkerMiddleware, EmptyContext, WorkerMiddleware } from "./middleware.js";
+import { invalidHandlerNames, missingHandlerNames } from "./handlers.js";
+import {
+  composeMiddleware,
+  type AnyWorkerMiddleware,
+  type EmptyContext,
+  type WorkerMiddleware,
+} from "./middleware.js";
 import { handleError } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
 
@@ -103,7 +108,25 @@ type ConsumerView = {
   errorConstructors?: Record<string, (data: unknown, message?: string) => RpcError> | undefined;
 };
 
-export type ConsumerOptions = AmqpClientConsumerOptions;
+/**
+ * Consumer options a worker handler may configure — a curated subset of the
+ * AMQP consume options. `noAck` and `noLocal` are deliberately excluded:
+ * `noAck: true` would silently break the worker's ack-exactly-once and
+ * retry/DLQ invariants (deliveries would be considered settled on send), and
+ * `noLocal` is not supported by RabbitMQ.
+ */
+export type ConsumerOptions = Pick<
+  AmqpClientConsumerOptions,
+  "prefetch" | "priority" | "arguments" | "consumerTag" | "exclusive"
+>;
+
+/**
+ * Default time `close()` waits for in-flight handlers before tearing the
+ * channel down anyway. Finite by default so a hung handler cannot wedge
+ * shutdown — the un-acked deliveries are redelivered by the broker
+ * (at-least-once semantics). Pass `drainTimeoutMs: null` to wait forever.
+ */
+export const DEFAULT_DRAIN_TIMEOUT_MS = 30_000;
 
 /**
  * Type guard to check if a handler entry is a tuple format [handler, options].
@@ -183,7 +206,7 @@ export type CreateWorkerOptions<
    * Handlers receive the middleware-produced context as a third argument
    * (an empty object when no `middleware` is configured).
    *
-   * Use `defineHandler` / `defineHandlers` to create handlers with full type
+   * Use `declareHandler` / `declareHandlers` to create handlers with full type
    * inference.
    */
   handlers: WorkerInferHandlers<TContract, TContext>;
@@ -202,17 +225,22 @@ export type CreateWorkerOptions<
   /**
    * Optional middleware wrapping every handler invocation (consumers and
    * RPCs), applied after message validation. The chain is seeded with the
-   * `createContext` result (an empty object when none is configured); compose
-   * multiple middleware with `composeMiddleware(outermost, ..., innermost)` —
-   * the chain's final context type is what handlers receive in
-   * `helpers.context`.
+   * `createContext` result (an empty object when none is configured).
+   *
+   * Accepts either a single middleware or an array (first entry = outermost,
+   * mirroring the client's interceptor arrays). The array form composes at
+   * runtime exactly like `composeMiddleware(...)`, but cannot thread the
+   * stepwise context types across entries — when middleware accumulate typed
+   * context for the handlers, pre-compose with
+   * `composeMiddleware(outermost, ..., innermost)` so the chain's final
+   * context type is inferred into `helpers.context`.
    *
    * A middleware can short-circuit by returning without calling `next`:
    * handler-style errors route through retry/DLQ (or a typed RPC error
    * reply), and an `Ok(value)` skips the handler entirely. `next({ payload })`
    * substitutes the message payload, re-validated before the handler runs.
    */
-  middleware?: WorkerMiddleware<TCreated, TContext> | undefined;
+  middleware?: WorkerMiddleware<TCreated, TContext> | readonly AnyWorkerMiddleware[] | undefined;
   /** AMQP broker URL(s). Multiple URLs provide failover support */
   urls: ConnectionUrl[];
   /** Optional connection configuration (heartbeat, reconnect settings, etc.) */
@@ -266,7 +294,7 @@ export type CreateWorkerOptions<
  *   }
  * });
  *
- * const result = await TypedAmqpWorker.create({
+ * const worker = await TypedAmqpWorker.create({
  *   contract,
  *   handlers: {
  *     processOrder: ({ payload }) => {
@@ -275,12 +303,10 @@ export type CreateWorkerOptions<
  *     },
  *   },
  *   urls: ['amqp://localhost'],
- * });
+ * }).get();
  *
- * const worker = result.getOrThrow();
- *
- * // Close when done
- * await worker.close();
+ * // Close when done (drains in-flight handlers first)
+ * await worker.close().get();
  * ```
  */
 export class TypedAmqpWorker<TContract extends ContractDefinition> {
@@ -293,6 +319,13 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   private readonly actualHandlers: Partial<Record<HandlerName<TContract>, StoredHandler>>;
   private readonly consumerOptions: Partial<Record<HandlerName<TContract>, ConsumerOptions>>;
   private readonly consumerTags: Set<string> = new Set();
+
+  /**
+   * Messages currently being processed. {@link close} drains this set after
+   * cancelling the consumers so in-flight handlers finish (and their acks
+   * land) before the channel goes away.
+   */
+  private readonly inFlight: Set<Promise<void>> = new Set();
   private readonly telemetry: TelemetryProvider;
 
   private constructor(
@@ -347,9 +380,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       const rpc = rpcs[name as string]!;
       const errorConstructors = rpc.errors
         ? Object.fromEntries(
-            Object.keys(rpc.errors).map((code) => [
+            Object.entries(rpc.errors).map(([code, entry]) => [
               code,
-              (data: unknown, message?: string) => new RpcError(code, data, message),
+              // The contract's declared default message fills in when the
+              // handler constructs the error without one.
+              (data: unknown, message?: string) =>
+                new RpcError(code, data, message ?? entry.message),
             ]),
           )
         : undefined;
@@ -436,68 +472,96 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         ),
       );
     }
+    const invalid = invalidHandlerNames(contract, handlers);
+    if (invalid.length > 0) {
+      return technicalDefect(
+        new TechnicalError(
+          `Handlers for contract entries are not functions: ${invalid.join(", ")}. ` +
+            "Each handler must be a function or a [handler, options] tuple.",
+        ),
+      );
+    }
 
-    const worker = new TypedAmqpWorker(
-      contract,
-      new AmqpClient(contract, {
-        urls,
-        connectionOptions,
-        connectTimeoutMs,
-      }),
-      // Context types are erased at the dispatch boundary: handlers receive
-      // whatever the (type-checked) middleware chain produced at runtime.
-      handlers as WorkerInferHandlers<TContract>,
-      defaultConsumerOptions ?? {},
-      logger,
-      telemetry,
-      middleware as AnyWorkerMiddleware | undefined,
-      createContext as
-        | ((
-            info: WorkerCreateContextInfo,
-          ) => Record<string, unknown> | Promise<Record<string, unknown>>)
-        | undefined,
-    );
+    // Enter through the safety net so a synchronous constructor throw (an
+    // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
+    // instead of escaping create() as a raw throw.
+    return OkAsync(undefined).flatMap(() => {
+      const worker = new TypedAmqpWorker(
+        contract,
+        new AmqpClient(contract, {
+          urls,
+          connectionOptions,
+          connectTimeoutMs,
+        }),
+        // Context types are erased at the dispatch boundary: handlers receive
+        // whatever the (type-checked) middleware chain produced at runtime.
+        handlers as WorkerInferHandlers<TContract>,
+        defaultConsumerOptions ?? {},
+        logger,
+        telemetry,
+        // The array form (first = outermost) composes exactly like an explicit
+        // composeMiddleware(...) call; an empty array means "no middleware".
+        // The cast reaches past the fixed-arity typed overloads to the variadic
+        // implementation signature.
+        (Array.isArray(middleware)
+          ? middleware.length === 0
+            ? undefined
+            : (composeMiddleware as (...m: readonly AnyWorkerMiddleware[]) => AnyWorkerMiddleware)(
+                ...(middleware as AnyWorkerMiddleware[]),
+              )
+          : middleware) as AnyWorkerMiddleware | undefined,
+        createContext as
+          | ((
+              info: WorkerCreateContextInfo,
+            ) => Record<string, unknown> | Promise<Record<string, unknown>>)
+          | undefined,
+      );
 
-    // Note: Wait queues are now created by the core package in setupAmqpTopology
-    // when the queue's retry mode is "ttl-backoff"
-    const setup = worker.waitForConnectionReady().flatMap(() => worker.consumeAll());
+      // Note: Wait queues are now created by the core package in setupAmqpTopology
+      // when the queue's retry mode is "ttl-backoff"
+      const setup = worker.waitForConnectionReady().flatMap(() => worker.consumeAll());
 
-    // If setup fails, release the AmqpClient's connection ref-count and cancel
-    // any consumers that registered before the failure, so a failed create()
-    // does not leak.
-    const inner = (async (): Promise<Result<TypedAmqpWorker<TContract>, never>> => {
-      const setupResult = await setup;
-      if (!setupResult.isOk()) {
-        const closeResult = await worker.close();
-        if (closeResult.isDefect()) {
-          logger?.warn("Failed to close worker after setup failure", {
-            error: closeResult.cause,
-          });
+      // If setup fails, release the AmqpClient's connection ref-count and cancel
+      // any consumers that registered before the failure, so a failed create()
+      // does not leak.
+      const inner = (async (): Promise<Result<TypedAmqpWorker<TContract>, never>> => {
+        const setupResult = await setup;
+        if (!setupResult.isOk()) {
+          const closeResult = await worker.close();
+          if (closeResult.isDefect()) {
+            logger?.warn("Failed to close worker after setup failure", {
+              error: closeResult.cause,
+            });
+          }
         }
-      }
-      // `map` runs only on Ok; an Err/Defect passes through with its value type
-      // re-shaped to the worker, so the failure surfaces unchanged.
-      return setupResult.map(() => worker);
-    })();
+        // `map` runs only on Ok; an Err/Defect passes through with its value type
+        // re-shaped to the worker, so the failure surfaces unchanged.
+        return setupResult.map(() => worker);
+      })();
 
-    return fromSafePromise(inner).flatMap((result) => result);
+      return fromSafePromise(inner).flatMap((result) => result);
+    });
   }
 
   /**
    * Close the AMQP channel and connection.
    *
-   * This gracefully closes the connection to the AMQP broker,
-   * stopping all message consumption and cleaning up resources.
+   * Graceful shutdown in three steps: cancel every consumer (no new
+   * deliveries), drain in-flight handlers so their acks/nacks land on the
+   * still-open channel, then close the channel and release the connection.
+   *
+   * The drain waits up to `drainTimeoutMs` (default
+   * {@link DEFAULT_DRAIN_TIMEOUT_MS}) for in-flight handlers. On timeout the
+   * teardown proceeds anyway — the un-acked deliveries are redelivered by the
+   * broker, preserving at-least-once semantics — and a warning is logged.
+   * Pass `null` to wait indefinitely.
    *
    * @example
    * ```typescript
-   * const closeResult = await worker.close();
-   * if (closeResult.isOk()) {
-   *   console.log('Worker closed successfully');
-   * }
+   * await worker.close().get();
    * ```
    */
-  close(): AsyncResult<void, never> {
+  close(options?: { drainTimeoutMs?: number | null }): AsyncResult<void, never> {
     const cancellations = Array.from(this.consumerTags).map((consumerTag) =>
       // Swallow per-consumer cancel failures during close — they are best-effort
       // cleanup and we still want to release the underlying connection. A cancel
@@ -512,8 +576,42 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       .tap(() => {
         this.consumerTags.clear();
       })
+      .flatMap(() =>
+        // Drain AFTER the cancels resolved: `basic.cancel-ok` guarantees no
+        // further deliveries, so the snapshot cannot miss a late arrival.
+        fromSafePromise(this.drainInFlight(options?.drainTimeoutMs)),
+      )
       .flatMap(() => this.amqpClient.close())
       .map(() => undefined);
+  }
+
+  /**
+   * Wait for in-flight handlers, bounded by the drain timeout. The tracked
+   * promises never reject (the consume callback catches), but `allSettled`
+   * keeps the drain immune to that assumption changing.
+   */
+  private async drainInFlight(drainTimeoutMs: number | null | undefined): Promise<void> {
+    if (this.inFlight.size === 0) return;
+
+    const drained = Promise.allSettled(this.inFlight).then(() => true as const);
+    const timeoutMs = drainTimeoutMs === null ? null : (drainTimeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS);
+    if (timeoutMs === null) {
+      await drained;
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    const completed = await Promise.race([drained, timedOut]);
+    clearTimeout(timer);
+    if (!completed) {
+      this.logger?.warn(
+        "Drain timeout elapsed with handlers still in flight; closing anyway (broker will redeliver their messages)",
+        { inFlight: this.inFlight.size, drainTimeoutMs: timeoutMs },
+      );
+    }
   }
 
   /**
@@ -715,7 +813,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       .toAsync()
       .flatMap(({ replyTo, correlationId }) =>
         this.validateReplyPayload(
-          errorSchema.payload as StandardSchemaV1,
+          errorSchema.data as StandardSchemaV1,
           error.data,
           `RPC error data for "${String(rpcName)}" code "${error.code}"`,
           String(rpcName),
@@ -1162,6 +1260,88 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
+   * Defensive nack that never throws. During `close()` — or a
+   * server-initiated channel teardown — the underlying channel may already
+   * reject writes; a throw here would escape the async consume callback as a
+   * process-level unhandled rejection. Dropping the nack is safe: an unacked
+   * delivery is redelivered once the channel is gone.
+   */
+  private safeNack(msg: ConsumeMessage, context: Record<string, unknown>): void {
+    try {
+      this.amqpClient.nack(msg, false, false);
+    } catch (error: unknown) {
+      this.logger?.warn(
+        "Failed to nack message (channel closing?); broker will redeliver instead",
+        { ...context, error },
+      );
+    }
+  }
+
+  /**
+   * Process one delivery end to end. Never rejects.
+   *
+   * The dispatch path is built on `AsyncResult` so handler failures are
+   * values, not exceptions. Defensively guard the boundary anyway: a handler
+   * that violates the contract by throwing synchronously (or any unexpected
+   * fault inside processMessage) would otherwise leave the message neither
+   * acked nor nacked, and amqp-connection-manager would not redeliver it until
+   * the channel closes. nack(requeue=false) routes it via DLX if configured.
+   *
+   * The `state.messageHandled` flag guards the catch-block nack: if an
+   * exception is thrown *after* the message was already ack'd or nack'd
+   * (e.g. from the telemetry chain in processMessage's tail), a second nack
+   * would target the same delivery tag and close the channel with 406
+   * PRECONDITION_FAILED.
+   */
+  private async dispatchMessage(
+    msg: ConsumeMessage,
+    view: ConsumerView,
+    name: HandlerName<TContract>,
+    handler: StoredHandler,
+    queueName: string,
+  ): Promise<void> {
+    const state = { messageHandled: false };
+    try {
+      const result = await this.processMessage(msg, view, name, handler, state);
+      // A terminal `Defect` (an infra fault now on the defect channel —
+      // e.g. an RPC reply publish that *rejected*) is a value, not a
+      // throw, so it never reaches the catch below. If nothing already
+      // ack'd/nack'd the message, route it via DLX rather than leaving it
+      // un-acked — stuck until the channel closes, then redelivered, which
+      // would re-run an already-succeeded handler. This preserves the
+      // pre-defect-migration behaviour (terminal technical failure → DLQ)
+      // and prevents a persistent defect from poison-looping.
+      if (!state.messageHandled && result.isDefect()) {
+        this.logger?.error("Message processing failed with a defect; nacking message", {
+          consumerName: String(name),
+          queueName,
+          error: result.cause,
+        });
+        this.safeNack(msg, { consumerName: String(name), queueName });
+        state.messageHandled = true;
+      }
+    } catch (error: unknown) {
+      if (state.messageHandled) {
+        this.logger?.error(
+          "Uncaught error in consume callback after message was already handled; not nacking",
+          {
+            consumerName: String(name),
+            queueName,
+            error,
+          },
+        );
+        return;
+      }
+      this.logger?.error("Uncaught error in consume callback; nacking message", {
+        consumerName: String(name),
+        queueName,
+        error,
+      });
+      this.safeNack(msg, { consumerName: String(name), queueName });
+    }
+  }
+
+  /**
    * Consume messages one at a time.
    */
   private consumeSingle(
@@ -1174,7 +1354,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     return this.amqpClient
       .consume(
         queueName,
-        async (msg) => {
+        (msg) => {
           if (msg === null) {
             this.logger?.warn("Consumer cancelled by server", {
               consumerName: String(name),
@@ -1182,58 +1362,17 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             });
             return;
           }
-          // The dispatch path is built on `AsyncResult` so handler failures
-          // are values, not exceptions. Defensively guard the boundary anyway:
-          // a handler that violates the contract by throwing synchronously (or
-          // any unexpected fault inside processMessage) would otherwise leave
-          // the message neither acked nor nacked, and amqp-connection-manager
-          // would not redeliver it until the channel closes. nack(requeue=false)
-          // routes it via DLX if configured.
-          //
-          // The `state.messageHandled` flag guards the catch-block nack: if
-          // an exception is thrown *after* the message was already ack'd or
-          // nack'd (e.g. from the telemetry chain in processMessage's tail),
-          // a second nack would target the same delivery tag and close the
-          // channel with 406 PRECONDITION_FAILED.
-          const state = { messageHandled: false };
-          try {
-            const result = await this.processMessage(msg, view, name, handler, state);
-            // A terminal `Defect` (an infra fault now on the defect channel —
-            // e.g. an RPC reply publish that *rejected*) is a value, not a
-            // throw, so it never reaches the catch below. If nothing already
-            // ack'd/nack'd the message, route it via DLX rather than leaving it
-            // un-acked — stuck until the channel closes, then redelivered, which
-            // would re-run an already-succeeded handler. This preserves the
-            // pre-defect-migration behaviour (terminal technical failure → DLQ)
-            // and prevents a persistent defect from poison-looping.
-            if (!state.messageHandled && result.isDefect()) {
-              this.logger?.error("Message processing failed with a defect; nacking message", {
-                consumerName: String(name),
-                queueName,
-                error: result.cause,
-              });
-              this.amqpClient.nack(msg, false, false);
-              state.messageHandled = true;
-            }
-          } catch (error: unknown) {
-            if (state.messageHandled) {
-              this.logger?.error(
-                "Uncaught error in consume callback after message was already handled; not nacking",
-                {
-                  consumerName: String(name),
-                  queueName,
-                  error,
-                },
-              );
-              return;
-            }
-            this.logger?.error("Uncaught error in consume callback; nacking message", {
-              consumerName: String(name),
-              queueName,
-              error,
-            });
-            this.amqpClient.nack(msg, false, false);
-          }
+          // Track the processing promise so `close()` can drain in-flight
+          // messages before tearing down the channel. The promise never
+          // rejects — `dispatchMessage` catches everything — so the returned
+          // callback promise cannot surface an unhandled rejection either.
+          const processing = this.dispatchMessage(msg, view, name, handler, queueName).finally(
+            () => {
+              this.inFlight.delete(processing);
+            },
+          );
+          this.inFlight.add(processing);
+          return processing;
         },
         this.consumerOptions[name],
       )

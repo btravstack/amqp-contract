@@ -127,11 +127,15 @@ function handleErrorImmediateRequeue(
     ctx.amqpClient.nack(msg, false, true);
     return OkAsync(undefined);
   } else {
-    // For classic queues, re-publish the message to the same exchange / routing key immediately with an incremented x-retry-count header
+    // For classic queues, re-publish the retry copy straight back to THIS
+    // queue via the default exchange (routing key = queue name). Republishing
+    // to the original exchange would fan the retry out to every queue bound
+    // to it — sibling consumers would process duplicates and inherit our
+    // `x-retry-count` header into their own retry accounting.
     return publishForRetry(ctx, {
       msg,
-      exchange: msg.fields.exchange,
-      routingKey: msg.fields.routingKey,
+      exchange: "",
+      routingKey: queueName,
       queueName,
       error,
     });
@@ -249,52 +253,11 @@ function calculateRetryDelay(retryCount: number, config: ResolvedTtlBackoffRetry
 }
 
 /**
- * Parse message content for republishing.
- *
- * The channel is configured with `json: true`, so values published as plain
- * objects are encoded once at publish time. Re-publishing the raw `Buffer`
- * would then trigger a *second* JSON.stringify (turning the bytes into a
- * stringified base64 blob), so for JSON payloads we must round-trip back to
- * the parsed value. For any other content type — or when the message is
- * compressed — we pass the bytes through untouched, since re-parsing would
- * either fail or silently corrupt binary data.
- */
-function parseMessageContentForRetry(
-  ctx: RetryContext,
-  msg: ConsumeMessage,
-  queueName: string,
-): Buffer | unknown {
-  if (msg.properties.contentEncoding) {
-    // Compressed (gzip, brotli, …) — opaque to us; keep the buffer as-is so
-    // the consumer's decompressor sees the same bytes the producer sent.
-    return msg.content;
-  }
-
-  const contentType = msg.properties.contentType;
-  const isJson =
-    contentType === undefined ||
-    contentType === "application/json" ||
-    contentType.startsWith("application/json;") ||
-    contentType.endsWith("+json");
-
-  if (!isJson) {
-    // Binary or other text payload — preserve bytes exactly.
-    return msg.content;
-  }
-
-  try {
-    return JSON.parse(msg.content.toString());
-  } catch (parseErr) {
-    ctx.logger?.warn("Failed to parse JSON message for retry, using original buffer", {
-      queueName,
-      error: parseErr,
-    });
-    return msg.content;
-  }
-}
-
-/**
  * Publish message with an incremented x-retry-count header and optional TTL.
+ *
+ * The retry copy republishes `msg.content` — the exact bytes the broker
+ * delivered. `AmqpClient.publish` passes Buffers through untouched, so JSON,
+ * compressed, and binary payloads all survive the retry hop byte-for-byte.
  */
 function publishForRetry(
   ctx: RetryContext,
@@ -320,8 +283,6 @@ function publishForRetry(
   const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
   const newRetryCount = retryCount + 1;
 
-  const content = parseMessageContentForRetry(ctx, msg, queueName);
-
   // Publish FIRST, then ack the original only if the publish succeeded.
   //
   // Acking before publishing would lose the message if the publish then fails:
@@ -332,7 +293,7 @@ function publishForRetry(
   // broker re-enqueues), so we either get the retry through or get another
   // chance at the original.
   return ctx.amqpClient
-    .publish(exchange, routingKey, content, {
+    .publish(exchange, routingKey, msg.content, {
       ...msg.properties,
       ...(delayMs !== undefined ? { expiration: delayMs.toString() } : {}), // Per-message TTL
       headers: {

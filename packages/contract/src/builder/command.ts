@@ -391,7 +391,7 @@ export function defineCommandPublisher<
   TRoutingKey extends string,
 >(
   commandConsumer: CommandConsumerConfig<TMessage, DirectExchangeDefinition, TRoutingKey>,
-): { message: TMessage; exchange: DirectExchangeDefinition; routingKey: string };
+): { message: TMessage; exchange: DirectExchangeDefinition; routingKey: TRoutingKey };
 
 /**
  * Create a publisher that sends commands to a topic exchange consumer.
@@ -426,7 +426,7 @@ export function defineCommandPublisher<
   options?: {
     routingKey?: RoutingKey<TPublisherRoutingKey>;
   },
-): { message: TMessage; exchange: TopicExchangeDefinition; routingKey: string };
+): { message: TMessage; exchange: TopicExchangeDefinition; routingKey: TPublisherRoutingKey };
 
 /**
  * Implementation of defineCommandPublisher.

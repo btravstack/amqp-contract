@@ -18,6 +18,7 @@ import {
   defineMessage,
   definePublisher,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "./builder.js";
 import type {
@@ -474,7 +475,7 @@ describe("defineRpc typed errors", () => {
   const response = defineMessage(z.object({ status: z.string() }));
 
   test("captures the declared error map type on the definition", () => {
-    const notFound = defineMessage(z.object({ orderId: z.string() }));
+    const notFound = { data: z.object({ orderId: z.string() }) };
     const rpc = defineRpc(queue, { request, response, errors: { ORDER_NOT_FOUND: notFound } });
 
     expectTypeOf(rpc.errors).toEqualTypeOf<{ ORDER_NOT_FOUND: typeof notFound } | undefined>();
@@ -488,12 +489,44 @@ describe("defineRpc typed errors", () => {
   });
 
   test("error map survives defineContract", () => {
-    const notFound = defineMessage(z.object({ orderId: z.string() }));
+    const notFound = { data: z.object({ orderId: z.string() }) };
     const getOrder = defineRpc(queue, { request, response, errors: { ORDER_NOT_FOUND: notFound } });
     const contract = defineContract({ rpcs: { getOrder } });
 
     expectTypeOf<
       keyof NonNullable<typeof contract.rpcs.getOrder.errors>
     >().toEqualTypeOf<"ORDER_NOT_FOUND">();
+  });
+});
+
+describe("standalone topology typing", () => {
+  test("standalone queues and exchanges are re-keyed by NAME in the contract output", () => {
+    const auditExchange = defineExchange("audit");
+    const dlx = defineExchange("orders-dlx", { type: "direct" });
+    const dlq = defineQueue("orders-dlq", { deadLetter: { exchange: dlx } });
+
+    const contract = defineContract({
+      exchanges: { someLabel: auditExchange },
+      queues: { anotherLabel: dlq },
+    });
+
+    // Authoring labels are dropped; resources key by their broker name.
+    expectTypeOf(contract.exchanges).toHaveProperty("audit");
+    expectTypeOf(contract.queues).toHaveProperty("orders-dlq");
+    // The standalone queue's DLX is auto-extracted into exchanges.
+    expectTypeOf(contract.exchanges).toHaveProperty("orders-dlx");
+    expectTypeOf(contract.exchanges).not.toHaveProperty("someLabel");
+    expectTypeOf(contract.queues).not.toHaveProperty("anotherLabel");
+  });
+
+  test("standalone binding labels are kept verbatim", () => {
+    const dlx = defineExchange("orders-dlx", { type: "direct" });
+    const dlq = defineQueue("orders-dlq");
+    const contract = defineContract({
+      queues: { dlq },
+      bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "orders.dlq" }) },
+    });
+
+    expectTypeOf(contract.bindings).toHaveProperty("dlqBinding");
   });
 });

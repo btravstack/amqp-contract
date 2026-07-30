@@ -29,6 +29,7 @@
     "docs"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -41,7 +42,8 @@
     "./extension": {
       "types": "./dist/extension.d.mts",
       "import": "./dist/extension.mjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsdown src/index.ts src/global-setup.ts src/extension.ts --format esm --dts --clean",

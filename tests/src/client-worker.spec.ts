@@ -9,7 +9,7 @@ import {
   defineQueue,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
-import { TypedAmqpWorker, type WorkerInferHandlers, defineHandlers } from "@amqp-contract/worker";
+import { TypedAmqpWorker, type WorkerInferHandlers, declareHandlers } from "@amqp-contract/worker";
 import { Ok, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
@@ -31,7 +31,7 @@ const it = baseIt.extend<{
         const client = await TypedAmqpClient.create({
           contract,
           urls: [amqpConnectionUrl],
-        }).getOrThrow();
+        }).get();
 
         clients.push(client);
         return client;
@@ -41,7 +41,7 @@ const it = baseIt.extend<{
       await Promise.all(
         clients.map(async (client) => {
           try {
-            await client.close().getOrThrow();
+            await client.close().get();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console
@@ -61,9 +61,9 @@ const it = baseIt.extend<{
         ) => {
           const worker = await TypedAmqpWorker.create({
             contract,
-            handlers: defineHandlers(contract, handlers),
+            handlers: declareHandlers(contract, handlers),
             urls: [amqpConnectionUrl],
-          }).getOrThrow();
+          }).get();
 
           workers.push(worker);
           return worker;
@@ -74,7 +74,7 @@ const it = baseIt.extend<{
       await Promise.all(
         workers.map(async (worker) => {
           try {
-            await worker.close().getOrThrow();
+            await worker.close().get();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
             // eslint-disable-next-line no-console

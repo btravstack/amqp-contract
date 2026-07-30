@@ -66,6 +66,37 @@ describe("TypedAmqpWorker.create cleanup", () => {
     expect(_internal_getConnectionCount()).toBe(0);
   });
 
+  it("fails fast when a handler entry exists but is not a function", async () => {
+    const contract = defineContract({
+      consumers: {
+        processOrder: defineConsumer(
+          defineQueue("orders", { type: "classic", durable: false }),
+          defineMessage(z.object({ orderId: z.string() })),
+        ),
+      },
+    });
+
+    // `{ processOrder: undefined }` passes the missing-handlers guard
+    // (`Object.hasOwn` sees the key) but would make every delivery defect
+    // with an opaque TypeError — create() must reject it up front, before
+    // any connection is acquired.
+    const result = await TypedAmqpWorker.create({
+      contract,
+      handlers: { processOrder: undefined } as never,
+      urls: ["amqp://localhost:1"],
+    });
+
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
+      expect((result.cause as TechnicalError).message).toBe(
+        "Handlers for contract entries are not functions: processOrder. " +
+          "Each handler must be a function or a [handler, options] tuple.",
+      );
+    }
+    expect(_internal_getConnectionCount()).toBe(0);
+  });
+
   it("returns a Defect (does not throw) when handlers is missing entirely", async () => {
     const contract: ContractDefinition = {};
 

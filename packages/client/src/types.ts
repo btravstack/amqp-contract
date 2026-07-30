@@ -2,26 +2,18 @@ import type {
   ContractDefinition,
   InferPublisherNames,
   InferRpcNames,
+  InferSchemaInput,
+  InferSchemaOutput,
   MessageDefinition,
   PublisherEntry,
   QueueEntry,
   RpcDefinition,
   RpcErrorMap,
 } from "@amqp-contract/contract";
-import type { RpcError } from "@amqp-contract/core";
+import type { MessageValidationError, RpcError } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-/**
- * Infer the TypeScript type from a schema (input side, used for publish payloads).
- */
-type InferSchemaInput<TSchema extends StandardSchemaV1> =
-  TSchema extends StandardSchemaV1<infer TInput> ? TInput : never;
-
-/**
- * Infer the TypeScript type from a schema (output side, used for validated responses).
- */
-type InferSchemaOutput<TSchema extends StandardSchemaV1> =
-  TSchema extends StandardSchemaV1<infer _TInput, infer TOutput> ? TOutput : never;
+import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
 
 /**
  * Infer publisher message input type.
@@ -103,7 +95,28 @@ export type ClientInferRpcErrors<
   >
     ? TErrors extends RpcErrorMap
       ? {
-          [K in keyof TErrors & string]: RpcError<K, InferSchemaOutput<TErrors[K]["payload"]>>;
+          [K in keyof TErrors & string]: RpcError<K, InferSchemaOutput<TErrors[K]["data"]>>;
         }[keyof TErrors & string]
       : never
     : never;
+
+/**
+ * The complete error union of `client.call(name, ...)` for a given RPC:
+ * `MessageValidationError | RpcTimeoutError | RpcCancelledError` plus the
+ * RPC's declared typed errors ({@link ClientInferRpcErrors}). Use it to name
+ * a call's result in wrappers and helper signatures:
+ *
+ * ```typescript
+ * function callWithRetry<TName extends InferRpcNames<typeof contract>>(
+ *   name: TName,
+ * ): AsyncResult<ClientInferRpcResponseOutput<typeof contract, TName>, ClientInferCallError<typeof contract, TName>> { ... }
+ * ```
+ */
+export type ClientInferCallError<
+  TContract extends ContractDefinition,
+  TName extends InferRpcNames<TContract>,
+> =
+  | MessageValidationError
+  | RpcTimeoutError
+  | RpcCancelledError
+  | ClientInferRpcErrors<TContract, TName>;

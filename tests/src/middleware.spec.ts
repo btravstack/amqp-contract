@@ -12,7 +12,7 @@ import {
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import {
   composeMiddleware,
-  defineMiddleware,
+  declareMiddleware,
   nonRetryable,
   rpcError,
   TypedAmqpWorker,
@@ -26,9 +26,10 @@ import { z } from "zod";
 const it = baseIt.extend<{
   workerFactory: <
     TContract extends ContractDefinition,
-    TContext extends Record<string, unknown> | EmptyContext,
+    TCreated extends Record<string, unknown> | EmptyContext,
+    TContext extends TCreated = TCreated,
   >(
-    options: Omit<CreateWorkerOptions<TContract, TContext>, "urls">,
+    options: Omit<CreateWorkerOptions<TContract, TCreated, TContext>, "urls">,
   ) => Promise<TypedAmqpWorker<TContract>>;
   clientFactory: <TContract extends ContractDefinition>(
     options: Omit<Parameters<typeof TypedAmqpClient.create<TContract>>[0], "urls">,
@@ -41,7 +42,7 @@ const it = baseIt.extend<{
         const worker = await TypedAmqpWorker.create({
           ...options,
           urls: [amqpConnectionUrl],
-        }).getOrThrow();
+        }).get();
         workers.push(worker as TypedAmqpWorker<ContractDefinition>);
         return worker;
       });
@@ -50,7 +51,7 @@ const it = baseIt.extend<{
         workers.map((w) =>
           w
             .close()
-            .getOrThrow()
+            .get()
             .catch(() => undefined),
         ),
       );
@@ -63,7 +64,7 @@ const it = baseIt.extend<{
         const client = await TypedAmqpClient.create({
           ...options,
           urls: [amqpConnectionUrl],
-        }).getOrThrow();
+        }).get();
         clients.push(client as TypedAmqpClient<ContractDefinition>);
         return client;
       });
@@ -72,7 +73,7 @@ const it = baseIt.extend<{
         clients.map((c) =>
           c
             .close()
-            .getOrThrow()
+            .get()
             .catch(() => undefined),
         ),
       );
@@ -100,7 +101,7 @@ const buildRpcContract = (suffix: string) => {
     request: defineMessage(z.object({ a: z.number(), b: z.number() })),
     response: defineMessage(z.object({ sum: z.number() })),
     errors: {
-      BLOCKED: defineMessage(z.object({ reason: z.string() })),
+      BLOCKED: { data: z.object({ reason: z.string() }) },
     },
   });
   return defineContract({ rpcs: { calculate } });
@@ -114,12 +115,13 @@ describe("worker middleware", () => {
     const contract = buildConsumerContract("mw-context");
 
     const middleware = composeMiddleware(
-      defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
+      declareMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
         const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
         return next({ context: { tenantId: typeof tenantId === "string" ? tenantId : "unknown" } });
       }),
-      defineMiddleware<{ tenantId: string }, { tenantId: string; greeting: string }>((args, next) =>
-        next({ context: { ...args.context, greeting: `hi ${args.context.tenantId}` } }),
+      declareMiddleware<{ tenantId: string }, { tenantId: string; greeting: string }>(
+        (args, next) =>
+          next({ context: { ...args.context, greeting: `hi ${args.context.tenantId}` } }),
       ),
     );
 
@@ -147,6 +149,45 @@ describe("worker middleware", () => {
     await expect(seen).resolves.toEqual({ tenantId: "acme", greeting: "hi acme" });
   });
 
+  it("accepts a middleware ARRAY (first = outermost) and composes it like composeMiddleware", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("mw-array");
+
+    const order: string[] = [];
+    const outer = declareMiddleware((_args, next) => {
+      order.push("outer");
+      return next({ context: { tenantId: "acme" } });
+    });
+    const inner = declareMiddleware((args, next) => {
+      order.push("inner");
+      return next({ context: { ...args.context, stamped: true } });
+    });
+
+    let resolveSeen!: (value: Record<string, unknown>) => void;
+    const seen = new Promise<Record<string, unknown>>((res) => {
+      resolveSeen = res;
+    });
+
+    await workerFactory({
+      contract,
+      middleware: [outer, inner],
+      handlers: {
+        processOrder: (_message, _raw, { context }) => {
+          resolveSeen(context as Record<string, unknown>);
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
+
+    await expect(seen).resolves.toEqual({ tenantId: "acme", stamped: true });
+    expect(order).toEqual(["outer", "inner"]);
+  });
+
   it("short-circuits the handler when middleware returns an error", async ({
     workerFactory,
     clientFactory,
@@ -161,7 +202,7 @@ describe("worker middleware", () => {
 
     await workerFactory({
       contract,
-      middleware: defineMiddleware((_args, _next) => {
+      middleware: declareMiddleware((_args, _next) => {
         resolveBlocked();
         return ErrAsync(nonRetryable("blocked by middleware"));
       }),
@@ -190,7 +231,7 @@ describe("worker middleware", () => {
 
     await workerFactory({
       contract,
-      middleware: defineMiddleware((args, next) => {
+      middleware: declareMiddleware((args, next) => {
         if (args.rawMessage.properties.headers?.["x-blocked"] === "yes") {
           return ErrAsync(rpcError("BLOCKED", { reason: "header said so" }));
         }
@@ -313,7 +354,7 @@ describe("createContext and handler helpers", () => {
       createContext: (info) => ({
         requestId: `${info.handlerName}-${String(info.rawMessage.fields.deliveryTag)}`,
       }),
-      middleware: defineMiddleware<{ requestId: string }, { requestId: string; stamped: boolean }>(
+      middleware: declareMiddleware<{ requestId: string }, { requestId: string; stamped: boolean }>(
         (args, next) => next({ context: { ...args.context, stamped: true } }),
       ),
       handlers: {
@@ -398,7 +439,7 @@ describe("middleware payload substitution", () => {
 
     await workerFactory({
       contract,
-      middleware: defineMiddleware((args, next) => {
+      middleware: declareMiddleware((args, next) => {
         const payload = args.message.payload as { orderId: string };
         return next({ payload: { orderId: `${payload.orderId}-rewritten` } });
       }),
@@ -425,7 +466,7 @@ describe("middleware payload substitution", () => {
     let handlerRan = false;
     await workerFactory({
       contract,
-      middleware: defineMiddleware((_args, next) => next({ payload: { wrong: "shape" } })),
+      middleware: declareMiddleware((_args, next) => next({ payload: { wrong: "shape" } })),
       handlers: {
         processOrder: () => {
           handlerRan = true;

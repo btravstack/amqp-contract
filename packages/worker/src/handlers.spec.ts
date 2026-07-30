@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
-import { defineHandler, defineHandlers } from "./handlers.js";
+import { declareHandler, declareHandlers } from "./handlers.js";
 
 /**
  * Creates a mock ConsumeMessage for testing purposes.
@@ -68,7 +68,7 @@ describe("handlers", () => {
     },
   });
 
-  describe("defineHandler (safe handlers)", () => {
+  describe("declareHandler (safe handlers)", () => {
     it("should create a simple safe handler without options", () => {
       // GIVEN
       const handler = ({ payload }: { payload: { id: string; data: string } }) => {
@@ -77,7 +77,7 @@ describe("handlers", () => {
       };
 
       // WHEN
-      const result = defineHandler(testContract, "testConsumer", handler);
+      const result = declareHandler(testContract, "testConsumer", handler);
 
       // THEN
       expect(result).toBe(handler);
@@ -91,7 +91,7 @@ describe("handlers", () => {
       };
 
       // WHEN
-      const result = defineHandler(testContract, "testConsumer", handler, { prefetch: 10 });
+      const result = declareHandler(testContract, "testConsumer", handler, { prefetch: 10 });
 
       // THEN
       expect(result).toEqual([handler, { prefetch: 10 }]);
@@ -103,7 +103,7 @@ describe("handlers", () => {
         OkAsync({ sum: payload.a + payload.b });
 
       // WHEN
-      const result = defineHandler(testContract, "calculate", handler);
+      const result = declareHandler(testContract, "calculate", handler);
 
       // THEN
       expect(result).toBe(handler);
@@ -115,7 +115,7 @@ describe("handlers", () => {
         OkAsync({ sum: payload.a + payload.b });
 
       // WHEN
-      const result = defineHandler(testContract, "calculate", handler, { prefetch: 5 });
+      const result = declareHandler(testContract, "calculate", handler, { prefetch: 5 });
 
       // THEN
       expect(result).toEqual([handler, { prefetch: 5 }]);
@@ -131,14 +131,14 @@ describe("handlers", () => {
       // WHEN/THEN
       expect(() => {
         // @ts-expect-error Testing runtime validation with invalid name
-        defineHandler(testContract, "nonExistent", handler);
+        declareHandler(testContract, "nonExistent", handler);
       }).toThrow(
         'Handler target "nonExistent" not found in contract. Available consumers and RPCs: testConsumer, anotherConsumer, calculate',
       );
     });
   });
 
-  describe("defineHandlers (safe handlers)", () => {
+  describe("declareHandlers (safe handlers)", () => {
     it("should create multiple safe handlers spanning consumers and RPCs", () => {
       // GIVEN
       const handlers = {
@@ -155,7 +155,7 @@ describe("handlers", () => {
       };
 
       // WHEN
-      const result = defineHandlers(testContract, handlers);
+      const result = declareHandlers(testContract, handlers);
 
       // THEN
       expect(result).toBe(handlers);
@@ -182,7 +182,7 @@ describe("handlers", () => {
 
       // WHEN/THEN — cast to bypass type-system check; runtime guard is what's under test
       expect(() => {
-        defineHandlers(testContract, handlers as never);
+        declareHandlers(testContract, handlers as never);
       }).toThrow(
         'Handler target "nonExistent" not found in contract. Available consumers and RPCs: testConsumer, anotherConsumer, calculate',
       );
@@ -199,24 +199,44 @@ describe("handlers", () => {
 
       // WHEN/THEN — cast to bypass type-system check; runtime guard is what's under test
       expect(() => {
-        defineHandlers(testContract, handlers as never);
+        declareHandlers(testContract, handlers as never);
       }).toThrow(
         "Missing handlers for contract entries: anotherConsumer, calculate. " +
           "Every `consumers` and `rpcs` key requires a handler.",
       );
     });
 
+    it("should throw when a handler entry exists but is not a function", () => {
+      // GIVEN — every key present, but one is explicitly undefined and one is
+      // a tuple whose first element is not callable. `Object.hasOwn` sees the
+      // keys, so the missing-handlers guard cannot catch these; without this
+      // check every delivery would defect with an opaque TypeError.
+      const handlers = {
+        testConsumer: undefined,
+        anotherConsumer: ["not-a-function", { prefetch: 5 }],
+        calculate: () => OkAsync({ sum: 0 }),
+      };
+
+      // WHEN/THEN — cast to bypass type-system check; runtime guard is what's under test
+      expect(() => {
+        declareHandlers(testContract, handlers as never);
+      }).toThrow(
+        "Handlers for contract entries are not functions: testConsumer, anotherConsumer. " +
+          "Each handler must be a function or a [handler, options] tuple.",
+      );
+    });
+
     it("should throw a clear error if handlers is null or undefined", () => {
       // WHEN/THEN — JavaScript callers can pass nullish handlers despite the types
       expect(() => {
-        defineHandlers(testContract, null as never);
+        declareHandlers(testContract, null as never);
       }).toThrow(
-        "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+        "declareHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
       );
       expect(() => {
-        defineHandlers(testContract, undefined as never);
+        declareHandlers(testContract, undefined as never);
       }).toThrow(
-        "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+        "declareHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
       );
     });
   });
@@ -232,7 +252,7 @@ describe("handlers", () => {
       };
 
       // WHEN
-      const result = defineHandler(testContract, "testConsumer", handler);
+      const result = declareHandler(testContract, "testConsumer", handler);
 
       // THEN - handler should be created successfully
       expect(result).toBe(handler);
@@ -255,7 +275,7 @@ describe("handlers", () => {
       };
 
       // WHEN
-      const result = defineHandler(testContract, "testConsumer", handler);
+      const result = declareHandler(testContract, "testConsumer", handler);
 
       // THEN - handler should be created successfully
       expect(result).toBe(handler);

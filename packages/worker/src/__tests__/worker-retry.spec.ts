@@ -1216,4 +1216,83 @@ describe("Worker Retry Mechanism", () => {
       // This is expected behavior when no DLX is configured and max retries exceeded
     });
   });
+
+  describe("Validation failures bypass the retry pipeline", () => {
+    it("INVARIANT: an invalid payload on a retry-configured queue goes straight to the DLQ with zero retries", async ({
+      workerFactory,
+      publishMessage,
+      amqpChannel,
+    }) => {
+      // GIVEN a queue WITH retry configured — the invariant is that a
+      // deterministic poison message must NOT ride the retry pipeline (it
+      // would burn the retry budget on guaranteed failures) but land in the
+      // DLQ on the first delivery.
+      const TestMessage = z.object({ id: z.string() });
+
+      const exchange = defineExchange("poison-exchange", { durable: false });
+      const dlx = defineExchange("poison-dlx", { durable: false });
+      const queue = defineQueue("poison-queue", {
+        type: "classic",
+        durable: false,
+        deadLetter: {
+          exchange: dlx,
+          routingKey: "poison-queue.dlq",
+        },
+        retry: {
+          mode: "ttl-backoff",
+          maxRetries: 3,
+          initialDelayMs: 100,
+          maxDelayMs: 1000,
+          backoffMultiplier: 2,
+          jitter: false,
+        },
+      });
+
+      const testMessage = defineMessage(TestMessage);
+      const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
+
+      const contract = defineContract({
+        publishers: { testPublisher: testEvent },
+        consumers: {
+          testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+        },
+      });
+
+      let handlerCalls = 0;
+      await workerFactory(contract, {
+        testConsumer: () => {
+          handlerCalls++;
+          return OkAsync(undefined);
+        },
+      });
+
+      await amqpChannel.assertQueue("poison-dlq", { durable: false });
+      await amqpChannel.bindQueue("poison-dlq", dlx.name, "poison-queue.dlq");
+
+      // WHEN publishing a payload that fails schema validation (id must be a string)
+      publishMessage(exchange.name, "test.message", { id: 12345 });
+
+      // THEN the message lands in the DLQ on the first delivery
+      const dlqMsg = await vi.waitFor(
+        async () => {
+          const msg = await amqpChannel.get("poison-dlq", { noAck: false });
+          if (!msg) {
+            throw new Error("Poison message not yet in DLQ");
+          }
+          return msg;
+        },
+        { timeout: 3000 },
+      );
+      amqpChannel.ack(dlqMsg);
+
+      // AND it never entered the retry pipeline: no retry accounting header,
+      // and the wait queue never saw it.
+      expect(dlqMsg.properties.headers?.["x-retry-count"]).toBeUndefined();
+      const waitQueue = await amqpChannel.checkQueue("poison-queue-wait");
+      expect(waitQueue.messageCount).toBe(0);
+
+      // AND the handler never ran.
+      expect(handlerCalls).toBe(0);
+    });
+  });
 });
