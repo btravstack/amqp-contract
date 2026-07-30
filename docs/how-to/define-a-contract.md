@@ -152,7 +152,7 @@ export const contract = defineContract({
 });
 ```
 
-Standalone `exchanges`, `queues` and `bindings` are asserted by client and worker setup exactly like extracted ones. In the contract output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. Dead-letter exchanges and TTL-backoff retry infrastructure are auto-extracted for standalone queues too, just as for consumer queues.
+Standalone `exchanges`, `queues` and `bindings` are asserted by client and worker setup exactly like extracted ones. In the contract output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. Dead-letter exchanges are auto-extracted for standalone queues too, just as for consumer queues; TTL-backoff wait queues are derived at setup time and never appear in the contract.
 
 For topology that cannot live in a contract at all, `setupAmqpTopology(channel, contract)` from `@amqp-contract/core` is the low-level escape hatch: it asserts a contract's resources on a raw channel, and you can run your own assertions alongside it.
 

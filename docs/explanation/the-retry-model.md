@@ -71,7 +71,7 @@ The three modes exist because "transient" covers failures with very different ti
 
 **`immediate-requeue`** puts the message back at once. This suits failures measured in milliseconds — brief lock contention, a connection that flapped, a leader election that has already resolved. Its virtue is simplicity; its risk is that a failure lasting longer than a few hundred milliseconds burns the whole retry budget in a tight loop while achieving nothing.
 
-**`ttl-backoff`** routes the message through a wait queue with a per-message TTL, then back, with the delay growing exponentially. This suits failures measured in seconds or minutes — a degraded downstream, a rate limit window, a database failing over. The growth gives the dependency time to actually recover, which an immediate requeue never does.
+**`ttl-backoff`** parks the message in a per-delay wait queue with a TTL, then routes it back, with the delay growing exponentially. Each distinct delay gets its own wait queue because RabbitMQ only expires messages at the head of a queue — a shared queue would let a long retry block a short one. This suits failures measured in seconds or minutes — a degraded downstream, a rate limit window, a database failing over. The growth gives the dependency time to actually recover, which an immediate requeue never does.
 
 `ttl-backoff` also offers jitter, and the reason is worth stating: without it, a hundred messages that failed together retry together, hit the recovering service simultaneously, and knock it over again. Jitter spreads them.
 

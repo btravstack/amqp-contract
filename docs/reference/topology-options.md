@@ -22,7 +22,7 @@ defineContract({ publishers, consumers, rpcs, exchanges, queues, bindings });
 | `queues`     | Standalone queues with no consumer in this service                      |
 | `bindings`   | Standalone bindings (`defineQueueBinding` / `defineExchangeBinding`)    |
 
-The returned contract exposes `exchanges`, `queues` and `bindings` extracted from the publishers, consumers and RPCs — you rarely declare them directly. The standalone keys exist for topology this service asserts without attaching a publisher or consumer to it: the classic cases are a DLQ bound to the auto-extracted dead-letter exchange, or an audit queue another process drains. Dead-letter exchanges and TTL-backoff retry infrastructure are auto-extracted for standalone queues exactly as for consumer queues. In the output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
+The returned contract exposes `exchanges`, `queues` and `bindings` extracted from the publishers, consumers and RPCs — you rarely declare them directly. The standalone keys exist for topology this service asserts without attaching a publisher or consumer to it: the classic cases are a DLQ bound to the auto-extracted dead-letter exchange, or an audit queue another process drains. Dead-letter exchanges are auto-extracted for standalone queues exactly as for consumer queues (TTL-backoff wait queues are derived at setup time and never appear in the contract). In the output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
 
 ## `defineExchange`
 
@@ -93,7 +93,7 @@ retry: { mode, maxRetries, … }
 | ------------------- | --------------------------------------------------------------------- |
 | `none` (default)    | No retry. `RetryableError` is dead-lettered like `NonRetryableError`. |
 | `immediate-requeue` | Requeued at once, up to `maxRetries`, then dead-lettered.             |
-| `ttl-backoff`       | Routed through a wait queue with growing per-message TTL, then back.  |
+| `ttl-backoff`       | Parked in a per-delay wait queue with growing TTL, then routed back.  |
 
 ### `immediate-requeue`
 
@@ -107,30 +107,31 @@ Quorum queues also enforce `x-delivery-limit` independently of `maxRetries`.
 
 ### `ttl-backoff`
 
-| Option              | Default            | Description                                |
-| ------------------- | ------------------ | ------------------------------------------ |
-| `maxRetries`        | 3                  | Maximum attempts                           |
-| `initialDelayMs`    | 1000               | First delay                                |
-| `maxDelayMs`        | 30000              | Delay cap                                  |
-| `backoffMultiplier` | 2                  | Exponential factor                         |
-| `jitter`            | `true`             | ±randomisation, to avoid a thundering herd |
-| `waitQueueName`     | `{queueName}-wait` | Generated wait queue                       |
-| `waitExchangeName`  | `wait-exchange`    | Generated headers exchange                 |
-| `retryExchangeName` | `retry-exchange`   | Generated headers exchange                 |
+| Option              | Default | Description                                |
+| ------------------- | ------- | ------------------------------------------ |
+| `maxRetries`        | 3       | Maximum attempts                           |
+| `initialDelayMs`    | 1000    | First delay                                |
+| `maxDelayMs`        | 30000   | Delay cap (applied to the base delay)      |
+| `backoffMultiplier` | 2       | Exponential factor                         |
+| `jitter`            | `true`  | ±50% randomisation, avoids thundering herd |
 
-Delay is `initialDelayMs * backoffMultiplier ^ attempt`, capped at `maxDelayMs`. `defineContract` generates the wait queue, both headers exchanges and their bindings.
+The base delay is `initialDelayMs * backoffMultiplier ^ attempt`, capped at `maxDelayMs`. Each **distinct** base delay gets its own wait queue, `{queueName}-wait-{delayMs}ms`, declared by `setupAmqpTopology` at channel-setup time (derived from the queue's retry config via `deriveTtlBackoffInfrastructure` — never stored in the contract). The worker publishes the retry copy to the tier queue via the default exchange; the tier dead-letters it back to the main queue when its TTL expires.
+
+RabbitMQ only expires messages at the **head** of a queue, so per-tier queues are what keep a 60s retry from blocking a later 1s retry. Within a tier every message shares the same base delay: the per-message `expiration` carries the jittered value and the tier's queue-level `x-message-ttl` is set to the jitter ceiling (`ceil(base * 1.5)`) as a backstop, so head-of-line skew within a tier is bounded by the jitter spread — and is zero with `jitter: false`.
+
+Retried deliveries arrive via the default exchange, so their `fields.routingKey` is the queue name; the original routing key is preserved in the `x-original-routing-key` header.
 
 ## Diagnostic headers
 
 Stamped only on paths that **republish** the message — classic queues under `immediate-requeue`, and any queue under `ttl-backoff`.
 
-| Header                           | Meaning                         | Set on                     |
-| -------------------------------- | ------------------------------- | -------------------------- |
-| `x-delivery-count`               | Broker-native attempt count     | Quorum queues, by RabbitMQ |
-| `x-retry-count`                  | Worker-managed attempt count    | Republish paths            |
-| `x-last-error`                   | Most recent failure message     | Republish paths            |
-| `x-first-failure-timestamp`      | Epoch ms of first failure       | Republish paths            |
-| `x-wait-queue` / `x-retry-queue` | Internal `ttl-backoff` pointers | `ttl-backoff` republish    |
+| Header                      | Meaning                           | Set on                     |
+| --------------------------- | --------------------------------- | -------------------------- |
+| `x-delivery-count`          | Broker-native attempt count       | Quorum queues, by RabbitMQ |
+| `x-retry-count`             | Worker-managed attempt count      | Republish paths            |
+| `x-last-error`              | Most recent failure message       | Republish paths            |
+| `x-first-failure-timestamp` | Epoch ms of first failure         | Republish paths            |
+| `x-original-routing-key`    | Routing key of the first delivery | Republish paths            |
 
 Direct-nack paths add nothing, so those dead-lettered messages arrive exactly as delivered.
 

@@ -222,7 +222,7 @@ const queue = defineQueue("orders", {
 
 ### TTL-Backoff Mode
 
-Uses wait queues with exponential backoff. Infrastructure is **automatically generated** when `defineQueue` is called with TTL-backoff retry.
+Uses per-delay-tier wait queues with exponential backoff. The wait-queue topology is **derived, never stored**: `defineQueue` returns a plain `QueueDefinition`, and `setupAmqpTopology` derives one wait queue per distinct delay (`{queue}-wait-{delayMs}ms`) from the retry config at channel-setup time via `deriveTtlBackoffInfrastructure` (packages/contract/src/builder/ttl-backoff.ts).
 
 ```typescript
 const queue = defineQueue("orders", {
@@ -253,12 +253,7 @@ Omitting `retry` defaults to `mode: "none"`.
 
 ### Accessing Queue Properties
 
-When retry is configured with TTL-backoff mode, `defineQueue` returns a wrapper object. Use `extractQueue()` to access the underlying queue definition:
-
-```typescript
-import { extractQueue } from "@amqp-contract/contract";
-const queueName = extractQueue(queue).name;
-```
+`defineQueue` always returns a plain `QueueDefinition` — access properties directly (`queue.name`, `queue.type`). The pre-3.0 `extractQueue()` / `QueueEntry` wrapper split is gone.
 
 ## Type Inference Helpers
 

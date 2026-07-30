@@ -69,17 +69,6 @@ defineQueue("orders", {
   retry: { mode: "immediate-requeue", maxRetries: 3 },
 });
 
-// Bad — accessing .name directly on a TTL-backoff queue
-const queue = defineQueue("orders", {
-  deadLetter: { exchange: dlx },
-  retry: { mode: "ttl-backoff" },
-});
-console.log(queue.name); // Error: queue may be a wrapper object
-
-// Good — use extractQueue() to access queue properties
-import { extractQueue } from "@amqp-contract/contract";
-console.log(extractQueue(queue).name);
-
 // Bad — hardcoded version in package.json
 "devDependencies": {
   "vitest": "^4.0.0"
