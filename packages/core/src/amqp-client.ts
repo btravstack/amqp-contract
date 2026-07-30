@@ -7,7 +7,14 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import { fromPromise, fromSafePromise, fromSafeThrowable, Ok, type AsyncResult } from "unthrown";
+import {
+  fromPromise,
+  fromSafePromise,
+  fromSafeThrowable,
+  Ok,
+  type AsyncResult,
+  type Result,
+} from "unthrown";
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
@@ -35,6 +42,22 @@ function callSetupFunc(
     });
   }
   return (setup as (channel: Channel) => Promise<void>)(channel);
+}
+
+/**
+ * Collapse the channel wrapper's boolean send confirmation into the void
+ * result channel. `false` means the channel's write buffer is full — an
+ * infrastructure condition callers cannot meaningfully branch on — so it
+ * becomes a Defect (with a {@link TechnicalError} cause) HERE, at the single
+ * decision point, instead of leaking a boolean that every downstream layer
+ * re-triages its own way.
+ */
+function absorbWriteBufferConfirmation(published: boolean, target: string): Result<void, never> {
+  if (!published) {
+    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
+    throw new TechnicalError(`Failed to publish message to ${target}: channel write buffer full`);
+  }
+  return Ok(undefined);
 }
 
 /**
@@ -152,7 +175,10 @@ export type AmqpConsumeOptions = Options.Consume & {
  * await client.waitForConnect();
  *
  * // Publish a message
- * const result = await client.publish('exchange', 'routingKey', { data: 'value' });
+ * const result = await client.publish(
+ *   { exchange: 'exchange', routingKey: 'routingKey' },
+ *   { data: 'value' },
+ * );
  *
  * // Close when done
  * await client.close().get();
@@ -343,14 +369,20 @@ export class AmqpClient {
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
    *
-   * @returns AsyncResult resolving to `true` if the message was sent, `false` if the channel buffer is full.
+   * A full channel write buffer (the wrapper's boolean `false` confirmation)
+   * surfaces as a Defect with a {@link TechnicalError} cause — like every
+   * other publish-side infrastructure failure. Callers never see the boolean.
+   *
+   * @param target - The exchange and routing key to publish to
+   * @param content - The message payload
+   * @param options - AMQP publish options
    */
   publish(
-    exchange: string,
-    routingKey: string,
+    target: { exchange: string; routingKey: string },
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<boolean, never> {
+  ): AsyncResult<void, never> {
+    const { exchange, routingKey } = target;
     return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
       .toAsync()
       .flatMap((encoded) =>
@@ -364,6 +396,12 @@ export class AmqpClient {
               ),
             ),
         ),
+      )
+      .flatMap((published) =>
+        absorbWriteBufferConfirmation(
+          published,
+          `exchange "${exchange}" (routing key "${routingKey}")`,
+        ),
       );
   }
 
@@ -372,13 +410,14 @@ export class AmqpClient {
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
    *
-   * @returns AsyncResult resolving to `true` if the message was sent, `false` if the channel buffer is full.
+   * A full channel write buffer surfaces as a Defect with a
+   * {@link TechnicalError} cause — see {@link publish}.
    */
   sendToQueue(
     queue: string,
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<boolean, never> {
+  ): AsyncResult<void, never> {
     return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
       .toAsync()
       .flatMap((encoded) =>
@@ -387,7 +426,8 @@ export class AmqpClient {
           (error: unknown, defect) =>
             defect(new TechnicalError(`Failed to publish message to queue "${queue}"`, error)),
         ),
-      );
+      )
+      .flatMap((published) => absorbWriteBufferConfirmation(published, `queue "${queue}"`));
   }
 
   /**
@@ -478,41 +518,47 @@ export class AmqpClient {
    * Acknowledge a message.
    *
    * @param msg - The message to acknowledge
-   * @param allUpTo - If true, acknowledge all messages up to and including this one
-   * @param options - Pass the `deliveryEpoch` captured when the message was
-   *   delivered ({@link currentChannelEpoch}) to make the ack reconnect-safe:
-   *   a stale epoch skips the ack (logged) instead of settling a foreign tag.
+   * @param options - Settle options:
+   *   - `allUpTo` — if true, acknowledge all messages up to and including
+   *     this one (defaults to false).
+   *   - `deliveryEpoch` — pass the epoch captured when the message was
+   *     delivered ({@link currentChannelEpoch}) to make the ack
+   *     reconnect-safe: a stale epoch skips the ack (logged) instead of
+   *     settling a foreign tag.
    */
   ack(
     msg: ConsumeMessage,
-    allUpTo = false,
-    options?: { deliveryEpoch?: number | undefined },
+    options?: { allUpTo?: boolean | undefined; deliveryEpoch?: number | undefined },
   ): void {
     if (this.isStaleDelivery("ack", msg, options?.deliveryEpoch)) {
       return;
     }
-    this.channelWrapper.ack(msg, allUpTo);
+    this.channelWrapper.ack(msg, options?.allUpTo ?? false);
   }
 
   /**
    * Negative acknowledge a message.
    *
    * @param msg - The message to nack
-   * @param allUpTo - If true, nack all messages up to and including this one
-   * @param requeue - If true, requeue the message(s)
-   * @param options - Pass the `deliveryEpoch` captured at delivery time to
-   *   make the nack reconnect-safe (see {@link ack}).
+   * @param options - Settle options:
+   *   - `allUpTo` — if true, nack all messages up to and including this one
+   *     (defaults to false).
+   *   - `requeue` — if true, requeue the message(s) (defaults to true).
+   *   - `deliveryEpoch` — pass the epoch captured at delivery time to make
+   *     the nack reconnect-safe (see {@link ack}).
    */
   nack(
     msg: ConsumeMessage,
-    allUpTo = false,
-    requeue = true,
-    options?: { deliveryEpoch?: number | undefined },
+    options?: {
+      allUpTo?: boolean | undefined;
+      requeue?: boolean | undefined;
+      deliveryEpoch?: number | undefined;
+    },
   ): void {
     if (this.isStaleDelivery("nack", msg, options?.deliveryEpoch)) {
       return;
     }
-    this.channelWrapper.nack(msg, allUpTo, requeue);
+    this.channelWrapper.nack(msg, options?.allUpTo ?? false, options?.requeue ?? true);
   }
 
   /**

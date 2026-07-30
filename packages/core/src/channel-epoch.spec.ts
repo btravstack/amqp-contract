@@ -77,7 +77,7 @@ describe("AmqpClient channel epoch", () => {
     const deliveryEpoch = client.currentChannelEpoch;
     wrapper().emit("connect"); // reconnect → channel B: epoch 2
 
-    client.ack(msg, false, { deliveryEpoch });
+    client.ack(msg, { deliveryEpoch });
 
     expect(wrapper().ack).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledTimes(1);
@@ -92,7 +92,7 @@ describe("AmqpClient channel epoch", () => {
     const deliveryEpoch = client.currentChannelEpoch;
     wrapper().emit("connect");
 
-    client.nack(msg, false, false, { deliveryEpoch });
+    client.nack(msg, { requeue: false, deliveryEpoch });
 
     expect(wrapper().nack).not.toHaveBeenCalled();
 
@@ -103,8 +103,8 @@ describe("AmqpClient channel epoch", () => {
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
 
     wrapper().emit("connect");
-    client.ack(msg, false, { deliveryEpoch: client.currentChannelEpoch });
-    client.nack(msg, false, true, { deliveryEpoch: client.currentChannelEpoch });
+    client.ack(msg, { deliveryEpoch: client.currentChannelEpoch });
+    client.nack(msg, { requeue: true, deliveryEpoch: client.currentChannelEpoch });
     client.ack(msg); // unstamped: legacy behavior, always forwarded
     expect(wrapper().ack).toHaveBeenCalledTimes(2);
     expect(wrapper().nack).toHaveBeenCalledTimes(1);
