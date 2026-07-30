@@ -312,8 +312,18 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       recordLateRpcReply(this.telemetry, "unknown-correlation-id");
       return;
     }
+    // Remove the entry so a duplicate reply is treated as late, but keep the
+    // caller's timer armed: the schema validation below is asynchronous, and
+    // a slow (or never-settling) validator must not extend the caller's
+    // `timeoutMs` budget. The timer is cleared only when the final result is
+    // delivered; if validation is still pending when it fires, the caller
+    // resolves Err(RpcTimeoutError) and the eventual validation outcome is
+    // dropped (promise resolution is idempotent).
     this.pendingCalls.delete(correlationId);
-    clearTimeout(pending.timer);
+    const settle: PendingCall["resolve"] = (result) => {
+      clearTimeout(pending.timer);
+      pending.resolve(result);
+    };
 
     const parseResult = safeJsonParse(
       msg.content,
@@ -321,7 +331,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         new TechnicalError(`Failed to parse RPC reply JSON for "${pending.rpcName}"`, error),
     );
     if (!parseResult.isOk()) {
-      pending.resolve(
+      settle(
         technicalDefect(
           parseResult.isErr()
             ? parseResult.error
@@ -340,7 +350,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     // through the RPC's declared error schemas instead of the response schema.
     const errorCode = msg.properties.headers?.[RPC_ERROR_CODE_HEADER];
     if (typeof errorCode === "string") {
-      this.resolveRpcErrorReply(pending, errorCode, parsed);
+      this.resolveRpcErrorReply(pending, errorCode, parsed, settle);
       return;
     }
 
@@ -351,7 +361,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     try {
       rawValidation = pending.responseSchema["~standard"].validate(parsed);
     } catch (error: unknown) {
-      pending.resolve(
+      settle(
         technicalDefect(
           new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
         ),
@@ -364,13 +374,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     validationPromise.then(
       (validation) => {
         if (validation.issues) {
-          pending.resolve(Err(new MessageValidationError(pending.rpcName, validation.issues)));
+          settle(Err(new MessageValidationError(pending.rpcName, validation.issues)));
           return;
         }
-        pending.resolve(Ok(validation.value));
+        settle(Ok(validation.value));
       },
       (error: unknown) => {
-        pending.resolve(
+        settle(
           technicalDefect(
             new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
           ),
@@ -389,7 +399,12 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * contract versions (or the worker bypassed the type system), and the client
    * has no schema to give the data a type under.
    */
-  private resolveRpcErrorReply(pending: PendingCall, errorCode: string, parsed: unknown): void {
+  private resolveRpcErrorReply(
+    pending: PendingCall,
+    errorCode: string,
+    parsed: unknown,
+    settle: PendingCall["resolve"],
+  ): void {
     // `Object.hasOwn` rather than plain indexing so prototype properties
     // (e.g. "toString") are not misclassified as declared error codes.
     const errorSchema =
@@ -397,7 +412,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         ? pending.rpcErrorSchemas[errorCode]
         : undefined;
     if (!errorSchema) {
-      pending.resolve(
+      settle(
         technicalDefect(
           new TechnicalError(
             `RPC "${pending.rpcName}" replied with undeclared error code "${errorCode}"`,
@@ -422,7 +437,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     try {
       rawValidation = errorSchema.data["~standard"].validate(body.data);
     } catch (error: unknown) {
-      pending.resolve(
+      settle(
         technicalDefect(
           new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
         ),
@@ -435,13 +450,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     validationPromise.then(
       (validation) => {
         if (validation.issues) {
-          pending.resolve(Err(new MessageValidationError(pending.rpcName, validation.issues)));
+          settle(Err(new MessageValidationError(pending.rpcName, validation.issues)));
           return;
         }
-        pending.resolve(Err(new RpcError(errorCode, validation.value, message)));
+        settle(Err(new RpcError(errorCode, validation.value, message)));
       },
       (error: unknown) => {
-        pending.resolve(
+        settle(
           technicalDefect(
             new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
           ),
@@ -740,7 +755,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     ).flatMap((result) => result);
 
     const timer = setTimeout(() => {
-      if (!this.pendingCalls.has(correlationId)) return;
+      // No `has` guard: a reply may have removed the entry already yet still
+      // be stuck in async response validation — the timer is the caller's
+      // hard budget either way. Resolving is idempotent, so if the reply
+      // settled first this is a no-op.
       this.pendingCalls.delete(correlationId);
       resolveCall(Err(new RpcTimeoutError(rpcName, options.timeoutMs)));
     }, options.timeoutMs);
