@@ -119,13 +119,13 @@ The client logs one thing: a successful publish, at `info`, with `publisherName`
 
 The worker is where the useful output is:
 
-| Level   | Covers                                                                                                                                                                                                      |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ                                                                                      |
-| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has no DLX — message will be lost on nack**                                                                    |
-| `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed because the write buffer is full |
+| Level   | Covers                                                                                                                                                                                                            |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ                                                                                            |
+| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has no DLX — message will be lost on nack**                                                                          |
+| `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (channel fault or a full write buffer) |
 
-Two of these deserve alerts rather than dashboards. `Queue does not have DLX configured - message will be lost on nack` means you are losing data. `Failed to publish message for retry (write buffer full)` means retries are being dropped under load.
+Two of these deserve alerts rather than dashboards. `Queue does not have DLX configured - message will be lost on nack` means you are losing data. `Publish for retry failed; leaving original un-ack'd for redelivery` means retries are being dropped under load (the logged cause names the fault, e.g. `channel write buffer full`).
 
 This is also where dead-letter failure reasons live. Messages nacked directly carry no `x-last-error` header, so the log line is the only record of _why_ — see [retry failed messages](/how-to/retry-failed-messages#inspect-retry-state).
 
