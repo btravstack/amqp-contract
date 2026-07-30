@@ -103,6 +103,8 @@ Each invariant maps to a named guarding test — extend the mapping when you add
 14. **A classic-queue immediate-requeue retry republishes to THIS queue via the default exchange** (never the original exchange — sibling queues must not see duplicates) — `packages/worker/src/invariants.spec.ts`.
 15. **Connection-pool leases are idempotent and close/create-race-safe** (double release never underflows; an acquire racing the last release gets a fresh connection) — `packages/core/src/connection-manager.spec.ts`.
 16. **Telemetry never throws into the data path** (a buggy provider degrades to "no telemetry") — `packages/core/src/telemetry.spec.ts` ("throwing telemetry providers") + `packages/client/src/interceptors.spec.ts` (sync-throwing interceptor → Defect).
+17. **A short-delay ttl-backoff retry is never blocked by a long-delay retry parked ahead of it** (per-delay-tier wait queues; RabbitMQ only expires at the queue head) — `packages/worker/src/__tests__/worker-retry-head-of-line.spec.ts`.
+18. **`defineContract`'s runtime output has exactly the keys `ContractOutput` types** (no runtime-injected topology invisible to the type level) — `packages/contract/src/contract-output-parity.spec.ts`.
 
 ## Workflow rules for agents
 

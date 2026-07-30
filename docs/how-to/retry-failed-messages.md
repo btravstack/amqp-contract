@@ -89,7 +89,11 @@ The delay is `initialDelayMs * backoffMultiplier ^ attempt`, capped at `maxDelay
 
 Keep `jitter: true` unless you have a reason not to. Without it, messages that failed together retry together and hit the recovering dependency simultaneously.
 
-`defineContract` generates the supporting topology for you — a wait queue holding messages during the delay, plus the headers exchanges and bindings that route them out and back. You do not wire any of it.
+The supporting topology is derived for you at channel-setup time — one wait queue per **distinct** delay in the schedule (`order-processing-wait-1000ms`, `order-processing-wait-2000ms`, …), each dead-lettering back to the main queue when its TTL expires. You do not wire or declare any of it, and none of it appears in the contract.
+
+Per-delay wait queues are what make the schedule hold: RabbitMQ only expires messages at the head of a queue, so a single shared wait queue would let a parked 16s retry block a later 1s retry. With one queue per delay, a message's wait is bounded by its own tier — within a tier the skew is at most the jitter spread (jitter draws the actual delay from `[0.5x, 1.5x]` of the base, and the tier's queue-level TTL backstop is the jitter ceiling), and with `jitter: false` it is zero.
+
+One consequence of the retry hop: retried deliveries re-enter the main queue via the default exchange, so `rawMessage.fields.routingKey` is the queue name from the second attempt on. The routing key of the first delivery is preserved in the `x-original-routing-key` header.
 
 ## Turn retries off
 
@@ -131,13 +135,13 @@ const slowQueue = defineQueue("orders-slow", {
 
 Diagnostic headers are stamped **only on paths that republish the message** — classic queues under `immediate-requeue`, and any queue under `ttl-backoff`.
 
-| Header                           | Meaning                                 | Set on                       |
-| -------------------------------- | --------------------------------------- | ---------------------------- |
-| `x-delivery-count`               | Broker-native attempt count             | Quorum queues, by RabbitMQ   |
-| `x-retry-count`                  | Worker-managed attempt count            | Republish paths only         |
-| `x-last-error`                   | Message from the most recent failure    | Republish paths only         |
-| `x-first-failure-timestamp`      | Epoch ms of the first failure           | Republish paths only         |
-| `x-wait-queue` / `x-retry-queue` | Internal `ttl-backoff` routing pointers | `ttl-backoff` republish only |
+| Header                      | Meaning                              | Set on                     |
+| --------------------------- | ------------------------------------ | -------------------------- |
+| `x-delivery-count`          | Broker-native attempt count          | Quorum queues, by RabbitMQ |
+| `x-retry-count`             | Worker-managed attempt count         | Republish paths only       |
+| `x-last-error`              | Message from the most recent failure | Republish paths only       |
+| `x-first-failure-timestamp` | Epoch ms of the first failure        | Republish paths only       |
+| `x-original-routing-key`    | Routing key of the first delivery    | Republish paths only       |
 
 Direct-nack paths — a `NonRetryableError`, a validation failure, a quorum queue exhausting `immediate-requeue` — do **not** republish, so the dead-lettered message arrives byte-identical to what the broker delivered, with no failure context. Error details are in the worker's logs instead.
 
