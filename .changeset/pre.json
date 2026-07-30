@@ -17,6 +17,9 @@
     "bump-unthrown-beta-6",
     "bump-unthrown-beta-7",
     "consume-btravstack-config",
+    "enable-all-unthrown-oxlint-rules",
+    "pre-3-0-api-review",
+    "pre-3-0-robustness-fixes",
     "technical-error-to-defect"
   ]
 }
