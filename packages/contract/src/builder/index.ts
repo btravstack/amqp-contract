@@ -13,9 +13,6 @@ export { defineMessage } from "./message.js";
 // Queue
 export { defineQueue } from "./queue.js";
 
-// Queue utilities
-export { extractQueue } from "./queue-utils.js";
-
 // Bindings
 export { defineExchangeBinding, defineQueueBinding } from "./binding.js";
 
@@ -52,5 +49,9 @@ export type { BridgedPublisherConfig, CommandConsumerConfig } from "./command.js
 // RPC pattern
 export { defineRpc } from "./rpc.js";
 
-// TTL-backoff infrastructure
-export { isQueueWithTtlBackoffInfrastructure } from "./ttl-backoff.js";
+// TTL-backoff infrastructure (derived, not stored in the contract)
+export {
+  deriveTtlBackoffInfrastructure,
+  ttlBackoffBaseDelay,
+  ttlBackoffWaitQueueName,
+} from "./ttl-backoff.js";

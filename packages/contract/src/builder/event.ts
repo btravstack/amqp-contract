@@ -7,7 +7,7 @@ import type {
   HeadersExchangeDefinition,
   MessageDefinition,
   QueueBindingDefinition,
-  QueueEntry,
+  QueueDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
 import { defineExchangeBinding, defineQueueBindingInternal } from "./binding.js";
@@ -54,7 +54,7 @@ export type EventPublisherConfig<
 export type EventConsumerResult<
   TMessage extends MessageDefinition,
   TExchange extends ExchangeDefinition = ExchangeDefinition,
-  TQueue extends QueueEntry = QueueEntry,
+  TQueue extends QueueDefinition = QueueDefinition,
   TExchangeBinding extends ExchangeBindingDefinition | undefined =
     | ExchangeBindingDefinition
     | undefined,
@@ -284,11 +284,11 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TExchange extends FanoutExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TBridgeExchange extends FanoutExchangeDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options: {
     bridgeExchange: TBridgeExchange;
     arguments?: Record<string, unknown>;
@@ -296,7 +296,7 @@ export function defineEventConsumer<
 ): EventConsumerResult<
   TMessage,
   TExchange,
-  TQueueEntry,
+  TQueueDefinition,
   ExchangeBindingDefinition,
   TBridgeExchange
 >;
@@ -317,11 +317,11 @@ export function defineEventConsumer<
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TExchange extends HeadersExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TBridgeExchange extends HeadersExchangeDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options: {
     bridgeExchange: TBridgeExchange;
     arguments?: Record<string, unknown>;
@@ -329,7 +329,7 @@ export function defineEventConsumer<
 ): EventConsumerResult<
   TMessage,
   TExchange,
-  TQueueEntry,
+  TQueueDefinition,
   ExchangeBindingDefinition,
   TBridgeExchange
 >;
@@ -348,11 +348,11 @@ export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
   TExchange extends DirectExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options: {
     bridgeExchange: TBridgeExchange;
     arguments?: Record<string, unknown>;
@@ -360,7 +360,7 @@ export function defineEventConsumer<
 ): EventConsumerResult<
   TMessage,
   TExchange,
-  TQueueEntry,
+  TQueueDefinition,
   ExchangeBindingDefinition,
   TBridgeExchange
 >;
@@ -380,12 +380,12 @@ export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
   TExchange extends TopicExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
   TConsumerRoutingKey extends string = TRoutingKey,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options: {
     bridgeExchange: TBridgeExchange;
     routingKey?: BindingPattern<TConsumerRoutingKey>;
@@ -394,7 +394,7 @@ export function defineEventConsumer<
 ): EventConsumerResult<
   TMessage,
   TExchange,
-  TQueueEntry,
+  TQueueDefinition,
   ExchangeBindingDefinition,
   TBridgeExchange
 >;
@@ -417,14 +417,14 @@ export function defineEventConsumer<
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TExchange extends FanoutExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options?: {
     arguments?: Record<string, unknown>;
   },
-): EventConsumerResult<TMessage, TExchange, TQueueEntry>;
+): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
 
 /**
  * Create a consumer that subscribes to an event from a headers exchange.
@@ -444,14 +444,14 @@ export function defineEventConsumer<
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TExchange extends HeadersExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options?: {
     arguments?: Record<string, unknown>;
   },
-): EventConsumerResult<TMessage, TExchange, TQueueEntry>;
+): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
 
 /**
  * Create a consumer that subscribes to an event from a direct exchange.
@@ -466,14 +466,14 @@ export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
   TExchange extends DirectExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options?: {
     arguments?: Record<string, unknown>;
   },
-): EventConsumerResult<TMessage, TExchange, TQueueEntry>;
+): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
 
 /**
  * Create a consumer that subscribes to an event from a topic exchange.
@@ -507,16 +507,16 @@ export function defineEventConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
   TExchange extends TopicExchangeDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TConsumerRoutingKey extends string = TRoutingKey,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   options?: {
     routingKey?: BindingPattern<TConsumerRoutingKey>;
     arguments?: Record<string, unknown>;
   },
-): EventConsumerResult<TMessage, TExchange, TQueueEntry>;
+): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
 
 /*
  * Implementation signature of defineEventConsumer. (Deliberately a plain
@@ -525,7 +525,7 @@ export function defineEventConsumer<
  */
 export function defineEventConsumer<TMessage extends MessageDefinition>(
   eventPublisher: EventPublisherConfig<TMessage, ExchangeDefinition, string | undefined>,
-  queue: QueueEntry,
+  queue: QueueDefinition,
   options?: {
     routingKey?: string;
     bridgeExchange?: ExchangeDefinition;

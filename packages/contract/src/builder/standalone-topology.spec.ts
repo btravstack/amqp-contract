@@ -36,7 +36,7 @@ describe("defineContract standalone topology", () => {
     });
   });
 
-  it("auto-extracts a standalone queue's dead-letter exchange and TTL-backoff infrastructure", () => {
+  it("auto-extracts a standalone queue's dead-letter exchange but stores no TTL-backoff infrastructure", () => {
     // GIVEN
     const dlx = defineExchange("standalone-dlx", { type: "direct", durable: false });
     const queue = defineQueue("standalone-retry", {
@@ -49,14 +49,11 @@ describe("defineContract standalone topology", () => {
     // WHEN
     const contract = defineContract({ queues: { queue } });
 
-    // THEN
+    // THEN — the DLX is extracted; wait queues are derived at topology-setup
+    // time and never appear in the contract.
     expect(contract.exchanges).toMatchObject({ "standalone-dlx": dlx });
-    expect(Object.keys(contract.queues)).toEqual(
-      expect.arrayContaining(["standalone-retry", "standalone-retry-wait"]),
-    );
-    expect(Object.keys(contract.bindings)).toEqual(
-      expect.arrayContaining(["standalone-retryWaitBinding", "standalone-retryRetryBinding"]),
-    );
+    expect(Object.keys(contract.queues)).toEqual(["standalone-retry"]);
+    expect(Object.keys(contract.bindings)).toEqual([]);
   });
 
   it("dedupes a standalone declaration against the same resource extracted from a consumer", () => {

@@ -15,7 +15,6 @@ export {
   defineMessage,
   // Queue
   defineQueue,
-  extractQueue,
   // Bindings
   defineQueueBinding,
   defineExchangeBinding,
@@ -38,8 +37,10 @@ export {
   isCommandConsumerConfig,
   // RPC pattern
   defineRpc,
-  // TTL-backoff infrastructure
-  isQueueWithTtlBackoffInfrastructure,
+  // TTL-backoff infrastructure (derived, not stored in the contract)
+  deriveTtlBackoffInfrastructure,
+  ttlBackoffBaseDelay,
+  ttlBackoffWaitQueueName,
 } from "./builder/index.js";
 
 // Re-export types

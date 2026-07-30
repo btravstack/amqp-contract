@@ -6,14 +6,12 @@ import type {
   ContractOutput,
   ExchangeDefinition,
   PublisherDefinition,
-  QueueEntry,
+  QueueDefinition,
   RpcDefinition,
 } from "../types.js";
 import { isBridgedPublisherConfig, isCommandConsumerConfig } from "./command.js";
 import { isEventConsumerResult, isEventPublisherConfig } from "./event.js";
 import { definePublisherInternal } from "./publisher.js";
-import { extractQueue } from "./queue-utils.js";
-import { isQueueWithTtlBackoffInfrastructure } from "./ttl-backoff.js";
 
 /**
  * Structural equality for resource definitions. We compare on a JSON projection
@@ -170,41 +168,19 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   };
 
   const exchanges: Record<string, ExchangeDefinition> = {};
-  const queues: Record<string, QueueEntry> = {};
+  const queues: Record<string, QueueDefinition> = {};
   const bindings: Record<string, BindingDefinition> = {};
 
   /**
-   * Register a queue entry plus everything it implies: its dead-letter
-   * exchange and (for ttl-backoff retry) the wait/retry queues, exchanges,
-   * and bindings.
+   * Register a queue plus its dead-letter exchange. TTL-backoff wait queues
+   * are NOT part of the contract — they are derived from the queue's retry
+   * config and declared by `setupAmqpTopology` at channel-setup time (see
+   * `deriveTtlBackoffInfrastructure`).
    */
-  const addQueueWithInfrastructure = (queueEntry: QueueEntry): void => {
-    const queueDef = extractQueue(queueEntry);
-    addResource(queues, queueDef.name, queueEntry, "queue");
-    if (queueDef.deadLetter?.exchange) {
-      addResource(
-        exchanges,
-        queueDef.deadLetter.exchange.name,
-        queueDef.deadLetter.exchange,
-        "exchange",
-      );
-    }
-    if (isQueueWithTtlBackoffInfrastructure(queueEntry)) {
-      addResource(queues, queueEntry.waitQueue.name, queueEntry.waitQueue, "queue");
-      addResource(
-        bindings,
-        `${queueEntry.queue.name}WaitBinding`,
-        queueEntry.waitQueueBinding,
-        "binding",
-      );
-      addResource(
-        bindings,
-        `${queueEntry.queue.name}RetryBinding`,
-        queueEntry.retryQueueBinding,
-        "binding",
-      );
-      addResource(exchanges, queueEntry.waitExchange.name, queueEntry.waitExchange, "exchange");
-      addResource(exchanges, queueEntry.retryExchange.name, queueEntry.retryExchange, "exchange");
+  const addQueueWithInfrastructure = (queue: QueueDefinition): void => {
+    addResource(queues, queue.name, queue, "queue");
+    if (queue.deadLetter?.exchange) {
+      addResource(exchanges, queue.deadLetter.exchange.name, queue.deadLetter.exchange, "exchange");
     }
   };
 
@@ -216,8 +192,8 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   for (const exchange of Object.values(inputExchanges ?? {})) {
     addResource(exchanges, exchange.name, exchange, "exchange");
   }
-  for (const queueEntry of Object.values(inputQueues ?? {})) {
-    addQueueWithInfrastructure(queueEntry);
+  for (const queue of Object.values(inputQueues ?? {})) {
+    addQueueWithInfrastructure(queue);
   }
   for (const [label, binding] of Object.entries(inputBindings ?? {})) {
     addResource(bindings, label, binding, "binding");

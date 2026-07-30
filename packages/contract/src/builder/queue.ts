@@ -6,13 +6,11 @@ import type {
   ExchangeDefinition,
   ImmediateRequeueRetryOptions,
   QueueDefinition,
-  QueueEntry,
-  QueueEntryWithDeadLetterExchange,
+  QueueDefinitionWithDeadLetterExchange,
   ResolvedImmediateRequeueRetryOptions,
   ResolvedTtlBackoffRetryOptions,
   TtlBackoffRetryOptions,
 } from "../types.js";
-import { wrapWithTtlBackoffInfrastructure } from "./ttl-backoff.js";
 import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 
 /**
@@ -33,7 +31,6 @@ function resolveImmediateRequeueOptions(
  * @internal
  */
 function resolveTtlBackoffOptions(
-  queueName: string,
   options: TtlBackoffRetryOptions | undefined,
 ): ResolvedTtlBackoffRetryOptions {
   return {
@@ -43,9 +40,6 @@ function resolveTtlBackoffOptions(
     maxDelayMs: options?.maxDelayMs ?? 30000,
     backoffMultiplier: options?.backoffMultiplier ?? 2,
     jitter: options?.jitter ?? true,
-    waitQueueName: options?.waitQueueName ?? `${queueName}-wait`,
-    waitExchangeName: options?.waitExchangeName ?? "wait-exchange",
-    retryExchangeName: options?.retryExchangeName ?? "retry-exchange",
   };
 }
 
@@ -102,26 +96,27 @@ function resolveTtlBackoffOptions(
  *   maxPriority: 10,
  * });
  *
- * // Queue with TTL-backoff retry (returns infrastructure automatically)
+ * // Queue with TTL-backoff retry (wait queues are derived at setup time)
  * const retryDlx = defineExchange('payments-dlx', { type: 'direct' });
  * const paymentQueue = defineQueue('payment-processing', {
  *   deadLetter: { exchange: retryDlx },
  *   retry: { mode: 'ttl-backoff', maxRetries: 5 },
  * });
- * // paymentQueue is QueueWithTtlBackoffInfrastructure, pass directly to defineContract
+ * // paymentQueue is a plain QueueDefinition; setupAmqpTopology declares the
+ * // per-delay wait queues derived from its retry config
  * ```
  */
 export function defineQueue<TName extends string, TDlx extends ExchangeDefinition>(
   name: TName,
   options: DefineQueueOptionsWithDeadLetterExchange<TDlx>,
-): QueueEntryWithDeadLetterExchange<TName, TDlx>;
+): QueueDefinitionWithDeadLetterExchange<TName, TDlx>;
 
 export function defineQueue<TName extends string>(
   name: TName,
   options?: DefineQueueOptions,
-): QueueEntry<TName>;
+): QueueDefinition<TName>;
 
-export function defineQueue(name: string, options?: DefineQueueOptions): QueueEntry {
+export function defineQueue(name: string, options?: DefineQueueOptions): QueueDefinition {
   _internal_assertNonEmptyName("Queue", name);
   _internal_assertKnownKeys("queue", name, options, [
     "type",
@@ -147,9 +142,6 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueEn
       "maxDelayMs",
       "backoffMultiplier",
       "jitter",
-      "waitQueueName",
-      "waitExchangeName",
-      "retryExchangeName",
     ]);
   }
   const opts = options ?? {};
@@ -227,7 +219,7 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueEn
     inputRetry.mode === "immediate-requeue"
       ? resolveImmediateRequeueOptions(inputRetry)
       : inputRetry.mode === "ttl-backoff"
-        ? resolveTtlBackoffOptions(name, inputRetry)
+        ? resolveTtlBackoffOptions(inputRetry)
         : inputRetry;
 
   const baseQueueDefinition: BaseQueueDefinition = {
@@ -235,24 +227,16 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueEn
     retry,
   };
 
-  const queueDefinition: QueueDefinition =
-    type === "quorum"
-      ? {
-          ...baseQueueDefinition,
-          type,
-          durable: true, // Quorum queues are always durable
-        }
-      : {
-          ...baseQueueDefinition,
-          ...classicProps,
-          type,
-          durable,
-        };
-
-  // If TTL-backoff retry, wrap with infrastructure
-  if (retry.mode === "ttl-backoff") {
-    return wrapWithTtlBackoffInfrastructure(queueDefinition);
-  }
-
-  return queueDefinition;
+  return type === "quorum"
+    ? {
+        ...baseQueueDefinition,
+        type,
+        durable: true, // Quorum queues are always durable
+      }
+    : {
+        ...baseQueueDefinition,
+        ...classicProps,
+        type,
+        durable,
+      };
 }

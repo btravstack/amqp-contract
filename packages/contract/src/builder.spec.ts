@@ -14,7 +14,6 @@ import {
   definePublisher,
   defineQueue,
   defineQueueBinding,
-  extractQueue,
   isBridgedPublisherConfig,
 } from "./builder.js";
 
@@ -485,69 +484,26 @@ describe("builder", () => {
   });
 
   describe("defineQueue with TTL-backoff retry", () => {
-    it("should create a quorum queue with TTL-backoff retry", () => {
+    it("should create a plain quorum queue definition with resolved TTL-backoff retry", () => {
       // WHEN
       const queue = defineQueue("retry-queue", {
         type: "quorum",
         retry: { mode: "ttl-backoff", maxRetries: 3 },
       });
 
-      // THEN
-      expect(queue).toMatchObject({
-        __brand: "QueueWithTtlBackoffInfrastructure",
-        queue: {
-          name: "retry-queue",
-          type: "quorum",
-          retry: {
-            mode: "ttl-backoff",
-            maxRetries: 3,
-            initialDelayMs: 1000,
-            maxDelayMs: 30000,
-            backoffMultiplier: 2,
-            jitter: true,
-            waitQueueName: "retry-queue-wait",
-            waitExchangeName: "wait-exchange",
-            retryExchangeName: "retry-exchange",
-          },
-        },
-        waitQueue: {
-          name: "retry-queue-wait",
-        },
-        waitExchange: {
-          name: "wait-exchange",
-          type: "headers",
-        },
-        retryExchange: {
-          name: "retry-exchange",
-          type: "headers",
-        },
-        waitQueueBinding: {
-          type: "queue",
-          queue: {
-            name: "retry-queue-wait",
-          },
-          exchange: {
-            name: "wait-exchange",
-            type: "headers",
-          },
-          arguments: {
-            "x-match": "all",
-            "x-wait-queue": "retry-queue-wait",
-          },
-        },
-        retryQueueBinding: {
-          type: "queue",
-          queue: {
-            name: "retry-queue",
-          },
-          exchange: {
-            name: "retry-exchange",
-            type: "headers",
-          },
-          arguments: {
-            "x-match": "all",
-            "x-retry-queue": "retry-queue",
-          },
+      // THEN — a single uniform QueueDefinition; no wrapper, no wait
+      // infrastructure (that is derived at topology-setup time).
+      expect(queue).toEqual({
+        name: "retry-queue",
+        type: "quorum",
+        durable: true,
+        retry: {
+          mode: "ttl-backoff",
+          maxRetries: 3,
+          initialDelayMs: 1000,
+          maxDelayMs: 30000,
+          backoffMultiplier: 2,
+          jitter: true,
         },
       });
     });
@@ -563,68 +519,20 @@ describe("builder", () => {
           maxDelayMs: 60000,
           backoffMultiplier: 3,
           jitter: false,
-          waitQueueName: "custom-wait",
-          waitExchangeName: "custom-wait-ex",
-          retryExchangeName: "custom-retry-ex",
         },
       });
 
       // THEN
       expect(queue).toMatchObject({
-        __brand: "QueueWithTtlBackoffInfrastructure",
-        queue: {
-          name: "retry-queue",
-          type: "quorum",
-          retry: {
-            mode: "ttl-backoff",
-            maxRetries: 5,
-            initialDelayMs: 2000,
-            maxDelayMs: 60000,
-            backoffMultiplier: 3,
-            jitter: false,
-            waitQueueName: "custom-wait",
-            waitExchangeName: "custom-wait-ex",
-            retryExchangeName: "custom-retry-ex",
-          },
-        },
-        waitQueue: {
-          name: "custom-wait",
-        },
-        waitExchange: {
-          name: "custom-wait-ex",
-          type: "headers",
-        },
-        retryExchange: {
-          name: "custom-retry-ex",
-          type: "headers",
-        },
-        waitQueueBinding: {
-          type: "queue",
-          queue: {
-            name: "custom-wait",
-          },
-          exchange: {
-            name: "custom-wait-ex",
-            type: "headers",
-          },
-          arguments: {
-            "x-match": "all",
-            "x-wait-queue": "custom-wait",
-          },
-        },
-        retryQueueBinding: {
-          type: "queue",
-          queue: {
-            name: "retry-queue",
-          },
-          exchange: {
-            name: "custom-retry-ex",
-            type: "headers",
-          },
-          arguments: {
-            "x-match": "all",
-            "x-retry-queue": "retry-queue",
-          },
+        name: "retry-queue",
+        type: "quorum",
+        retry: {
+          mode: "ttl-backoff",
+          maxRetries: 5,
+          initialDelayMs: 2000,
+          maxDelayMs: 60000,
+          backoffMultiplier: 3,
+          jitter: false,
         },
       });
     });
@@ -645,16 +553,13 @@ describe("builder", () => {
 
       // THEN
       expect(queue).toMatchObject({
-        __brand: "QueueWithTtlBackoffInfrastructure",
-        queue: {
-          name: "retry-queue",
-          type: "quorum",
-          deadLetter: {
-            exchange: dlx,
-            routingKey: "failed",
-          },
-          retry: { mode: "ttl-backoff", maxRetries: 3 },
+        name: "retry-queue",
+        type: "quorum",
+        deadLetter: {
+          exchange: dlx,
+          routingKey: "failed",
         },
+        retry: { mode: "ttl-backoff", maxRetries: 3 },
       });
     });
 
@@ -688,10 +593,8 @@ describe("builder", () => {
 
       // THEN
       expect(queue).toMatchObject({
-        __brand: "QueueWithTtlBackoffInfrastructure",
-        queue: {
-          retry: { mode: "ttl-backoff", maxRetries: 1 },
-        },
+        name: "retry-queue",
+        retry: { mode: "ttl-backoff", maxRetries: 1 },
       });
     });
   });
@@ -1654,7 +1557,7 @@ describe("builder", () => {
       });
     });
 
-    it("should auto-generate TTL-backoff retry infrastructure from consumer queue", () => {
+    it("keeps a TTL-backoff consumer queue out of the wait-queue business (derived, not stored)", () => {
       // GIVEN
       const dlx = defineExchange("orders-dlx", { type: "direct" });
       const ordersExchange = defineExchange("orders");
@@ -1676,122 +1579,20 @@ describe("builder", () => {
         },
       });
 
-      // THEN - DLX exchange is auto-extracted
-      expect(contract.exchanges).toMatchObject({
-        orders: ordersExchange,
-        "orders-dlx": dlx,
-        "wait-exchange": {
-          name: "wait-exchange",
-          type: "headers",
-        },
-        "retry-exchange": {
-          name: "retry-exchange",
-          type: "headers",
-        },
-      });
+      // THEN — the contract holds exactly the declared topology: the DLX is
+      // auto-extracted, but NO wait queues, wait/retry exchanges, or retry
+      // bindings appear (they are derived by setupAmqpTopology from the
+      // queue's retry config).
+      expect(Object.keys(contract.exchanges).sort()).toEqual(["orders", "orders-dlx"]);
+      expect(Object.keys(contract.queues)).toEqual(["order-processing"]);
+      expect(Object.keys(contract.bindings)).toEqual(["processOrderBinding"]);
 
-      // Wait queue is auto-generated
-      expect(contract.queues).toMatchObject({
-        "order-processing": orderQueue,
-        "order-processing-wait": expect.objectContaining({
-          name: "order-processing-wait",
-          type: "quorum",
-          durable: true,
-          deadLetter: {
-            exchange: {
-              name: "retry-exchange",
-              type: "headers",
-              durable: true,
-            },
-          },
-        }),
-      });
-
-      // Wait binding (wait exchange → wait queue) and retry binding (retry exchange → main queue)
-      expect(contract.bindings).toMatchObject({
-        processOrderBinding: expect.objectContaining({
-          type: "queue",
-          queue: extractQueue(orderQueue),
-          exchange: ordersExchange,
-          routingKey: "order.created",
-        }),
-        "order-processingWaitBinding": expect.objectContaining({
-          type: "queue",
-          queue: expect.objectContaining({ name: "order-processing-wait" }),
-          exchange: {
-            name: "wait-exchange",
-            type: "headers",
-            durable: true,
-          },
-          arguments: {
-            "x-match": "all",
-            "x-wait-queue": "order-processing-wait",
-          },
-        }),
-        "order-processingRetryBinding": expect.objectContaining({
-          type: "queue",
-          queue: extractQueue(orderQueue),
-          exchange: {
-            name: "retry-exchange",
-            type: "headers",
-            durable: true,
-          },
-          arguments: {
-            "x-match": "all",
-            "x-retry-queue": "order-processing",
-          },
-        }),
-      });
-    });
-
-    it("should auto-generate TTL-backoff retry infrastructure without dead letter exchange", () => {
-      // GIVEN
-      const ordersExchange = defineExchange("orders");
-      const orderMessage = defineMessage(z.object({ orderId: z.string() }));
-      const orderQueue = defineQueue("order-processing", {
-        retry: { mode: "ttl-backoff", maxRetries: 3 },
-      });
-
-      const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+      expect(contract.queues["order-processing"]).toBe(orderQueue);
+      expect(contract.bindings.processOrderBinding).toMatchObject({
+        type: "queue",
+        queue: orderQueue,
+        exchange: ordersExchange,
         routingKey: "order.created",
-      });
-
-      // WHEN
-      const contract = defineContract({
-        publishers: { orderCreated },
-        consumers: {
-          processOrder: defineEventConsumer(orderCreated, orderQueue),
-        },
-      });
-
-      // THEN - Only TTL-backoff exchanges are auto-extracted (no DLX)
-      expect(contract.exchanges).toMatchObject({
-        orders: ordersExchange,
-        "wait-exchange": {
-          name: "wait-exchange",
-          type: "headers",
-        },
-        "retry-exchange": {
-          name: "retry-exchange",
-          type: "headers",
-        },
-      });
-
-      // Wait queue is auto-generated
-      expect(contract.queues).toMatchObject({
-        "order-processing": orderQueue,
-        "order-processing-wait": expect.objectContaining({
-          name: "order-processing-wait",
-          type: "quorum",
-          durable: true,
-          deadLetter: {
-            exchange: {
-              name: "retry-exchange",
-              type: "headers",
-              durable: true,
-            },
-          },
-        }),
       });
     });
   });
