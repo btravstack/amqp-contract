@@ -2,12 +2,12 @@ import {
   type ConsumerDefinition,
   type ResolvedImmediateRequeueRetryOptions,
   type ResolvedTtlBackoffRetryOptions,
-  extractQueue,
-  isQueueWithTtlBackoffInfrastructure,
+  ttlBackoffBaseDelay,
+  ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
 import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { fromSafeThrowable, Ok, OkAsync, type AsyncResult } from "unthrown";
+import { Ok, OkAsync, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
@@ -36,7 +36,7 @@ type RetryContext = {
  * **ttl-backoff mode:**
  * 1. If NonRetryableError -> send directly to DLQ (no retry)
  * 2. If max retries exceeded -> send to DLQ
- * 3. Otherwise -> publish to wait queue with TTL for retry
+ * 3. Otherwise -> publish to the per-delay-tier wait queue with TTL for retry
  *
  * **none mode (no retry config):**
  * 1. send directly to DLQ (no retry)
@@ -57,7 +57,7 @@ export function handleError(
   }
 
   // Get retry config from the queue definition in the contract
-  const config = extractQueue(consumer.queue).retry;
+  const config = consumer.queue.retry;
 
   // Immediate-requeue mode: requeue the message immediately
   if (config.mode === "immediate-requeue") {
@@ -75,7 +75,7 @@ export function handleError(
   // max-retries exhaustion paths in retry.ts.
   ctx.logger?.info("Retry disabled (none mode), sending to DLQ", {
     consumerName,
-    queueName: extractQueue(consumer.queue).name,
+    queueName: consumer.queue.name,
   });
   sendToDLQ(ctx, msg, consumer);
   return OkAsync(undefined);
@@ -98,7 +98,7 @@ function handleErrorImmediateRequeue(
   consumer: ConsumerDefinition,
   config: ResolvedImmediateRequeueRetryOptions,
 ): AsyncResult<void, never> {
-  const queue = extractQueue(consumer.queue);
+  const queue = consumer.queue;
   const queueName = queue.name;
 
   // Get retry count from headers
@@ -150,30 +150,38 @@ function handleErrorImmediateRequeue(
 }
 
 /**
- * Handle error using TTL + wait queue pattern for exponential backoff.
+ * Handle error using the TTL + per-delay-tier wait queue pattern for
+ * exponential backoff.
  *
  * ┌─────────────────────────────────────────────────────────────────┐
- * │ Retry Flow (Native RabbitMQ TTL + Wait queue pattern)           │
+ * │ Retry Flow (Native RabbitMQ TTL + per-tier wait queues)         │
  * ├─────────────────────────────────────────────────────────────────┤
  * │                                                                 │
- * │ 1. Handler throws any Error                                     │
+ * │ 1. Handler fails with a retryable error                         │
  * │    ↓                                                            │
- * │ 2. Worker publishes to wait exchange                            |
- * |    (with header `x-wait-queue` set to the wait queue name)      │
+ * │ 2. Worker computes the attempt's BASE delay and publishes the   │
+ * │    retry copy to that tier's wait queue via the default         │
+ * │    exchange (`{queue}-wait-{delay}ms`), with per-message        │
+ * │    `expiration` carrying the jittered delay                     │
  * │    ↓                                                            │
- * │ 3. Wait exchange routes to wait queue                           │
- * │    (with expiration: calculated backoff delay)                  │
+ * │ 3. Message waits until its TTL expires (queue-level             │
+ * │    `x-message-ttl` on the tier is the jitter-ceiling backstop)  │
  * │    ↓                                                            │
- * │ 4. Message waits in queue until TTL expires                     │
+ * │ 4. Expired message is dead-lettered back to the main queue via  │
+ * │    the default exchange (`x-dead-letter-routing-key`) → RETRY   │
  * │    ↓                                                            │
- * │ 5. Expired message dead-lettered to retry exchange              |
- * |    (with header `x-retry-queue` set to the main queue name)     │
- * │    ↓                                                            │
- * │ 6. Retry exchange routes back to main queue → RETRY             │
- * │    ↓                                                            │
- * │ 7. If retries exhausted: nack without requeue → DLQ             │
+ * │ 5. If retries exhausted: nack without requeue → DLQ             │
  * │                                                                 │
  * └─────────────────────────────────────────────────────────────────┘
+ *
+ * One wait queue per distinct base delay means a long-delay retry can never
+ * block a short-delay retry behind it (RabbitMQ only dead-letters expired
+ * messages at the head of a queue). Within a tier, head-of-line skew is
+ * bounded by the jitter spread — zero when jitter is disabled.
+ *
+ * The retried delivery arrives via the default exchange, so its
+ * `fields.routingKey` is the main queue name; the original routing key is
+ * preserved in the `x-original-routing-key` header.
  */
 function handleErrorTtlBackoff(
   ctx: RetryContext,
@@ -183,23 +191,7 @@ function handleErrorTtlBackoff(
   consumer: ConsumerDefinition,
   config: ResolvedTtlBackoffRetryOptions,
 ): AsyncResult<void, never> {
-  if (!isQueueWithTtlBackoffInfrastructure(consumer.queue)) {
-    ctx.logger?.error("Queue does not have TTL-backoff infrastructure", {
-      consumerName,
-      queueName: consumer.queue.name,
-    });
-    // A queue configured for ttl-backoff without the wait/retry infrastructure
-    // is a contract/setup bug, not a modeled failure — route it to the defect
-    // channel.
-    return fromSafeThrowable((): void => {
-      // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
-      throw new TechnicalError("Queue does not have TTL-backoff infrastructure");
-    })().toAsync();
-  }
-
-  const queueEntry = consumer.queue;
-  const queue = extractQueue(queueEntry);
-  const queueName = queue.name;
+  const queueName = consumer.queue.name;
 
   // Get retry count from headers
   const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
@@ -217,22 +209,26 @@ function handleErrorTtlBackoff(
     return OkAsync(undefined);
   }
 
-  // Retry with exponential backoff
+  // Retry with exponential backoff: the base delay selects the wait-queue
+  // tier; jitter only affects the per-message expiration within that tier.
+  const baseDelayMs = ttlBackoffBaseDelay(config, retryCount);
+  const waitQueueName = ttlBackoffWaitQueueName(queueName, baseDelayMs);
   const delayMs = calculateRetryDelay(retryCount, config);
   ctx.logger?.info("Retrying message (ttl-backoff mode)", {
     consumerName,
     queueName,
+    waitQueueName,
     retryCount: retryCount + 1,
     maxRetries: config.maxRetries,
     delayMs,
   });
 
-  // Re-publish the message to the wait exchange with TTL and incremented x-retry-count header
+  // Re-publish the message to the tier's wait queue (default exchange,
+  // routing key = wait queue name) with TTL and incremented x-retry-count.
   return publishForRetry(ctx, {
     msg,
-    exchange: queueEntry.waitExchange.name,
-    routingKey: msg.fields.routingKey, // Preserve original routing key
-    waitQueueName: queueEntry.waitQueue.name,
+    exchange: "",
+    routingKey: waitQueueName,
     queueName,
     delayMs,
     error,
@@ -240,12 +236,18 @@ function handleErrorTtlBackoff(
 }
 
 /**
- * Calculate retry delay with exponential backoff and optional jitter.
+ * Calculate the per-message retry delay: the attempt's base delay
+ * ({@link ttlBackoffBaseDelay}) with optional jitter applied.
+ *
+ * The jittered value only spreads messages WITHIN their delay tier — tier
+ * selection uses the base delay, so all copies of an attempt land in the same
+ * wait queue and the tier's queue-level TTL (the jitter ceiling) bounds the
+ * head-of-line skew.
  */
 function calculateRetryDelay(retryCount: number, config: ResolvedTtlBackoffRetryOptions): number {
-  const { initialDelayMs, maxDelayMs, backoffMultiplier, jitter } = config;
+  const { maxDelayMs, jitter } = config;
 
-  let delay = initialDelayMs * Math.pow(backoffMultiplier, retryCount);
+  let delay: number = ttlBackoffBaseDelay(config, retryCount);
 
   if (jitter) {
     // ± 50% jitter, centred on the calculated delay (range: [0.5x, 1.5x],
@@ -266,6 +268,12 @@ function calculateRetryDelay(retryCount: number, config: ResolvedTtlBackoffRetry
  * The retry copy republishes `msg.content` — the exact bytes the broker
  * delivered. `AmqpClient.publish` passes Buffers through untouched, so JSON,
  * compressed, and binary payloads all survive the retry hop byte-for-byte.
+ *
+ * Retry republish paths route via the default exchange (classic-queue
+ * immediate-requeue republishes to the queue itself; ttl-backoff publishes to
+ * the tier wait queue), so the redelivered `fields.routingKey` is no longer
+ * the original one. The first republish stamps it into
+ * `x-original-routing-key`, and subsequent republishes preserve that header.
  */
 function publishForRetry(
   ctx: RetryContext,
@@ -274,7 +282,6 @@ function publishForRetry(
     exchange,
     routingKey,
     queueName,
-    waitQueueName,
     delayMs,
     error,
   }: {
@@ -282,7 +289,6 @@ function publishForRetry(
     exchange: string;
     routingKey: string;
     queueName: string;
-    waitQueueName?: string;
     delayMs?: number;
     error: Error;
   },
@@ -310,12 +316,8 @@ function publishForRetry(
         "x-last-error": error.message,
         "x-first-failure-timestamp":
           msg.properties.headers?.["x-first-failure-timestamp"] ?? Date.now(),
-        ...(waitQueueName !== undefined
-          ? {
-              "x-wait-queue": waitQueueName, // For wait exchange routing
-              "x-retry-queue": queueName, // For retry exchange routing
-            }
-          : {}),
+        "x-original-routing-key":
+          msg.properties.headers?.["x-original-routing-key"] ?? msg.fields.routingKey,
       },
     })
     .flatMap((published) => {
@@ -359,7 +361,7 @@ function publishForRetry(
  * Nacks the message without requeue, relying on DLX configuration.
  */
 function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDefinition): void {
-  const queue = extractQueue(consumer.queue);
+  const queue = consumer.queue;
   const queueName = queue.name;
   const hasDeadLetter = queue.deadLetter !== undefined;
 

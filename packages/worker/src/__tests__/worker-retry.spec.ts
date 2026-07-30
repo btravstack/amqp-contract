@@ -63,9 +63,10 @@ describe("Worker Retry Mechanism", () => {
         },
       });
 
-      // Verify wait queue was created
-      const waitQueueInfo = await amqpChannel.checkQueue("retry-flow-queue-wait");
-      expect(waitQueueInfo.queue).toBe("retry-flow-queue-wait");
+      // Verify the first delay tier's wait queue was created (one wait queue
+      // per distinct backoff delay: 500ms, 1000ms, 2000ms)
+      const waitQueueInfo = await amqpChannel.checkQueue("retry-flow-queue-wait-500ms");
+      expect(waitQueueInfo.queue).toBe("retry-flow-queue-wait-500ms");
 
       // WHEN publishing a message that fails on first attempt
       publishMessage(exchange.name, "test.message", { id: "retry-1" });
@@ -85,7 +86,7 @@ describe("Worker Retry Mechanism", () => {
       // AND message should appear in wait queue with correct headers and TTL
       await vi.waitFor(
         async () => {
-          const waitMsg = await amqpChannel.get("retry-flow-queue-wait", { noAck: false });
+          const waitMsg = await amqpChannel.get("retry-flow-queue-wait-500ms", { noAck: false });
           if (!waitMsg) {
             throw new Error("Message not in wait queue");
           }
@@ -167,12 +168,15 @@ describe("Worker Retry Mechanism", () => {
       publishMessage(exchange.name, "test.message", { id: "backoff-1" });
 
       // THEN each retry should have exponentially increasing TTL: 100, 300, 900
+      // — and land in its own per-delay-tier wait queue.
       const expectedDelays = [100, 300, 900]; // 100 * 3^0, 100 * 3^1, 100 * 3^2
 
       for (let i = 0; i < expectedDelays.length; i++) {
         await vi.waitFor(
           async () => {
-            const waitMsg = await amqpChannel.get("backoff-queue-wait", { noAck: false });
+            const waitMsg = await amqpChannel.get(`backoff-queue-wait-${expectedDelays[i]}ms`, {
+              noAck: false,
+            });
             if (!waitMsg) {
               throw new Error(`Retry ${i + 1} not in wait queue`);
             }
@@ -334,7 +338,7 @@ describe("Worker Retry Mechanism", () => {
       // THEN message in wait queue should have retry tracking headers
       await vi.waitFor(
         async () => {
-          const waitMsg = await amqpChannel.get("headers-queue-wait", { noAck: false });
+          const waitMsg = await amqpChannel.get("headers-queue-wait-100ms", { noAck: false });
           if (!waitMsg) {
             throw new Error("Message not in wait queue");
           }
@@ -909,7 +913,7 @@ describe("Worker Retry Mechanism", () => {
   });
 
   describe("TTL-Backoff Retry without Dead Letter Exchange", () => {
-    it("should retry using headers exchanges", async ({
+    it("should retry via the per-tier wait queue and the default exchange", async ({
       workerFactory,
       publishMessage,
       amqpChannel,
@@ -973,7 +977,9 @@ describe("Worker Retry Mechanism", () => {
       // AND message should appear in wait queue with correct headers and TTL
       await vi.waitFor(
         async () => {
-          const waitMsg = await amqpChannel.get("headers-retry-queue-wait", { noAck: false });
+          const waitMsg = await amqpChannel.get("headers-retry-queue-wait-200ms", {
+            noAck: false,
+          });
           if (!waitMsg) {
             throw new Error("Message not in wait queue");
           }
@@ -983,8 +989,7 @@ describe("Worker Retry Mechanism", () => {
             headers: expect.objectContaining({
               "x-retry-count": 1,
               "x-last-error": "First attempt failed",
-              "x-wait-queue": "headers-retry-queue-wait",
-              "x-retry-queue": "headers-retry-queue",
+              "x-original-routing-key": "test.message",
             }),
           });
           expect(waitMsg.properties.headers?.["x-first-failure-timestamp"]).toBeDefined();
@@ -1008,96 +1013,14 @@ describe("Worker Retry Mechanism", () => {
       expect(attemptCount).toBe(2);
     });
 
-    it("should use configurable infrastructure names", async ({
-      workerFactory,
-      publishMessage,
-      amqpChannel,
-    }) => {
-      // GIVEN a worker with custom infrastructure names
-      const TestMessage = z.object({ id: z.string() });
-
-      const exchange = defineExchange("custom-names-exchange", { durable: false });
-      const queue = defineQueue("custom-names-queue", {
-        type: "classic",
-        durable: false,
-        retry: {
-          mode: "ttl-backoff",
-          maxRetries: 1,
-          initialDelayMs: 100,
-          waitQueueName: "my-custom-wait-queue",
-          waitExchangeName: "my-custom-wait-exchange",
-          retryExchangeName: "my-custom-retry-exchange",
-          jitter: false,
-        },
-      });
-
-      const testMessage = defineMessage(TestMessage);
-      const testEvent = defineEventPublisher(exchange, testMessage, {
-        routingKey: "test.message",
-      });
-
-      const contract = defineContract({
-        publishers: { testPublisher: testEvent },
-        consumers: {
-          testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
-        },
-      });
-
-      let attemptCount = 0;
-      await workerFactory(contract, {
-        testConsumer: () => {
-          attemptCount++;
-          if (attemptCount === 1) {
-            return ErrAsync(new RetryableError("First attempt failed"));
-          }
-          return OkAsync(undefined);
-        },
-      });
-
-      // WHEN publishing a message that fails on first attempt
-      publishMessage(exchange.name, "test.message", { id: "custom-names-1" });
-
-      // THEN message should appear in custom wait queue
-      await vi.waitFor(
-        async () => {
-          const waitMsg = await amqpChannel.get("my-custom-wait-queue", { noAck: false });
-          if (!waitMsg) {
-            throw new Error("Message not in custom wait queue");
-          }
-
-          expect(waitMsg.properties).toMatchObject({
-            expiration: "100",
-            headers: expect.objectContaining({
-              "x-retry-count": 1,
-              "x-wait-queue": "my-custom-wait-queue",
-              "x-retry-queue": "custom-names-queue",
-            }),
-          });
-
-          // Nack to return message for retry
-          amqpChannel.nack(waitMsg, false, true);
-        },
-        { timeout: 2000 },
-      );
-
-      // AND after TTL expires, message should be retried successfully
-      await vi.waitFor(
-        () => {
-          if (attemptCount < 2) {
-            throw new Error("Message not yet retried");
-          }
-        },
-        { timeout: 2000 },
-      );
-
-      expect(attemptCount).toBe(2);
-    });
-
-    it("should preserve original routing key through retry flow", async ({
+    it("should preserve the original routing key in the x-original-routing-key header", async ({
       workerFactory,
       publishMessage,
     }) => {
-      // GIVEN a worker with TTL-backoff retry
+      // GIVEN a worker with TTL-backoff retry. The retry hop goes through the
+      // default exchange (publish to the tier wait queue, dead-letter back to
+      // the main queue), so the redelivered `fields.routingKey` is the queue
+      // name — the original routing key travels in `x-original-routing-key`.
       const TestMessage = z.object({ id: z.string() });
 
       const exchange = defineExchange("routing-key-exchange", { durable: false });
@@ -1125,13 +1048,14 @@ describe("Worker Retry Mechanism", () => {
       });
 
       let attemptCount = 0;
-      let capturedRoutingKeys: string[] = [];
+      const capturedRoutingKeys: string[] = [];
+      const capturedOriginalRoutingKeys: Array<unknown> = [];
 
       await workerFactory(contract, {
         testConsumer: (_, msg) => {
           attemptCount++;
-          // Capture the routing key from the message
           capturedRoutingKeys.push(msg.fields.routingKey);
+          capturedOriginalRoutingKeys.push(msg.properties.headers?.["x-original-routing-key"]);
           if (attemptCount === 1) {
             return ErrAsync(new RetryableError("First attempt failed"));
           }
@@ -1152,12 +1076,15 @@ describe("Worker Retry Mechanism", () => {
         { timeout: 3000 },
       );
 
-      // AND routing key should be preserved through the retry flow
-      expect(capturedRoutingKeys).toEqual(["orders.created", "orders.created"]);
+      // AND the first delivery carries the published routing key; the retried
+      // delivery arrives via the default exchange under the queue name, with
+      // the original key preserved in the header.
+      expect(capturedRoutingKeys).toEqual(["orders.created", "routing-key-queue"]);
+      expect(capturedOriginalRoutingKeys).toEqual([undefined, "orders.created"]);
       expect(attemptCount).toBe(2);
     });
 
-    it("should handle max retries exceeded with headers-based routing", async ({
+    it("should handle max retries exceeded without a dead letter exchange", async ({
       workerFactory,
       publishMessage,
     }) => {
@@ -1288,7 +1215,7 @@ describe("Worker Retry Mechanism", () => {
       // AND it never entered the retry pipeline: no retry accounting header,
       // and the wait queue never saw it.
       expect(dlqMsg.properties.headers?.["x-retry-count"]).toBeUndefined();
-      const waitQueue = await amqpChannel.checkQueue("poison-queue-wait");
+      const waitQueue = await amqpChannel.checkQueue("poison-queue-wait-100ms");
       expect(waitQueue.messageCount).toBe(0);
 
       // AND the handler never ran.
