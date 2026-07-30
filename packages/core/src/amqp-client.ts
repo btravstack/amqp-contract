@@ -57,6 +57,7 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
   if (input === null) return null;
   if (input === undefined) return DEFAULT_CONNECT_TIMEOUT_MS;
   if (!Number.isFinite(input) || input <= 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast config error; surfaces as a Defect from the typed create() factories (see doc above)
     throw new TechnicalError(
       `Invalid connectTimeoutMs: expected a positive finite number of milliseconds, got ${String(input)}. Pass null to disable the timeout.`,
     );
@@ -292,6 +293,7 @@ export class AmqpClient {
     try {
       return Buffer.from(JSON.stringify(content));
     } catch (error) {
+      // oxlint-disable-next-line unthrown/no-throw -- known-technical precondition throw in a plain helper, adopted by the fromSafeThrowable boundary at the call sites
       throw new TechnicalError("Failed to JSON-encode message content", error);
     }
   }
@@ -375,6 +377,7 @@ export class AmqpClient {
         // A misconfigured prefetch is a programming fault, not a modeled
         // failure — surface it through the defect channel.
         return fromSafeThrowable((): string => {
+          // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
           throw new TechnicalError(
             `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
           );
@@ -476,6 +479,7 @@ export class AmqpClient {
       if (channelResult.isDefect() && releaseResult.isDefect()) {
         // Both steps failed — combine their defect causes. The throw is
         // adopted by `fromSafePromise` below and re-emerges as a single Defect.
+        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — adopted by the fromSafePromise boundary below
         throw new TechnicalError(
           "Failed to close channel and release connection",
           new AggregateError(

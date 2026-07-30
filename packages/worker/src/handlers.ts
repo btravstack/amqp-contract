@@ -50,6 +50,7 @@ function validateHandlerTargetExists<TContract extends ContractDefinition>(
 
   if (!isConsumer && !isRpc) {
     const available = formatAvailable(availableHandlerNames(contract));
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error — worker creation fails before any connection is acquired
     throw new Error(
       `Handler target "${name}" not found in contract. Available consumers and RPCs: ${available}`,
     );
@@ -106,6 +107,7 @@ function validateHandlers<TContract extends ContractDefinition>(
   // JavaScript callers can pass null/undefined despite the type — surface a
   // clear error instead of the TypeError Object.keys would throw.
   if (handlers === null || typeof handlers !== "object") {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error — worker creation fails before any connection is acquired
     throw new Error(
       "declareHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
     );
@@ -115,6 +117,7 @@ function validateHandlers<TContract extends ContractDefinition>(
   }
   const missing = missingHandlerNames(contract, handlers);
   if (missing.length > 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error — worker creation fails before any connection is acquired
     throw new Error(
       `Missing handlers for contract entries: ${missing.join(", ")}. ` +
         "Every `consumers` and `rpcs` key requires a handler.",
@@ -122,6 +125,7 @@ function validateHandlers<TContract extends ContractDefinition>(
   }
   const invalid = invalidHandlerNames(contract, handlers);
   if (invalid.length > 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error — worker creation fails before any connection is acquired
     throw new Error(
       `Handlers for contract entries are not functions: ${invalid.join(", ")}. ` +
         "Each handler must be a function or a [handler, options] tuple.",

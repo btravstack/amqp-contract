@@ -107,6 +107,7 @@ export function createTtlBackoffInfrastructure(
 ): TtlBackoffRetryInfrastructure {
   // Ensure queue retry mode is ttl-backoff
   if (queue.retry.mode !== "ttl-backoff") {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
     throw new Error(
       `Queue ${queue.name} does not have ttl-backoff retry mode. Infrastructure can only be created for queues with ttl-backoff retry.`,
     );

@@ -47,6 +47,7 @@ export function decompressBuffer(
 
   if (!isSupportedEncoding(normalizedEncoding)) {
     return fromSafeThrowable((): Buffer => {
+      // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
       throw new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
           `Supported encodings are: ${SUPPORTED_ENCODINGS.join(", ")}. ` +

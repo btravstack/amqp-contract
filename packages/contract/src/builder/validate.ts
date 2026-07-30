@@ -15,6 +15,7 @@
 /** Throw unless `name` is a non-empty string (AMQP names must not be blank). */
 export function _internal_assertNonEmptyName(kind: string, name: unknown): void {
   if (typeof name !== "string" || name.length === 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
     throw new Error(`${kind} name must be a non-empty string, got ${JSON.stringify(name)}`);
   }
 }
@@ -32,6 +33,7 @@ export function _internal_assertKnownKeys(
   if (bag === undefined) return;
   const unknown = Object.keys(bag).filter((key) => !allowed.includes(key));
   if (unknown.length > 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
     throw new Error(
       `Unknown option${unknown.length > 1 ? "s" : ""} ${unknown.map((k) => `"${k}"`).join(", ")} ` +
         `on ${kind} "${name}". Allowed options: ${allowed.join(", ")}.`,
@@ -55,6 +57,7 @@ export function _internal_assertStandardSchema(kind: string, schema: unknown): v
       ? (standard as Record<string, unknown>)["validate"]
       : undefined;
   if (typeof validate !== "function") {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
     throw new Error(
       `${kind} must be a Standard Schema v1 (an object exposing "~standard".validate) — ` +
         "got a value without one. Zod, Valibot, and ArkType schemas all qualify.",

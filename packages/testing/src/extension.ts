@@ -159,6 +159,7 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
         options,
       );
       if (!success) {
+        // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
         throw new Error(
           `Failed to publish message to exchange "${exchange}" with routing key "${routingKey}"`,
         );
@@ -228,6 +229,7 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
         await vi.waitFor(
           () => {
             if (messages.length < count) {
+              // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
               throw new Error(`Expected ${count} message(s) but only received ${messages.length}`);
             }
           },
@@ -277,6 +279,7 @@ async function createVhost() {
     const errorMessage = responseBody
       ? `Failed to create vhost '${namespace}': ${vhostResponse.status} - ${responseBody}`
       : `Failed to create vhost '${namespace}': ${vhostResponse.status}`;
+    // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
     throw new Error(errorMessage, {
       cause: vhostResponse,
     });
@@ -305,6 +308,7 @@ async function deleteVhost(vhost: string) {
     const errorMessage = responseBody
       ? `Failed to delete vhost '${vhost}': ${vhostResponse.status} - ${responseBody}`
       : `Failed to delete vhost '${vhost}': ${vhostResponse.status}`;
+    // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
     throw new Error(errorMessage, {
       cause: vhostResponse,
     });

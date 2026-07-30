@@ -144,6 +144,7 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  */
 function technicalDefect<T>(error: TechnicalError): AsyncResult<T, never> {
   return fromSafeThrowable((): T => {
+    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
     throw error;
   })().toAsync();
 }
@@ -673,6 +674,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       if (result.issues) {
         // A schema-invalid incoming message is routed to the DLQ by the caller;
         // it is an infrastructure/producer fault, so surface it as a defect.
+        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
         throw new TechnicalError(
           `${context.field} validation failed`,
           new MessageValidationError(context.consumerName, result.issues),
@@ -1252,6 +1254,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // handlerError as the defect cause. The throw becomes a `Defect`; a
         // routing *failure* (handleError defect) short-circuits before this and
         // leaves `messageHandled` false so the message is redelivered.
+        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
         throw new TechnicalError(
           `Handler "${String(name)}" failed: ${handlerError.message}`,
           handlerError,

@@ -35,6 +35,7 @@ const parseDocsVersions = (raw: string): VersionMenu => {
   try {
     return JSON.parse(raw) as VersionMenu;
   } catch (cause) {
+    // oxlint-disable-next-line unthrown/no-throw -- build-time fail-fast: a broken DOCS_VERSIONS means the deploy workflow is broken
     throw new Error(
       `DOCS_VERSIONS is not valid JSON — expected {"current":…,"items":[…]}, got: ${raw}`,
       { cause },
