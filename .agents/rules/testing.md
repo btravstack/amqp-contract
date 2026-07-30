@@ -34,7 +34,7 @@ Import `it` from `@amqp-contract/testing/extension` for fixtures. Available fixt
 - `vhost` — isolated RabbitMQ vhost (one per test)
 - `amqpConnectionUrl` — connection URL pointing at that vhost
 - `amqpConnection` / `amqpChannel` — opened connection + channel for direct broker calls
-- `publishMessage(exchange, routingKey, content, options?)` — publish a JSON-serialised message
+- `publishMessage({ exchange, routingKey }, content, options?)` — publish a JSON-serialised message
 - `initConsumer(exchange, routingKey)` — returns a `(opts?) => Promise<ConsumeMessage[]>` waiter that you call to await N messages
 
 ```typescript
@@ -46,7 +46,10 @@ describe("Order Processing", () => {
     // vhost is automatically created and isolated for this test
     const waitForMessages = await initConsumer("orders-exchange", "order.created");
 
-    publishMessage("orders-exchange", "order.created", { orderId: "123" });
+    publishMessage(
+      { exchange: "orders-exchange", routingKey: "order.created" },
+      { orderId: "123" },
+    );
 
     const messages = await waitForMessages({ count: 1, timeoutMs: 5000 });
     expect(messages).toHaveLength(1);
