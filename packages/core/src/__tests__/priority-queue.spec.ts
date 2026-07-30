@@ -103,15 +103,27 @@ describe("Priority Queue", () => {
     // Publish messages with different priorities
     // Publishing in this order: low (1), medium (5), high (10)
     await client
-      .publish(exchange.name, "test", { id: "msg-low", priority: 1 }, { priority: 1 })
+      .publish(
+        { exchange: exchange.name, routingKey: "test" },
+        { id: "msg-low", priority: 1 },
+        { priority: 1 },
+      )
       .get();
 
     await client
-      .publish(exchange.name, "test", { id: "msg-medium", priority: 5 }, { priority: 5 })
+      .publish(
+        { exchange: exchange.name, routingKey: "test" },
+        { id: "msg-medium", priority: 5 },
+        { priority: 5 },
+      )
       .get();
 
     await client
-      .publish(exchange.name, "test", { id: "msg-high", priority: 10 }, { priority: 10 })
+      .publish(
+        { exchange: exchange.name, routingKey: "test" },
+        { id: "msg-high", priority: 10 },
+        { priority: 10 },
+      )
       .get();
 
     // Give RabbitMQ time to order the messages
@@ -208,10 +220,18 @@ describe("Priority Queue", () => {
     await client.waitForConnect().get();
 
     // Publish message without priority (defaults to 0)
-    await client.publish(exchange.name, "test", { id: "msg-default" }).get();
+    await client
+      .publish({ exchange: exchange.name, routingKey: "test" }, { id: "msg-default" })
+      .get();
 
     // Publish message with priority 5
-    await client.publish(exchange.name, "test", { id: "msg-priority" }, { priority: 5 }).get();
+    await client
+      .publish(
+        { exchange: exchange.name, routingKey: "test" },
+        { id: "msg-priority" },
+        { priority: 5 },
+      )
+      .get();
 
     // Give RabbitMQ time to order the messages
     await new Promise((resolve) => setTimeout(resolve, 100));
