@@ -241,7 +241,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         .waitForConnectionReady()
         .flatMap(() => client.setupReplyConsumerIfNeeded());
 
-      const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, never>> => {
+      const inner = (async () => {
         const setupResult = await setup;
         if (!setupResult.isOk()) {
           const closeResult = await client.close();

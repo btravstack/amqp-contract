@@ -26,6 +26,7 @@
     "@btravstack/oxlint": "catalog:",
     "@changesets/cli": "catalog:",
     "@commitlint/cli": "catalog:",
+    "@unthrown/oxlint": "catalog:",
     "knip": "catalog:",
     "lefthook": "catalog:",
     "oxfmt": "catalog:",
