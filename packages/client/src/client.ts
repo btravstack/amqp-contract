@@ -464,8 +464,19 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     options?: PublishOptions,
   ): AsyncResult<void, MessageValidationError> {
     const startTime = Date.now();
-    // Non-null assertions safe: TypeScript guarantees these exist for valid TName
-    const publisher = this.contract.publishers![publisherName as string]!;
+    // TypeScript constrains TName to declared publisher names, but a JS caller
+    // (or a stale name surviving a contract change behind a cast) reaches this
+    // at runtime — that must surface as a Defect, never escape as a raw
+    // TypeError from the destructuring below.
+    const publisher = this.contract.publishers?.[publisherName as string];
+    if (publisher === undefined) {
+      const declared = Object.keys(this.contract.publishers ?? {}).join(", ") || "(none)";
+      return technicalDefect(
+        new TechnicalError(
+          `Unknown publisher "${String(publisherName)}". Declared publishers: ${declared}.`,
+        ),
+      ).toAsync();
+    }
     const { exchange, routingKey } = publisher;
 
     // Start telemetry span
@@ -629,8 +640,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       | ClientInferRpcErrors<TContract, TName>;
 
     const startTime = Date.now();
-    // Non-null assertion safe: TName is constrained to RPC names in the contract.
-    const rpc = this.contract.rpcs![rpcName as string]!;
+    // Same runtime guard as `publish()`: an undeclared RPC name from a JS
+    // caller must become a Defect, not a raw TypeError.
+    const rpc = this.contract.rpcs?.[rpcName as string];
+    if (rpc === undefined) {
+      const declared = Object.keys(this.contract.rpcs ?? {}).join(", ") || "(none)";
+      return technicalDefect(
+        new TechnicalError(`Unknown RPC "${String(rpcName)}". Declared RPCs: ${declared}.`),
+      ).toAsync();
+    }
     const queueName = extractQueue(rpc.queue).name;
 
     // RPC publishes to the default exchange with the queue name as routing key.
