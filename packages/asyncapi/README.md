@@ -1,6 +1,6 @@
 # @amqp-contract/asyncapi
 
-**AsyncAPI 3.0.0 specification generator for amqp-contract.**
+**AsyncAPI 3.1.0 specification generator for amqp-contract.**
 
 [![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@amqp-contract/asyncapi.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/asyncapi)
@@ -60,7 +60,7 @@ writeFileSync("asyncapi.json", JSON.stringify(asyncAPISpec, null, 2));
 
 ## Features
 
-- ✅ **AsyncAPI 3.0 compliant** with proper AMQP bindings (v0.3.0)
+- ✅ **AsyncAPI 3.1 compliant** with proper AMQP bindings (v0.3.0)
 - ✅ **Schema validation** - Converts Zod, Valibot, and ArkType schemas to JSON Schema
 - ✅ **Queue-exchange binding documentation** in channel descriptions
 - ✅ **Type-safe** with full TypeScript support

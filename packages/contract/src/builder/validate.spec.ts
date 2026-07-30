@@ -91,7 +91,7 @@ describe("define-time structural validation", () => {
         defineRpc(queue, {
           request: defineMessage(z.object({})),
           response: defineMessage(z.object({})),
-          errors: { NOT_FOUND: { payload: "nope" } } as never,
+          errors: { NOT_FOUND: { data: "nope" } } as never,
         }),
       ).toThrow('RPC error "NOT_FOUND" data schema must be a Standard Schema v1');
     });

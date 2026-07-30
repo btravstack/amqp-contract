@@ -109,4 +109,30 @@ describe("invariants: handler-error routing", () => {
     ).get();
     expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false);
   });
+
+  it("INVARIANT: a classic-queue immediate-requeue retry republishes to THIS queue via the default exchange, never the original exchange", async () => {
+    // Republishing to the original exchange would fan the retry out to every
+    // bound queue — sibling consumers would process duplicates and inherit the
+    // retry's `x-retry-count` header into their own accounting.
+    const { client, publish } = mockClient();
+    const consumer = {
+      queue: defineQueue("orders", {
+        type: "classic",
+        retry: { mode: "immediate-requeue", maxRetries: 2 },
+      }),
+      message,
+    };
+
+    const result = await handleError(
+      { amqpClient: client as never },
+      new RetryableError("transient"),
+      mockMessage({ "x-retry-count": 0 }),
+      "processOrder",
+      consumer,
+    );
+
+    expect(result).toBeOk();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledWith("", "orders", expect.anything(), expect.anything());
+  });
 });

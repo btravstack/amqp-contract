@@ -39,16 +39,19 @@ export type AsyncAPIGeneratorOptions = {
    */
   schemaConverters?: ConditionalSchemaConverter[];
   /**
-   * Optional logger for warnings during generation (e.g. unmatched schema converters).
+   * Optional logger for warnings during generation (e.g. unmatched schema
+   * converters). Structurally compatible with `@amqp-contract/core`'s
+   * `Logger` — pass the same instance you hand to the client/worker.
    */
   logger?: { warn: (message: string) => void };
   /**
-   * If true, the generator throws when a payload schema cannot be converted by
-   * any of the configured `schemaConverters` instead of falling back to a
-   * generic `{ type: "object" }` placeholder. Recommended for CI pipelines
-   * that depend on the generated spec being faithful (e.g. for codegen).
+   * If true (the default), the generator throws when a payload schema cannot
+   * be converted by any of the configured `schemaConverters` — a spec that
+   * silently degrades schemas to `{ type: "object" }` placeholders lies to
+   * every consumer of the document (docs, codegen, tooling).
    *
-   * Defaults to `false` for backwards compatibility.
+   * Set to `false` to fall back to the generic placeholder with a warning
+   * instead.
    */
   failOnMissingConverter?: boolean;
 };
@@ -61,9 +64,9 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
   Partial<Pick<AsyncAPIObject, "id" | "servers">>;
 
 /**
- * Generator for creating AsyncAPI 3.0 documentation from AMQP contracts.
+ * Generator for creating AsyncAPI 3.1 documentation from AMQP contracts.
  *
- * This class converts contract definitions into AsyncAPI 3.0 specification documents,
+ * This class converts contract definitions into AsyncAPI 3.1 specification documents,
  * which can be used for API documentation, code generation, and tooling integration.
  *
  * @example
@@ -121,11 +124,11 @@ export class AsyncAPIGenerator {
   constructor(options: AsyncAPIGeneratorOptions = {}) {
     this.converters = options.schemaConverters ?? [];
     this.logger = options.logger;
-    this.failOnMissingConverter = options.failOnMissingConverter ?? false;
+    this.failOnMissingConverter = options.failOnMissingConverter ?? true;
   }
 
   /**
-   * Generate an AsyncAPI 3.0 document from a contract definition.
+   * Generate an AsyncAPI 3.1 document from a contract definition.
    *
    * Converts AMQP exchanges, queues, publishers, and consumers into
    * AsyncAPI channels, operations, and messages with proper JSON Schema
@@ -133,7 +136,7 @@ export class AsyncAPIGenerator {
    *
    * @param contract - The AMQP contract definition to convert
    * @param options - AsyncAPI document metadata (id, info, servers)
-   * @returns Promise resolving to a complete AsyncAPI 3.0 document
+   * @returns Promise resolving to a complete AsyncAPI 3.1 document
    *
    * @example
    * ```typescript

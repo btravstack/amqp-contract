@@ -4,6 +4,8 @@ import type {
   ContractDefinition,
   InferConsumerNames,
   InferRpcNames,
+  InferSchemaInput,
+  InferSchemaOutput,
   MessageDefinition,
   QueueEntry,
   RpcDefinition,
@@ -17,19 +19,6 @@ import type { AsyncResult } from "unthrown";
 import type { HandlerError } from "./errors.js";
 import type { EmptyContext } from "./middleware.js";
 import { type ConsumerOptions } from "./worker.js";
-
-/**
- * Infer the output type from a schema (used by consumers after validation)
- */
-type InferSchemaOutput<TSchema extends StandardSchemaV1> =
-  TSchema extends StandardSchemaV1<infer _TInput, infer TOutput> ? TOutput : never;
-
-/**
- * Infer the input type from a schema (used for RPC error data — the handler
- * supplies the pre-validation shape; the worker validates before replying).
- */
-type InferSchemaInput<TSchema extends StandardSchemaV1> =
-  TSchema extends StandardSchemaV1<infer TInput> ? TInput : never;
 
 /**
  * Extract the ConsumerDefinition from any consumer entry type.
@@ -148,9 +137,9 @@ export type WorkerInferRpcErrorConstructors<
     ? TErrors extends RpcErrorMap
       ? {
           [K in keyof TErrors & string]: (
-            data: InferSchemaInput<TErrors[K]["payload"]>,
+            data: InferSchemaInput<TErrors[K]["data"]>,
             message?: string,
-          ) => RpcError<K, InferSchemaInput<TErrors[K]["payload"]>>;
+          ) => RpcError<K, InferSchemaInput<TErrors[K]["data"]>>;
         }
       : EmptyContext
     : EmptyContext;
@@ -189,14 +178,19 @@ export type WorkerInferRpcErrors<
   >
     ? TErrors extends RpcErrorMap
       ? {
-          [K in keyof TErrors & string]: RpcError<K, InferSchemaInput<TErrors[K]["payload"]>>;
+          [K in keyof TErrors & string]: RpcError<K, InferSchemaInput<TErrors[K]["data"]>>;
         }[keyof TErrors & string]
       : never
     : never;
 
 /**
- * Infer the response payload type for an RPC. The handler must return a
+ * Infer the response payload type for an RPC. The handler must return an
  * `AsyncResult<TResponse, HandlerError>` matching this shape.
+ *
+ * Typed as the schema's *input* — the handler supplies the pre-validation
+ * shape (defaults optional, transforms not yet applied); the worker validates
+ * against the response schema before publishing the reply. Same convention as
+ * RPC error data.
  */
 export type WorkerInferRpcResponse<
   TContract extends ContractDefinition,
@@ -204,7 +198,7 @@ export type WorkerInferRpcResponse<
 > =
   InferRpc<TContract, TName> extends RpcDefinition<MessageDefinition, infer TResponse>
     ? TResponse extends MessageDefinition
-      ? InferSchemaOutput<TResponse["payload"]>
+      ? InferSchemaInput<TResponse["payload"]>
       : never
     : never;
 
@@ -223,7 +217,7 @@ export type WorkerInferRpcResponse<
  *
  * @example
  * ```typescript
- * const handler = defineHandler(contract, 'processOrder', (message, rawMessage) => {
+ * const handler = declareHandler(contract, 'processOrder', (message, rawMessage) => {
  *   console.log(message.payload.orderId);  // Typed payload
  *   console.log(message.headers?.priority); // Typed headers (if defined)
  *   console.log(rawMessage.fields.deliveryTag); // Raw AMQP message

@@ -237,10 +237,37 @@ export const defaultTelemetryProvider: TelemetryProvider = {
 };
 
 /**
+ * Run an instrumentation side effect, swallowing any throw. Telemetry is
+ * best-effort observability: a buggy user-supplied provider (or span) must
+ * never poison the publish/consume data path — these helpers run inside the
+ * client's and worker's Result chains, where an escaped throw would either
+ * crash the consume callback or convert a successful operation into a defect.
+ */
+function swallowTelemetryThrow<T>(operation: () => T): T | undefined {
+  try {
+    return operation();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Create a span for a publish operation.
  * Returns undefined if OpenTelemetry is not available.
+ * Never throws — a throwing provider is treated as "no telemetry".
  */
 export function startPublishSpan(
+  provider: TelemetryProvider,
+  exchangeName: string,
+  routingKey: string | undefined,
+  attributes?: Attributes,
+): Span | undefined {
+  return swallowTelemetryThrow(() =>
+    startPublishSpanUnsafe(provider, exchangeName, routingKey, attributes),
+  );
+}
+
+function startPublishSpanUnsafe(
   provider: TelemetryProvider,
   exchangeName: string,
   routingKey: string | undefined,
@@ -274,8 +301,20 @@ export function startPublishSpan(
 /**
  * Create a span for a consume/process operation.
  * Returns undefined if OpenTelemetry is not available.
+ * Never throws — a throwing provider is treated as "no telemetry".
  */
 export function startConsumeSpan(
+  provider: TelemetryProvider,
+  queueName: string,
+  consumerName: string,
+  attributes?: Attributes,
+): Span | undefined {
+  return swallowTelemetryThrow(() =>
+    startConsumeSpanUnsafe(provider, queueName, consumerName, attributes),
+  );
+}
+
+function startConsumeSpanUnsafe(
   provider: TelemetryProvider,
   queueName: string,
   consumerName: string,
@@ -305,39 +344,43 @@ export function startConsumeSpan(
 }
 
 /**
- * End a span with success status.
+ * End a span with success status. Never throws.
  */
 export function endSpanSuccess(span: Span | undefined): void {
   if (!span) {
     return;
   }
 
-  const api = tryLoadOpenTelemetryApi();
-  if (api) {
-    span.setStatus({ code: api.SpanStatusCode.OK });
-  }
-  span.end();
+  swallowTelemetryThrow(() => {
+    const api = tryLoadOpenTelemetryApi();
+    if (api) {
+      span.setStatus({ code: api.SpanStatusCode.OK });
+    }
+    span.end();
+  });
 }
 
 /**
- * End a span with error status.
+ * End a span with error status. Never throws.
  */
 export function endSpanError(span: Span | undefined, error: Error): void {
   if (!span) {
     return;
   }
 
-  const api = tryLoadOpenTelemetryApi();
-  if (api) {
-    span.setStatus({ code: api.SpanStatusCode.ERROR, message: error.message });
-    span.recordException(error);
-    span.setAttribute(MessagingSemanticConventions.ERROR_TYPE, error.name);
-  }
-  span.end();
+  swallowTelemetryThrow(() => {
+    const api = tryLoadOpenTelemetryApi();
+    if (api) {
+      span.setStatus({ code: api.SpanStatusCode.ERROR, message: error.message });
+      span.recordException(error);
+      span.setAttribute(MessagingSemanticConventions.ERROR_TYPE, error.name);
+    }
+    span.end();
+  });
 }
 
 /**
- * Record a publish metric.
+ * Record a publish metric. Never throws.
  */
 export function recordPublishMetric(
   provider: TelemetryProvider,
@@ -346,25 +389,27 @@ export function recordPublishMetric(
   success: boolean,
   durationMs: number,
 ): void {
-  const publishCounter = provider.getPublishCounter();
-  const publishLatencyHistogram = provider.getPublishLatencyHistogram();
+  swallowTelemetryThrow(() => {
+    const publishCounter = provider.getPublishCounter();
+    const publishLatencyHistogram = provider.getPublishLatencyHistogram();
 
-  const attributes: Attributes = {
-    [MessagingSemanticConventions.MESSAGING_SYSTEM]:
-      MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
-    [MessagingSemanticConventions.MESSAGING_DESTINATION]: exchangeName,
-    ...(routingKey
-      ? { [MessagingSemanticConventions.MESSAGING_RABBITMQ_ROUTING_KEY]: routingKey }
-      : {}),
-    success: success,
-  };
+    const attributes: Attributes = {
+      [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+        MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+      [MessagingSemanticConventions.MESSAGING_DESTINATION]: exchangeName,
+      ...(routingKey
+        ? { [MessagingSemanticConventions.MESSAGING_RABBITMQ_ROUTING_KEY]: routingKey }
+        : {}),
+      success: success,
+    };
 
-  publishCounter?.add(1, attributes);
-  publishLatencyHistogram?.record(durationMs, attributes);
+    publishCounter?.add(1, attributes);
+    publishLatencyHistogram?.record(durationMs, attributes);
+  });
 }
 
 /**
- * Record a consume metric.
+ * Record a consume metric. Never throws.
  */
 export function recordConsumeMetric(
   provider: TelemetryProvider,
@@ -373,19 +418,21 @@ export function recordConsumeMetric(
   success: boolean,
   durationMs: number,
 ): void {
-  const consumeCounter = provider.getConsumeCounter();
-  const consumeLatencyHistogram = provider.getConsumeLatencyHistogram();
+  swallowTelemetryThrow(() => {
+    const consumeCounter = provider.getConsumeCounter();
+    const consumeLatencyHistogram = provider.getConsumeLatencyHistogram();
 
-  const attributes: Attributes = {
-    [MessagingSemanticConventions.MESSAGING_SYSTEM]:
-      MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
-    [MessagingSemanticConventions.MESSAGING_DESTINATION]: queueName,
-    [MessagingSemanticConventions.AMQP_CONSUMER_NAME]: consumerName,
-    success: success,
-  };
+    const attributes: Attributes = {
+      [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+        MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+      [MessagingSemanticConventions.MESSAGING_DESTINATION]: queueName,
+      [MessagingSemanticConventions.AMQP_CONSUMER_NAME]: consumerName,
+      success: success,
+    };
 
-  consumeCounter?.add(1, attributes);
-  consumeLatencyHistogram?.record(durationMs, attributes);
+    consumeCounter?.add(1, attributes);
+    consumeLatencyHistogram?.record(durationMs, attributes);
+  });
 }
 
 /**
@@ -400,15 +447,17 @@ export function recordLateRpcReply(
   provider: TelemetryProvider,
   reason: "unknown-correlation-id" | "missing-correlation-id",
 ): void {
-  const counter = provider.getLateRpcReplyCounter();
+  swallowTelemetryThrow(() => {
+    const counter = provider.getLateRpcReplyCounter();
 
-  const attributes: Attributes = {
-    [MessagingSemanticConventions.MESSAGING_SYSTEM]:
-      MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
-    reason,
-  };
+    const attributes: Attributes = {
+      [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+        MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+      reason,
+    };
 
-  counter?.add(1, attributes);
+    counter?.add(1, attributes);
+  });
 }
 
 /**
@@ -424,9 +473,4 @@ export function _internal_resetTelemetryCache(): void {
   cachedPublishLatencyHistogram = undefined;
   cachedConsumeLatencyHistogram = undefined;
   cachedLateRpcReplyCounter = undefined;
-}
-
-/** @deprecated Renamed to {@link _internal_resetTelemetryCache} per the org `_internal_` convention. */
-export function _resetTelemetryCacheForTesting(): void {
-  _internal_resetTelemetryCache();
 }

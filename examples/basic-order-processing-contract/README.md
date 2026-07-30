@@ -21,7 +21,7 @@ import { TypedAmqpClient } from "@amqp-contract/client";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 await client.publish("orderCreated", {/* fully typed */});
 ```

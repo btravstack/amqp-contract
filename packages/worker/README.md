@@ -117,7 +117,7 @@ See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/gu
 
 ## Defining Handlers Externally
 
-You can define handlers outside of the worker creation using `defineHandler` and `defineHandlers` for better code organization. See the [Worker API documentation](https://btravstack.github.io/amqp-contract/api/worker) for details.
+You can define handlers outside of the worker creation using `declareHandler` and `declareHandlers` for better code organization. See the [Worker API documentation](https://btravstack.github.io/amqp-contract/api/worker) for details.
 
 ## Error Handling
 

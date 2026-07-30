@@ -223,36 +223,41 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     publishInterceptors,
     callInterceptors,
   }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, never> {
-    const client = new TypedAmqpClient(
-      contract,
-      new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs }),
-      { persistent: true, ...defaultPublishOptions },
-      logger,
-      telemetry ?? defaultTelemetryProvider,
-      publishInterceptors ?? [],
-      callInterceptors ?? [],
-    );
+    // Enter through the safety net so a synchronous constructor throw (an
+    // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
+    // instead of escaping create() as a raw throw.
+    return OkAsync(undefined).flatMap(() => {
+      const client = new TypedAmqpClient(
+        contract,
+        new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs }),
+        { persistent: true, ...defaultPublishOptions },
+        logger,
+        telemetry ?? defaultTelemetryProvider,
+        publishInterceptors ?? [],
+        callInterceptors ?? [],
+      );
 
-    const setup = client
-      .waitForConnectionReady()
-      .flatMap(() => client.setupReplyConsumerIfNeeded());
+      const setup = client
+        .waitForConnectionReady()
+        .flatMap(() => client.setupReplyConsumerIfNeeded());
 
-    const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, never>> => {
-      const setupResult = await setup;
-      if (!setupResult.isOk()) {
-        const closeResult = await client.close();
-        if (closeResult.isDefect()) {
-          logger?.warn("Failed to close client after connection failure", {
-            error: closeResult.cause,
-          });
+      const inner = (async (): Promise<Result<TypedAmqpClient<TContract>, never>> => {
+        const setupResult = await setup;
+        if (!setupResult.isOk()) {
+          const closeResult = await client.close();
+          if (closeResult.isDefect()) {
+            logger?.warn("Failed to close client after connection failure", {
+              error: closeResult.cause,
+            });
+          }
         }
-      }
-      // `map` runs only on Ok; an Err/Defect passes through with its value type
-      // re-shaped to the client, so the failure surfaces unchanged.
-      return setupResult.map(() => client);
-    })();
+        // `map` runs only on Ok; an Err/Defect passes through with its value type
+        // re-shaped to the client, so the failure surfaces unchanged.
+        return setupResult.map(() => client);
+      })();
 
-    return fromSafePromise(inner).flatMap((result) => result);
+      return fromSafePromise(inner).flatMap((result) => result);
+    });
   }
 
   /**
@@ -401,14 +406,16 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       typeof parsed === "object" && parsed !== null
         ? (parsed as { message?: unknown; data?: unknown })
         : {};
-    const message = typeof body.message === "string" ? body.message : undefined;
+    // Wire message wins; the contract's declared default message (if any)
+    // fills in when the reply carries none.
+    const message = typeof body.message === "string" ? body.message : errorSchema.message;
 
     // Wrap the validate call itself — a Standard Schema implementation may
     // throw synchronously, and the throw would otherwise escape the consume
     // callback and could crash the reply consumer.
     let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
     try {
-      rawValidation = errorSchema.payload["~standard"].validate(body.data);
+      rawValidation = errorSchema.data["~standard"].validate(body.data);
     } catch (error: unknown) {
       pending.resolve(
         technicalDefect(
@@ -510,7 +517,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
           return compressBuffer(messageBuffer, compression);
         }
 
-        // No compression: use the channel's built-in JSON serialization
+        // No compression: hand the validated value through — AmqpClient
+        // JSON-encodes non-Buffer content at publish time.
         return OkAsync(validatedMessage);
       };
 
@@ -701,7 +709,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     // Set up the reply future + pending entry up front so a reply that arrives
     // racing the publish round-trip can find a slot. Cleanup on preflight
-    // failure happens in the `.flatMapErr` below.
+    // failure happens in the `.tapFailure` below.
     let resolveCall!: (result: CallResult) => void;
     const callPromise = new Promise<CallResult>((res) => {
       resolveCall = res;

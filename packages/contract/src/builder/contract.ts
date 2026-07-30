@@ -136,7 +136,14 @@ function addResource<T>(
 export function defineContract<TContract extends ContractDefinitionInput>(
   definition: TContract,
 ): ContractOutput<TContract> {
-  const { publishers: inputPublishers, consumers: inputConsumers, rpcs: inputRpcs } = definition;
+  const {
+    publishers: inputPublishers,
+    consumers: inputConsumers,
+    rpcs: inputRpcs,
+    exchanges: inputExchanges,
+    queues: inputQueues,
+    bindings: inputBindings,
+  } = definition;
 
   // Consumer names and RPC names share the worker handler keyspace; if the
   // same key appeared in both, the worker would consume from two queues under
@@ -163,6 +170,56 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   const exchanges: Record<string, ExchangeDefinition> = {};
   const queues: Record<string, QueueEntry> = {};
   const bindings: Record<string, BindingDefinition> = {};
+
+  /**
+   * Register a queue entry plus everything it implies: its dead-letter
+   * exchange and (for ttl-backoff retry) the wait/retry queues, exchanges,
+   * and bindings.
+   */
+  const addQueueWithInfrastructure = (queueEntry: QueueEntry): void => {
+    const queueDef = extractQueue(queueEntry);
+    addResource(queues, queueDef.name, queueEntry, "queue");
+    if (queueDef.deadLetter?.exchange) {
+      addResource(
+        exchanges,
+        queueDef.deadLetter.exchange.name,
+        queueDef.deadLetter.exchange,
+        "exchange",
+      );
+    }
+    if (isQueueWithTtlBackoffInfrastructure(queueEntry)) {
+      addResource(queues, queueEntry.waitQueue.name, queueEntry.waitQueue, "queue");
+      addResource(
+        bindings,
+        `${queueEntry.queue.name}WaitBinding`,
+        queueEntry.waitQueueBinding,
+        "binding",
+      );
+      addResource(
+        bindings,
+        `${queueEntry.queue.name}RetryBinding`,
+        queueEntry.retryQueueBinding,
+        "binding",
+      );
+      addResource(exchanges, queueEntry.waitExchange.name, queueEntry.waitExchange, "exchange");
+      addResource(exchanges, queueEntry.retryExchange.name, queueEntry.retryExchange, "exchange");
+    }
+  };
+
+  // Process standalone topology first — resources declared without a
+  // publisher, consumer, or RPC attached (audit queues, a DLQ bound to the
+  // auto-extracted DLX, another domain's exchange a binding references).
+  // Declared-first means a structurally-equal re-declaration via a consumer
+  // later dedupes silently, while a conflicting one fails the collision check.
+  for (const exchange of Object.values(inputExchanges ?? {})) {
+    addResource(exchanges, exchange.name, exchange, "exchange");
+  }
+  for (const queueEntry of Object.values(inputQueues ?? {})) {
+    addQueueWithInfrastructure(queueEntry);
+  }
+  for (const [label, binding] of Object.entries(inputBindings ?? {})) {
+    addResource(bindings, label, binding, "binding");
+  }
 
   // Process publishers section - extract exchanges and convert EventPublisherConfig entries
   if (inputPublishers && Object.keys(inputPublishers).length > 0) {
@@ -201,29 +258,14 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   // Process consumers section - extract queues, exchanges, bindings, and consumer definitions
   if (inputConsumers && Object.keys(inputConsumers).length > 0) {
     const processedConsumers: Record<string, ConsumerDefinition> = {};
-    const consumerQueueEntries: QueueEntry[] = [];
 
     for (const [name, entry] of Object.entries(inputConsumers)) {
       if (isEventConsumerResult(entry)) {
         // EventConsumerResult: extract consumer, binding, queue, and exchange
         processedConsumers[name] = entry.consumer;
         addResource(bindings, `${name}Binding`, entry.binding, "binding");
-
-        const queueEntry = entry.consumer.queue;
-        const queueDef = extractQueue(queueEntry);
-        addResource(queues, queueDef.name, queueEntry, "queue");
-        consumerQueueEntries.push(queueEntry);
-
+        addQueueWithInfrastructure(entry.consumer.queue);
         addResource(exchanges, entry.binding.exchange.name, entry.binding.exchange, "exchange");
-
-        if (queueDef.deadLetter?.exchange) {
-          addResource(
-            exchanges,
-            queueDef.deadLetter.exchange.name,
-            queueDef.deadLetter.exchange,
-            "exchange",
-          );
-        }
 
         if (entry.exchangeBinding) {
           addResource(bindings, `${name}ExchangeBinding`, entry.exchangeBinding, "binding");
@@ -239,61 +281,13 @@ export function defineContract<TContract extends ContractDefinitionInput>(
         // CommandConsumerConfig: extract consumer, binding, queue, and exchange
         processedConsumers[name] = entry.consumer;
         addResource(bindings, `${name}Binding`, entry.binding, "binding");
-
-        const queueEntry = entry.consumer.queue;
-        const queueDef = extractQueue(queueEntry);
-        addResource(queues, queueDef.name, queueEntry, "queue");
-        consumerQueueEntries.push(queueEntry);
-
+        addQueueWithInfrastructure(entry.consumer.queue);
         addResource(exchanges, entry.exchange.name, entry.exchange, "exchange");
-
-        if (queueDef.deadLetter?.exchange) {
-          addResource(
-            exchanges,
-            queueDef.deadLetter.exchange.name,
-            queueDef.deadLetter.exchange,
-            "exchange",
-          );
-        }
       } else {
         // Plain ConsumerDefinition: extract queue
         const consumer = entry as ConsumerDefinition;
         processedConsumers[name] = consumer;
-
-        const queueEntry = consumer.queue;
-        const queueDef = extractQueue(queueEntry);
-        addResource(queues, queueDef.name, queueEntry, "queue");
-        consumerQueueEntries.push(queueEntry);
-
-        if (queueDef.deadLetter?.exchange) {
-          addResource(
-            exchanges,
-            queueDef.deadLetter.exchange.name,
-            queueDef.deadLetter.exchange,
-            "exchange",
-          );
-        }
-      }
-    }
-
-    // Auto-generate TTL-backoff retry infrastructure for queues with TTL-backoff retry mode
-    for (const queueEntry of consumerQueueEntries) {
-      if (isQueueWithTtlBackoffInfrastructure(queueEntry)) {
-        addResource(queues, queueEntry.waitQueue.name, queueEntry.waitQueue, "queue");
-        addResource(
-          bindings,
-          `${queueEntry.queue.name}WaitBinding`,
-          queueEntry.waitQueueBinding,
-          "binding",
-        );
-        addResource(
-          bindings,
-          `${queueEntry.queue.name}RetryBinding`,
-          queueEntry.retryQueueBinding,
-          "binding",
-        );
-        addResource(exchanges, queueEntry.waitExchange.name, queueEntry.waitExchange, "exchange");
-        addResource(exchanges, queueEntry.retryExchange.name, queueEntry.retryExchange, "exchange");
+        addQueueWithInfrastructure(consumer.queue);
       }
     }
 
@@ -308,16 +302,7 @@ export function defineContract<TContract extends ContractDefinitionInput>(
 
     for (const [name, rpc] of Object.entries(inputRpcs)) {
       processedRpcs[name] = rpc;
-      const queueDef = extractQueue(rpc.queue);
-      addResource(queues, queueDef.name, rpc.queue, "queue");
-      if (queueDef.deadLetter?.exchange) {
-        addResource(
-          exchanges,
-          queueDef.deadLetter.exchange.name,
-          queueDef.deadLetter.exchange,
-          "exchange",
-        );
-      }
+      addQueueWithInfrastructure(rpc.queue);
     }
 
     result.rpcs = processedRpcs;

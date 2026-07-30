@@ -1,6 +1,6 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
 import { it } from "@amqp-contract/testing/extension";
-import { TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
+import { TypedAmqpWorker, declareHandlers } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 
@@ -13,7 +13,7 @@ describe("Basic Order Processing Worker Integration", () => {
     const processedOrders: Array<unknown> = [];
     const worker = await TypedAmqpWorker.create({
       contract: orderContract,
-      handlers: defineHandlers(orderContract, {
+      handlers: declareHandlers(orderContract, {
         processOrder: ({ payload }) => {
           processedOrders.push(payload);
           return OkAsync(undefined);
@@ -64,7 +64,7 @@ describe("Basic Order Processing Worker Integration", () => {
     const notifications: Array<unknown> = [];
     const workerResult = await TypedAmqpWorker.create({
       contract: orderContract,
-      handlers: defineHandlers(orderContract, {
+      handlers: declareHandlers(orderContract, {
         processOrder: () => OkAsync(undefined),
         notifyOrder: ({ payload }) => {
           notifications.push(payload);
@@ -128,7 +128,7 @@ describe("Basic Order Processing Worker Integration", () => {
     const notifications: Array<unknown> = [];
     const workerResult = await TypedAmqpWorker.create({
       contract: orderContract,
-      handlers: defineHandlers(orderContract, {
+      handlers: declareHandlers(orderContract, {
         processOrder: ({ payload }) => {
           processedOrders.push(payload);
           return OkAsync(undefined);
@@ -184,7 +184,7 @@ describe("Basic Order Processing Worker Integration", () => {
     const fulfilled: Array<unknown> = [];
     const worker = await TypedAmqpWorker.create({
       contract: orderContract,
-      handlers: defineHandlers(orderContract, {
+      handlers: declareHandlers(orderContract, {
         processOrder: () => OkAsync(undefined),
         notifyOrder: () => OkAsync(undefined),
         shipOrder: () => OkAsync(undefined),

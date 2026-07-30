@@ -73,6 +73,28 @@ export function missingHandlerNames<TContract extends ContractDefinition>(
 }
 
 /**
+ * Contract entries whose handler is present but not callable — `undefined`,
+ * `null`, or a tuple whose first element is not a function.
+ * {@link missingHandlerNames} cannot catch these (`Object.hasOwn` sees the
+ * key), yet each delivery would defect with an opaque TypeError and
+ * poison-loop to the DLQ.
+ *
+ * @internal Shared with `TypedAmqpWorker.create` for its fail-fast check.
+ */
+export function invalidHandlerNames<TContract extends ContractDefinition>(
+  contract: TContract,
+  handlers: object,
+): readonly string[] {
+  const record = handlers as Record<string, unknown>;
+  return availableHandlerNames(contract).filter((name) => {
+    if (!Object.hasOwn(record, name)) return false; // reported as missing instead
+    const entry = record[name];
+    const handler = Array.isArray(entry) ? entry[0] : entry;
+    return typeof handler !== "function";
+  });
+}
+
+/**
  * Validate `handlers` against the contract in both directions: every key in
  * `handlers` maps to a contract entry (a `consumers` or `rpcs` key), and
  * every contract entry has a handler.
@@ -85,7 +107,7 @@ function validateHandlers<TContract extends ContractDefinition>(
   // clear error instead of the TypeError Object.keys would throw.
   if (handlers === null || typeof handlers !== "object") {
     throw new Error(
-      "defineHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+      "declareHandlers requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
     );
   }
   for (const handlerName of Object.keys(handlers)) {
@@ -96,6 +118,13 @@ function validateHandlers<TContract extends ContractDefinition>(
     throw new Error(
       `Missing handlers for contract entries: ${missing.join(", ")}. ` +
         "Every `consumers` and `rpcs` key requires a handler.",
+    );
+  }
+  const invalid = invalidHandlerNames(contract, handlers);
+  if (invalid.length > 0) {
+    throw new Error(
+      `Handlers for contract entries are not functions: ${invalid.join(", ")}. ` +
+        "Each handler must be a function or a [handler, options] tuple.",
     );
   }
 }
@@ -128,10 +157,10 @@ function validateHandlers<TContract extends ContractDefinition>(
  *
  * @example Consumer handler
  * ```typescript
- * import { defineHandler, RetryableError, NonRetryableError } from '@amqp-contract/worker';
+ * import { declareHandler, RetryableError, NonRetryableError } from '@amqp-contract/worker';
  * import { fromPromise } from 'unthrown';
  *
- * const processOrderHandler = defineHandler(
+ * const processOrderHandler = declareHandler(
  *   orderContract,
  *   'processOrder',
  *   ({ payload }) =>
@@ -144,14 +173,14 @@ function validateHandlers<TContract extends ContractDefinition>(
  *
  * @example RPC handler
  * ```typescript
- * const calculateHandler = defineHandler(
+ * const calculateHandler = declareHandler(
  *   rpcContract,
  *   'calculate',
  *   ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
  * );
  * ```
  */
-export function defineHandler<
+export function declareHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -160,7 +189,7 @@ export function defineHandler<
   name: TName,
   handler: WorkerInferConsumerHandler<TContract, TName, TContext>,
 ): WorkerInferConsumerHandlerEntry<TContract, TName, TContext>;
-export function defineHandler<
+export function declareHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -170,7 +199,7 @@ export function defineHandler<
   handler: WorkerInferConsumerHandler<TContract, TName, TContext>,
   options: ConsumerOptions,
 ): WorkerInferConsumerHandlerEntry<TContract, TName, TContext>;
-export function defineHandler<
+export function declareHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -179,7 +208,7 @@ export function defineHandler<
   name: TName,
   handler: WorkerInferRpcHandler<TContract, TName, TContext>,
 ): WorkerInferRpcHandlerEntry<TContract, TName, TContext>;
-export function defineHandler<
+export function declareHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -189,7 +218,7 @@ export function defineHandler<
   handler: WorkerInferRpcHandler<TContract, TName, TContext>,
   options: ConsumerOptions,
 ): WorkerInferRpcHandlerEntry<TContract, TName, TContext>;
-export function defineHandler<
+export function declareHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract> | InferRpcNames<TContract>,
 >(contract: TContract, name: TName, handler: unknown, options?: ConsumerOptions): unknown {
@@ -219,10 +248,10 @@ export function defineHandler<
  *
  * @example
  * ```typescript
- * import { defineHandlers, RetryableError } from '@amqp-contract/worker';
+ * import { declareHandlers, RetryableError } from '@amqp-contract/worker';
  * import { fromPromise, OkAsync } from 'unthrown';
  *
- * const handlers = defineHandlers(orderContract, {
+ * const handlers = declareHandlers(orderContract, {
  *   processOrder: ({ payload }) =>
  *     fromPromise(
  *       processPayment(payload),
@@ -232,7 +261,7 @@ export function defineHandler<
  * });
  * ```
  */
-export function defineHandlers<
+export function declareHandlers<
   TContract extends ContractDefinition,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 >(

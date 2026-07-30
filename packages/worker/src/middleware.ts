@@ -74,10 +74,10 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  *
  * @example
  * ```typescript
- * import { defineMiddleware, nonRetryable } from '@amqp-contract/worker';
+ * import { declareMiddleware, nonRetryable } from '@amqp-contract/worker';
  * import { ErrAsync } from 'unthrown';
  *
- * const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
+ * const auth = declareMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
  *   const tenantId = args.rawMessage.properties.headers?.['x-tenant-id'];
  *   if (typeof tenantId !== 'string') {
  *     return ErrAsync(nonRetryable('Missing x-tenant-id header'));
@@ -106,10 +106,10 @@ export type AnyWorkerMiddleware = WorkerMiddleware<
 
 /**
  * Identity helper that pins a middleware's context types without a variable
- * annotation — `defineMiddleware<In, Out>(fn)` reads better than
+ * annotation — `declareMiddleware<In, Out>(fn)` reads better than
  * `const mw: WorkerMiddleware<In, Out> = fn`.
  */
-export function defineMiddleware<
+export function declareMiddleware<
   TContextIn extends Record<string, unknown> | EmptyContext = EmptyContext,
   TContextOut extends TContextIn = TContextIn,
 >(

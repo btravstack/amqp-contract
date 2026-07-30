@@ -24,8 +24,8 @@ describe("defineRpc", () => {
 
   it("carries the declared error map through to the definition", () => {
     // GIVEN
-    const notFound = defineMessage(z.object({ id: z.string() }));
-    const limitExceeded = defineMessage(z.object({ limit: z.number() }));
+    const notFound = { data: z.object({ id: z.string() }), message: "Not found" };
+    const limitExceeded = { data: z.object({ limit: z.number() }) };
 
     // WHEN
     const rpc = defineRpc(queue, {
@@ -41,6 +41,21 @@ describe("defineRpc", () => {
       response,
       errors: { NOT_FOUND: notFound, LIMIT_EXCEEDED: limitExceeded },
     });
+  });
+
+  it("rejects an error entry that is not { data, message? }", () => {
+    // GIVEN — the pre-3.0 shape passed a MessageDefinition; the unknown-key
+    // check turns that mistake into an actionable error.
+    const legacyEntry = defineMessage(z.object({ id: z.string() }));
+
+    // WHEN / THEN
+    expect(() =>
+      defineRpc(queue, {
+        request,
+        response,
+        errors: { NOT_FOUND: legacyEntry as never },
+      }),
+    ).toThrow(/Unknown option "payload"/);
   });
 
   describe("defineContract integration", () => {
@@ -68,7 +83,7 @@ describe("defineRpc", () => {
 
     it("exposes the RPC's error map under contract.rpcs", () => {
       // GIVEN
-      const notFound = defineMessage(z.object({ id: z.string() }));
+      const notFound = { data: z.object({ id: z.string() }) };
       const calculate = defineRpc(queue, { request, response, errors: { NOT_FOUND: notFound } });
 
       // WHEN

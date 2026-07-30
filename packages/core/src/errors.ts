@@ -70,6 +70,21 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
 }
 
 /**
+ * Type guard to check if an error is a {@link TechnicalError} — the cause
+ * carried by every infrastructure `Defect` this library produces.
+ */
+export function isTechnicalError(error: unknown): error is TechnicalError {
+  return error instanceof TechnicalError;
+}
+
+/**
+ * Type guard to check if an error is a {@link MessageValidationError}.
+ */
+export function isMessageValidationError(error: unknown): error is MessageValidationError {
+  return error instanceof MessageValidationError;
+}
+
+/**
  * AMQP message header carrying the error code of a typed RPC error reply.
  *
  * A reply message with this header is an error reply: its body is

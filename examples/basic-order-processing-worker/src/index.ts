@@ -1,5 +1,5 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-import { RetryableError, TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
+import { TypedAmqpWorker, declareHandlers, qualifyRetryable } from "@amqp-contract/worker";
 import pino from "pino";
 import { fromPromise } from "unthrown";
 import { z } from "zod";
@@ -25,7 +25,7 @@ async function main() {
   // Create type-safe worker with handlers for each consumer
   const workerResult = TypedAmqpWorker.create({
     contract: orderContract,
-    handlers: defineHandlers(orderContract, {
+    handlers: declareHandlers(orderContract, {
       // Handler for processing NEW orders (order.created)
       processOrder: ({ payload, headers }) => {
         logger.info(
@@ -45,7 +45,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 500)),
-          (e) => new RetryableError("Processing failed", e),
+          qualifyRetryable("Processing failed"),
         ).map(() => {
           logger.info({ orderId: payload.orderId }, "Order processed successfully");
         });
@@ -80,7 +80,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 300)),
-          (e) => new RetryableError("Notification failed", e),
+          qualifyRetryable("Notification failed"),
         ).map(() => {
           logger.info("Notification sent");
         });
@@ -99,7 +99,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 400)),
-          (e) => new RetryableError("Shipping failed", e),
+          qualifyRetryable("Shipping failed"),
         ).map(() => {
           logger.info({ orderId: payload.orderId }, "Shipping label prepared");
         });
@@ -118,7 +118,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 200)),
-          (e) => new RetryableError("Urgent handling failed", e),
+          qualifyRetryable("Urgent handling failed"),
         ).map(() => {
           logger.warn({ orderId: payload.orderId }, "Urgent update handled");
         });
@@ -138,7 +138,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 400)),
-          (e) => new RetryableError("Fulfillment failed", e),
+          qualifyRetryable("Fulfillment failed"),
         ).map(() => {
           logger.info({ orderId: payload.orderId }, "Order handed to the warehouse");
         });
@@ -158,7 +158,7 @@ async function main() {
 
         return fromPromise(
           new Promise<void>((resolve) => setTimeout(resolve, 200)),
-          (e) => new RetryableError("Failed order handling failed", e),
+          qualifyRetryable("Failed order handling failed"),
         ).map(() => {
           logger.error({ orderId: payload.orderId }, "Failed order logged for investigation");
         });

@@ -1,4 +1,4 @@
-export { TypedAmqpWorker } from "./worker.js";
+export { DEFAULT_DRAIN_TIMEOUT_MS, TypedAmqpWorker } from "./worker.js";
 export type { ConsumerOptions, CreateWorkerOptions, WorkerCreateContextInfo } from "./worker.js";
 export {
   // Error classes
@@ -21,9 +21,20 @@ export {
 // HandlerError is now a tagged union type (RetryableError | NonRetryableError),
 // not a class — re-export it as a type.
 export type { HandlerError } from "./errors.js";
-export { defineHandler, defineHandlers } from "./handlers.js";
-export { composeMiddleware, defineMiddleware } from "./middleware.js";
+// Re-exported from core so naming an option type or matching a defect cause
+// (`TechnicalError`) never forces a direct dependency on @amqp-contract/core.
+export {
+  isMessageValidationError,
+  isTechnicalError,
+  TechnicalError,
+  type Logger,
+  type LoggerContext,
+  type TelemetryProvider,
+} from "@amqp-contract/core";
+export { declareHandler, declareHandlers } from "./handlers.js";
+export { composeMiddleware, declareMiddleware } from "./middleware.js";
 export type {
+  AnyWorkerMiddleware,
   EmptyContext,
   WorkerMiddleware,
   WorkerMiddlewareArgs,

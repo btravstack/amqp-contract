@@ -1,5 +1,5 @@
 import type { MessageValidationError, RpcError } from "@amqp-contract/core";
-import type { AsyncResult } from "unthrown";
+import { OkAsync, type AsyncResult } from "unthrown";
 
 import type { CallOptions, PublishOptions } from "./client.js";
 import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -134,9 +134,15 @@ export function chainInterceptors<
   args: TArgs,
   terminal: (args: TArgs) => AsyncResult<TValue, TError>,
 ): AsyncResult<TValue, TError> {
+  // Every layer is entered through a combinator callback so a user-supplied
+  // interceptor (or the terminal) that throws SYNCHRONOUSLY is adopted as a
+  // `Defect` by unthrown's safety net instead of escaping `publish()`/`call()`
+  // as a raw throw — nothing in the public client API throws.
   const run = (index: number, current: TArgs): AsyncResult<TValue, TError> =>
-    index >= interceptors.length
-      ? terminal(current)
-      : interceptors[index]!(current, (patch) => run(index + 1, { ...current, ...patch }));
+    OkAsync(undefined).flatMap(() =>
+      index >= interceptors.length
+        ? terminal(current)
+        : interceptors[index]!(current, (patch) => run(index + 1, { ...current, ...patch })),
+    );
   return run(0, args);
 }

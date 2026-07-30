@@ -1,5 +1,5 @@
 import { orderContract } from "@amqp-contract-examples/basic-order-processing-contract";
-import { type PublishOptions, TypedAmqpClient } from "@amqp-contract/client";
+import { type PublishInterceptor, TypedAmqpClient } from "@amqp-contract/client";
 import pino from "pino";
 import { z } from "zod";
 
@@ -20,11 +20,27 @@ const logger = pino({
   },
 });
 
+// Publish interceptor: logs every publish (before and after) in one place
+// instead of wrapping each call site. The first interceptor in the array is
+// the outermost.
+const logPublishes: PublishInterceptor = (args, next) => {
+  logger.debug(`Publishing to ${args.publisherName}`);
+  return next()
+    .tap(() => logger.debug(`Successfully published to ${args.publisherName}`))
+    .tapFailure((failure) =>
+      logger.error(
+        { error: failure.tag === "Err" ? failure.error : failure.cause },
+        `Failed to publish: ${args.publisherName}`,
+      ),
+    );
+};
+
 async function main() {
   // Create type-safe client
   const client = await TypedAmqpClient.create({
     contract: orderContract,
     urls: [env.AMQP_URL],
+    publishInterceptors: [logPublishes],
   })
     .tapDefect((cause) => logger.error({ error: cause }, "Failed to create client"))
     .get();
@@ -33,26 +49,6 @@ async function main() {
   logger.info("=".repeat(60));
   logger.info("Publishing orders to demonstrate RabbitMQ topic pattern");
   logger.info("=".repeat(60));
-
-  // Helper function to publish and handle errors
-  // In production code, you might want to return the Result to the caller
-  // instead of throwing, but for this demo we throw to simplify the flow
-  const publishWithLog = async <T extends Parameters<typeof client.publish>[0]>(
-    publisherName: T,
-    message: Parameters<typeof client.publish<T>>[1],
-    options?: PublishOptions,
-  ): Promise<void> => {
-    await client
-      .publish(publisherName, message, options)
-      .tapFailure((failure) =>
-        logger.error(
-          { error: failure.tag === "Err" ? failure.error : failure.cause },
-          `Failed to publish: ${publisherName}`,
-        ),
-      )
-      .tap(() => logger.debug(`Successfully published to ${publisherName}`))
-      .getOrThrow();
-  };
 
   // 1. Publish a new order (routing key: order.created)
   logger.info("1️⃣ Publishing NEW ORDER (order.created)");
@@ -65,7 +61,9 @@ async function main() {
     ],
     totalAmount: 109.97,
   };
-  await publishWithLog("orderCreated", newOrder);
+  // In production code, you might want to match on the Result instead of
+  // throwing, but for this demo we throw to simplify the flow
+  await client.publish("orderCreated", newOrder).getOrThrow();
   logger.info(`   ✓ Published order ${newOrder.orderId}`);
   logger.info(`   → Will be received by: processing & notifications queues`);
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -76,7 +74,7 @@ async function main() {
     orderId: "ORD-001",
     status: "processing" as const,
   };
-  await publishWithLog("orderUpdated", orderUpdate);
+  await client.publish("orderUpdated", orderUpdate).getOrThrow();
   logger.info(`   ✓ Published update for ${orderUpdate.orderId}`);
   logger.info(`   → Will be received by: notifications queue only`);
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -87,7 +85,7 @@ async function main() {
     orderId: "ORD-001",
     status: "shipped" as const,
   };
-  await publishWithLog("orderShipped", shippedOrder);
+  await client.publish("orderShipped", shippedOrder).getOrThrow();
   logger.info(`   ✓ Published shipment for ${shippedOrder.orderId}`);
   logger.info(`   → Will be received by: notifications & shipping queues`);
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -104,7 +102,7 @@ async function main() {
     eventSource: "new-order-service",
     eventVersion: 2,
   };
-  await publishWithLog("orderCreated", newOrder2, { headers: newOrderHeaders2 });
+  await client.publish("orderCreated", newOrder2, { headers: newOrderHeaders2 }).getOrThrow();
   logger.info(`   ✓ Published order ${newOrder2.orderId}`);
   logger.info(`   → Will be received by: processing & notifications queues`);
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -115,7 +113,7 @@ async function main() {
     orderId: "ORD-002",
     status: "cancelled" as const,
   };
-  await publishWithLog("orderUrgentUpdate", urgentUpdate);
+  await client.publish("orderUrgentUpdate", urgentUpdate).getOrThrow();
   logger.info(`   ✓ Published urgent update for ${urgentUpdate.orderId}`);
   logger.info(`   → Will be received by: notifications & urgent queues`);
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -129,7 +127,7 @@ async function main() {
     warehouseId: "WH-EU-1",
     priority: "express" as const,
   };
-  await publishWithLog("requestFulfillment", fulfillment);
+  await client.publish("requestFulfillment", fulfillment).getOrThrow();
   logger.info(`   ✓ Sent fulfillment command for ${fulfillment.orderId}`);
   logger.info(`   → Will be received by: the single fulfillment worker (task queue)`);
 

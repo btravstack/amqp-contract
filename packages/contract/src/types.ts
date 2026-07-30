@@ -11,6 +11,24 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
  */
 export type AnySchema = StandardSchemaV1;
 
+/**
+ * Infer a Standard Schema's INPUT type — what callers hand to validation
+ * (publish payloads, RPC requests) before defaults and transforms run.
+ *
+ * Canonical home of the helper the client and worker packages alias, so a
+ * contract-only package can derive payload types without depending on either:
+ * `type OrderCreated = InferSchemaInput<typeof contract.publishers.orderCreated.message.payload>`.
+ */
+export type InferSchemaInput<TSchema extends StandardSchemaV1> =
+  TSchema extends StandardSchemaV1<infer TInput> ? TInput : never;
+
+/**
+ * Infer a Standard Schema's OUTPUT type — what validation produces (defaults
+ * applied, transforms run); the shape handlers and RPC callers receive.
+ */
+export type InferSchemaOutput<TSchema extends StandardSchemaV1> =
+  TSchema extends StandardSchemaV1<infer _TInput, infer TOutput> ? TOutput : never;
+
 // =============================================================================
 // Retry Configuration Types
 // =============================================================================
@@ -1030,17 +1048,26 @@ export type BridgedPublisherConfigBase = {
 };
 
 /**
- * Typed error map for an RPC: error code → message definition validating the
- * error's `data` payload.
+ * A single declared RPC error: the Standard Schema for its `data` payload,
+ * plus an optional default human-readable message.
  *
- * Reuses {@link MessageDefinition} so error data gets the same Standard Schema
- * validation and AsyncAPI metadata (`summary` / `description`) as request and
- * response payloads. The `headers` slot of an error's message definition is
- * ignored — error replies carry the code in a fixed AMQP header instead.
+ * The default `message` is used when the handler constructs the error without
+ * one (`helpers.errors.CODE(data)`) and as the client-side fallback when a
+ * reply arrives without a message on the wire.
  *
  * @see defineRpc for declaring errors on an RPC
  */
-export type RpcErrorMap = Record<string, MessageDefinition>;
+export type RpcErrorDefinition<TData extends StandardSchemaV1 = StandardSchemaV1> = {
+  /** Schema validating the error's `data` payload (worker before replying, client on receipt). */
+  data: TData;
+  /** Default human-readable message when the handler does not supply one. */
+  message?: string;
+};
+
+/**
+ * Typed error map for an RPC: error code → {@link RpcErrorDefinition}.
+ */
+export type RpcErrorMap = Record<string, RpcErrorDefinition>;
 
 /**
  * Definition of an RPC operation: a request/response pair flowing over a
@@ -1236,6 +1263,29 @@ export type ContractDefinitionInput = {
    * `client.call(name, ...)` / worker handler pair.
    */
   rpcs?: Record<string, RpcDefinition>;
+
+  /**
+   * Standalone exchanges — topology this service asserts without publishing
+   * to it (e.g. an exchange owned by another domain that bindings reference).
+   * Keys are authoring labels; the contract output keys exchanges by name.
+   */
+  exchanges?: Record<string, ExchangeDefinition>;
+
+  /**
+   * Standalone queues — queues with no consumer in this service, asserted by
+   * `setupAmqpTopology` all the same. The classic cases: a DLQ bound to the
+   * auto-extracted dead-letter exchange, or an audit queue that another
+   * process drains. Dead-letter exchanges and TTL-backoff retry
+   * infrastructure are auto-extracted exactly as for consumer queues.
+   * Keys are authoring labels; the contract output keys queues by name.
+   */
+  queues?: Record<string, QueueEntry>;
+
+  /**
+   * Standalone bindings — e.g. binding a declared DLQ to the dead-letter
+   * exchange. Keys are used verbatim as the binding labels in the output.
+   */
+  bindings?: Record<string, BindingDefinition>;
 };
 
 // =============================================================================
@@ -1543,12 +1593,38 @@ type ExtractDeadLetterExchangesFromRpcs<TRpcs extends Record<string, RpcDefiniti
 };
 
 /**
+ * Re-key standalone exchange declarations by exchange name.
+ * @internal
+ */
+type ExtractStandaloneExchanges<T extends Record<string, ExchangeDefinition>> = {
+  [K in keyof T as T[K]["name"]]: T[K];
+};
+
+/**
+ * Re-key standalone queue declarations by queue name.
+ * @internal
+ */
+type ExtractStandaloneQueues<T extends Record<string, QueueEntry>> = {
+  [K in keyof T as ExtractQueueFromEntry<T[K]>["name"]]: T[K];
+};
+
+/**
+ * Dead-letter exchanges of standalone queue declarations.
+ * @internal
+ */
+type ExtractDeadLetterExchangesFromStandaloneQueues<T extends Record<string, QueueEntry>> = {
+  [K in keyof T as ExtractDlxFromEntry<T[K]> extends never
+    ? never
+    : ExtractDlxFromEntry<T[K]>["name"]]: ExtractDlxFromEntry<T[K]>;
+};
+
+/**
  * Contract output type with all resources extracted and properly typed.
  *
  * This type represents the fully expanded contract with:
- * - exchanges: Extracted from publishers and consumer bindings
- * - queues: Extracted from consumers
- * - bindings: Extracted from event/command consumers
+ * - exchanges: Extracted from publishers and consumer bindings, plus standalone declarations
+ * - queues: Extracted from consumers and RPCs, plus standalone declarations
+ * - bindings: Extracted from event/command consumers, plus standalone declarations
  * - publishers: Normalized publisher definitions
  * - consumers: Normalized consumer definitions
  */
@@ -1556,6 +1632,12 @@ export type ContractOutput<TContract extends ContractDefinitionInput> = {
   exchanges: (TContract["publishers"] extends Record<string, PublisherEntry>
     ? ExtractExchangesFromPublishers<TContract["publishers"]>
     : {}) &
+    (TContract["exchanges"] extends Record<string, ExchangeDefinition>
+      ? ExtractStandaloneExchanges<TContract["exchanges"]>
+      : {}) &
+    (TContract["queues"] extends Record<string, QueueEntry>
+      ? ExtractDeadLetterExchangesFromStandaloneQueues<TContract["queues"]>
+      : {}) &
     (TContract["consumers"] extends Record<string, ConsumerEntry>
       ? ExtractExchangesFromConsumers<TContract["consumers"]>
       : {}) &
@@ -1576,6 +1658,9 @@ export type ContractOutput<TContract extends ContractDefinitionInput> = {
     : {}) &
     (TContract["rpcs"] extends Record<string, RpcDefinition>
       ? ExtractQueuesFromRpcs<TContract["rpcs"]>
+      : {}) &
+    (TContract["queues"] extends Record<string, QueueEntry>
+      ? ExtractStandaloneQueues<TContract["queues"]>
       : {});
   bindings: (TContract["consumers"] extends Record<string, ConsumerEntry>
     ? ExtractBindingsFromConsumers<TContract["consumers"]>
@@ -1585,7 +1670,8 @@ export type ContractOutput<TContract extends ContractDefinitionInput> = {
       : {}) &
     (TContract["publishers"] extends Record<string, PublisherEntry>
       ? ExtractExchangeBindingsFromPublishers<TContract["publishers"]>
-      : {});
+      : {}) &
+    (TContract["bindings"] extends Record<string, BindingDefinition> ? TContract["bindings"] : {});
   publishers: TContract["publishers"] extends Record<string, PublisherEntry>
     ? ExtractPublisherDefinitions<TContract["publishers"]>
     : {};

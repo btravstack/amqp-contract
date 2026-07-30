@@ -5,19 +5,34 @@ import amqp, {
 } from "amqp-connection-manager";
 
 /**
+ * A held reference to a pooled connection.
+ */
+export type ConnectionLease = {
+  /** The shared connection this lease holds a reference to. */
+  connection: AmqpConnectionManager;
+  /**
+   * Release this lease. Idempotent — a double `release()` (e.g. a client
+   * whose `close()` runs on both a `finally` and an error path) is a no-op,
+   * so it can never underflow the pool's reference count and close a
+   * connection out from under another live client.
+   */
+  release: () => Promise<void>;
+};
+
+/**
  * Connection manager singleton for sharing AMQP connections across clients.
  *
  * This singleton implements connection pooling to avoid creating multiple connections
  * to the same broker, which is a RabbitMQ best practice. Connections are identified
- * by their URLs and connection options, and reference counting ensures connections
- * are only closed when all clients have released them.
+ * by their URLs and connection options; each {@link acquire} returns a lease,
+ * and the connection is only closed when every lease has been released.
  *
  * @example
  * ```typescript
  * const manager = ConnectionManagerSingleton.getInstance();
- * const connection = manager.getConnection(['amqp://localhost']);
- * // ... use connection ...
- * await manager.releaseConnection(['amqp://localhost']);
+ * const lease = manager.acquire(['amqp://localhost']);
+ * // ... use lease.connection ...
+ * await lease.release();
  * ```
  */
 export class ConnectionManagerSingleton {
@@ -40,63 +55,58 @@ export class ConnectionManagerSingleton {
   }
 
   /**
-   * Get or create a connection for the given URLs and options.
+   * Acquire a lease on the pooled connection for the given URLs and options.
    *
-   * If a connection already exists with the same URLs and options, it is reused
-   * and its reference count is incremented. Otherwise, a new connection is created.
+   * If a connection already exists with the same URLs and options, it is
+   * reused; otherwise a new one is created. The returned lease's `release`
+   * is idempotent, and when the LAST lease is released the connection is
+   * removed from the pool *before* it is closed — a concurrent `acquire`
+   * during the close therefore creates a fresh connection instead of
+   * receiving one that is shutting down (and would never reconnect).
    *
    * @param urls - AMQP broker URL(s)
    * @param connectionOptions - Optional connection configuration
-   * @returns The AMQP connection manager instance
    */
-  getConnection(
+  acquire(
     urls: ConnectionUrl[],
     connectionOptions?: AmqpConnectionManagerOptions,
-  ): AmqpConnectionManager {
-    // Create a key based on URLs and connection options
+  ): ConnectionLease {
     const key = this.createConnectionKey(urls, connectionOptions);
 
-    if (!this.connections.has(key)) {
-      const connection = amqp.connect(urls, connectionOptions);
+    let connection = this.connections.get(key);
+    if (connection === undefined) {
+      connection = amqp.connect(urls, connectionOptions);
       this.connections.set(key, connection);
       this.refCounts.set(key, 0);
     }
-
-    // Increment reference count
     this.refCounts.set(key, (this.refCounts.get(key) ?? 0) + 1);
 
-    return this.connections.get(key)!;
-  }
+    const leased = connection;
+    let released = false;
+    return {
+      connection: leased,
+      release: async (): Promise<void> => {
+        if (released) return;
+        released = true;
 
-  /**
-   * Release a connection reference.
-   *
-   * Decrements the reference count for the connection. If the count reaches zero,
-   * the connection is closed and removed from the pool.
-   *
-   * @param urls - AMQP broker URL(s) used to identify the connection
-   * @param connectionOptions - Optional connection configuration used to identify the connection
-   * @returns A promise that resolves when the connection is released (and closed if necessary)
-   */
-  async releaseConnection(
-    urls: ConnectionUrl[],
-    connectionOptions?: AmqpConnectionManagerOptions,
-  ): Promise<void> {
-    const key = this.createConnectionKey(urls, connectionOptions);
-    const refCount = this.refCounts.get(key) ?? 0;
+        // If another acquire re-created this key after a full release cycle,
+        // the map may hold a DIFFERENT connection — only act on pool state
+        // when it still refers to the connection this lease was minted for.
+        if (this.connections.get(key) !== leased) return;
 
-    if (refCount <= 1) {
-      // Last reference - close and remove connection
-      const connection = this.connections.get(key);
-      if (connection) {
-        await connection.close();
-        this.connections.delete(key);
-        this.refCounts.delete(key);
-      }
-    } else {
-      // Decrement reference count
-      this.refCounts.set(key, refCount - 1);
-    }
+        const refCount = this.refCounts.get(key) ?? 0;
+        if (refCount <= 1) {
+          // Last lease: remove from the pool FIRST (synchronously), then
+          // close. Entries are gone even if `close()` rejects, so the key is
+          // never poisoned by a failed close.
+          this.connections.delete(key);
+          this.refCounts.delete(key);
+          await leased.close();
+        } else {
+          this.refCounts.set(key, refCount - 1);
+        }
+      },
+    };
   }
 
   /**
@@ -202,11 +212,6 @@ export function _internal_getConnectionCount(): number {
   return ConnectionManagerSingleton.getInstance()._getConnectionCountForTesting();
 }
 
-/** @deprecated Renamed to {@link _internal_getConnectionCount} per the org `_internal_` convention. */
-export function _getConnectionCountForTesting(): number {
-  return _internal_getConnectionCount();
-}
-
 /**
  * Close every pooled connection and clear ref-counts. Test-only helper.
  *
@@ -214,9 +219,4 @@ export function _getConnectionCountForTesting(): number {
  */
 export function _internal_resetConnections(): Promise<void> {
   return ConnectionManagerSingleton.getInstance()._resetForTesting();
-}
-
-/** @deprecated Renamed to {@link _internal_resetConnections} per the org `_internal_` convention. */
-export function _resetConnectionsForTesting(): Promise<void> {
-  return _internal_resetConnections();
 }
