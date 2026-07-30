@@ -181,21 +181,26 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueEn
   if (type === "quorum") {
     // Quorum queues do not support non-durable, exclusive, autoDelete, or maxPriority
     if (opts.durable === false) {
+      // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error("Non-durable queues are not supported with quorum type.");
     }
     if (opts.exclusive !== undefined) {
+      // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error("Exclusive queues are not supported with quorum type.");
     }
     if (opts.autoDelete !== undefined) {
+      // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error("Auto-deleting queues are not supported with quorum type.");
     }
     if (opts.maxPriority !== undefined) {
+      // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error("Priority queues are not supported with quorum type.");
     }
   } else {
     // Validate maxPriority
     if (opts.maxPriority !== undefined) {
       if (opts.maxPriority < 1 || opts.maxPriority > 255) {
+        // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
         throw new Error(
           `Invalid maxPriority: ${opts.maxPriority}. Must be between 1 and 255. Recommended range: 1-10.`,
         );
@@ -209,6 +214,7 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueEn
   if (inputRetry.mode === "immediate-requeue" || inputRetry.mode === "ttl-backoff") {
     if (inputRetry.maxRetries !== undefined) {
       if (inputRetry.maxRetries < 1 || !Number.isInteger(inputRetry.maxRetries)) {
+        // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
         throw new Error(
           `Queue "${name}" uses ${inputRetry.mode} retry mode with invalid maxRetries: ${inputRetry.maxRetries}. Must be a positive integer.`,
         );

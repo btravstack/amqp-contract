@@ -185,6 +185,7 @@ function handleErrorTtlBackoff(
     // is a contract/setup bug, not a modeled failure — route it to the defect
     // channel.
     return fromSafeThrowable((): void => {
+      // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
       throw new TechnicalError("Queue does not have TTL-backoff infrastructure");
     })().toAsync();
   }
@@ -316,6 +317,7 @@ function publishForRetry(
         // ack the original — leave it un-ack'd so the broker / channel manager
         // can redeliver it once the channel recovers. The throw routes to the
         // defect channel (a publish infrastructure failure is unexpected).
+        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
         throw new TechnicalError("Failed to publish message for retry (write buffer full)");
       }
 

@@ -638,6 +638,7 @@ export class AsyncAPIGenerator {
       `Configure schemaConverters (e.g. zodToJsonSchema) to generate accurate schemas.`;
 
     if (this.failOnMissingConverter) {
+      // oxlint-disable-next-line unthrown/no-throw -- deliberate fail-fast the caller opted into via failOnMissingConverter
       throw new Error(`AsyncAPIGenerator: ${message}`);
     }
 

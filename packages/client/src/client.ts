@@ -76,6 +76,7 @@ const DIRECT_REPLY_TO = "amq.rabbitmq.reply-to";
  */
 function technicalDefect(error: TechnicalError): Result<never, never> {
   return fromSafeThrowable((): never => {
+    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
     throw error;
   })();
 }
@@ -529,6 +530,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
             if (!published) {
               // A full write buffer / rejected message is an unexpected publish
               // failure → defect (the throw routes it there).
+              // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
               throw new TechnicalError(
                 `Failed to publish message for publisher "${String(publisherName)}": Channel rejected the message (buffer full or other channel issue)`,
               );
@@ -777,6 +779,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         .flatMap((published): Result<void, never> => {
           if (!published) {
             // A full write buffer is an unexpected publish failure → defect.
+            // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
             throw new TechnicalError(
               `Failed to publish RPC request for "${rpcName}": channel buffer full`,
             );

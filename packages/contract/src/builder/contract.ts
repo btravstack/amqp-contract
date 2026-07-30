@@ -60,6 +60,7 @@ function addResource<T>(
     return;
   }
   if (!resourcesEqual(existing, value)) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
     throw new Error(
       `defineContract: ${kind} "${name}" was declared with conflicting definitions. ` +
         `Two ${kind}s sharing a name must be the exact same definition; ` +
@@ -152,6 +153,7 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   if (inputConsumers && inputRpcs) {
     const collisions = Object.keys(inputConsumers).filter((name) => Object.hasOwn(inputRpcs, name));
     if (collisions.length > 0) {
+      // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error(
         `defineContract: name collision between consumers and rpcs — keys must be disjoint. Conflicting names: ${collisions.join(", ")}`,
       );

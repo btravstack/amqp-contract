@@ -146,6 +146,7 @@ export function defineExchange(
   ]);
   const type = options?.type ?? "topic";
   if (!["topic", "direct", "fanout", "headers"].includes(type)) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
     throw new Error(
       `Unknown exchange type "${String(type)}" for exchange "${name}". ` +
         "Allowed types: topic, direct, fanout, headers.",

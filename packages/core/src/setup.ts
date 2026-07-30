@@ -49,6 +49,7 @@ export async function setupAmqpTopology(
     );
   if (exchangeErrors.length > 0) {
     const names = exchangeErrors.map((e) => e.name).join(", ");
+    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
     throw new AggregateError(
       exchangeErrors.map(({ result }) => result.reason),
       `Failed to setup exchanges: ${names}`,
@@ -65,6 +66,7 @@ export async function setupAmqpTopology(
       );
 
       if (!exchangeExists) {
+        // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
         throw new TechnicalError(
           `Queue "${queue.name}" references dead letter exchange "${dlxName}" which is not declared in the contract. ` +
             `Add the exchange to contract.exchanges to ensure it is created before the queue.`,
@@ -120,6 +122,7 @@ export async function setupAmqpTopology(
     );
   if (queueErrors.length > 0) {
     const names = queueErrors.map((e) => e.name).join(", ");
+    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
     throw new AggregateError(
       queueErrors.map(({ result }) => result.reason),
       `Failed to setup queues: ${names}`,
@@ -162,6 +165,7 @@ export async function setupAmqpTopology(
     );
   if (bindingErrors.length > 0) {
     const names = bindingErrors.map((e) => e.name).join(", ");
+    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
     throw new AggregateError(
       bindingErrors.map(({ result }) => result.reason),
       `Failed to setup bindings: ${names}`,

@@ -1,8 +1,10 @@
 /**
  * Test to verify that RABBITMQ_IMAGE environment variable works correctly
  */
-// Type-only side effect: pulls in the `ProvidedContext` module augmentation
-// declaring the __TESTCONTAINERS_RABBITMQ_*__ keys `inject()` reads.
+// Runtime side-effect import (it executes the module's top-level code and
+// loads testcontainers, though it starts no container by itself), kept for
+// the `ProvidedContext` module augmentation declaring the
+// __TESTCONTAINERS_RABBITMQ_*__ keys `inject()` reads.
 import "@amqp-contract/testing/global-setup";
 import { describe, expect, inject, it } from "vitest";
 
