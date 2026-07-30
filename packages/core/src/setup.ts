@@ -1,5 +1,5 @@
 import type { ContractDefinition } from "@amqp-contract/contract";
-import { extractQueue } from "@amqp-contract/contract";
+import { deriveTtlBackoffInfrastructure } from "@amqp-contract/contract";
 import type { Channel } from "amqplib";
 
 import { TechnicalError } from "./errors.js";
@@ -10,7 +10,10 @@ import { TechnicalError } from "./errors.js";
  * This function sets up the complete AMQP topology in the correct order:
  * 1. Assert all exchanges defined in the contract
  * 2. Validate dead letter exchanges are declared before referencing them
- * 3. Assert all queues with their configurations (including dead letter settings)
+ * 3. Assert all queues with their configurations (including dead letter
+ *    settings), plus the TTL-backoff wait queues derived from each queue's
+ *    retry config (one per distinct backoff delay — see
+ *    `deriveTtlBackoffInfrastructure`)
  * 4. Create all bindings (queue-to-exchange and exchange-to-exchange)
  *
  * @param channel - The AMQP channel to use for topology setup
@@ -57,8 +60,7 @@ export async function setupAmqpTopology(
   }
 
   // Validate dead letter exchanges before setting up queues
-  for (const queueEntry of Object.values(contract.queues ?? {})) {
-    const queue = extractQueue(queueEntry);
+  for (const queue of Object.values(contract.queues ?? {})) {
     if (queue.deadLetter) {
       const dlxName = queue.deadLetter.exchange.name;
       const exchangeExists = Object.values(contract.exchanges ?? {}).some(
@@ -75,47 +77,82 @@ export async function setupAmqpTopology(
     }
   }
 
-  // Setup queues
-  const queueEntries = Object.values(contract.queues ?? {});
-  const queueResults = await Promise.allSettled(
-    queueEntries.map((queueEntry) => {
-      const queue = extractQueue(queueEntry);
-      // Build queue arguments, merging dead letter configuration and queue type
-      const queueArguments: Record<string, unknown> = { ...queue.arguments };
+  // Setup queues, including the TTL-backoff wait queues derived from each
+  // queue's retry config. Wait queues are per-delay-tier: each is declared
+  // with a queue-level `x-message-ttl` backstop and dead-letters straight
+  // back to its main queue via the default exchange.
+  const queues = Object.values(contract.queues ?? {});
+  const queueAsserts: Array<{ name: string; assert: () => Promise<unknown> }> = [];
+  for (const queue of queues) {
+    // Build queue arguments, merging dead letter configuration and queue type
+    const queueArguments: Record<string, unknown> = { ...queue.arguments };
 
-      // Set queue type
-      queueArguments["x-queue-type"] = queue.type;
+    // Set queue type
+    queueArguments["x-queue-type"] = queue.type;
 
-      if (queue.deadLetter) {
-        queueArguments["x-dead-letter-exchange"] = queue.deadLetter.exchange.name;
-        if (queue.deadLetter.routingKey) {
-          queueArguments["x-dead-letter-routing-key"] = queue.deadLetter.routingKey;
-        }
+    if (queue.deadLetter) {
+      queueArguments["x-dead-letter-exchange"] = queue.deadLetter.exchange.name;
+      if (queue.deadLetter.routingKey) {
+        queueArguments["x-dead-letter-routing-key"] = queue.deadLetter.routingKey;
       }
+    }
 
-      // Handle type-specific properties using discriminated union
-      if (queue.type === "quorum") {
-        return channel.assertQueue(queue.name, {
-          durable: true, // Quorum queues are always durable
-          arguments: queueArguments,
-        });
-      }
-
+    // Handle type-specific properties using discriminated union
+    if (queue.type === "quorum") {
+      queueAsserts.push({
+        name: queue.name,
+        assert: () =>
+          channel.assertQueue(queue.name, {
+            durable: true, // Quorum queues are always durable
+            arguments: queueArguments,
+          }),
+      });
+    } else {
       if (queue.maxPriority !== undefined) {
         queueArguments["x-max-priority"] = queue.maxPriority;
       }
 
       // Classic queue
-      return channel.assertQueue(queue.name, {
-        ...(queue.durable !== undefined && { durable: queue.durable }),
-        ...(queue.exclusive !== undefined && { exclusive: queue.exclusive }),
-        ...(queue.autoDelete !== undefined && { autoDelete: queue.autoDelete }),
-        arguments: queueArguments,
+      queueAsserts.push({
+        name: queue.name,
+        assert: () =>
+          channel.assertQueue(queue.name, {
+            ...(queue.durable !== undefined && { durable: queue.durable }),
+            ...(queue.exclusive !== undefined && { exclusive: queue.exclusive }),
+            ...(queue.autoDelete !== undefined && { autoDelete: queue.autoDelete }),
+            arguments: queueArguments,
+          }),
       });
-    }),
-  );
+    }
+
+    // Derived TTL-backoff wait queues (one per distinct backoff delay).
+    const infra = deriveTtlBackoffInfrastructure(queue);
+    if (infra) {
+      for (const waitQueue of infra.waitQueues) {
+        queueAsserts.push({
+          name: waitQueue.name,
+          assert: () =>
+            channel.assertQueue(waitQueue.name, {
+              durable: infra.durable,
+              arguments: {
+                "x-queue-type": infra.queueType,
+                // Backstop TTL: per-message `expiration` carries the actual
+                // (jittered) delay; this bounds how long any message can sit
+                // in the tier to the tier's jitter ceiling.
+                "x-message-ttl": waitQueue.messageTtlMs,
+                // Route expired messages straight back to the main queue via
+                // the default exchange.
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": infra.queueName,
+              },
+            }),
+        });
+      }
+    }
+  }
+  const queueResults = await Promise.allSettled(queueAsserts.map(({ assert }) => assert()));
   const queueErrors = queueResults
-    .map((result, i) => ({ result, name: extractQueue(queueEntries[i]!).name }))
+    .map((result, i) => ({ result, name: queueAsserts[i]!.name }))
     .filter(
       (entry): entry is { result: PromiseRejectedResult; name: string } =>
         entry.result.status === "rejected",
