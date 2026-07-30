@@ -38,7 +38,7 @@ All handlers (consumer and RPC) receive a third `helpers` argument — `{ contex
 
 When the RPC declares an `errors` map (`defineRpc(queue, { request, response, errors })`), the handler may also return `Err(rpcError(code, data))` for a declared code — the worker validates `data` against the declared schema, publishes an error reply (marked by the `RPC_ERROR_CODE_HEADER` header), and **acks the request**; typed business errors never enter the retry/DLQ pipeline. Undeclared codes or invalid error data are contract violations routed to the DLQ. See `packages/worker/src/worker.ts` (`publishRpcErrorReply`) and [docs/guide/error-model.md](../../docs/guide/error-model.md#typed-rpc-errors-rpcerror).
 
-You can define RPC handlers either with `defineHandler` / `defineHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
+You can define RPC handlers either with `declareHandler` / `declareHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
 import { fromPromise, OkAsync } from "unthrown";
@@ -91,15 +91,15 @@ RPC error semantics worth knowing:
 - **Client-side timeout** → call resolves to `Err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
 - **Client closed mid-call** → call resolves to `Err(RpcCancelledError)`.
 
-## Using `defineHandler` / `defineHandlers`
+## Using `declareHandler` / `declareHandlers`
 
-Use `defineHandler` (single) or `defineHandlers` (object) for full type inference and a runtime check that the name exists in the contract. Both helpers accept consumer **and** RPC names — they're overloaded against `InferConsumerNames` and `InferRpcNames`, and `validateHandlerTargetExists` inspects both `contract.consumers` and `contract.rpcs` (an unknown name throws _"Handler target X not found in contract"_).
+Use `declareHandler` (single) or `declareHandlers` (object) for full type inference and a runtime check that the name exists in the contract. Both helpers accept consumer **and** RPC names — they're overloaded against `InferConsumerNames` and `InferRpcNames`, and `validateHandlerTargetExists` inspects both `contract.consumers` and `contract.rpcs` (an unknown name throws _"Handler target X not found in contract"_).
 
 ```typescript
-import { defineHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
+import { declareHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync, fromPromise, OkAsync } from "unthrown";
 
-const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }) =>
+const processOrderHandler = declareHandler(contract, "processOrder", ({ payload }) =>
   fromPromise(
     processPayment(payload.orderId),
     (error) => new RetryableError("Payment service unavailable", error),
@@ -107,7 +107,7 @@ const processOrderHandler = defineHandler(contract, "processOrder", ({ payload }
 );
 
 // Permanent failures use NonRetryableError → DLQ, never retried
-const validateOrderHandler = defineHandler(contract, "validateOrder", ({ payload }) => {
+const validateOrderHandler = declareHandler(contract, "validateOrder", ({ payload }) => {
   if (payload.amount < 1) {
     return ErrAsync(new NonRetryableError("Invalid amount"));
   }
@@ -201,5 +201,5 @@ For the authoritative list, read [`packages/worker/src/index.ts`](../../packages
 
 - Classes: `TypedAmqpWorker`, `RetryableError`, `NonRetryableError`, `MessageValidationError` (the error classes are unthrown `TaggedError`s). `HandlerError` is a **type** (`RetryableError | NonRetryableError`), not a class.
 - Factories / guards: `retryable`, `nonRetryable`, `isRetryableError`, `isNonRetryableError`, `isHandlerError`
-- Helpers: `defineHandler`, `defineHandlers` (both accept consumer **and** RPC names)
+- Helpers: `declareHandler`, `declareHandlers` (both accept consumer **and** RPC names)
 - Types: `CreateWorkerOptions`, `ConsumerOptions`, `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`

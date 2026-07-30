@@ -90,13 +90,18 @@ Each invariant maps to a named guarding test — extend the mapping when you add
 2. **NonRetryableError → exactly one `nack(requeue=false)`** (DLQ, never republished/acked) — `packages/worker/src/invariants.spec.ts`.
 3. **Retryable without retry config → DLQ, not infinite requeue** — `packages/worker/src/invariants.spec.ts`.
 4. **Immediate-requeue honors the retry budget** (requeue below, DLQ at) — `packages/worker/src/invariants.spec.ts`.
-5. **Validation failures bypass the retry pipeline** (deterministic poison → DLQ) — `packages/worker/src/__tests__/worker-retry.spec.ts`.
+5. **Validation failures bypass the retry pipeline** (deterministic poison → DLQ on first delivery, zero retry publishes) — `packages/worker/src/__tests__/worker-retry.spec.ts` ("an invalid payload on a retry-configured queue goes straight to the DLQ with zero retries").
 6. **A message is acked/nacked exactly once** — `packages/worker/src/__tests__/worker-double-ack.spec.ts`.
 7. **Middleware short-circuit skips the handler; its result routes like a handler result** — `packages/worker/src/middleware.spec.ts` + `tests/src/middleware.spec.ts`.
 8. **Middleware-substituted payloads are re-validated before the handler** — `packages/worker/src/middleware.spec.ts` ("threads substituted payloads…") + `tests/src/middleware.spec.ts` ("blocks handler execution when the substitution fails the schema").
-9. **RPC replies require `replyTo` + `correlationId`; undeclared error codes/invalid error data → DLQ, never a malformed reply** — `tests/src/rpc.spec.ts` (undeclared-code and invalid-error-data timeout tests).
-10. **Worker creation fails fast on missing handlers, before any connection is acquired** — `packages/worker/src/worker-cleanup.spec.ts`.
+9. **RPC replies require `replyTo` + `correlationId`; undeclared error codes/invalid error data → DLQ, never a malformed reply** — `tests/src/rpc.spec.ts` (undeclared-code/invalid-error-data timeout tests + "RPC DLQ routing" describe: DLQ delivery for undeclared codes and reply-less requests).
+10. **Worker creation fails fast on missing or non-callable handlers, before any connection is acquired** — `packages/worker/src/worker-cleanup.spec.ts`.
 11. **`createContext` failure routes to DLQ; the handler never runs** — `tests/src/middleware.spec.ts` ("routes a throwing createContext…").
+12. **Compressed and plain payloads survive the wire byte-for-byte** (the channel must never JSON-serialize a Buffer) — `tests/src/compression.spec.ts`.
+13. **`worker.close()` drains in-flight handlers before closing the channel** (their acks land; no redelivery of completed work) — `packages/worker/src/__tests__/worker-close-drain.spec.ts`.
+14. **A classic-queue immediate-requeue retry republishes to THIS queue via the default exchange** (never the original exchange — sibling queues must not see duplicates) — `packages/worker/src/invariants.spec.ts`.
+15. **Connection-pool leases are idempotent and close/create-race-safe** (double release never underflows; an acquire racing the last release gets a fresh connection) — `packages/core/src/connection-manager.spec.ts`.
+16. **Telemetry never throws into the data path** (a buggy provider degrades to "no telemetry") — `packages/core/src/telemetry.spec.ts` ("throwing telemetry providers") + `packages/client/src/interceptors.spec.ts` (sync-throwing interceptor → Defect).
 
 ## Workflow rules for agents
 

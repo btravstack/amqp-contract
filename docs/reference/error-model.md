@@ -39,7 +39,7 @@ All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatc
 | `RpcError`               | `@amqp-contract/RpcError`               | `@amqp-contract/core`, re-exported by client and worker |
 | `RpcTimeoutError`        | `@amqp-contract/RpcTimeoutError`        | `@amqp-contract/client`                                 |
 | `RpcCancelledError`      | `@amqp-contract/RpcCancelledError`      | `@amqp-contract/client`                                 |
-| `TechnicalError`         | `@amqp-contract/TechnicalError`         | `@amqp-contract/core`                                   |
+| `TechnicalError`         | `@amqp-contract/TechnicalError`         | `@amqp-contract/core`, re-exported by client and worker |
 
 ## Error channel per operation
 
@@ -55,6 +55,8 @@ All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatc
 | RPC handler              | `AsyncResult<TResponse, HandlerError \| RpcError<…>>`                                                   |
 
 An empty channel (`never`) means every failure is a defect, which is why `.get()` compiles on `create` and `close` but not on `publish`.
+
+The client exports the unions by name: `PublishError` (an alias of `MessageValidationError`) and `CallError` (the full `call()` union). For the error union of one specific RPC — declared errors included — use `ClientInferCallError<typeof contract, "getOrder">`.
 
 ## Handler errors
 
@@ -116,6 +118,8 @@ A Standard Schema validation failed. Carries the source identifier (publisher or
 
 Validated: publisher payloads, consumer payloads, consumer headers, RPC requests, RPC responses, and RPC error data. **Not** validated: headers on publish.
 
+`isMessageValidationError(err)` is the type guard, exported from `@amqp-contract/core` and re-exported by client and worker.
+
 ## `TechnicalError`
 
 Any failure of the transport or framework: connection lost, channel closed, a rejected assert, a publish that never reached the broker, a compression or JSON-parse failure, or a schema validator that threw.
@@ -140,6 +144,8 @@ result.match({
 
 Since 3.0 it is not part of any operation's `E`, so it never appears in an error matcher. See [upgrade](/how-to/upgrade#_2-4-x-→-3-0).
 
+`isTechnicalError(cause)` is the type guard — an alternative to `instanceof` in the snippet above — exported from `@amqp-contract/core` and re-exported by client and worker.
+
 ## Typed RPC errors
 
 Declared in the contract alongside request and response:
@@ -149,7 +155,7 @@ const getOrder = defineRpc(defineQueue("rpc.get-order"), {
   request: defineMessage(z.object({ orderId: z.string() })),
   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
   errors: {
-    ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+    ORDER_NOT_FOUND: { data: z.object({ orderId: z.string() }) },
   },
 });
 ```

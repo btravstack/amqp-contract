@@ -48,7 +48,7 @@ describe("Order Processing", () => {
 
     publishMessage("orders-exchange", "order.created", { orderId: "123" });
 
-    const messages = await waitForMessages({ nbEvents: 1, timeout: 5000 });
+    const messages = await waitForMessages({ count: 1, timeoutMs: 5000 });
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ orderId: "123" });
   });

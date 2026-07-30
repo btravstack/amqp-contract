@@ -48,7 +48,7 @@ Import `it` from the extension — it is Vitest's `it` plus AMQP fixtures.
 
 ```typescript
 import { it } from "@amqp-contract/testing/extension";
-import { TypedAmqpWorker, defineHandlers } from "@amqp-contract/worker";
+import { TypedAmqpWorker, declareHandlers } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { contract } from "./contract.js";
@@ -59,7 +59,7 @@ describe("order worker", () => {
 
     const worker = await TypedAmqpWorker.create({
       contract,
-      handlers: defineHandlers(contract, {
+      handlers: declareHandlers(contract, {
         processOrder: ({ payload }) => {
           processed.push(payload);
           return OkAsync(undefined);
@@ -138,7 +138,7 @@ it("routes urgent updates to the urgent queue", async ({ initConsumer, publishMe
 
   publishMessage("orders", "order.updated.urgent", { orderId: "1" });
 
-  const messages = await waitForMessages({ nbEvents: 1, timeout: 10_000 });
+  const messages = await waitForMessages({ count: 1, timeoutMs: 10_000 });
   expect(JSON.parse(messages[0].content.toString())).toEqual({ orderId: "1" });
 });
 ```
@@ -159,7 +159,7 @@ it("dead-letters a non-retryable failure", async ({
 
   const worker = await TypedAmqpWorker.create({
     contract,
-    handlers: defineHandlers(contract, {
+    handlers: declareHandlers(contract, {
       processOrder: () => ErrAsync(new NonRetryableError("permanent")),
     }),
     urls: [amqpConnectionUrl],
@@ -167,7 +167,7 @@ it("dead-letters a non-retryable failure", async ({
 
   try {
     publishMessage("orders", "order.created", { orderId: "1", amount: 1 });
-    expect(await waitForDead({ nbEvents: 1, timeout: 10_000 })).toHaveLength(1);
+    expect(await waitForDead({ count: 1, timeoutMs: 10_000 })).toHaveLength(1);
   } finally {
     await worker.close().get();
   }

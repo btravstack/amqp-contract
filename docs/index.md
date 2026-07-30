@@ -33,7 +33,7 @@ features:
 
   - icon: { src: /icons/spec.svg }
     title: AsyncAPI Compatible
-    details: Generate AsyncAPI 3.0 specs for documentation, visualization, and breaking change detection.
+    details: Generate AsyncAPI 3.1 specs for documentation, visualization, and breaking change detection.
 ---
 
 ## Quick Example

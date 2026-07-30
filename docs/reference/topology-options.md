@@ -10,7 +10,7 @@ Options for every contract-building function. For recipes see [define a contract
 ## `defineContract`
 
 ```typescript
-defineContract({ publishers, consumers, rpcs });
+defineContract({ publishers, consumers, rpcs, exchanges, queues, bindings });
 ```
 
 | Key          | Contains                                                                |
@@ -18,8 +18,11 @@ defineContract({ publishers, consumers, rpcs });
 | `publishers` | Named publishers callable via `client.publish(name, …)`                 |
 | `consumers`  | Named consumers requiring a handler on the worker                       |
 | `rpcs`       | Named RPCs, callable via `client.call(name, …)` and requiring a handler |
+| `exchanges`  | Standalone exchanges with no publisher/consumer attached                |
+| `queues`     | Standalone queues with no consumer in this service                      |
+| `bindings`   | Standalone bindings (`defineQueueBinding` / `defineExchangeBinding`)    |
 
-The returned contract also exposes `exchanges`, `queues` and `bindings`, extracted from the above. You never declare them directly.
+The returned contract exposes `exchanges`, `queues` and `bindings` extracted from the publishers, consumers and RPCs — you rarely declare them directly. The standalone keys exist for topology this service asserts without attaching a publisher or consumer to it: the classic cases are a DLQ bound to the auto-extracted dead-letter exchange, or an audit queue another process drains. Dead-letter exchanges and TTL-backoff retry infrastructure are auto-extracted for standalone queues exactly as for consumer queues. In the output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
 
 ## `defineExchange`
 
@@ -170,11 +173,13 @@ There is no per-call routing-key override — `publish` always uses the publishe
 defineRpc(queue, { request, response, errors? });
 ```
 
-| Key        | Type                                                         |
-| ---------- | ------------------------------------------------------------ |
-| `request`  | Message definition                                           |
-| `response` | Message definition                                           |
-| `errors`   | `Record<code, MessageDefinition>` — declared business errors |
+| Key        | Type                                                          |
+| ---------- | ------------------------------------------------------------- |
+| `request`  | Message definition                                            |
+| `response` | Message definition                                            |
+| `errors`   | `Record<code, RpcErrorDefinition>` — declared business errors |
+
+Each `errors` entry is `{ data, message? }`: `data` is the Standard Schema validating the error's payload, and the optional `message` is the default human-readable message used when the handler does not supply one.
 
 ## Client options
 
@@ -194,23 +199,33 @@ defineRpc(queue, { request, response, errors? });
 
 `PublishOptions` is amqplib's `Options.Publish` plus `compression?: "gzip" | "deflate"`. Properties are flat: `persistent`, `priority`, `expiration`, `correlationId`, `headers`, and the rest.
 
+An invalid `connectTimeoutMs` (`NaN`, zero, negative, `Infinity`) surfaces as a **defect** from `create()` rather than silently disabling the timeout. Only `null` disables it.
+
 ## Worker options
 
 `TypedAmqpWorker.create({ … })`:
 
-| Option                   | Type                                                |
-| ------------------------ | --------------------------------------------------- |
-| `contract`               | contract                                            |
-| `handlers`               | one entry per consumer and RPC                      |
-| `urls`                   | `string[]`                                          |
-| `connectionOptions`      | amqp-connection-manager options                     |
-| `defaultConsumerOptions` | `{ prefetch?: number }` and amqplib consume options |
-| `middleware`             | `WorkerMiddleware`, or `composeMiddleware(…)`       |
-| `createContext`          | `(info) => context`                                 |
-| `logger`                 | `Logger`                                            |
-| `telemetry`              | `TelemetryProvider`                                 |
+| Option                   | Type                                                            |
+| ------------------------ | --------------------------------------------------------------- |
+| `contract`               | contract                                                        |
+| `handlers`               | one entry per consumer and RPC                                  |
+| `urls`                   | `string[]`                                                      |
+| `connectionOptions`      | amqp-connection-manager options                                 |
+| `defaultConsumerOptions` | `ConsumerOptions` (see below)                                   |
+| `middleware`             | `WorkerMiddleware`, an array of them, or `composeMiddleware(…)` |
+| `createContext`          | `(info) => context`                                             |
+| `logger`                 | `Logger`                                                        |
+| `telemetry`              | `TelemetryProvider`                                             |
 
 A handler entry is either the function or a `[function, ConsumerOptions]` tuple.
+
+`ConsumerOptions` is a curated subset of the AMQP consume options: `prefetch`, `priority`, `arguments`, `consumerTag`, `exclusive`. `noAck` and `noLocal` are deliberately excluded — `noAck: true` would silently break the ack-exactly-once and retry/DLQ invariants, and `noLocal` is not supported by RabbitMQ.
+
+The `middleware` array form composes at runtime like `composeMiddleware(…)` (first entry outermost) but does not thread stepwise context types — see [add middleware](/how-to/add-middleware#chain-several-middleware).
+
+`worker.close(options?)` accepts `{ drainTimeoutMs?: number | null }` — how long to wait for in-flight handlers before tearing the channel down (default `DEFAULT_DRAIN_TIMEOUT_MS`, 30 000 ms; `null` waits forever). See [consume messages](/how-to/consume-messages#shut-down-without-dropping-messages).
+
+`Logger`, `TelemetryProvider` and `TechnicalError` are re-exported by both `@amqp-contract/client` and `@amqp-contract/worker`, so naming an option type or matching a defect cause never forces a direct dependency on `@amqp-contract/core`.
 
 ## Routing-key validation types
 
@@ -227,6 +242,16 @@ import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "@amqp-contr
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. `*` matches one segment, `#` matches zero or more, and both are valid only in patterns.
 
 TypeScript's recursion limit means very long keys fall back to `string`. Compile-time checking only; runtime behaviour is unaffected.
+
+## Schema inference types
+
+```typescript
+import type { InferSchemaInput, InferSchemaOutput } from "@amqp-contract/contract";
+
+type OrderCreated = InferSchemaInput<typeof contract.publishers.orderCreated.message.payload>;
+```
+
+`InferSchemaInput<TSchema>` and `InferSchemaOutput<TSchema>` extract the input and output types of any Standard Schema — what a publisher accepts versus what a handler receives after parsing.
 
 ## Where next
 
