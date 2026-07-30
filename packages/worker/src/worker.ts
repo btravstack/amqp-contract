@@ -21,6 +21,7 @@ import {
   recordConsumeMetric,
   safeJsonParse,
   startConsumeSpan,
+  technicalDefect,
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -31,7 +32,6 @@ import {
   ErrAsync,
   fromPromise,
   fromSafePromise,
-  fromSafeThrowable,
   Ok,
   OkAsync,
   P,
@@ -141,20 +141,6 @@ export const DEFAULT_DRAIN_TIMEOUT_MS = 30_000;
  */
 function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
   return Array.isArray(entry) && entry.length === 2;
-}
-
-/**
- * Mint a `Defect`-carrying `AsyncResult` from a {@link TechnicalError}, for the
- * few imperative sites (outside a combinator callback) that must surface an
- * unexpected infrastructure failure through the defect channel. Uses the
- * `fromSafeThrowable` boundary — the sanctioned way to route a throw to a
- * `Defect` without a public defect constructor.
- */
-function technicalDefect<T>(error: TechnicalError): AsyncResult<T, never> {
-  return fromSafeThrowable((): T => {
-    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
-    throw error;
-  })().toAsync();
 }
 
 /**
@@ -470,7 +456,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         new TechnicalError(
           "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
         ),
-      );
+      ).toAsync();
     }
     const missing = missingHandlerNames(contract, handlers);
     if (missing.length > 0) {
@@ -479,7 +465,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           `Missing handlers for contract entries: ${missing.join(", ")}. ` +
             "Every `consumers` and `rpcs` key requires a handler.",
         ),
-      );
+      ).toAsync();
     }
     const invalid = invalidHandlerNames(contract, handlers);
     if (invalid.length > 0) {
@@ -488,7 +474,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           `Handlers for contract entries are not functions: ${invalid.join(", ")}. ` +
             "Each handler must be a function or a [handler, options] tuple.",
         ),
-      );
+      ).toAsync();
     }
 
     // Enter through the safety net so a synchronous constructor throw (an
@@ -672,7 +658,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     try {
       rawValidation = schema["~standard"].validate(data);
     } catch (error) {
-      return technicalDefect(new TechnicalError(`Error validating ${context.field}`, error));
+      return technicalDefect(
+        new TechnicalError(`Error validating ${context.field}`, error),
+      ).toAsync();
     }
     const validationPromise =
       rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);

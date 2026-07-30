@@ -24,6 +24,7 @@ import {
   recordPublishMetric,
   safeJsonParse,
   startPublishSpan,
+  technicalDefect,
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -31,7 +32,6 @@ import {
   Err,
   fromPromise,
   fromSafePromise,
-  fromSafeThrowable,
   Ok,
   OkAsync,
   type AsyncResult,
@@ -65,20 +65,6 @@ import type {
  * @see https://www.rabbitmq.com/docs/direct-reply-to
  */
 const DIRECT_REPLY_TO = "amq.rabbitmq.reply-to";
-
-/**
- * Mint a `Defect`-carrying `Result` from a {@link TechnicalError}, for the
- * imperative reply-consumer paths (outside a combinator callback) that must
- * resolve a pending call with an unexpected infrastructure failure. Uses the
- * `fromSafeThrowable` boundary — the sanctioned way to route a throw to a
- * `Defect` without a public defect constructor.
- */
-function technicalDefect(error: TechnicalError): Result<never, never> {
-  return fromSafeThrowable((): never => {
-    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
-    throw error;
-  })();
-}
 
 /**
  * In-flight RPC call tracked by `TypedAmqpClient`. The reply consumer
