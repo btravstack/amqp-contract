@@ -7,7 +7,7 @@ import type {
   QueueBindingDefinition,
   QueueDefinition,
 } from "@amqp-contract/contract";
-import { extractConsumer, extractQueue } from "@amqp-contract/contract";
+import { extractConsumer } from "@amqp-contract/contract";
 import {
   type AsyncAPIObject,
   type ChannelObject,
@@ -179,7 +179,7 @@ export class AsyncAPIGenerator {
     if (contract.consumers) {
       for (const [consumerName, consumerEntry] of Object.entries(contract.consumers)) {
         const consumer = extractConsumer(consumerEntry);
-        const queue = extractQueue(consumer.queue);
+        const queue = consumer.queue;
         const channelKey = this.getQueueName(queue, contract);
         consumerMessages.set(consumerName, { message: consumer.message, channelKey });
       }
@@ -188,7 +188,7 @@ export class AsyncAPIGenerator {
     // Generate channels from queues with their messages
     if (contract.queues) {
       for (const [queueName, queueEntry] of Object.entries(contract.queues)) {
-        const queue = extractQueue(queueEntry);
+        const queue = queueEntry;
         const channelMessages: MessagesObject = {};
 
         // Add messages from consumers that reference this queue
@@ -277,7 +277,7 @@ export class AsyncAPIGenerator {
     if (contract.consumers) {
       for (const [consumerName, consumerEntry] of Object.entries(contract.consumers)) {
         const consumer = extractConsumer(consumerEntry);
-        const queue = extractQueue(consumer.queue);
+        const queue = consumer.queue;
         const queueName = this.getQueueName(queue, contract);
         const messageName = `${consumerName}Message`;
 
@@ -588,7 +588,7 @@ export class AsyncAPIGenerator {
   private getQueueName(queue: QueueDefinition, contract: ContractDefinition): string {
     if (contract.queues) {
       for (const [name, qEntry] of Object.entries(contract.queues)) {
-        const q = extractQueue(qEntry);
+        const q = qEntry;
         if (q === queue || q.name === queue.name) {
           return name;
         }
