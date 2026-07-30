@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import {
-  extractQueue,
   type CompressionAlgorithm,
   type ContractDefinition,
   type InferPublisherNames,
@@ -649,7 +648,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         new TechnicalError(`Unknown RPC "${String(rpcName)}". Declared RPCs: ${declared}.`),
       ).toAsync();
     }
-    const queueName = extractQueue(rpc.queue).name;
+    const queueName = rpc.queue.name;
 
     // RPC publishes to the default exchange with the queue name as routing key.
     const span = startPublishSpan(this.telemetry, "", queueName, {
@@ -723,7 +722,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     const requestSchema = rpc.request.payload;
     const responseSchema = rpc.response.payload;
-    const queueName = extractQueue(rpc.queue).name;
+    const queueName = rpc.queue.name;
 
     const correlationId = randomUUID();
 

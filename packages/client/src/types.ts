@@ -6,7 +6,7 @@ import type {
   InferSchemaOutput,
   MessageDefinition,
   PublisherEntry,
-  QueueEntry,
+  QueueDefinition,
   RpcDefinition,
   RpcErrorMap,
 } from "@amqp-contract/contract";
@@ -90,7 +90,7 @@ export type ClientInferRpcErrors<
   InferRpc<TContract, TName> extends RpcDefinition<
     MessageDefinition,
     MessageDefinition,
-    QueueEntry,
+    QueueDefinition,
     infer TErrors
   >
     ? TErrors extends RpcErrorMap
