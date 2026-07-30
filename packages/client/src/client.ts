@@ -129,6 +129,16 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
    */
   connectTimeoutMs?: number | null | undefined;
   /**
+   * Maximum time in ms a publish may sit buffered waiting for the broker
+   * before its promise settles with a timeout failure (surfaced as a
+   * `Defect`). Maps to amqp-connection-manager's channel-level
+   * `publishTimeout`. Without it, publishes issued during a broker outage
+   * buffer unboundedly in the channel wrapper and their promises never
+   * settle. Applies to `publish(...)` and to the request publish of
+   * `call(...)` alike.
+   */
+  publishTimeoutMs?: number | undefined;
+  /**
    * Interceptors wrapping every `publish(...)`: the first entry is the
    * outermost. Each can patch the message/options, observe the outcome,
    * retry by calling `next` again, or short-circuit. A patched message is
@@ -206,6 +216,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     logger,
     telemetry,
     connectTimeoutMs,
+    publishTimeoutMs,
     publishInterceptors,
     callInterceptors,
   }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, never> {
@@ -215,7 +226,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return OkAsync(undefined).flatMap(() => {
       const client = new TypedAmqpClient(
         contract,
-        new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs, logger }),
+        new AmqpClient(contract, {
+          urls,
+          connectionOptions,
+          connectTimeoutMs,
+          logger,
+          ...(publishTimeoutMs !== undefined
+            ? { channelOptions: { publishTimeout: publishTimeoutMs } }
+            : {}),
+        }),
         { persistent: true, ...defaultPublishOptions },
         logger,
         telemetry ?? defaultTelemetryProvider,
