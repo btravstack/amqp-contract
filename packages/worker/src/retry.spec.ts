@@ -22,9 +22,6 @@ describe("calculateRetryDelay", () => {
     maxDelayMs: 60_000,
     backoffMultiplier: 2,
     jitter: false,
-    waitQueueName: "q-wait",
-    waitExchangeName: "x-wait",
-    retryExchangeName: "x-retry",
   };
 
   afterEach(() => {
@@ -239,7 +236,6 @@ describe("publishForRetry", () => {
         routingKey: "test.key",
         queueName: "test-queue",
         delayMs: 500,
-        waitQueueName: "test-queue-wait",
         error: new Error("boom"),
       },
     );
@@ -271,7 +267,6 @@ describe("publishForRetry", () => {
         routingKey: "test.key",
         queueName: "test-queue",
         delayMs: 750,
-        waitQueueName: "test-queue-wait",
         error: new Error("third failure"),
       },
     );
@@ -286,8 +281,7 @@ describe("publishForRetry", () => {
           "x-retry-count": 3,
           "x-last-error": "third failure",
           "x-first-failure-timestamp": 1234,
-          "x-wait-queue": "test-queue-wait",
-          "x-retry-queue": "test-queue",
+          "x-original-routing-key": "test.key",
         }),
       }),
     );

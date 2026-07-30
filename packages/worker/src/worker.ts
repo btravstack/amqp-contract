@@ -5,7 +5,6 @@ import {
   type InferRpcNames,
   type RpcErrorMap,
   extractConsumer,
-  extractQueue,
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
@@ -805,7 +804,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     rpcName: HandlerName<TContract>,
     error: RpcError,
   ): AsyncResult<void, HandlerError> {
-    const queueName = extractQueue(view.consumer.queue).name;
+    const queueName = view.consumer.queue.name;
     // `Object.hasOwn` rather than plain indexing so prototype properties
     // (e.g. "toString") are not misclassified as declared error codes.
     const errorSchema =
@@ -1067,7 +1066,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     if (!view.isRpc || !view.responseSchema) {
       return OkAsync(undefined);
     }
-    const queueName = extractQueue(view.consumer.queue).name;
+    const queueName = view.consumer.queue.name;
     return this.publishRpcResponse(msg, queueName, name, view.responseSchema, handlerResponse);
   }
 
@@ -1096,7 +1095,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     state: DeliveryState,
   ): AsyncResult<void, never> {
     const { consumer } = view;
-    const queueName = extractQueue(consumer.queue).name;
+    const queueName = consumer.queue.name;
     const startTime = Date.now();
     const span = startConsumeSpan(this.telemetry, queueName, String(name), {
       "messaging.rabbitmq.message.delivery_tag": msg.fields.deliveryTag,
@@ -1372,7 +1371,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     view: ConsumerView,
     handler: StoredHandler,
   ): AsyncResult<void, never> {
-    const queueName = extractQueue(view.consumer.queue).name;
+    const queueName = view.consumer.queue.name;
 
     return this.amqpClient
       .consume(
