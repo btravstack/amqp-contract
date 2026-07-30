@@ -102,7 +102,7 @@ describe("AmqpClient Integration", () => {
     const waitForMessages = await initConsumer("orders", "order.created");
 
     // WHEN - Publish a message
-    publishMessage("orders", "order.created", { orderId: "123" });
+    publishMessage({ exchange: "orders", routingKey: "order.created" }, { orderId: "123" });
 
     // THEN - Message should be routed through binding to queue
     await expect(waitForMessages()).resolves.toEqual([
@@ -145,7 +145,10 @@ describe("AmqpClient Integration", () => {
     const waitForMessages = await initConsumer("destination", "test.important");
 
     // WHEN - Publish to source exchange
-    publishMessage("source", "test.important", { data: "important message" });
+    publishMessage(
+      { exchange: "source", routingKey: "test.important" },
+      { data: "important message" },
+    );
 
     // THEN - Message should be routed through exchange binding
     await expect(waitForMessages()).resolves.toEqual([
@@ -200,7 +203,7 @@ describe("AmqpClient Integration", () => {
     const waitForAnalyticsMessages = await initConsumer("analytics", "");
 
     // WHEN - Publish to orders exchange
-    publishMessage("orders", "order.created", { orderId: "456" });
+    publishMessage({ exchange: "orders", routingKey: "order.created" }, { orderId: "456" });
 
     // THEN - Both queues should receive messages
     await expect(waitForOrderMessages()).resolves.toEqual([
@@ -267,7 +270,7 @@ describe("AmqpClient Integration", () => {
     const waitForMessages = await initConsumer("fanout", "");
 
     // WHEN - Publish to fanout exchange
-    publishMessage("fanout", "any-key", { message: "broadcast" });
+    publishMessage({ exchange: "fanout", routingKey: "any-key" }, { message: "broadcast" });
 
     // THEN - Message should be delivered
     await expect(waitForMessages()).resolves.toEqual([
@@ -364,7 +367,10 @@ describe("AmqpClient Integration", () => {
     const waitForMessages = await initConsumer(bridgeExchange.name, "order.created");
 
     // WHEN - Publish to source exchange (simulating remote domain)
-    publishMessage(sourceExchange.name, "order.created", { orderId: "bridge-test-123" });
+    publishMessage(
+      { exchange: sourceExchange.name, routingKey: "order.created" },
+      { orderId: "bridge-test-123" },
+    );
 
     // THEN - Message flows: source → (e2e) → bridge → queue → consumer
     await expect(waitForMessages()).resolves.toEqual([

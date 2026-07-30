@@ -90,8 +90,8 @@ describe("Worker defensive nack guard", () => {
       // tag the handler had just ack'd, RabbitMQ closed the channel with
       // 406 PRECONDITION_FAILED, and the second message either never
       // arrived or landed back in the queue after a reconnect.
-      publishMessage(exchange.name, "test.message", { id: "first" });
-      publishMessage(exchange.name, "test.message", { id: "second" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "first" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "second" });
 
       // THEN both messages should be processed exactly once each. If the
       // channel had been torn down by a double-act, processing would have

@@ -50,10 +50,13 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN
-    publishMessage(exchange.name, "test.message", {
-      id: "123",
-      message: "Hello from integration test!",
-    });
+    publishMessage(
+      { exchange: exchange.name, routingKey: "test.message" },
+      {
+        id: "123",
+        message: "Hello from integration test!",
+      },
+    );
 
     // THEN
     await vi.waitFor(() => {
@@ -101,10 +104,13 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN
-    publishMessage(exchange.name, "test.message", {
-      id: "123",
-      // count is omitted, should use default value of 1
-    });
+    publishMessage(
+      { exchange: exchange.name, routingKey: "test.message" },
+      {
+        id: "123",
+        // count is omitted, should use default value of 1
+      },
+    );
 
     // THEN
     await vi.waitFor(() => {
@@ -159,8 +165,7 @@ describe("AmqpWorker Integration", () => {
 
     // WHEN
     publishMessage(
-      exchange.name,
-      "test.message",
+      { exchange: exchange.name, routingKey: "test.message" },
       {
         id: "123",
         // count is omitted, should use default value of 1
@@ -225,9 +230,9 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN
-    publishMessage(exchange.name, "multi.test", { id: "1", count: 1 });
-    publishMessage(exchange.name, "multi.test", { id: "2", count: 2 });
-    publishMessage(exchange.name, "multi.test", { id: "3", count: 3 });
+    publishMessage({ exchange: exchange.name, routingKey: "multi.test" }, { id: "1", count: 1 });
+    publishMessage({ exchange: exchange.name, routingKey: "multi.test" }, { id: "2", count: 2 });
+    publishMessage({ exchange: exchange.name, routingKey: "multi.test" }, { id: "3", count: 3 });
 
     // THEN - Wait for all messages to be consumed
     await vi.waitFor(() => {
@@ -280,8 +285,8 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN
-    publishMessage(exchange.name, "all.one", { id: "msg1" });
-    publishMessage(exchange.name, "all.two", { id: "msg2" });
+    publishMessage({ exchange: exchange.name, routingKey: "all.one" }, { id: "msg1" });
+    publishMessage({ exchange: exchange.name, routingKey: "all.two" }, { id: "msg2" });
 
     // THEN
     await vi.waitFor(() => {
@@ -330,10 +335,13 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN - Publish invalid message
-    publishMessage(exchange.name, "validation.message", {
-      id: "invalid",
-      count: "not-a-number", // Invalid type
-    });
+    publishMessage(
+      { exchange: exchange.name, routingKey: "validation.message" },
+      {
+        id: "invalid",
+        count: "not-a-number", // Invalid type
+      },
+    );
 
     // THEN - Message should not be processed (validation failed)
     // Wait a moment to ensure message would have been processed if valid
@@ -380,7 +388,10 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN - Publish message that will fail first time
-    publishMessage(exchange.name, "error.test", { id: "retry-test", shouldFail: true });
+    publishMessage(
+      { exchange: exchange.name, routingKey: "error.test" },
+      { id: "retry-test", shouldFail: true },
+    );
 
     // THEN - Message should be reprocessed and eventually succeed
     await vi.waitFor(() => {
@@ -433,7 +444,10 @@ describe("AmqpWorker Integration", () => {
     await amqpChannel.bindExchange(destExchange.name, sourceExchange.name, "*.important");
 
     // WHEN - Publish to source exchange
-    publishMessage(sourceExchange.name, "test.important", { msg: "routed through exchange" });
+    publishMessage(
+      { exchange: sourceExchange.name, routingKey: "test.important" },
+      { msg: "routed through exchange" },
+    );
 
     // THEN
     await vi.waitFor(() => {
@@ -473,7 +487,7 @@ describe("AmqpWorker Integration", () => {
     );
 
     // Consume first message
-    publishMessage(exchange.name, "close.test", { id: "before-close" });
+    publishMessage({ exchange: exchange.name, routingKey: "close.test" }, { id: "before-close" });
     await vi.waitFor(() => {
       if (messages.length < 1) {
         throw new Error("Message not yet consumed");
@@ -484,7 +498,7 @@ describe("AmqpWorker Integration", () => {
     const closeResult = await worker.close();
 
     // Publish message after close
-    publishMessage(exchange.name, "close.test", { id: "after-close" });
+    publishMessage({ exchange: exchange.name, routingKey: "close.test" }, { id: "after-close" });
 
     // THEN
     expect(closeResult).toBeOk();
@@ -544,11 +558,17 @@ describe("AmqpWorker Integration", () => {
     );
 
     // WHEN
-    publishMessage(exchange.name, "order.created", { orderId: "123", amount: 99.99 });
-    publishMessage(exchange.name, "notification.email", {
-      userId: "user1",
-      message: "Order created",
-    });
+    publishMessage(
+      { exchange: exchange.name, routingKey: "order.created" },
+      { orderId: "123", amount: 99.99 },
+    );
+    publishMessage(
+      { exchange: exchange.name, routingKey: "notification.email" },
+      {
+        userId: "user1",
+        message: "Order created",
+      },
+    );
 
     // THEN
     await vi.waitFor(() => {
@@ -651,7 +671,7 @@ describe("AmqpWorker Integration", () => {
     await new Promise((resolve) => setTimeout(resolve, WORKER_SETUP_WAIT_MS));
 
     // WHEN - Verify consumer is working by publishing and consuming a test message
-    publishMessage(exchange.name, "cancel.test", { id: "test" });
+    publishMessage({ exchange: exchange.name, routingKey: "cancel.test" }, { id: "test" });
     await vi.waitFor(
       () => {
         const infoCalls = mockLogger.info.mock.calls;

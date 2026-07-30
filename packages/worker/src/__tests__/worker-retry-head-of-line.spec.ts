@@ -76,7 +76,7 @@ describe("TTL-backoff head-of-line blocking", () => {
 
     // WHEN message A is published and burns through its first retry so that
     // its second retry is parked with a LONG (4000ms) delay...
-    publishMessage(exchange.name, "test.message", { id: "A" });
+    publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "A" });
     await vi.waitFor(
       () => {
         if (aAttempts < 2) {
@@ -89,7 +89,7 @@ describe("TTL-backoff head-of-line blocking", () => {
     // ...and message B is published AFTER A is parked, failing once with a
     // SHORT (1000ms) delay.
     const bPublishedAt = Date.now();
-    publishMessage(exchange.name, "test.message", { id: "B" });
+    publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "B" });
 
     // THEN B is redelivered in roughly its own delay. With a single shared
     // wait queue, B's 1s message would sit behind A's 4s message and only be

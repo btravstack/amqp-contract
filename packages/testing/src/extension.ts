@@ -36,8 +36,7 @@ export type AmqpTestFixtures = {
   amqpConnection: ChannelModel;
   amqpChannel: Channel;
   publishMessage: (
-    exchange: string,
-    routingKey: string,
+    target: { exchange: string; routingKey: string },
     content: unknown,
     options?: Options.Publish,
   ) => void;
@@ -133,25 +132,24 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
    * Provides a helper function to publish messages directly to an exchange during tests.
    * The message content is automatically serialized to JSON and converted to a Buffer.
    *
-   * @param exchange - The name of the exchange to publish to
-   * @param routingKey - The routing key for message routing
+   * @param target - The exchange and routing key to publish to
    * @param content - The message payload (will be JSON serialized)
    * @throws Error if the message cannot be published (e.g., write buffer is full)
    *
    * @example
    * ```typescript
    * it('should publish message', async ({ publishMessage }) => {
-   *   publishMessage('my-exchange', 'routing.key', { data: 'test' });
+   *   publishMessage({ exchange: 'my-exchange', routingKey: 'routing.key' }, { data: 'test' });
    * });
    * ```
    */
   publishMessage: async ({ amqpChannel }, use) => {
     function publishMessage(
-      exchange: string,
-      routingKey: string,
+      target: { exchange: string; routingKey: string },
       content: unknown,
       options?: Options.Publish,
     ): void {
+      const { exchange, routingKey } = target;
       const success = amqpChannel.publish(
         exchange,
         routingKey,
@@ -186,14 +184,14 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
    * ```typescript
    * it('should consume messages', async ({ initConsumer, publishMessage }) => {
    *   const waitForMessages = await initConsumer('my-exchange', 'routing.key');
-   *   publishMessage('my-exchange', 'routing.key', { data: 'test' });
+   *   publishMessage({ exchange: 'my-exchange', routingKey: 'routing.key' }, { data: 'test' });
    *   // With defaults (1 message, 5000ms timeout)
    *   const messages = await waitForMessages();
    *   expect(messages).toHaveLength(1);
    *
    *   // With custom options
-   *   publishMessage('my-exchange', 'routing.key', { data: 'test2' });
-   *   publishMessage('my-exchange', 'routing.key', { data: 'test3' });
+   *   publishMessage({ exchange: 'my-exchange', routingKey: 'routing.key' }, { data: 'test2' });
+   *   publishMessage({ exchange: 'my-exchange', routingKey: 'routing.key' }, { data: 'test3' });
    *   const messages2 = await waitForMessages({ count: 2, timeoutMs: 10000 });
    *   expect(messages2).toHaveLength(2);
    * });

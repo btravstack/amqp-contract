@@ -39,8 +39,10 @@ describe("Basic Order Processing Worker Integration", () => {
 
       // WHEN
       publishMessage(
-        orderContract.publishers.orderCreated.exchange.name,
-        orderContract.publishers.orderCreated.routingKey,
+        {
+          exchange: orderContract.publishers.orderCreated.exchange.name,
+          routingKey: orderContract.publishers.orderCreated.routingKey,
+        },
         newOrder,
       );
 
@@ -97,13 +99,17 @@ describe("Basic Order Processing Worker Integration", () => {
       };
 
       publishMessage(
-        orderContract.publishers.orderCreated.exchange.name,
-        orderContract.publishers.orderCreated.routingKey,
+        {
+          exchange: orderContract.publishers.orderCreated.exchange.name,
+          routingKey: orderContract.publishers.orderCreated.routingKey,
+        },
         newOrder,
       );
       publishMessage(
-        orderContract.publishers.orderUpdated.exchange.name,
-        orderContract.publishers.orderUpdated.routingKey,
+        {
+          exchange: orderContract.publishers.orderUpdated.exchange.name,
+          routingKey: orderContract.publishers.orderUpdated.routingKey,
+        },
         orderUpdate,
       );
 
@@ -158,8 +164,10 @@ describe("Basic Order Processing Worker Integration", () => {
 
       // WHEN
       publishMessage(
-        orderContract.publishers.orderCreated.exchange.name,
-        orderContract.publishers.orderCreated.routingKey,
+        {
+          exchange: orderContract.publishers.orderCreated.exchange.name,
+          routingKey: orderContract.publishers.orderCreated.routingKey,
+        },
         newOrder,
       );
 
@@ -207,8 +215,10 @@ describe("Basic Order Processing Worker Integration", () => {
 
       // WHEN — the command is addressed to the fulfillment queue's exchange + key
       publishMessage(
-        orderContract.publishers.requestFulfillment.exchange.name,
-        orderContract.publishers.requestFulfillment.routingKey,
+        {
+          exchange: orderContract.publishers.requestFulfillment.exchange.name,
+          routingKey: orderContract.publishers.requestFulfillment.routingKey,
+        },
         command,
       );
 

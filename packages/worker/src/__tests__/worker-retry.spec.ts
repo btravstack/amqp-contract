@@ -69,7 +69,7 @@ describe("Worker Retry Mechanism", () => {
       expect(waitQueueInfo.queue).toBe("retry-flow-queue-wait-500ms");
 
       // WHEN publishing a message that fails on first attempt
-      publishMessage(exchange.name, "test.message", { id: "retry-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "retry-1" });
 
       // THEN wait for first processing attempt
       await vi.waitFor(
@@ -165,7 +165,7 @@ describe("Worker Retry Mechanism", () => {
       await amqpChannel.bindQueue("backoff-dlq", dlx.name, "backoff-queue.dlq");
 
       // WHEN publishing a message that always fails
-      publishMessage(exchange.name, "test.message", { id: "backoff-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "backoff-1" });
 
       // THEN each retry should have exponentially increasing TTL: 100, 300, 900
       // — and land in its own per-delay-tier wait queue.
@@ -261,7 +261,7 @@ describe("Worker Retry Mechanism", () => {
       await amqpChannel.bindQueue("maxretry-dlq", dlx.name, "maxretry-queue.dlq");
 
       // WHEN publishing a message that always fails
-      publishMessage(exchange.name, "test.message", { id: "maxretry-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "maxretry-1" });
 
       // THEN should retry exactly maxRetries times (initial attempt + 2 retries = 3 total)
       await vi.waitFor(
@@ -333,7 +333,7 @@ describe("Worker Retry Mechanism", () => {
 
       // WHEN publishing a message that fails
       const startTime = Date.now();
-      publishMessage(exchange.name, "test.message", { id: "headers-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "headers-1" });
 
       // THEN message in wait queue should have retry tracking headers
       await vi.waitFor(
@@ -393,7 +393,7 @@ describe("Worker Retry Mechanism", () => {
       });
 
       // WHEN publishing a message that fails on first attempt
-      publishMessage(exchange.name, "test.message", { id: "nodlx-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "nodlx-1" });
 
       // THEN should process only once and not retry
       await vi.waitFor(
@@ -450,7 +450,7 @@ describe("Worker Retry Mechanism", () => {
       await amqpChannel.assertQueue("none-retry-dlq", { durable: false });
       await amqpChannel.bindQueue("none-retry-dlq", dlx.name, "none-retry-queue.dlq");
 
-      publishMessage(exchange.name, "test.message", { id: "none-1" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "none-1" });
 
       await vi.waitFor(
         () => {
@@ -528,7 +528,7 @@ describe("Worker Retry Mechanism", () => {
         });
 
         // WHEN publishing a message that fails on first attempt
-        publishMessage(exchange.name, "test.message", { id: "quorum-1" });
+        publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "quorum-1" });
 
         // THEN message should be requeued immediately and succeed on second attempt
         await vi.waitFor(
@@ -593,7 +593,10 @@ describe("Worker Retry Mechanism", () => {
         await amqpChannel.bindQueue("quorum-dlq-dlq", dlx.name, "quorum-dlq-queue.dlq");
 
         // WHEN publishing a message that always fails
-        publishMessage(exchange.name, "test.message", { id: "quorum-dlq-1" });
+        publishMessage(
+          { exchange: exchange.name, routingKey: "test.message" },
+          { id: "quorum-dlq-1" },
+        );
 
         // THEN message should be dead-lettered after exceeding maxRetries
         // Wait for the message to appear in DLQ
@@ -665,7 +668,10 @@ describe("Worker Retry Mechanism", () => {
         });
 
         // WHEN publishing a message that fails on first attempt
-        publishMessage(exchange.name, "test.message", { id: "classic-1" });
+        publishMessage(
+          { exchange: exchange.name, routingKey: "test.message" },
+          { id: "classic-1" },
+        );
 
         // THEN message should be requeued immediately and succeed on second attempt
         await vi.waitFor(
@@ -731,7 +737,10 @@ describe("Worker Retry Mechanism", () => {
         await amqpChannel.bindQueue("classic-dlq-dlq", dlx.name, "classic-dlq-queue.dlq");
 
         // WHEN publishing a message that always fails
-        publishMessage(exchange.name, "test.message", { id: "classic-dlq-1" });
+        publishMessage(
+          { exchange: exchange.name, routingKey: "test.message" },
+          { id: "classic-dlq-1" },
+        );
 
         // THEN message should be dead-lettered after exceeding maxRetries
         // Wait for the message to appear in DLQ
@@ -800,7 +809,10 @@ describe("Worker Retry Mechanism", () => {
         });
 
         // WHEN publishing a message to exclusive queue
-        publishMessage(exchange.name, "test.message", { id: "exclusive-1" });
+        publishMessage(
+          { exchange: exchange.name, routingKey: "test.message" },
+          { id: "exclusive-1" },
+        );
 
         // THEN should process with immediate-requeue retry
         await vi.waitFor(
@@ -885,7 +897,10 @@ describe("Worker Retry Mechanism", () => {
 
         // WHEN publishing a message that will be retried
         const startTime = Date.now();
-        publishMessage(exchange.name, "test.message", { id: "headers-1" });
+        publishMessage(
+          { exchange: exchange.name, routingKey: "test.message" },
+          { id: "headers-1" },
+        );
 
         // THEN should track retry headers
         await vi.waitFor(
@@ -960,7 +975,10 @@ describe("Worker Retry Mechanism", () => {
       });
 
       // WHEN publishing a message that fails on first attempt
-      publishMessage(exchange.name, "test.message", { id: "headers-retry-1" });
+      publishMessage(
+        { exchange: exchange.name, routingKey: "test.message" },
+        { id: "headers-retry-1" },
+      );
 
       // THEN wait for first processing attempt
       await vi.waitFor(
@@ -1064,7 +1082,10 @@ describe("Worker Retry Mechanism", () => {
       });
 
       // WHEN publishing a message with specific routing key that fails on first attempt
-      publishMessage(exchange.name, "orders.created", { id: "routing-key-1" });
+      publishMessage(
+        { exchange: exchange.name, routingKey: "orders.created" },
+        { id: "routing-key-1" },
+      );
 
       // THEN wait for both attempts to complete
       await vi.waitFor(
@@ -1125,7 +1146,10 @@ describe("Worker Retry Mechanism", () => {
       });
 
       // WHEN publishing a message that always fails
-      publishMessage(exchange.name, "test.message", { id: "max-retries-1" });
+      publishMessage(
+        { exchange: exchange.name, routingKey: "test.message" },
+        { id: "max-retries-1" },
+      );
 
       // THEN should attempt exactly maxRetries + 1 times (initial + retries)
       await vi.waitFor(
@@ -1197,7 +1221,7 @@ describe("Worker Retry Mechanism", () => {
       await amqpChannel.bindQueue("poison-dlq", dlx.name, "poison-queue.dlq");
 
       // WHEN publishing a payload that fails schema validation (id must be a string)
-      publishMessage(exchange.name, "test.message", { id: 12345 });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: 12345 });
 
       // THEN the message lands in the DLQ on the first delivery
       const dlqMsg = await vi.waitFor(
