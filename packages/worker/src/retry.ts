@@ -5,9 +5,9 @@ import {
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
-import { type AmqpClient, type Logger, TechnicalError } from "@amqp-contract/core";
+import type { AmqpClient, Logger } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { Ok, OkAsync, type AsyncResult } from "unthrown";
+import { OkAsync, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
@@ -131,7 +131,7 @@ function handleErrorImmediateRequeue(
 
   if (queue.type === "quorum") {
     // For quorum queues, nack with requeue=true to trigger native retry mechanism
-    ctx.amqpClient.nack(msg, false, true, { deliveryEpoch: ctx.deliveryEpoch });
+    ctx.amqpClient.nack(msg, { requeue: true, deliveryEpoch: ctx.deliveryEpoch });
     return OkAsync(undefined);
   } else {
     // For classic queues, re-publish the retry copy straight back to THIS
@@ -307,7 +307,7 @@ function publishForRetry(
   // broker re-enqueues), so we either get the retry through or get another
   // chance at the original.
   return ctx.amqpClient
-    .publish(exchange, routingKey, msg.content, {
+    .publish({ exchange, routingKey }, msg.content, {
       ...msg.properties,
       ...(delayMs !== undefined ? { expiration: delayMs.toString() } : {}), // Per-message TTL
       headers: {
@@ -320,33 +320,24 @@ function publishForRetry(
           msg.properties.headers?.["x-original-routing-key"] ?? msg.fields.routingKey,
       },
     })
-    .flatMap((published) => {
-      if (!published) {
-        // Publish was rejected (channel buffer full / channel error). Do NOT
-        // ack the original — leave it un-ack'd so the broker / channel manager
-        // can redeliver it once the channel recovers. The throw routes to the
-        // defect channel (a publish infrastructure failure is unexpected).
-        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-        throw new TechnicalError("Failed to publish message for retry (write buffer full)");
-      }
-
+    .map(() => {
       // Publish confirmed by the broker — safe to ack the original now. The
       // epoch stamp keeps this safe even when the confirm arrived on a NEW
       // channel (the publish buffer survives reconnects; delivery tags do not).
-      ctx.amqpClient.ack(msg, false, { deliveryEpoch: ctx.deliveryEpoch });
+      ctx.amqpClient.ack(msg, { deliveryEpoch: ctx.deliveryEpoch });
 
       ctx.logger?.info("Message published for retry", {
         queueName,
         retryCount: newRetryCount,
         ...(delayMs !== undefined ? { delayMs } : {}),
       });
-      return Ok(undefined);
     })
     .tapDefect((publishError) => {
-      // The retry publish failed (channel buffer full, network error, channel
-      // close). Same policy: do not ack the original; the redelivery path is
-      // the recovery mechanism. Observed here so the failure is logged before
-      // the defect flows on unchanged.
+      // The retry publish failed — core surfaces every publish-side
+      // infrastructure fault (full write buffer included) as a Defect. Same
+      // policy for all of them: do not ack the original; the redelivery path
+      // is the recovery mechanism. Observed here so the failure is logged
+      // before the defect flows on unchanged.
       ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
         queueName,
         retryCount: newRetryCount,
@@ -377,7 +368,7 @@ function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDef
   });
 
   // Nack without requeue - relies on DLX configuration
-  ctx.amqpClient.nack(msg, false, false, { deliveryEpoch: ctx.deliveryEpoch });
+  ctx.amqpClient.nack(msg, { requeue: false, deliveryEpoch: ctx.deliveryEpoch });
 }
 
 /**

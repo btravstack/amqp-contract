@@ -936,17 +936,17 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     replyTo: string,
     options: { correlationId: string; contentType: string; headers?: Record<string, unknown> },
   ): AsyncResult<void, HandlerError> {
-    // A publish *rejection* (network/channel fault) is unexpected and flows
-    // through as a `Defect`; a full write buffer (`published === false`) is a
-    // modeled, permanent reply failure routed to the DLQ as a NonRetryableError.
+    // Core surfaces every publish-side infrastructure fault (full write
+    // buffer included) as a Defect. For a reply publish that is the wrong
+    // channel: the documented semantics of this path are "reply failure →
+    // NonRetryableError → DLQ" (see publishRpcResponse), because retrying the
+    // original message re-runs the handler against a caller that has already
+    // timed out. Recover the defect into the modeled error at this ONE site
+    // so the RPC DLQ routing keeps working.
     return this.amqpClient
-      .publish("", replyTo, body, options)
-      .flatMap((published) =>
-        published
-          ? Ok(undefined)
-          : Err<HandlerError>(
-              new NonRetryableError("Failed to publish RPC reply: channel buffer full"),
-            ),
+      .publish({ exchange: "", routingKey: replyTo }, body, options)
+      .recoverDefect((cause) =>
+        Err<HandlerError>(new NonRetryableError("Failed to publish RPC reply", cause)),
       );
   }
 
@@ -963,7 +963,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     deliveryEpoch: number,
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
-      this.amqpClient.nack(msg, false, false, { deliveryEpoch });
+      this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
     });
   }
 
@@ -1120,7 +1120,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                 consumerName: String(name),
                 queueName,
               });
-              this.amqpClient.ack(msg, false, { deliveryEpoch: state.deliveryEpoch });
+              this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
               state.messageHandled = true;
             }),
           )
@@ -1143,7 +1143,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                         queueName,
                         errorCode: handlerError.code,
                       });
-                      this.amqpClient.ack(msg, false, { deliveryEpoch: state.deliveryEpoch });
+                      this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
                       state.messageHandled = true;
                     })
                     .flatMapErrCases((replyMatcher) =>
@@ -1289,7 +1289,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     deliveryEpoch?: number,
   ): void {
     try {
-      this.amqpClient.nack(msg, false, false, { deliveryEpoch });
+      this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
     } catch (error: unknown) {
       this.logger?.warn(
         "Failed to nack message (channel closing?); broker will redeliver instead",
