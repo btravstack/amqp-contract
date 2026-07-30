@@ -36,6 +36,21 @@ describe("safeJsonParse", () => {
     expect(err.cause).toBeInstanceOf(SyntaxError);
   });
 
+  it("routes a parse failure to the defect channel via the injected defect helper", () => {
+    // The full qualify signature: `(cause, defect) => E | defect(cause)`. A
+    // caller that considers a parse failure unmodeled routes it straight to
+    // the defect channel — no model-then-immediately-defect round-trip.
+    const result = safeJsonParse(Buffer.from("{not json}"), (raw, defect) =>
+      defect(new TechnicalError("Failed to parse JSON", raw)),
+    );
+
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
+      expect((result.cause as TechnicalError).cause).toBeInstanceOf(SyntaxError);
+    }
+  });
+
   it("preserves the caller-supplied error type (not just TechnicalError)", () => {
     class CustomError extends Error {
       constructor(public readonly raw: unknown) {
