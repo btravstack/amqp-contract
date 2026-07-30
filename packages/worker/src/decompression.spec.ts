@@ -1,5 +1,5 @@
 import { promisify } from "node:util";
-import { deflate, gzip } from "node:zlib";
+import { deflate, gzip, gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
@@ -75,5 +75,32 @@ describe("Decompression utilities", () => {
 
       expect(decompressed).toEqual(largeData);
     });
+  });
+});
+
+describe("decompression output cap (zip-bomb guard)", () => {
+  it("INVARIANT: a payload expanding past the cap becomes a Defect instead of exhausting memory", async () => {
+    // A few-KB gzip payload can expand to GBs before schema validation ever
+    // runs. The cap turns that into the existing defect→DLQ path.
+    const bomb = gzipSync(Buffer.alloc(1024 * 1024)); // 1 MiB of zeros, ~1 KiB compressed
+
+    const result = await decompressBuffer(bomb, "gzip", { maxDecompressedBytes: 64 * 1024 });
+
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(String((result.cause as Error).message)).toMatch(/decompress/i);
+    }
+  });
+
+  it("a payload within the cap decompresses normally", async () => {
+    const payload = Buffer.from(JSON.stringify({ ok: true }));
+    const result = await decompressBuffer(gzipSync(payload), "gzip", {
+      maxDecompressedBytes: 64 * 1024,
+    });
+
+    expect(result).toBeOk();
+    if (result.isOk()) {
+      expect(result.value.equals(payload)).toBe(true);
+    }
   });
 });

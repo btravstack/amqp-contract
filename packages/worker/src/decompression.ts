@@ -8,6 +8,15 @@ const gunzipAsync = promisify(gunzip);
 const inflateAsync = promisify(inflate);
 
 /**
+ * Default cap on the decompressed size of a single message. A few-KB
+ * malicious or corrupt payload can otherwise expand to gigabytes before
+ * schema validation ever runs (a zip bomb), taking the worker down — and,
+ * after redelivery, the next worker. Over-limit payloads surface through the
+ * defect channel and follow the existing poison-message DLQ path.
+ */
+export const DEFAULT_MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024;
+
+/**
  * Supported content encodings for message decompression.
  */
 const SUPPORTED_ENCODINGS = ["gzip", "deflate"] as const;
@@ -38,10 +47,12 @@ function isSupportedEncoding(encoding: string): encoding is SupportedEncoding {
 export function decompressBuffer(
   buffer: Buffer,
   contentEncoding: string | undefined,
+  options?: { maxDecompressedBytes?: number | undefined },
 ): AsyncResult<Buffer, never> {
   if (!contentEncoding) {
     return OkAsync(buffer);
   }
+  const maxOutputLength = options?.maxDecompressedBytes ?? DEFAULT_MAX_DECOMPRESSED_BYTES;
 
   const normalizedEncoding = contentEncoding.toLowerCase();
 
@@ -58,11 +69,11 @@ export function decompressBuffer(
 
   switch (normalizedEncoding) {
     case "gzip":
-      return fromPromise(gunzipAsync(buffer), (error, defect) =>
+      return fromPromise(gunzipAsync(buffer, { maxOutputLength }), (error, defect) =>
         defect(new TechnicalError("Failed to decompress gzip", error)),
       );
     case "deflate":
-      return fromPromise(inflateAsync(buffer), (error, defect) =>
+      return fromPromise(inflateAsync(buffer, { maxOutputLength }), (error, defect) =>
         defect(new TechnicalError("Failed to decompress deflate", error)),
       );
   }

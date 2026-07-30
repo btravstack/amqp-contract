@@ -38,6 +38,9 @@ export type ConnectionLease = {
 export class ConnectionManagerSingleton {
   private static instance: ConnectionManagerSingleton;
   private connections: Map<string, AmqpConnectionManager> = new Map();
+  /** Stable identity tokens for function-valued options (see {@link deepSort}). */
+  private readonly functionIdentities = new WeakMap<object, number>();
+  private nextFunctionIdentity = 1;
   private refCounts: Map<string, number> = new Map();
 
   private constructor() {}
@@ -161,6 +164,21 @@ export class ConnectionManagerSingleton {
   private deepSort(value: unknown): unknown {
     if (Array.isArray(value)) {
       return value.map((item) => this.deepSort(item));
+    }
+
+    // JSON.stringify silently drops function values, so two option bags
+    // differing only in a callback (`findServers`, a `credentials` object
+    // whose behavior lives in its `response()` method) would collapse onto
+    // one pooled connection. Substitute a stable per-reference identity
+    // token instead: options carrying a function are shared only when it is
+    // literally the same function.
+    if (typeof value === "function") {
+      let id = this.functionIdentities.get(value);
+      if (id === undefined) {
+        id = this.nextFunctionIdentity++;
+        this.functionIdentities.set(value, id);
+      }
+      return `[function#${id}]`;
     }
 
     if (value !== null && typeof value === "object") {

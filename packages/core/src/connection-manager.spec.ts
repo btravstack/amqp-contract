@@ -94,3 +94,33 @@ describe("ConnectionManagerSingleton pooling invariants", () => {
     await fresh.release();
   });
 });
+
+describe("connection key: function-valued options", () => {
+  beforeEach(async () => {
+    await ConnectionManagerSingleton.getInstance()._resetForTesting();
+  });
+
+  it("INVARIANT: two acquires differing only in a function option get separate connections", () => {
+    // JSON.stringify drops function values, so before the fix two clients
+    // with different `findServers` callbacks (or different amqplib
+    // `credentials` objects, whose behavior lives in a `response()` method)
+    // collapsed onto one pooled connection — pinning the second caller to
+    // the first caller's behavior.
+    const pool = ConnectionManagerSingleton.getInstance();
+    const a = pool.acquire(["amqp://localhost"], { findServers: () => "amqp://a" });
+    const b = pool.acquire(["amqp://localhost"], { findServers: () => "amqp://b" });
+
+    expect(a.connection).not.toBe(b.connection);
+    expect(pool._getConnectionCountForTesting()).toBe(2);
+  });
+
+  it("the same function reference still shares the pooled connection", () => {
+    const pool = ConnectionManagerSingleton.getInstance();
+    const findServers = () => "amqp://a";
+    const a = pool.acquire(["amqp://localhost"], { findServers });
+    const b = pool.acquire(["amqp://localhost"], { findServers });
+
+    expect(a.connection).toBe(b.connection);
+    expect(pool._getConnectionCountForTesting()).toBe(1);
+  });
+});
