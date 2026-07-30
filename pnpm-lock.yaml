@@ -57,6 +57,9 @@ catalogs:
     '@unthrown/oxlint':
       specifier: 5.0.0
       version: 5.0.0
+    '@unthrown/standard-schema':
+      specifier: 5.0.0
+      version: 5.0.0
     '@unthrown/vitest':
       specifier: 5.0.0
       version: 5.0.0
@@ -427,6 +430,9 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+      '@unthrown/standard-schema':
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -632,6 +638,9 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
+      '@unthrown/standard-schema':
+        specifier: 'catalog:'
+        version: 5.0.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -2684,6 +2693,10 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       oxlint: ^1.69.0
+
+  '@unthrown/standard-schema@5.0.0':
+    resolution: {integrity: sha512-aPatyWWqvsWm6Eszw/AUKs/2VrCXrUsSF/EmrHryQKZf0iLewgYOvKgk6PTUIBppMXXMCxFig/eCY0P60qSv0g==}
+    engines: {node: '>=20'}
 
   '@unthrown/vitest@5.0.0':
     resolution: {integrity: sha512-YbyqZE+JnPVMkDGRY+cFUY27TEbp7O+mLMF5Clf6zxneTEoU6du0G/xnjQNd/R/Gib8jyfuuLL3tDzwF6YhJiA==}
@@ -7429,6 +7442,11 @@ snapshots:
     dependencies:
       '@oxlint/plugins': 1.75.0
       oxlint: 1.74.0
+
+  '@unthrown/standard-schema@5.0.0':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      unthrown: 5.0.0
 
   '@unthrown/vitest@5.0.0(unthrown@5.0.0)(vitest@4.1.10)':
     dependencies:

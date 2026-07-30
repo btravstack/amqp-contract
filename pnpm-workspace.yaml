@@ -29,6 +29,7 @@ catalog:
   "@standard-schema/spec": 1.1.0
   "@types/node": 26.1.1
   "@unthrown/oxlint": 5.0.0
+  "@unthrown/standard-schema": 5.0.0
   "@unthrown/vitest": 5.0.0
   "@vitest/coverage-v8": 4.1.10
   amqp-connection-manager: 5.0.0
@@ -126,6 +127,7 @@ minimumReleaseAgeExclude:
   - "@btravstack/typedoc"
   - unthrown
   - "@unthrown/oxlint"
+  - "@unthrown/standard-schema"
   - "@unthrown/vitest"
   # Temporary: fast-uri 3.1.4 (the GHSA-v2hh-gcrm-f6hx override above) is younger
   # than the 7-day cutoff. Remove once 3.1.4 is 7 days old (published 2026-07-19).

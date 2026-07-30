@@ -24,6 +24,7 @@ import {
   technicalDefect,
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import {
@@ -891,35 +892,27 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     description: string,
     source: string,
   ): AsyncResult<unknown, HandlerError> {
-    // Wrap the call to `validate` itself in try/catch — a Standard Schema
-    // implementation may throw synchronously (not via a rejected Promise), and
-    // we don't want that to crash the consume callback.
-    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-    try {
-      rawValidation = schema["~standard"].validate(value);
-    } catch (error: unknown) {
-      return ErrAsync<HandlerError>(
-        new NonRetryableError(`${description} schema validation threw`, error),
+    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
+    // the modeled error, and a validator that throws synchronously or rejects
+    // becomes a Defect — it can never crash the consume callback. Both are
+    // recovered into NonRetryableError here because the reply-side policy is
+    // the same either way: the handler (or its schema) produced something
+    // unusable, and retrying the same input will not fix it — DLQ.
+    return fromSchemaAsync(schema)(value)
+      .mapErrCases((matcher) =>
+        matcher.with(
+          // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+          P._,
+          (issues): HandlerError =>
+            new NonRetryableError(
+              `${description} failed schema validation`,
+              new MessageValidationError(source, issues),
+            ),
+        ),
+      )
+      .recoverDefect((cause) =>
+        Err<HandlerError>(new NonRetryableError(`${description} schema validation threw`, cause)),
       );
-    }
-    const validationPromise =
-      rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-
-    return fromPromise(
-      validationPromise,
-      (error: unknown) =>
-        new NonRetryableError(`${description} schema validation threw`, error) as HandlerError,
-    ).flatMap((validation) => {
-      if (validation.issues) {
-        return Err<HandlerError>(
-          new NonRetryableError(
-            `${description} failed schema validation`,
-            new MessageValidationError(source, validation.issues),
-          ),
-        );
-      }
-      return Ok(validation.value);
-    });
   }
 
   /**
