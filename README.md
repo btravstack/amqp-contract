@@ -82,17 +82,18 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 // 6. Type-safe publishing with validation
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).getOrThrow();
+}).get();
 
 // publish() returns an AsyncResult instead of throwing — awaiting it yields a
-// Result. unthrown 4 gates get() to infallible results, so clear the error
-// channel with recover() first (or use .match()). See the error model guide.
+// Result. create()/close() have an empty error channel (E = never), so .get()
+// is correct there; publish() still has a modeled error, so extract it with
+// .getOrThrow() (or handle it with .match()). See the error model guide.
 await client
   .publish("orderCreated", {
     orderId: "ORD-123", // ✅ TypeScript knows!
@@ -101,8 +102,8 @@ await client
   .getOrThrow();
 
 // 7. Clean up
-await client.close().getOrThrow();
-await worker.close().getOrThrow();
+await client.close().get();
+await worker.close().get();
 ```
 
 ▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).
@@ -138,7 +139,7 @@ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
 | [@amqp-contract/contract](./packages/contract) | Contract builder and type definitions |
 | [@amqp-contract/client](./packages/client)     | Type-safe client for publishing       |
 | [@amqp-contract/worker](./packages/worker)     | Type-safe worker with retry support   |
-| [@amqp-contract/asyncapi](./packages/asyncapi) | AsyncAPI 3.0 generator                |
+| [@amqp-contract/asyncapi](./packages/asyncapi) | AsyncAPI 3.1 generator                |
 
 ## Contributing
 

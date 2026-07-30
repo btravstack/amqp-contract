@@ -93,14 +93,14 @@ Only one place implements the command. The worker runs as part of the `payment-s
 // payment-service/src/worker.ts
 import {
   TypedAmqpWorker,
-  defineHandler,
+  declareHandler,
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
 import { fromPromise, type AsyncResult, type Result } from "unthrown";
 import { contract } from "@org/payment-contract";
 
-const chargeHandler = defineHandler(contract, "chargeCustomer", ({ payload }) =>
+const chargeHandler = declareHandler(contract, "chargeCustomer", ({ payload }) =>
   fromPromise(
     chargeProvider({
       customerId: payload.customerId,

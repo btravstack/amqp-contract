@@ -19,14 +19,14 @@ A middleware proves something once and passes the result downstream. Handlers re
 ```typescript
 import {
   composeMiddleware,
-  defineMiddleware,
+  declareMiddleware,
   nonRetryable,
   TypedAmqpWorker,
   type EmptyContext,
 } from "@amqp-contract/worker";
 import { ErrAsync } from "unthrown";
 
-const auth = defineMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
+const auth = declareMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
   if (typeof tenantId !== "string") {
     // Short-circuit: routes like any handler error. The handler never runs.
@@ -46,12 +46,12 @@ const worker = await TypedAmqpWorker.create({
 }).get();
 ```
 
-The two type parameters on `defineMiddleware` are the context going in and the context coming out. Without any middleware or `createContext`, handlers get `EmptyContext`.
+The two type parameters on `declareMiddleware` are the context going in and the context coming out. Without any middleware or `createContext`, handlers get `EmptyContext`.
 
 ## Chain several middleware
 
 ```typescript
-const timing = defineMiddleware<{ tenantId: string }, { tenantId: string }>((args, next) => {
+const timing = declareMiddleware<{ tenantId: string }, { tenantId: string }>((args, next) => {
   const start = Date.now();
   return next().tap(() => {
     console.log(`${args.handlerName} (${args.context.tenantId}): ${Date.now() - start}ms`);
@@ -62,6 +62,8 @@ middleware: composeMiddleware(auth, timing),
 ```
 
 `composeMiddleware(outermost, …, innermost)` runs left to right. Context types accumulate along the chain, so `timing` sees the `tenantId` that `auth` added, and handlers see the final accumulated type.
+
+The `middleware` option also accepts an array directly — `middleware: [auth, timing]` — with the first entry outermost, mirroring the client's interceptor arrays. At runtime it composes exactly like `composeMiddleware(...)`, but the array form does not thread the stepwise context types across entries: when middleware accumulate typed context for the handlers, pre-compose with `composeMiddleware` so the chain's final context type is inferred into `helpers.context`.
 
 Because `next()` returns the handler's `AsyncResult`, a middleware can post-process it with `.tap`, `.mapErr` or `.flatMapErr`.
 
@@ -97,7 +99,7 @@ For a dependency-injection graph, [demesne](https://btravstack.github.io/demesne
 `next({ payload })` replaces the payload for everything downstream.
 
 ```typescript
-const normalize = defineMiddleware<EmptyContext, EmptyContext>((args, next) =>
+const normalize = declareMiddleware<EmptyContext, EmptyContext>((args, next) =>
   next({ payload: { ...args.message.payload, email: args.message.payload.email.toLowerCase() } }),
 );
 ```

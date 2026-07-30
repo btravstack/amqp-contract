@@ -36,7 +36,7 @@ export const contract = defineContract({
 });
 ```
 
-`defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you never list them yourself.
+`defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached.
 
 ## Broadcast an event to many consumers
 
@@ -129,6 +129,32 @@ const tempQueue = defineQueue("temp-queue", {
 ```
 
 `durable: false`, `autoDelete`, `exclusive` and priority queues all require `type: "classic"`. TypeScript rejects them on a quorum queue.
+
+## Declare standalone topology
+
+Sometimes a service must assert topology it neither publishes to nor consumes from. The classic cases: a dead-letter queue bound to the auto-extracted DLX so failed messages land somewhere durable, or an audit queue that another process drains. Pass them at the top level of `defineContract`:
+
+```typescript
+import { defineQueueBinding } from "@amqp-contract/contract";
+
+const ordersDlxExchange = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlxExchange },
+});
+const orderDlq = defineQueue("order-processing-dlq");
+
+export const contract = defineContract({
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
+  queues: { orderDlq },
+  bindings: {
+    dlqBinding: defineQueueBinding(orderDlq, ordersDlxExchange, { routingKey: "#" }),
+  },
+});
+```
+
+Standalone `exchanges`, `queues` and `bindings` are asserted by client and worker setup exactly like extracted ones. In the contract output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. Dead-letter exchanges and TTL-backoff retry infrastructure are auto-extracted for standalone queues too, just as for consumer queues.
+
+For topology that cannot live in a contract at all, `setupAmqpTopology(channel, contract)` from `@amqp-contract/core` is the low-level escape hatch: it asserts a contract's resources on a raw channel, and you can run your own assertions alongside it.
 
 ## Add validated headers to a message
 

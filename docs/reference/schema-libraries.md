@@ -64,7 +64,7 @@ const generator = new AsyncAPIGenerator({
 });
 ```
 
-Zod's converter is the best supported. Without a converter matching your library, payload schemas degrade to a generic `{ type: "object" }` placeholder — the document generates, but its message shapes carry no information. Set `failOnMissingConverter: true` in CI to make that an error rather than a silent downgrade. See [generate AsyncAPI](/how-to/generate-asyncapi).
+Zod's converter is the best supported. Without a converter matching your library, generation fails — `failOnMissingConverter` defaults to `true`. Set it to `false` to generate anyway, degrading payload schemas to a generic `{ type: "object" }` placeholder whose message shapes carry no information. See [generate AsyncAPI](/how-to/generate-asyncapi).
 
 This is the strongest practical argument for Zod: if you want a useful AsyncAPI document, its conversion path is the most complete.
 

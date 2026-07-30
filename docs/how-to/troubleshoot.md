@@ -41,7 +41,7 @@ const client = await TypedAmqpClient.create({ contract, urls })
   .get();
 ```
 
-To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: null`.
+To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: null`. That is the only way to disable it — an invalid value (`NaN`, zero, negative, `Infinity`) is itself a defect from `create()` rather than silently turning the timeout off.
 
 ### Connections drop repeatedly
 
@@ -66,9 +66,9 @@ notifyOrder: ({ payload }) => {
 },
 ```
 
-### `This expression is not callable` on a `defineHandler` result
+### `This expression is not callable` on a `declareHandler` result
 
-`defineHandler` returns a handler _entry_ — either the function or a `[function, options]` tuple — so it cannot be invoked directly. For a callable standalone handler, type it with `WorkerInferConsumerHandler` instead. See [consume messages](/how-to/consume-messages#move-handlers-into-their-own-modules).
+`declareHandler` returns a handler _entry_ — either the function or a `[function, options]` tuple — so it cannot be invoked directly. For a callable standalone handler, type it with `WorkerInferConsumerHandler` instead. See [consume messages](/how-to/consume-messages#move-handlers-into-their-own-modules).
 
 ### `'this' context of type … is not assignable`
 

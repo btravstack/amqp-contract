@@ -1,11 +1,11 @@
 ---
 title: Generate AsyncAPI - amqp-contract
-description: Produce an AsyncAPI 3.0 document from a contract, export it as JSON or YAML, and check it into CI.
+description: Produce an AsyncAPI 3.1 document from a contract, export it as JSON or YAML, and check it into CI.
 ---
 
 # Generate AsyncAPI
 
-`@amqp-contract/asyncapi` turns a contract into an [AsyncAPI 3.0](https://www.asyncapi.com/) document — the messaging counterpart to OpenAPI. Because it is generated from the contract your code already uses, it cannot drift from what the services actually do.
+`@amqp-contract/asyncapi` turns a contract into an [AsyncAPI 3.1](https://www.asyncapi.com/) document — the messaging counterpart to OpenAPI. Because it is generated from the contract your code already uses, it cannot drift from what the services actually do.
 
 ## Generate a document
 
@@ -44,7 +44,7 @@ export const spec = await generator.generate(contract, {
 });
 ```
 
-The converter is what turns your schemas into JSON Schema. Without one, payloads degrade to a generic `{ type: "object" }` placeholder — the document still generates, but its message shapes are useless.
+The converter is what turns your schemas into JSON Schema. Without a converter for a schema, generation fails — see [allow unconvertible schemas](#allow-unconvertible-schemas) to degrade to a placeholder instead.
 
 ## Write it to a file
 
@@ -76,16 +76,18 @@ writeFileSync("asyncapi.yaml", YAML.stringify(spec));
 }
 ```
 
-## Fail the build on an unconvertible schema
+## Allow unconvertible schemas
 
-By default an unconvertible schema silently becomes a placeholder. In CI — especially if anyone generates code from the document — you want that to be an error:
+An unconvertible schema fails generation by default (`failOnMissingConverter` defaults to `true`), so a missing converter is an error rather than a silent placeholder. To generate anyway — degrading unconvertible payloads to a generic `{ type: "object" }` — opt out:
 
 ```typescript
 const generator = new AsyncAPIGenerator({
   schemaConverters: [new ZodToJsonSchemaConverter()],
-  failOnMissingConverter: true,
+  failOnMissingConverter: false,
 });
 ```
+
+Keep the default in CI, especially if anyone generates code from the document.
 
 ## Improve the generated document
 

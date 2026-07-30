@@ -105,6 +105,9 @@ result.match({
       )
       .with(P.tag("@amqp-contract/RpcCancelledError"), () =>
         console.error("The client closed while the call was in flight."),
+      )
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("The reply arrived but failed the response schema.", error.issues),
       ),
   defect: (cause) => {
     throw cause;
@@ -118,7 +121,7 @@ await client.close().get();
 
 `reply` is typed as the response schema: `reply.deliverable` is a `boolean`, and `reply.reasons` would not compile.
 
-Two failures are possible on any call and the compiler lists them: the reply never arrived (`RpcTimeoutError`), or the client shut down while waiting (`RpcCancelledError`). Neither is an exception you have to remember to catch.
+Three failures are possible on any call and the compiler lists them: the reply never arrived (`RpcTimeoutError`), the client shut down while waiting (`RpcCancelledError`), or the reply arrived but failed the response schema (`MessageValidationError`). None is an exception you have to remember to catch.
 
 ## Step 4: Run it
 
@@ -170,7 +173,7 @@ const checkAddress = defineRpc(addressCheckQueue, {
     }),
   ),
   errors: {
-    MALFORMED_ADDRESS: defineMessage(z.object({ address: z.string() })),
+    MALFORMED_ADDRESS: { data: z.object({ address: z.string() }) },
   },
 });
 ```
@@ -215,6 +218,9 @@ Finally, handle it in `publisher.ts` by adding an arm to the matcher:
       )
       .with(P.tag("@amqp-contract/RpcCancelledError"), () =>
         console.error("The client closed while the call was in flight."),
+      )
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("The reply arrived but failed the response schema.", error.issues),
       ),
 ```
 
@@ -230,7 +236,7 @@ The code, the message, and the structured data crossed the broker and arrived ty
 
 - An **RPC** declares a request schema, a response schema, and optionally a map of **declared errors**, and owns the queue it listens on.
 - The handler returns the reply as a value. `OkAsync(reply)` for success, `ErrAsync(rpcError(code, data, message))` for a declared failure.
-- The caller gets a result whose error channel lists everything that can go wrong: declared errors plus `RpcTimeoutError` and `RpcCancelledError`. The compiler enumerates them so you cannot forget one.
+- The caller gets a result whose error channel lists everything that can go wrong: declared errors plus `RpcTimeoutError`, `RpcCancelledError`, and `MessageValidationError`. The compiler enumerates them so you cannot forget one.
 - Declared errors beat encoding failure into the response schema, because the caller branches on a code instead of on a convention.
 
 ## Where next

@@ -73,7 +73,7 @@ const getOrder = defineRpc(defineQueue("rpc.get-order"), {
   request: defineMessage(z.object({ orderId: z.string() })),
   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
   errors: {
-    ORDER_NOT_FOUND: defineMessage(z.object({ orderId: z.string() })),
+    ORDER_NOT_FOUND: { data: z.object({ orderId: z.string() }) },
   },
 });
 ```

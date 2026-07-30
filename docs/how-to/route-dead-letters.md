@@ -62,6 +62,24 @@ The broker's `x-death` header records why the message arrived and how many times
 Give the dead-letter queue a `retry: { mode: "none" }` policy, or none at all, and be careful what its handler can fail on. A dead-letter consumer that dead-letters its own messages needs somewhere for _those_ to go.
 :::
 
+## Declare a dead-letter queue nobody consumes here
+
+If no consumer in this service drains the DLQ — an operator replays from it, or another process owns it — declare it as standalone topology instead of inventing a consumer:
+
+```typescript
+export const contract = defineContract({
+  consumers: {
+    processOrder: defineEventConsumer(orderCreated, orderProcessingQueue),
+  },
+  queues: { ordersDlxQueue },
+  bindings: {
+    dlqBinding: defineQueueBinding(ordersDlxQueue, ordersDlx, { routingKey: "#" }),
+  },
+});
+```
+
+The queue and binding are asserted at setup like any other, so dead-lettered messages land somewhere durable even before anything consumes them. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
+
 ## Know what triggers dead-lettering
 
 RabbitMQ routes a message to the DLX when:
