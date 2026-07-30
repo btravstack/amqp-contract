@@ -1003,7 +1003,11 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         context?: Record<string, unknown>;
         payload?: unknown;
       }): AsyncResult<unknown, HandlerError | RpcError> => {
-        const helpers = { context: opts?.context ?? seedContext, errors };
+        // Merge over the seed rather than replace it: `composeMiddleware`
+        // already merges internally, so this keeps the bare `middleware: mw`
+        // form and the array form observably identical (and is a no-op for
+        // the composed chain, whose context already contains the seed).
+        const helpers = { context: { ...seedContext, ...opts?.context }, errors };
         if (opts?.payload === undefined) {
           return handler(validatedMessage, msg, helpers);
         }
