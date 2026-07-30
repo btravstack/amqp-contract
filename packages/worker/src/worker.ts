@@ -260,6 +260,15 @@ export type CreateWorkerOptions<
    * disable the timeout and let amqp-connection-manager retry indefinitely.
    */
   connectTimeoutMs?: number | null | undefined;
+  /**
+   * Maximum time in ms a worker-side publish (retry republish, RPC reply) may
+   * sit buffered waiting for the broker before its promise settles with a
+   * timeout failure (surfaced as a `Defect`). Maps to
+   * amqp-connection-manager's channel-level `publishTimeout`. Without it,
+   * publishes issued during a broker outage buffer unboundedly in the channel
+   * wrapper and their promises never settle.
+   */
+  publishTimeoutMs?: number | undefined;
 };
 
 /**
@@ -440,6 +449,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     logger,
     telemetry,
     connectTimeoutMs,
+    publishTimeoutMs,
   }: CreateWorkerOptions<TContract, TCreated, TContext>): AsyncResult<
     TypedAmqpWorker<TContract>,
     never
@@ -488,6 +498,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           connectionOptions,
           connectTimeoutMs,
           logger,
+          ...(publishTimeoutMs !== undefined
+            ? { channelOptions: { publishTimeout: publishTimeoutMs } }
+            : {}),
         }),
         // Context types are erased at the dispatch boundary: handlers receive
         // whatever the (type-checked) middleware chain produced at runtime.
