@@ -1,5 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { brand } from "./brand.js";
+
 /**
  * Any schema that conforms to Standard Schema v1.
  *
@@ -921,11 +923,12 @@ export type ConsumerDefinition<TMessage extends MessageDefinition = MessageDefin
  * @see defineEventPublisher for creating event publishers
  */
 export type EventPublisherConfigBase = {
-  __brand: "EventPublisherConfig";
+  readonly [brand]: "EventPublisherConfig";
   exchange: ExchangeDefinition;
   message: MessageDefinition;
   routingKey: string | undefined;
-  arguments?: Record<string, unknown>;
+  /** Default binding arguments for this event's consumers (not publish arguments). */
+  bindingArguments?: Record<string, unknown>;
 };
 
 /**
@@ -937,7 +940,7 @@ export type EventPublisherConfigBase = {
  * @see defineCommandConsumer for creating command consumers
  */
 export type CommandConsumerConfigBase = {
-  __brand: "CommandConsumerConfig";
+  readonly [brand]: "CommandConsumerConfig";
   consumer: ConsumerDefinition;
   binding: QueueBindingDefinition;
   exchange: ExchangeDefinition;
@@ -955,7 +958,7 @@ export type CommandConsumerConfigBase = {
  * @see defineEventConsumer for creating event consumers
  */
 export type EventConsumerResultBase = {
-  __brand: "EventConsumerResult";
+  readonly [brand]: "EventConsumerResult";
   consumer: ConsumerDefinition;
   binding: QueueBindingDefinition;
   exchange: ExchangeDefinition;
@@ -973,7 +976,7 @@ export type EventConsumerResultBase = {
  * @see defineCommandPublisher with bridgeExchange option
  */
 export type BridgedPublisherConfigBase = {
-  __brand: "BridgedPublisherConfig";
+  readonly [brand]: "BridgedPublisherConfig";
   publisher: PublisherDefinition;
   exchangeBinding: ExchangeBindingDefinition;
   bridgeExchange: ExchangeDefinition;

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { defineQueueBinding } from "./binding.js";
+import { defineCommandConsumer } from "./command.js";
+import { defineEventPublisher } from "./event.js";
 import { defineExchange } from "./exchange.js";
 import { defineMessage } from "./message.js";
+import { definePublisher } from "./publisher.js";
 import { defineQueue } from "./queue.js";
 import { defineRpc } from "./rpc.js";
 
@@ -69,6 +73,60 @@ describe("define-time structural validation", () => {
     it("rejects unknown option keys", () => {
       expect(() => defineMessage(z.object({}), { sumary: "typo" } as never)).toThrow(
         'Unknown option "sumary" on message "(anonymous)"',
+      );
+    });
+  });
+
+  describe("routing keys on direct/topic targets", () => {
+    const message = defineMessage(z.object({ id: z.string() }));
+    const topicExchange = defineExchange("orders");
+    const directExchange = defineExchange("tasks", { type: "direct" });
+    const fanoutExchange = defineExchange("logs", { type: "fanout" });
+    const queue = defineQueue("orders-queue");
+
+    it("definePublisher rejects a missing routingKey on a topic exchange", () => {
+      expect(() => definePublisher(topicExchange, message, {} as never)).toThrow(
+        'Publisher on topic exchange "orders" requires a non-empty routingKey (got undefined). ' +
+          "Direct and topic exchanges route on the routing key — without one, messages are " +
+          "silently unroutable. Fanout and headers exchanges do not use routing keys.",
+      );
+    });
+
+    it("definePublisher rejects an empty routingKey on a direct exchange", () => {
+      expect(() => definePublisher(directExchange, message, { routingKey: "" as never })).toThrow(
+        'Publisher on direct exchange "tasks" requires a non-empty routingKey (got "")',
+      );
+    });
+
+    it("definePublisher accepts a fanout exchange without a routingKey", () => {
+      expect(() => definePublisher(fanoutExchange, message)).not.toThrow();
+    });
+
+    it("defineQueueBinding rejects a missing routingKey on a topic exchange", () => {
+      expect(() => defineQueueBinding(queue, topicExchange, {} as never)).toThrow(
+        'Queue binding on topic exchange "orders" requires a non-empty routingKey (got undefined)',
+      );
+    });
+
+    it("defineQueueBinding rejects an empty routingKey on a direct exchange", () => {
+      expect(() => defineQueueBinding(queue, directExchange, { routingKey: "" as never })).toThrow(
+        'Queue binding on direct exchange "tasks" requires a non-empty routingKey (got "")',
+      );
+    });
+
+    it("defineQueueBinding accepts a fanout exchange without a routingKey", () => {
+      expect(() => defineQueueBinding(queue, fanoutExchange)).not.toThrow();
+    });
+
+    it("defineEventPublisher rejects a missing routingKey on a topic exchange", () => {
+      expect(() => defineEventPublisher(topicExchange, message, {} as never)).toThrow(
+        'Event publisher on topic exchange "orders" requires a non-empty routingKey (got undefined)',
+      );
+    });
+
+    it("defineCommandConsumer rejects a missing routingKey on a direct exchange (via its binding)", () => {
+      expect(() => defineCommandConsumer(queue, directExchange, message, {} as never)).toThrow(
+        'Queue binding on direct exchange "tasks" requires a non-empty routingKey (got undefined)',
       );
     });
   });

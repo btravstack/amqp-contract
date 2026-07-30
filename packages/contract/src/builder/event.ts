@@ -1,3 +1,4 @@
+import { brand, brandOf } from "../brand.js";
 import type {
   ConsumerDefinition,
   DirectExchangeDefinition,
@@ -12,7 +13,8 @@ import type {
 } from "../types.js";
 import { defineExchangeBinding, defineQueueBindingInternal } from "./binding.js";
 import { defineConsumer } from "./consumer.js";
-import type { BindingPattern, RoutingKey } from "./routing-types.js";
+import type { MatchingBindingPattern, RoutingKey } from "./routing-types.js";
+import { _internal_assertRoutingKeyPresent } from "./validate.js";
 
 /**
  * Configuration for an event publisher.
@@ -31,15 +33,21 @@ export type EventPublisherConfig<
   TRoutingKey extends string | undefined = undefined,
 > = {
   /** Discriminator to identify this as an event publisher config */
-  __brand: "EventPublisherConfig";
+  readonly [brand]: "EventPublisherConfig";
   /** The exchange to publish to */
   exchange: TExchange;
   /** The message definition */
   message: TMessage;
   /** The routing key for direct/topic exchanges */
   routingKey: TRoutingKey;
-  /** Additional AMQP arguments */
-  arguments?: Record<string, unknown>;
+  /**
+   * Default AMQP binding arguments for consumers of this event.
+   *
+   * These are NOT publish arguments — they are applied to the queue binding
+   * of every `defineEventConsumer` of this event that does not pass its own
+   * `arguments` option.
+   */
+  bindingArguments?: Record<string, unknown>;
 };
 
 /**
@@ -61,7 +69,7 @@ export type EventConsumerResult<
   TBridgeExchange extends ExchangeDefinition | undefined = ExchangeDefinition | undefined,
 > = {
   /** Discriminator to identify this as an event consumer result */
-  __brand: "EventConsumerResult";
+  readonly [brand]: "EventConsumerResult";
   /** The consumer definition for processing messages */
   consumer: ConsumerDefinition<TMessage>;
   /** The binding connecting the queue to the exchange */
@@ -84,8 +92,10 @@ export type EventConsumerResult<
  *
  * @param exchange - The fanout exchange to publish to
  * @param message - The message definition (schema and metadata)
- * @param options - Optional binding configuration
- * @param options.arguments - Additional AMQP arguments
+ * @param options - Optional configuration
+ * @param options.bindingArguments - Default AMQP binding arguments applied to
+ *   this event's consumers' queue bindings (a consumer's own `arguments`
+ *   option takes precedence)
  * @returns An event publisher configuration
  *
  * @example
@@ -113,7 +123,7 @@ export function defineEventPublisher<
   exchange: TExchange,
   message: TMessage,
   options?: {
-    arguments?: Record<string, unknown>;
+    bindingArguments?: Record<string, unknown>;
   },
 ): EventPublisherConfig<TMessage, TExchange, undefined>;
 
@@ -125,8 +135,10 @@ export function defineEventPublisher<
  *
  * @param exchange - The headers exchange to publish to
  * @param message - The message definition (schema and metadata)
- * @param options - Optional binding configuration
- * @param options.arguments - Additional AMQP arguments
+ * @param options - Optional configuration
+ * @param options.bindingArguments - Default AMQP binding arguments applied to
+ *   this event's consumers' queue bindings (a consumer's own `arguments`
+ *   option takes precedence)
  * @returns An event publisher configuration
  *
  * @example
@@ -154,7 +166,7 @@ export function defineEventPublisher<
   exchange: TExchange,
   message: TMessage,
   options?: {
-    arguments?: Record<string, unknown>;
+    bindingArguments?: Record<string, unknown>;
   },
 ): EventPublisherConfig<TMessage, TExchange, undefined>;
 
@@ -168,7 +180,9 @@ export function defineEventPublisher<
  * @param message - The message definition (schema and metadata)
  * @param options - Configuration with required routing key
  * @param options.routingKey - The routing key for message routing
- * @param options.arguments - Additional AMQP arguments
+ * @param options.bindingArguments - Default AMQP binding arguments applied to
+ *   this event's consumers' queue bindings (a consumer's own `arguments`
+ *   option takes precedence)
  * @returns An event publisher configuration
  *
  * @example
@@ -190,7 +204,7 @@ export function defineEventPublisher<
   message: TMessage,
   options: {
     routingKey: RoutingKey<TRoutingKey>;
-    arguments?: Record<string, unknown>;
+    bindingArguments?: Record<string, unknown>;
   },
 ): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
 
@@ -204,7 +218,9 @@ export function defineEventPublisher<
  * @param message - The message definition (schema and metadata)
  * @param options - Configuration with required routing key
  * @param options.routingKey - The concrete routing key (no wildcards)
- * @param options.arguments - Additional AMQP arguments
+ * @param options.bindingArguments - Default AMQP binding arguments applied to
+ *   this event's consumers' queue bindings (a consumer's own `arguments`
+ *   option takes precedence)
  * @returns An event publisher configuration
  *
  * @example
@@ -237,7 +253,7 @@ export function defineEventPublisher<
   message: TMessage,
   options: {
     routingKey: RoutingKey<TRoutingKey>;
-    arguments?: Record<string, unknown>;
+    bindingArguments?: Record<string, unknown>;
   },
 ): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
 
@@ -251,18 +267,27 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
   message: TMessage,
   options?: {
     routingKey?: string;
-    arguments?: Record<string, unknown>;
+    bindingArguments?: Record<string, unknown>;
   },
 ): EventPublisherConfig<TMessage, ExchangeDefinition, string | undefined> {
+  if (exchange.type === "direct" || exchange.type === "topic") {
+    _internal_assertRoutingKeyPresent(
+      "Event publisher",
+      exchange.name,
+      exchange.type,
+      options?.routingKey,
+    );
+  }
+
   const config: EventPublisherConfig<TMessage, ExchangeDefinition, string | undefined> = {
-    __brand: "EventPublisherConfig",
+    [brand]: "EventPublisherConfig",
     exchange,
     message,
     routingKey: options?.routingKey,
   };
 
-  if (options?.arguments !== undefined) {
-    config.arguments = options.arguments;
+  if (options?.bindingArguments !== undefined) {
+    config.bindingArguments = options.bindingArguments;
   }
 
   return config;
@@ -372,7 +397,9 @@ export function defineEventConsumer<
  * @param queue - The queue that will receive messages
  * @param options - Binding configuration with required bridgeExchange
  * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
- * @param options.routingKey - Override routing key with pattern (defaults to publisher's key)
+ * @param options.routingKey - Override routing key with a pattern that can
+ *   match the publisher's routing key (defaults to the publisher's key). A
+ *   pattern that can never match is a compile-time error.
  * @param options.arguments - Additional AMQP arguments
  * @returns An object with the consumer definition, queue binding, and exchange binding
  */
@@ -388,7 +415,7 @@ export function defineEventConsumer<
   queue: TQueueDefinition,
   options: {
     bridgeExchange: TBridgeExchange;
-    routingKey?: BindingPattern<TConsumerRoutingKey>;
+    routingKey?: MatchingBindingPattern<TConsumerRoutingKey, TRoutingKey>;
     arguments?: Record<string, unknown>;
   },
 ): EventConsumerResult<
@@ -484,7 +511,11 @@ export function defineEventConsumer<
  * @param eventPublisher - The event publisher configuration
  * @param queue - The queue that will receive messages
  * @param options - Optional binding configuration
- * @param options.routingKey - Override routing key with pattern (defaults to publisher's key)
+ * @param options.routingKey - Override routing key with a pattern that can
+ *   match the publisher's routing key (defaults to the publisher's key). A
+ *   pattern that can never match the publisher's concrete routing key — e.g.
+ *   `user.*` against `order.created` — is a compile-time error, because the
+ *   binding would silently receive nothing at runtime.
  * @param options.arguments - Additional AMQP arguments
  * @returns An object with the consumer definition and binding
  *
@@ -501,6 +532,10 @@ export function defineEventConsumer<
  * const { consumer: allConsumer } = defineEventConsumer(orderCreatedEvent, allQueue, {
  *   routingKey: 'order.*',
  * });
+ *
+ * // A pattern that can never match the publisher's key fails to compile:
+ * // defineEventConsumer(orderCreatedEvent, allQueue, { routingKey: 'user.*' });
+ * // Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'
  * ```
  */
 export function defineEventConsumer<
@@ -513,7 +548,7 @@ export function defineEventConsumer<
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
   queue: TQueueDefinition,
   options?: {
-    routingKey?: BindingPattern<TConsumerRoutingKey>;
+    routingKey?: MatchingBindingPattern<TConsumerRoutingKey, TRoutingKey>;
     arguments?: Record<string, unknown>;
   },
 ): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
@@ -541,7 +576,7 @@ export function defineEventConsumer<TMessage extends MessageDefinition>(
   if (bindingRoutingKey !== undefined) {
     bindingOptions.routingKey = bindingRoutingKey;
   }
-  const bindingArguments = options?.arguments ?? eventPublisher.arguments;
+  const bindingArguments = options?.arguments ?? eventPublisher.bindingArguments;
   if (bindingArguments !== undefined) {
     bindingOptions.arguments = bindingArguments;
   }
@@ -568,7 +603,7 @@ export function defineEventConsumer<TMessage extends MessageDefinition>(
           );
 
     return {
-      __brand: "EventConsumerResult",
+      [brand]: "EventConsumerResult",
       consumer,
       binding,
       exchange: sourceExchange,
@@ -582,7 +617,7 @@ export function defineEventConsumer<TMessage extends MessageDefinition>(
   const consumer = defineConsumer(queue, message);
 
   return {
-    __brand: "EventConsumerResult",
+    [brand]: "EventConsumerResult",
     consumer,
     binding,
     exchange: sourceExchange,
@@ -601,12 +636,7 @@ export function defineEventConsumer<TMessage extends MessageDefinition>(
 export function isEventPublisherConfig(
   value: unknown,
 ): value is EventPublisherConfig<MessageDefinition, ExchangeDefinition, string | undefined> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__brand" in value &&
-    value.__brand === "EventPublisherConfig"
-  );
+  return brandOf(value) === "EventPublisherConfig";
 }
 
 /**
@@ -618,10 +648,5 @@ export function isEventPublisherConfig(
 export function isEventConsumerResult(
   value: unknown,
 ): value is EventConsumerResult<MessageDefinition> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__brand" in value &&
-    value.__brand === "EventConsumerResult"
-  );
+  return brandOf(value) === "EventConsumerResult";
 }

@@ -1,3 +1,4 @@
+import { brand, brandOf } from "../brand.js";
 import type {
   ConsumerDefinition,
   DirectExchangeDefinition,
@@ -33,7 +34,7 @@ export type CommandConsumerConfig<
   TQueue extends QueueDefinition = QueueDefinition,
 > = {
   /** Discriminator to identify this as a command consumer config */
-  __brand: "CommandConsumerConfig";
+  readonly [brand]: "CommandConsumerConfig";
   /** The consumer definition for processing commands */
   consumer: ConsumerDefinition<TMessage>;
   /** The binding connecting the queue to the exchange */
@@ -64,7 +65,7 @@ export type BridgedPublisherConfig<
   TTargetExchange extends ExchangeDefinition,
 > = {
   /** Discriminator to identify this as a bridged publisher config */
-  __brand: "BridgedPublisherConfig";
+  readonly [brand]: "BridgedPublisherConfig";
   /** The publisher definition (publishes to bridge exchange) */
   publisher: PublisherDefinition<TMessage>;
   /** The exchange-to-exchange binding (bridge → target) */
@@ -258,7 +259,7 @@ export function defineCommandConsumer<TMessage extends MessageDefinition>(
   const binding = defineQueueBindingInternal(queue, exchange, options);
 
   return {
-    __brand: "CommandConsumerConfig",
+    [brand]: "CommandConsumerConfig",
     consumer,
     binding,
     exchange,
@@ -474,7 +475,7 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
           );
 
     return {
-      __brand: "BridgedPublisherConfig",
+      [brand]: "BridgedPublisherConfig",
       publisher,
       exchangeBinding: e2eBinding,
       bridgeExchange,
@@ -499,12 +500,7 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
 export function isCommandConsumerConfig(
   value: unknown,
 ): value is CommandConsumerConfig<MessageDefinition, ExchangeDefinition, string | undefined> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__brand" in value &&
-    value.__brand === "CommandConsumerConfig"
-  );
+  return brandOf(value) === "CommandConsumerConfig";
 }
 
 /**
@@ -516,10 +512,5 @@ export function isCommandConsumerConfig(
 export function isBridgedPublisherConfig(
   value: unknown,
 ): value is BridgedPublisherConfig<MessageDefinition, ExchangeDefinition, ExchangeDefinition> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "__brand" in value &&
-    value.__brand === "BridgedPublisherConfig"
-  );
+  return brandOf(value) === "BridgedPublisherConfig";
 }

@@ -8,6 +8,7 @@ import type {
   QueueDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
+import { _internal_assertRoutingKeyPresent } from "./validate.js";
 
 /**
  * Define a binding between a queue and a fanout or headers exchange.
@@ -116,11 +117,14 @@ export function defineQueueBinding(
     } as QueueBindingDefinition;
   }
 
+  const routingKey = options?.routingKey;
+  _internal_assertRoutingKeyPresent("Queue binding", exchange.name, exchange.type, routingKey);
+
   return {
     type: "queue",
     queue,
     exchange,
-    routingKey: options?.routingKey,
+    routingKey,
     ...(options?.arguments && { arguments: options.arguments }),
   } as QueueBindingDefinition;
 }

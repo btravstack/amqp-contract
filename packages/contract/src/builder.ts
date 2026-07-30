@@ -48,6 +48,7 @@ export type {
   // Routing types
   RoutingKey,
   BindingPattern,
+  MatchingBindingPattern,
   MatchingRoutingKey,
   // Event pattern types
   EventPublisherConfig,
