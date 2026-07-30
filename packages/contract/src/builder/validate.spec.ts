@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { defineQueueBinding } from "./binding.js";
+import { defineExchangeBinding, defineQueueBinding } from "./binding.js";
 import { defineCommandConsumer } from "./command.js";
 import { defineEventPublisher } from "./event.js";
 import { defineExchange } from "./exchange.js";
@@ -116,6 +116,24 @@ describe("define-time structural validation", () => {
 
     it("defineQueueBinding accepts a fanout exchange without a routingKey", () => {
       expect(() => defineQueueBinding(queue, fanoutExchange)).not.toThrow();
+    });
+
+    it("defineExchangeBinding rejects a missing routingKey on a topic source exchange", () => {
+      expect(() => defineExchangeBinding(fanoutExchange, topicExchange, {} as never)).toThrow(
+        'Exchange binding on topic exchange "orders" requires a non-empty routingKey (got undefined)',
+      );
+    });
+
+    it("defineExchangeBinding rejects an empty routingKey on a direct source exchange", () => {
+      expect(() =>
+        defineExchangeBinding(fanoutExchange, directExchange, { routingKey: "" as never }),
+      ).toThrow(
+        'Exchange binding on direct exchange "tasks" requires a non-empty routingKey (got "")',
+      );
+    });
+
+    it("defineExchangeBinding accepts a fanout source exchange without a routingKey", () => {
+      expect(() => defineExchangeBinding(topicExchange, fanoutExchange)).not.toThrow();
     });
 
     it("defineEventPublisher rejects a missing routingKey on a topic exchange", () => {
