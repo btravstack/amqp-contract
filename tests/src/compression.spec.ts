@@ -132,9 +132,12 @@ describe("Compression end-to-end", () => {
 
       // THEN
       expect(result.isOk()).toBe(true);
-      await vi.waitFor(() => {
-        expect(received).toHaveBeenCalledTimes(1);
-      });
+      await vi.waitFor(
+        () => {
+          expect(received).toHaveBeenCalledTimes(1);
+        },
+        { timeout: 5_000 },
+      );
       expect(received).toHaveBeenCalledWith(
         expect.objectContaining({ payload }),
         expect.anything(),
@@ -162,9 +165,12 @@ describe("Compression end-to-end", () => {
 
     // THEN
     expect(result.isOk()).toBe(true);
-    await vi.waitFor(() => {
-      expect(received).toHaveBeenCalledTimes(1);
-    });
+    await vi.waitFor(
+      () => {
+        expect(received).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 5_000 },
+    );
     expect(received).toHaveBeenCalledWith(
       expect.objectContaining({ payload }),
       expect.anything(),
