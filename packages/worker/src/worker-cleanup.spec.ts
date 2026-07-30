@@ -5,11 +5,11 @@ import {
   defineQueue,
   type ContractDefinition,
 } from "@amqp-contract/contract";
+import { TechnicalError } from "@amqp-contract/core";
 import {
   _internal_getConnectionCount,
   _internal_resetConnections,
-  TechnicalError,
-} from "@amqp-contract/core";
+} from "@amqp-contract/core/internal";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 

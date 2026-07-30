@@ -96,6 +96,9 @@ export type ConsumeCallback = (msg: ConsumeMessage | null) => void | Promise<voi
 /**
  * Publish options for `AmqpClient.publish` / `AmqpClient.sendToQueue`.
  *
+ * Named `AmqpPublishOptions` (not `PublishOptions`) so it never collides with
+ * the user-facing `PublishOptions` of `@amqp-contract/client`.
+ *
  * Currently a re-export of amqplib's `Options.Publish`. A previous version of
  * this type also exposed a `timeout` field, but that field never had a
  * meaningful AMQP-level effect in this codebase and has been removed to avoid
@@ -103,11 +106,14 @@ export type ConsumeCallback = (msg: ConsumeMessage | null) => void | Promise<voi
  * `publishTimeout` channel option is unrelated and is configured at channel
  * creation, not per-publish.)
  */
-export type PublishOptions = Options.Publish;
+export type AmqpPublishOptions = Options.Publish;
 
 /**
  * Consume options that extend amqplib's `Options.Consume` with an optional
  * per-consumer prefetch count.
+ *
+ * Named `AmqpConsumeOptions` (not `ConsumerOptions`) so it never collides with
+ * the user-facing `ConsumerOptions` of `@amqp-contract/worker`.
  *
  * `prefetch` maps to amqp-connection-manager's native per-consumer prefetch:
  * it is applied via `basic.qos(count, global=false)` immediately before this
@@ -115,7 +121,7 @@ export type PublishOptions = Options.Publish;
  * is re-established after a reconnect — so the value never bleeds onto other
  * consumers sharing the channel.
  */
-export type ConsumerOptions = Options.Consume & {
+export type AmqpConsumeOptions = Options.Consume & {
   /** Per-consumer prefetch count. Applied before `channel.consume(...)`. */
   prefetch?: number;
 };
@@ -343,7 +349,7 @@ export class AmqpClient {
     exchange: string,
     routingKey: string,
     content: Buffer | unknown,
-    options?: PublishOptions,
+    options?: AmqpPublishOptions,
   ): AsyncResult<boolean, never> {
     return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
       .toAsync()
@@ -371,7 +377,7 @@ export class AmqpClient {
   sendToQueue(
     queue: string,
     content: Buffer | unknown,
-    options?: PublishOptions,
+    options?: AmqpPublishOptions,
   ): AsyncResult<boolean, never> {
     return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
       .toAsync()
@@ -398,7 +404,7 @@ export class AmqpClient {
   consume(
     queue: string,
     callback: ConsumeCallback,
-    options?: ConsumerOptions,
+    options?: AmqpConsumeOptions,
   ): AsyncResult<string, never> {
     // Validate the prefetch value before forwarding to RabbitMQ. AMQP
     // basic.qos prefetch-count is an unsigned 16-bit short (0–65535); 0

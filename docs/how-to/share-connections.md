@@ -112,7 +112,7 @@ To separate them, give them different connection options — differing options m
 The singleton outlives an individual test, so a test that asserts on connection counts — or one that must not inherit a connection from a previous file — should reset it:
 
 ```typescript
-import { _internal_resetConnections } from "@amqp-contract/core";
+import { _internal_resetConnections } from "@amqp-contract/core/internal";
 
 afterEach(async () => {
   await _internal_resetConnections();

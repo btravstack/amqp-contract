@@ -8,7 +8,7 @@ import {
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
-  type ConsumerOptions as AmqpClientConsumerOptions,
+  type AmqpConsumeOptions,
   type Logger,
   RPC_ERROR_CODE_HEADER,
   RpcError,
@@ -124,7 +124,7 @@ type ConsumerView = {
  * `noLocal` is not supported by RabbitMQ.
  */
 export type ConsumerOptions = Pick<
-  AmqpClientConsumerOptions,
+  AmqpConsumeOptions,
   "prefetch" | "priority" | "arguments" | "consumerTag" | "exclusive"
 >;
 
