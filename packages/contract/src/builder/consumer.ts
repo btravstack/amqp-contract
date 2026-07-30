@@ -4,7 +4,7 @@ import type {
   ConsumerEntry,
   EventConsumerResultBase,
   MessageDefinition,
-  QueueEntry,
+  QueueDefinition,
 } from "../types.js";
 
 /**
@@ -120,7 +120,7 @@ export function extractConsumer(entry: ConsumerEntry): ConsumerDefinition {
  * @see defineEventPublisher - For event-driven patterns with automatic schema consistency
  */
 export function defineConsumer<TMessage extends MessageDefinition>(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   message: TMessage,
   options?: Omit<ConsumerDefinition<TMessage>, "queue" | "message">,
 ): ConsumerDefinition<TMessage> {

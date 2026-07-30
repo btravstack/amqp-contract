@@ -1,4 +1,4 @@
-import type { MessageDefinition, QueueEntry, RpcDefinition, RpcErrorMap } from "../types.js";
+import type { MessageDefinition, QueueDefinition, RpcDefinition, RpcErrorMap } from "../types.js";
 import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./validate.js";
 
 /**
@@ -58,7 +58,7 @@ import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./val
 export function defineRpc<
   TRequestMessage extends MessageDefinition,
   TResponseMessage extends MessageDefinition,
-  TQueue extends QueueEntry,
+  TQueue extends QueueDefinition,
   TErrors extends RpcErrorMap | undefined = undefined,
 >(
   queue: TQueue,

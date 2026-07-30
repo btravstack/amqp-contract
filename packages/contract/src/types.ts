@@ -36,11 +36,15 @@ export type InferSchemaOutput<TSchema extends StandardSchemaV1> =
 /**
  * TTL-Backoff retry options for exponential backoff with configurable delays.
  *
- * Uses TTL + wait queue pattern. Messages are published to a wait queue with
- * per-message TTL, then dead-lettered back to the main queue after the TTL expires.
+ * Uses the TTL + wait queue pattern. Failed messages are published to a
+ * per-delay-tier wait queue with per-message TTL, then dead-lettered back to
+ * the main queue after the TTL expires. One wait queue per distinct backoff
+ * delay means a long-delay retry never blocks a short-delay retry; within a
+ * tier, head-of-line skew is bounded by the jitter spread (zero when jitter
+ * is disabled).
  *
  * **Benefits:** Configurable delays with exponential backoff and jitter.
- * **Limitation:** More complex, potential head-of-queue blocking with mixed TTLs.
+ * **Limitation:** More topology (one wait queue per distinct delay).
  */
 export type TtlBackoffRetryOptions = {
   /**
@@ -73,21 +77,6 @@ export type TtlBackoffRetryOptions = {
    * @default true
    */
   jitter?: boolean;
-  /**
-   * Name of the wait queue.
-   * @default '{queueName}-wait'
-   */
-  waitQueueName?: string;
-  /**
-   * Name of the wait exchange.
-   * @default 'wait-exchange'
-   */
-  waitExchangeName?: string;
-  /**
-   * Name of the retry exchange.
-   * @default 'retry-exchange'
-   */
-  retryExchangeName?: string;
 };
 
 /**
@@ -150,9 +139,6 @@ export type ResolvedTtlBackoffRetryOptions = {
   maxDelayMs: number;
   backoffMultiplier: number;
   jitter: boolean;
-  waitQueueName: string;
-  waitExchangeName: string;
-  retryExchangeName: string;
 };
 
 /**
@@ -174,8 +160,8 @@ export type ResolvedImmediateRequeueRetryOptions = {
  * - `immediate-requeue`: Has all immediate-requeue retry options with default applied
  * - `ttl-backoff`: Has all TTL-backoff retry options with defaults applied
  *
- * When using `ttl-backoff` mode, the core package will automatically create
- * a wait queue and the necessary exchanges and bindings.
+ * When using `ttl-backoff` mode, `setupAmqpTopology` derives and declares one
+ * wait queue per distinct backoff delay (see `deriveTtlBackoffInfrastructure`).
  */
 export type ResolvedRetryOptions =
   | NoneRetryOptions
@@ -662,115 +648,66 @@ export type QueueDefinition<TName extends string = string> =
   | ClassicQueueDefinition<TName>;
 
 /**
- * Result type for TTL-backoff retry infrastructure builder.
+ * One derived TTL-backoff wait queue — a per-delay-tier holding queue.
  *
- * Contains the wait queue, exchanges, and bindings needed for TTL-backoff retry.
+ * Each distinct backoff delay in a queue's retry schedule gets its own wait
+ * queue so a long-delay retry can never block a short-delay retry behind it
+ * (RabbitMQ only dead-letters expired messages at the head of a queue).
  */
-export type TtlBackoffRetryInfrastructure = {
+export type TtlBackoffWaitQueueDefinition = {
   /**
-   * The wait queue for holding messages during backoff delay.
+   * Broker name of the tier's wait queue: `{queueName}-wait-{delayMs}ms`.
    */
-  waitQueue: QueueDefinition;
+  name: string;
   /**
-   * The wait exchange used to route failed messages to the wait queue.
-   * This is an headers exchange, allowing to use headers for routing, while preserving original message routing key.
-   * Bindings to this exchange will use a `x-wait-queue` header to specify the wait queue to which messages should be routed.
+   * The tier's base backoff delay in ms (pre-jitter).
    */
-  waitExchange: HeadersExchangeDefinition;
+  delayMs: number;
   /**
-   * The retry exchange used to route messages to retry back to the main queue.
-   * This is an headers exchange, allowing to use headers for routing, while preserving original message routing key.
-   * Bindings to this exchange will use a `x-retry-queue` header to specify the retry queue to which messages should be routed.
+   * Queue-level `x-message-ttl` backstop. With jitter enabled this is the
+   * jitter ceiling (`ceil(delayMs * 1.5)`); without jitter it equals
+   * `delayMs`. The per-message `expiration` carries the actual (jittered)
+   * delay; this queue-level TTL bounds head-of-line skew within the tier to
+   * the jitter spread (zero when jitter is disabled).
    */
-  retryExchange: HeadersExchangeDefinition;
-  /**
-   * Binding that routes failed messages to the wait queue.
-   */
-  waitQueueBinding: QueueBindingDefinition;
-  /**
-   * Binding that routes messages to retry back to the main queue.
-   */
-  retryQueueBinding: QueueBindingDefinition;
+  messageTtlMs: number;
 };
 
 /**
- * A queue with automatically generated TTL-backoff retry infrastructure.
+ * TTL-backoff retry infrastructure derived from a queue definition.
  *
- * This type is returned by `defineQueue` when TTL-backoff retry is configured.
- * When passed to `defineContract`, the wait queue, exchanges, and bindings are
- * automatically added to the contract.
- *
- * @example
- * ```typescript
- * const exchange = defineExchange('orders');
- * const queue = defineQueue('order-processing', {
- *   retry: { mode: 'ttl-backoff', maxRetries: 5 },
- * });
- * // queue is QueueWithTtlBackoffInfrastructure
- * const message = defineMessage(z.object({ orderId: z.string() }));
- * const orderCreated = defineEventPublisher(exchange, message, { routingKey: 'order.created' });
- *
- * // Wait queue, exchanges, and bindings are automatically extracted
- * const contract = defineContract({
- *   publishers: { orderCreated },
- *   consumers: { processOrder: defineEventConsumer(orderCreated, queue) },
- * });
- * ```
+ * This is computed (never stored on the contract) by
+ * `deriveTtlBackoffInfrastructure`: `setupAmqpTopology` declares the wait
+ * queues at channel-setup time, and the worker's retry pipeline publishes the
+ * retry copy to the tier queue matching the attempt's base delay. Each wait
+ * queue dead-letters back to the main queue via the default exchange.
  */
-export type QueueWithTtlBackoffInfrastructure<TName extends string = string> = {
+export type TtlBackoffInfrastructure = {
   /**
-   * Discriminator to identify this as a queue with TTL-backoff infrastructure.
-   * @internal
+   * Name of the main queue messages return to after the delay.
    */
-  __brand: "QueueWithTtlBackoffInfrastructure";
-
+  queueName: string;
   /**
-   * The main queue definition.
+   * Queue type shared by the wait queues (mirrors the main queue).
    */
-  queue: QueueDefinition<TName>;
-
+  queueType: QueueType;
   /**
-   * The wait queue for holding messages during backoff delay.
+   * Durability shared by the wait queues (mirrors the main queue).
    */
-  waitQueue: QueueDefinition;
-
+  durable: boolean;
   /**
-   * Wait exchange used to route failed messages to the wait queue.
+   * One wait queue per distinct backoff delay, ascending by `delayMs`.
    */
-  waitExchange: HeadersExchangeDefinition;
-
-  /**
-   * Retry exchange used to route messages to retry back to the main queue.
-   */
-  retryExchange: HeadersExchangeDefinition;
-
-  /**
-   * Binding that routes failed messages to the wait queue.
-   */
-  waitQueueBinding: QueueBindingDefinition;
-
-  /**
-   * Binding that routes messages to retry back to the main queue.
-   */
-  retryQueueBinding: QueueBindingDefinition;
+  waitQueues: TtlBackoffWaitQueueDefinition[];
 };
 
 /**
- * A queue entry that can be passed to `defineContract`.
- *
- * Can be either a plain queue definition or a queue with TTL-backoff infrastructure.
+ * A queue definition with a dead letter exchange.
  */
-export type QueueEntry<TName extends string = string> =
-  | QueueDefinition<TName>
-  | QueueWithTtlBackoffInfrastructure<TName>;
-
-/**
- * A queue entry with a dead letter exchange.
- */
-export type QueueEntryWithDeadLetterExchange<
+export type QueueDefinitionWithDeadLetterExchange<
   TName extends string = string,
   TDlx extends ExchangeDefinition = ExchangeDefinition,
-> = QueueEntry<TName> & {
+> = QueueDefinition<TName> & {
   deadLetter: { exchange: TDlx };
 };
 
@@ -965,7 +902,7 @@ export type PublisherDefinition<TMessage extends MessageDefinition = MessageDefi
  */
 export type ConsumerDefinition<TMessage extends MessageDefinition = MessageDefinition> = {
   /** The queue to consume messages from */
-  queue: QueueEntry;
+  queue: QueueDefinition;
 
   /** The message definition including the payload schema */
   message: TMessage;
@@ -1004,7 +941,7 @@ export type CommandConsumerConfigBase = {
   consumer: ConsumerDefinition;
   binding: QueueBindingDefinition;
   exchange: ExchangeDefinition;
-  queue: QueueEntry;
+  queue: QueueDefinition;
   message: MessageDefinition;
   routingKey: string | undefined;
 };
@@ -1022,7 +959,7 @@ export type EventConsumerResultBase = {
   consumer: ConsumerDefinition;
   binding: QueueBindingDefinition;
   exchange: ExchangeDefinition;
-  queue: QueueEntry;
+  queue: QueueDefinition;
   exchangeBinding: ExchangeBindingDefinition | undefined;
   bridgeExchange: ExchangeDefinition | undefined;
 };
@@ -1084,7 +1021,7 @@ export type RpcErrorMap = Record<string, RpcErrorDefinition>;
 export type RpcDefinition<
   TRequestMessage extends MessageDefinition = MessageDefinition,
   TResponseMessage extends MessageDefinition = MessageDefinition,
-  TQueue extends QueueEntry = QueueEntry,
+  TQueue extends QueueDefinition = QueueDefinition,
   TErrors extends RpcErrorMap | undefined = RpcErrorMap | undefined,
 > = {
   /** The queue that receives RPC requests. Replies are routed back via direct reply-to. */
@@ -1146,10 +1083,11 @@ export type ContractDefinition = {
    * Named queue definitions.
    * Each key becomes available as a named resource in the contract.
    *
-   * When a queue has TTL-backoff retry configured, pass the `QueueWithTtlBackoffInfrastructure`
-   * object returned by `defineQueue`. The wait queue, exchanges, and bindings will be automatically added.
+   * Queues with TTL-backoff retry configured are plain `QueueDefinition`s;
+   * their wait queues are derived and declared at topology-setup time, not
+   * stored in the contract.
    */
-  queues?: Record<string, QueueEntry>;
+  queues?: Record<string, QueueDefinition>;
 
   /**
    * Named binding definitions.
@@ -1271,11 +1209,11 @@ export type ContractDefinitionInput = {
    * Standalone queues — queues with no consumer in this service, asserted by
    * `setupAmqpTopology` all the same. The classic cases: a DLQ bound to the
    * auto-extracted dead-letter exchange, or an audit queue that another
-   * process drains. Dead-letter exchanges and TTL-backoff retry
-   * infrastructure are auto-extracted exactly as for consumer queues.
+   * process drains. Dead-letter exchanges are auto-extracted exactly as for
+   * consumer queues.
    * Keys are authoring labels; the contract output keys queues by name.
    */
-  queues?: Record<string, QueueEntry>;
+  queues?: Record<string, QueueDefinition>;
 
   /**
    * Standalone bindings — e.g. binding a declared DLQ to the dead-letter
@@ -1301,35 +1239,15 @@ type ExtractPublisherExchange<T extends PublisherEntry> = T extends BridgedPubli
       : never;
 
 /**
- * Extract the QueueDefinition from a QueueEntry type.
- * For QueueWithTtlBackoffInfrastructure, returns the inner queue definition.
- * For QueueDefinition, returns as-is.
- * For complex intersections, falls back to extracting TName from QueueEntry<TName>.
+ * Extract the dead letter exchange from a queue definition type.
+ * Handles the DLX intersection from defineQueue overloads.
  * @internal
  */
-export type ExtractQueueFromEntry<T extends QueueEntry> =
-  T extends QueueWithTtlBackoffInfrastructure<infer TName>
-    ? QueueDefinition<TName>
-    : T extends QueueDefinition<infer TName>
-      ? QueueDefinition<TName>
-      : T extends QueueEntry<infer TName>
-        ? QueueDefinition<TName>
-        : QueueDefinition;
-
-/**
- * Extract the dead letter exchange from a QueueEntry type.
- * Handles both plain queue entries and those with DLX intersection from defineQueue overloads.
- * @internal
- */
-export type ExtractDlxFromEntry<T extends QueueEntry> = T extends {
+export type ExtractDlxFromEntry<T extends QueueDefinition> = T extends {
   deadLetter: { exchange: infer E extends ExchangeDefinition };
 }
   ? E
-  : T extends QueueWithTtlBackoffInfrastructure
-    ? T["queue"] extends { deadLetter: { exchange: infer E extends ExchangeDefinition } }
-      ? E
-      : never
-    : never;
+  : never;
 
 /**
  * Extract the queue from a consumer entry.
@@ -1416,9 +1334,9 @@ type ExtractDeadLetterExchangesFromConsumers<TConsumers extends Record<string, C
  * @internal
  */
 type ExtractQueuesFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as ExtractQueueFromEntry<
-    ExtractConsumerQueue<TConsumers[K]>
-  >["name"]]: ExtractConsumerQueue<TConsumers[K]>;
+  [K in keyof TConsumers as ExtractConsumerQueue<TConsumers[K]>["name"]]: ExtractConsumerQueue<
+    TConsumers[K]
+  >;
 };
 
 /**
@@ -1575,7 +1493,7 @@ type ExtractExchangeBindingsFromPublishers<TPublishers extends Record<string, Pu
  * @internal
  */
 type ExtractQueuesFromRpcs<TRpcs extends Record<string, RpcDefinition>> = {
-  [K in keyof TRpcs as ExtractQueueFromEntry<TRpcs[K]["queue"]>["name"]]: TRpcs[K]["queue"];
+  [K in keyof TRpcs as TRpcs[K]["queue"]["name"]]: TRpcs[K]["queue"];
 };
 
 /**
@@ -1600,15 +1518,15 @@ type ExtractStandaloneExchanges<T extends Record<string, ExchangeDefinition>> = 
  * Re-key standalone queue declarations by queue name.
  * @internal
  */
-type ExtractStandaloneQueues<T extends Record<string, QueueEntry>> = {
-  [K in keyof T as ExtractQueueFromEntry<T[K]>["name"]]: T[K];
+type ExtractStandaloneQueues<T extends Record<string, QueueDefinition>> = {
+  [K in keyof T as T[K]["name"]]: T[K];
 };
 
 /**
  * Dead-letter exchanges of standalone queue declarations.
  * @internal
  */
-type ExtractDeadLetterExchangesFromStandaloneQueues<T extends Record<string, QueueEntry>> = {
+type ExtractDeadLetterExchangesFromStandaloneQueues<T extends Record<string, QueueDefinition>> = {
   [K in keyof T as ExtractDlxFromEntry<T[K]> extends never
     ? never
     : ExtractDlxFromEntry<T[K]>["name"]]: ExtractDlxFromEntry<T[K]>;
@@ -1631,7 +1549,7 @@ export type ContractOutput<TContract extends ContractDefinitionInput> = {
     (TContract["exchanges"] extends Record<string, ExchangeDefinition>
       ? ExtractStandaloneExchanges<TContract["exchanges"]>
       : {}) &
-    (TContract["queues"] extends Record<string, QueueEntry>
+    (TContract["queues"] extends Record<string, QueueDefinition>
       ? ExtractDeadLetterExchangesFromStandaloneQueues<TContract["queues"]>
       : {}) &
     (TContract["consumers"] extends Record<string, ConsumerEntry>
@@ -1655,7 +1573,7 @@ export type ContractOutput<TContract extends ContractDefinitionInput> = {
     (TContract["rpcs"] extends Record<string, RpcDefinition>
       ? ExtractQueuesFromRpcs<TContract["rpcs"]>
       : {}) &
-    (TContract["queues"] extends Record<string, QueueEntry>
+    (TContract["queues"] extends Record<string, QueueDefinition>
       ? ExtractStandaloneQueues<TContract["queues"]>
       : {});
   bindings: (TContract["consumers"] extends Record<string, ConsumerEntry>

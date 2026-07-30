@@ -5,10 +5,9 @@ import type {
   FanoutExchangeDefinition,
   HeadersExchangeDefinition,
   QueueBindingDefinition,
-  QueueEntry,
+  QueueDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
-import { extractQueue } from "./queue-utils.js";
 
 /**
  * Define a binding between a queue and a fanout or headers exchange.
@@ -16,7 +15,7 @@ import { extractQueue } from "./queue-utils.js";
  * Binds a queue to a fanout or headers exchange (no routing key needed).
  * Fanout and headers exchanges ignore routing keys, so this overload doesn't require one.
  *
- * @param queue - The queue definition or queue with infrastructure to bind
+ * @param queue - The queue definition to bind
  * @param exchange - The fanout or headers exchange definition
  * @param options - Optional binding configuration
  * @param options.arguments - Additional AMQP arguments for the binding
@@ -31,7 +30,7 @@ import { extractQueue } from "./queue-utils.js";
  * ```
  */
 export function defineQueueBinding(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   exchange: FanoutExchangeDefinition | HeadersExchangeDefinition,
   options?: Omit<
     Extract<
@@ -56,7 +55,7 @@ export function defineQueueBinding(
  * - `*` matches exactly one word
  * - `#` matches zero or more words
  *
- * @param queue - The queue definition or queue with infrastructure to bind
+ * @param queue - The queue definition to bind
  * @param exchange - The direct or topic exchange definition
  * @param options - Binding configuration (routingKey is required)
  * @param options.routingKey - The routing key pattern for message routing
@@ -80,7 +79,7 @@ export function defineQueueBinding(
  * ```
  */
 export function defineQueueBinding(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   exchange: DirectExchangeDefinition | TopicExchangeDefinition,
   options: Omit<
     Extract<
@@ -101,20 +100,17 @@ export function defineQueueBinding(
  * from the generated API docs.)
  */
 export function defineQueueBinding(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   exchange: ExchangeDefinition,
   options?: {
     routingKey?: string;
     arguments?: Record<string, unknown>;
   },
 ): QueueBindingDefinition {
-  // Extract the plain queue definition from QueueEntry
-  const queueDef = extractQueue(queue);
-
   if (exchange.type === "fanout" || exchange.type === "headers") {
     return {
       type: "queue",
-      queue: queueDef,
+      queue,
       exchange,
       ...(options?.arguments && { arguments: options.arguments }),
     } as QueueBindingDefinition;
@@ -122,7 +118,7 @@ export function defineQueueBinding(
 
   return {
     type: "queue",
-    queue: queueDef,
+    queue,
     exchange,
     routingKey: options?.routingKey,
     ...(options?.arguments && { arguments: options.arguments }),
@@ -135,7 +131,7 @@ export function defineQueueBinding(
  * @internal
  */
 export function defineQueueBindingInternal(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   exchange: ExchangeDefinition,
   options?: {
     routingKey?: string;

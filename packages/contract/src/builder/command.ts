@@ -8,7 +8,7 @@ import type {
   MessageDefinition,
   PublisherDefinition,
   QueueBindingDefinition,
-  QueueEntry,
+  QueueDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
 import { defineExchangeBinding, defineQueueBindingInternal } from "./binding.js";
@@ -30,7 +30,7 @@ export type CommandConsumerConfig<
   TMessage extends MessageDefinition,
   TExchange extends ExchangeDefinition,
   TRoutingKey extends string | undefined = undefined,
-  TQueue extends QueueEntry = QueueEntry,
+  TQueue extends QueueDefinition = QueueDefinition,
 > = {
   /** Discriminator to identify this as a command consumer config */
   __brand: "CommandConsumerConfig";
@@ -102,16 +102,16 @@ export type BridgedPublisherConfig<
  */
 export function defineCommandConsumer<
   TMessage extends MessageDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TExchange extends FanoutExchangeDefinition,
 >(
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   exchange: TExchange,
   message: TMessage,
   options?: {
     arguments?: Record<string, unknown>;
   },
-): CommandConsumerConfig<TMessage, TExchange, undefined, TQueueEntry>;
+): CommandConsumerConfig<TMessage, TExchange, undefined, TQueueDefinition>;
 
 /**
  * Define a command consumer for receiving commands via headers exchange.
@@ -140,16 +140,16 @@ export function defineCommandConsumer<
  */
 export function defineCommandConsumer<
   TMessage extends MessageDefinition,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TExchange extends HeadersExchangeDefinition,
 >(
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   exchange: TExchange,
   message: TMessage,
   options?: {
     arguments?: Record<string, unknown>;
   },
-): CommandConsumerConfig<TMessage, TExchange, undefined, TQueueEntry>;
+): CommandConsumerConfig<TMessage, TExchange, undefined, TQueueDefinition>;
 
 /**
  * Define a command consumer for receiving commands via direct exchange.
@@ -180,17 +180,17 @@ export function defineCommandConsumer<
 export function defineCommandConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TExchange extends DirectExchangeDefinition,
 >(
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   exchange: TExchange,
   message: TMessage,
   options: {
     routingKey: RoutingKey<TRoutingKey>;
     arguments?: Record<string, unknown>;
   },
-): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueEntry>;
+): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueDefinition>;
 
 /**
  * Define a command consumer for receiving commands via topic exchange.
@@ -228,17 +228,17 @@ export function defineCommandConsumer<
 export function defineCommandConsumer<
   TMessage extends MessageDefinition,
   TRoutingKey extends string,
-  TQueueEntry extends QueueEntry,
+  TQueueDefinition extends QueueDefinition,
   TExchange extends TopicExchangeDefinition,
 >(
-  queue: TQueueEntry,
+  queue: TQueueDefinition,
   exchange: TExchange,
   message: TMessage,
   options: {
     routingKey: BindingPattern<TRoutingKey>;
     arguments?: Record<string, unknown>;
   },
-): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueEntry>;
+): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueDefinition>;
 
 /*
  * Implementation signature of defineCommandConsumer. (Deliberately a plain
@@ -246,7 +246,7 @@ export function defineCommandConsumer<
  * from the generated API docs.)
  */
 export function defineCommandConsumer<TMessage extends MessageDefinition>(
-  queue: QueueEntry,
+  queue: QueueDefinition,
   exchange: ExchangeDefinition,
   message: TMessage,
   options?: {

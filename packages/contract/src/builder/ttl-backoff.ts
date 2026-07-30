@@ -1,171 +1,114 @@
 import type {
-  BaseQueueDefinition,
   QueueDefinition,
-  QueueEntry,
-  QueueWithTtlBackoffInfrastructure,
-  TtlBackoffRetryInfrastructure,
+  ResolvedTtlBackoffRetryOptions,
+  TtlBackoffInfrastructure,
+  TtlBackoffWaitQueueDefinition,
 } from "../types.js";
-import { defineQueueBindingInternal } from "./binding.js";
-import { defineExchange } from "./exchange.js";
 
 /**
- * Type guard to check if a queue entry is a QueueWithTtlBackoffInfrastructure.
+ * Base (pre-jitter) backoff delay for a given retry attempt:
+ * `min(initialDelayMs * backoffMultiplier ^ retryCount, maxDelayMs)`.
  *
- * When you configure a queue with TTL-backoff retry,
- * `defineQueue` returns a `QueueWithTtlBackoffInfrastructure` instead of a plain
- * `QueueDefinition`. This type guard helps you distinguish between the two.
+ * `retryCount` is zero-based — the delay applied before retry attempt
+ * `retryCount + 1`.
  *
- * **When to use:**
- * - When you need to check the type of a queue entry at runtime
- * - When writing generic code that handles both plain queues and infrastructure wrappers
- *
- * **Related functions:**
- * - `extractQueue()` - Use this to get the underlying queue definition from either type
- *
- * @param entry - The queue entry to check
- * @returns True if the entry is a QueueWithTtlBackoffInfrastructure, false otherwise
- *
- * @example
- * ```typescript
- * const queue = defineQueue('orders', {
- *   retry: { mode: 'ttl-backoff' },
- * });
- *
- * if (isQueueWithTtlBackoffInfrastructure(queue)) {
- *   // queue has .queue, .waitQueue, .waitQueueBinding, .retryQueueBinding, .waitExchange, .retryExchange
- *   console.log('Wait queue:', queue.waitQueue.name);
- * } else {
- *   // queue is a plain QueueDefinition
- *   console.log('Queue:', queue.name);
- * }
- * ```
+ * @param retry - Resolved TTL-backoff retry options
+ * @param retryCount - Number of retries already attempted (0 for the first retry)
+ * @returns The base delay in milliseconds
  */
-export function isQueueWithTtlBackoffInfrastructure(
-  entry: QueueEntry,
-): entry is QueueWithTtlBackoffInfrastructure {
-  return (
-    typeof entry === "object" &&
-    entry !== null &&
-    "__brand" in entry &&
-    entry.__brand === "QueueWithTtlBackoffInfrastructure"
+export function ttlBackoffBaseDelay(
+  retry: ResolvedTtlBackoffRetryOptions,
+  retryCount: number,
+): number {
+  return Math.floor(
+    Math.min(
+      retry.initialDelayMs * Math.pow(retry.backoffMultiplier, retryCount),
+      retry.maxDelayMs,
+    ),
   );
 }
 
 /**
- * Wrap a queue definition with TTL-backoff retry infrastructure.
+ * Broker name of the wait queue for a delay tier: `{queueName}-wait-{delayMs}ms`.
+ *
+ * @param queueName - The main queue name
+ * @param delayMs - The tier's base delay in milliseconds
+ * @returns The wait queue name
  */
-export function wrapWithTtlBackoffInfrastructure(
-  queue: QueueDefinition,
-): QueueWithTtlBackoffInfrastructure {
-  const infra = createTtlBackoffInfrastructure(queue);
-
-  return {
-    __brand: "QueueWithTtlBackoffInfrastructure",
-    queue,
-    ...infra,
-  };
+export function ttlBackoffWaitQueueName(queueName: string, delayMs: number): string {
+  return `${queueName}-wait-${delayMs}ms`;
 }
 
 /**
- * Create TTL-backoff retry infrastructure for a queue.
+ * Derive the TTL-backoff retry infrastructure for a queue: one wait queue per
+ * distinct backoff delay in the retry schedule.
  *
- * This builder helper generates the wait queue, exchanges, and bindings needed for TTL-backoff retry.
- * The generated infrastructure can be spread into a contract definition.
+ * The infrastructure is **derived, not stored** — `defineQueue` returns a
+ * plain `QueueDefinition` and the contract output contains only the queues
+ * you declared. `setupAmqpTopology` calls this helper at channel-setup time
+ * to declare the wait queues, and the worker's retry pipeline uses it to
+ * publish the retry copy to the tier queue matching the attempt's base delay.
  *
- * TTL-backoff retry works by:
- * 1. Failed messages are sent to the wait exchange with header `x-wait-queue` set to the wait queue name
- * 2. The wait queue receives these messages and holds them for a TTL period
- * 3. After TTL expires, messages are dead-lettered back to the retry exchange with header `x-retry-queue` set to the main queue name
- * 4. The main queue receives the retried message via its binding to the retry exchange
+ * **How the retry hop works:**
+ * 1. The worker publishes the failed message to the tier's wait queue via the
+ *    default exchange (routing key = wait queue name), with a per-message
+ *    `expiration` carrying the (jittered) delay.
+ * 2. The wait queue is declared with `x-message-ttl` set to the tier's jitter
+ *    ceiling as a backstop, and dead-letters to the default exchange with
+ *    `x-dead-letter-routing-key` set to the main queue name.
+ * 3. When the TTL expires, RabbitMQ routes the message straight back to the
+ *    main queue.
+ *
+ * Because every message in a tier shares the same base delay, a long-delay
+ * retry can never block a short-delay retry: head-of-line skew within a tier
+ * is bounded by the jitter spread (at most `delayMs`), and is zero when
+ * jitter is disabled.
  *
  * @param queue - The main queue definition
- * @param options - Optional configuration for the wait queue
- * @returns TTL-backoff retry infrastructure containing wait queue and bindings
- * @throws {Error} If the queue does not have retry mode set to `ttl-backoff`
+ * @returns The derived infrastructure, or `undefined` when the queue's retry
+ *   mode is not `ttl-backoff`
  *
  * @example
  * ```typescript
- * const orderQueue = defineQueue('order-processing', {
- *   type: 'quorum',
- *   retry: {
- *     mode: 'ttl-backoff',
- *     maxRetries: 5,
- *     initialDelayMs: 1000,
- *   },
+ * const queue = defineQueue('order-processing', {
+ *   retry: { mode: 'ttl-backoff', maxRetries: 3, initialDelayMs: 1000 },
  * });
- *
- * // Infrastructure is auto-extracted when using defineContract:
- * const contract = defineContract({
- *   publishers: { ... },
- *   consumers: { processOrder: defineEventConsumer(event, orderQueue) },
- * });
- * // contract.queues includes the wait queue, contract.exchanges includes retry exchanges, contract.bindings includes retry bindings
+ * const infra = deriveTtlBackoffInfrastructure(queue);
+ * // infra.waitQueues → [
+ * //   { name: 'order-processing-wait-1000ms', delayMs: 1000, messageTtlMs: 1500 },
+ * //   { name: 'order-processing-wait-2000ms', delayMs: 2000, messageTtlMs: 3000 },
+ * //   { name: 'order-processing-wait-4000ms', delayMs: 4000, messageTtlMs: 6000 },
+ * // ]
  * ```
  */
-export function createTtlBackoffInfrastructure(
+export function deriveTtlBackoffInfrastructure(
   queue: QueueDefinition,
-): TtlBackoffRetryInfrastructure {
-  // Ensure queue retry mode is ttl-backoff
-  if (queue.retry.mode !== "ttl-backoff") {
-    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-    throw new Error(
-      `Queue ${queue.name} does not have ttl-backoff retry mode. Infrastructure can only be created for queues with ttl-backoff retry.`,
-    );
+): TtlBackoffInfrastructure | undefined {
+  const retry = queue.retry;
+  if (retry.mode !== "ttl-backoff") {
+    return undefined;
   }
 
-  // Create wait exchange (headers exchange) for routing failed messages to the wait queue
-  const waitExchange = defineExchange(queue.retry.waitExchangeName, {
-    type: "headers",
-  });
+  // Distinct base delays across the whole retry budget, ascending. Delays
+  // repeat once the maxDelayMs cap engages; dedupe to one tier per delay.
+  const delays = [
+    ...new Set(Array.from({ length: retry.maxRetries }, (_, k) => ttlBackoffBaseDelay(retry, k))),
+  ];
 
-  // Create retry exchange (headers exchange) for routing messages to retry back to main queue
-  const retryExchange = defineExchange(queue.retry.retryExchangeName, {
-    type: "headers",
-  });
-
-  // Create the wait queue (of same type as main queue)
-  const baseWaitQueue: BaseQueueDefinition = {
-    name: queue.retry.waitQueueName,
-    deadLetter: {
-      exchange: retryExchange, // Routes back to retry exchange after TTL (will preserve original message routing key)
-    },
-    retry: { mode: "none" }, // No retry for wait queue itself
-  };
-
-  const waitQueue: QueueDefinition =
-    queue.type === "quorum"
-      ? {
-          ...baseWaitQueue,
-          type: queue.type,
-          durable: true, // Quorum queues are always durable
-        }
-      : {
-          ...baseWaitQueue,
-          type: queue.type,
-          durable: queue.durable,
-        };
-
-  // Create binding for wait queue to receive failed messages
-  const waitQueueBinding = defineQueueBindingInternal(waitQueue, waitExchange, {
-    arguments: {
-      "x-match": "all",
-      "x-wait-queue": waitQueue.name, // Custom header to specify the wait queue to which messages should be routed
-    },
-  });
-
-  // Create binding for main queue to receive messages to retry
-  const retryQueueBinding = defineQueueBindingInternal(queue, retryExchange, {
-    arguments: {
-      "x-match": "all",
-      "x-retry-queue": queue.name, // Custom header to specify the retry queue to which messages should be routed
-    },
-  });
+  const waitQueues: TtlBackoffWaitQueueDefinition[] = delays.map((delayMs) => ({
+    name: ttlBackoffWaitQueueName(queue.name, delayMs),
+    delayMs,
+    // Jitter spreads the per-message expiration over [0.5x, 1.5x] of the base
+    // delay; the queue-level TTL backstop must cover the jitter ceiling so no
+    // message outlives its tier. Without jitter the expiration is exactly the
+    // base delay.
+    messageTtlMs: retry.jitter ? Math.ceil(delayMs * 1.5) : delayMs,
+  }));
 
   return {
-    waitQueue,
-    waitExchange,
-    retryExchange,
-    waitQueueBinding,
-    retryQueueBinding,
+    queueName: queue.name,
+    queueType: queue.type,
+    durable: queue.durable,
+    waitQueues,
   };
 }
