@@ -78,6 +78,15 @@ type StoredHandler = (
 ) => AsyncResult<unknown, HandlerError | RpcError>;
 
 /**
+ * Per-delivery dispatch state. `messageHandled` guards the ack/nack-exactly-
+ * once invariant; `deliveryEpoch` is the channel epoch captured when the
+ * message arrived ({@link AmqpClient.currentChannelEpoch}) and is stamped on
+ * every settle so a reconnect can never route an ack/nack to a foreign
+ * delivery tag on the new channel.
+ */
+type DeliveryState = { messageHandled: boolean; deliveryEpoch: number };
+
+/**
  * Per-message information handed to the `createContext` factory — enough to
  * derive request-scoped dependencies (correlation-id loggers, per-message
  * transactions) without closing over the dispatch loop.
@@ -952,9 +961,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     msg: ConsumeMessage,
     consumer: ConsumerDefinition,
     name: HandlerName<TContract>,
+    deliveryEpoch: number,
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
-      this.amqpClient.nack(msg, false, false);
+      this.amqpClient.nack(msg, false, false, { deliveryEpoch });
     });
   }
 
@@ -1083,7 +1093,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     view: ConsumerView,
     name: HandlerName<TContract>,
     handler: StoredHandler,
-    state: { messageHandled: boolean },
+    state: DeliveryState,
   ): AsyncResult<void, never> {
     const { consumer } = view;
     const queueName = extractQueue(consumer.queue).name;
@@ -1092,7 +1102,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       "messaging.rabbitmq.message.delivery_tag": msg.fields.deliveryTag,
     });
 
-    return this.parseAndValidateOrNack(msg, consumer, name)
+    return this.parseAndValidateOrNack(msg, consumer, name, state.deliveryEpoch)
       .tapDefect((parseError) => {
         this.logger?.error("Failed to parse/validate message; sending to DLQ", {
           consumerName: String(name),
@@ -1111,7 +1121,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                 consumerName: String(name),
                 queueName,
               });
-              this.amqpClient.ack(msg);
+              this.amqpClient.ack(msg, false, { deliveryEpoch: state.deliveryEpoch });
               state.messageHandled = true;
             }),
           )
@@ -1134,7 +1144,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                         queueName,
                         errorCode: handlerError.code,
                       });
-                      this.amqpClient.ack(msg);
+                      this.amqpClient.ack(msg, false, { deliveryEpoch: state.deliveryEpoch });
                       state.messageHandled = true;
                     })
                     .flatMapErrCases((replyMatcher) =>
@@ -1230,7 +1240,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     name: HandlerName<TContract>,
     consumer: ConsumerDefinition,
     queueName: string,
-    state: { messageHandled: boolean },
+    state: DeliveryState,
   ): AsyncResult<void, never> {
     this.logger?.error("Error processing message", {
       consumerName: String(name),
@@ -1244,7 +1254,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     });
 
     return handleError(
-      { amqpClient: this.amqpClient, logger: this.logger },
+      { amqpClient: this.amqpClient, logger: this.logger, deliveryEpoch: state.deliveryEpoch },
       handlerError,
       msg,
       String(name),
@@ -1274,9 +1284,13 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * process-level unhandled rejection. Dropping the nack is safe: an unacked
    * delivery is redelivered once the channel is gone.
    */
-  private safeNack(msg: ConsumeMessage, context: Record<string, unknown>): void {
+  private safeNack(
+    msg: ConsumeMessage,
+    context: Record<string, unknown>,
+    deliveryEpoch?: number,
+  ): void {
     try {
-      this.amqpClient.nack(msg, false, false);
+      this.amqpClient.nack(msg, false, false, { deliveryEpoch });
     } catch (error: unknown) {
       this.logger?.warn(
         "Failed to nack message (channel closing?); broker will redeliver instead",
@@ -1307,8 +1321,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     name: HandlerName<TContract>,
     handler: StoredHandler,
     queueName: string,
+    deliveryEpoch: number,
   ): Promise<void> {
-    const state = { messageHandled: false };
+    const state: DeliveryState = { messageHandled: false, deliveryEpoch };
     try {
       const result = await this.processMessage(msg, view, name, handler, state);
       // A terminal `Defect` (an infra fault now on the defect channel —
@@ -1325,7 +1340,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           queueName,
           error: result.cause,
         });
-        this.safeNack(msg, { consumerName: String(name), queueName });
+        this.safeNack(msg, { consumerName: String(name), queueName }, state.deliveryEpoch);
         state.messageHandled = true;
       }
     } catch (error: unknown) {
@@ -1345,7 +1360,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         queueName,
         error,
       });
-      this.safeNack(msg, { consumerName: String(name), queueName });
+      this.safeNack(msg, { consumerName: String(name), queueName }, state.deliveryEpoch);
     }
   }
 
@@ -1374,11 +1389,19 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           // messages before tearing down the channel. The promise never
           // rejects — `dispatchMessage` catches everything — so the returned
           // callback promise cannot surface an unhandled rejection either.
-          const processing = this.dispatchMessage(msg, view, name, handler, queueName).finally(
-            () => {
-              this.inFlight.delete(processing);
-            },
-          );
+          // Stamp the delivery with the current channel epoch so every settle
+          // for this message can be refused if a reconnect happens first.
+          const deliveryEpoch = this.amqpClient.currentChannelEpoch;
+          const processing = this.dispatchMessage(
+            msg,
+            view,
+            name,
+            handler,
+            queueName,
+            deliveryEpoch,
+          ).finally(() => {
+            this.inFlight.delete(processing);
+          });
           this.inFlight.add(processing);
           return processing;
         },

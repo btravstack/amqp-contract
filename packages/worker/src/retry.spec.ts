@@ -1,10 +1,16 @@
-import type { ResolvedTtlBackoffRetryOptions } from "@amqp-contract/contract";
+import {
+  defineMessage,
+  defineQueue,
+  type ResolvedTtlBackoffRetryOptions,
+} from "@amqp-contract/contract";
 import { TechnicalError, type AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { fromSafeThrowable, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
-import { _internalForTesting } from "./retry.js";
+import { NonRetryableError, RetryableError } from "./errors.js";
+import { _internalForTesting, handleError } from "./retry.js";
 
 const { calculateRetryDelay, publishForRetry } = _internalForTesting;
 
@@ -285,5 +291,67 @@ describe("publishForRetry", () => {
         }),
       }),
     );
+  });
+});
+
+describe("delivery-epoch stamping (reconnect-safe settles)", () => {
+  // Delivery tags are per-channel: an ack/nack that lands after a reconnect
+  // must carry the epoch captured at delivery time so AmqpClient can refuse
+  // to settle a foreign tag on the new channel (guarded core-side by
+  // packages/core/src/channel-epoch.spec.ts). These tests pin the worker's
+  // half of the contract: every settle in the retry pipeline is stamped.
+  it("INVARIANT: the post-retry-publish ack carries the delivery epoch", async () => {
+    const { client, ack } = createMockClient(() => OkAsync(true));
+    const msg = createMockConsumeMessage();
+
+    await publishForRetry(
+      { amqpClient: client as unknown as AmqpClient, deliveryEpoch: 7 },
+      {
+        msg,
+        exchange: "retry-x",
+        routingKey: "test.key",
+        queueName: "test-queue",
+        error: new Error("boom"),
+      },
+    );
+
+    expect(ack).toHaveBeenCalledWith(msg, false, { deliveryEpoch: 7 });
+  });
+
+  it("INVARIANT: DLQ and requeue nacks carry the delivery epoch", async () => {
+    const consumer = {
+      queue: defineQueue("orders"),
+      message: defineMessage(z.object({ id: z.string() })),
+    };
+
+    // No retry config → DLQ nack.
+    const dlq = createMockClient(() => OkAsync(true));
+    await handleError(
+      { amqpClient: dlq.client as unknown as AmqpClient, deliveryEpoch: 3 },
+      new NonRetryableError("permanent"),
+      createMockConsumeMessage(),
+      "processOrder",
+      consumer,
+    );
+    expect(dlq.nack).toHaveBeenCalledWith(expect.anything(), false, false, { deliveryEpoch: 3 });
+
+    // Immediate-requeue below budget → requeue nack.
+    const requeue = createMockClient(() => OkAsync(true));
+    await handleError(
+      { amqpClient: requeue.client as unknown as AmqpClient, deliveryEpoch: 4 },
+      new RetryableError("transient"),
+      createMockConsumeMessage({
+        properties: {
+          headers: { "x-delivery-count": 0 },
+          contentType: "application/json",
+        } as never,
+      }),
+      "processOrder",
+      {
+        ...consumer,
+        queue: defineQueue("orders", { retry: { mode: "immediate-requeue", maxRetries: 2 } }),
+      },
+    );
+    expect(requeue.nack).toHaveBeenCalledWith(expect.anything(), false, true, { deliveryEpoch: 4 });
   });
 });
