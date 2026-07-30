@@ -35,13 +35,17 @@ A rule connecting an exchange to a queue (or to another exchange) with a routing
 
 A local exchange that forwards to, or receives from, an exchange in another domain, letting a contract stay free of remote topology. See [bridge domains](/how-to/bridge-domains).
 
+### Choreography
+
+The coordination style this library's vocabulary is built for: services react to each other's messages with no central coordinator — events fan out, commands go to their single owner. This is why the authoring API says **event** and **command** rather than AsyncAPI's transport-neutral `send`/`receive` (the mapping is mechanical: an event or command publisher is a `send` operation, a consumer is a `receive` operation, an RPC is a request/reply pair — the [AsyncAPI generator](/how-to/generate-asyncapi-docs) emits exactly that). Its sibling [temporal-contract](https://btravstack.github.io/temporal-contract/) deliberately uses different vocabulary (workflows, activities) because Temporal is an **orchestrator** — one coordinator drives the steps. Same family, different coordination model, different words on purpose.
+
 ### Client
 
 `TypedAmqpClient` — the runtime object that publishes messages and makes RPC calls. What AMQP calls a publisher or producer.
 
 ### Command
 
-A message instructing a single owner to do work. Many callers, one consumer. The consumer is defined first (`defineCommandConsumer`) and the publisher derived from it.
+A message instructing a single owner to do work. Many callers, one consumer. The consumer is defined first (`defineCommandConsumer`) and the publisher derived from it. See [choreography](#choreography) for why this vocabulary exists.
 
 ### Consumer
 
@@ -55,13 +59,17 @@ A single definition producing both the TypeScript types and the AMQP topology. B
 
 A dead-letter exchange receives messages that were rejected, expired, or overflowed a queue limit; the queue bound to it is the dead-letter queue. See [route dead letters](/how-to/route-dead-letters).
 
+### declare\* / define\*
+
+The two verb prefixes split the contract boundary. `define*` (`defineContract`, `defineQueue`, `defineEventPublisher`, …) authors the **contract** — pure data, shared by every service. `declare*` (`declareHandler`, `declareHandlers`, `declareMiddleware`) builds the **implementation side** against that contract, with types inferred from it. If a function starts with `define`, its output belongs in the shared contract package; if it starts with `declare`, it belongs in the service that implements it. The convention is shared across the btravstack family (temporal-contract uses the same split).
+
 ### Defect
 
 unthrown's third channel, for failures that were not anticipated. In this library a defect's cause is always a `TechnicalError`. Distinct from a modeled error, which appears in the type signature.
 
 ### Event
 
-A message announcing something that happened. One publisher, any number of consumers. The publisher is defined first (`defineEventPublisher`) and consumers attach to it.
+A message announcing something that happened. One publisher, any number of consumers. The publisher is defined first (`defineEventPublisher`) and consumers attach to it. See [choreography](#choreography) for why this vocabulary exists.
 
 ### Exchange
 

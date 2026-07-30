@@ -75,6 +75,17 @@ RabbitMQ deletes a message once acknowledged. In exchange it gives you per-messa
 
 Choose by whether you need to _replay_. If the ability to re-read last month's events matters, Kafka. If messages are work to be done once, RabbitMQ.
 
+## Within the btravstack family
+
+amqp-contract shares its foundations with [unthrown](https://btravstack.github.io/unthrown/) (errors as values) and [temporal-contract](https://btravstack.github.io/temporal-contract/) (typed contracts for Temporal). The shared conventions are deliberate and stable: Standard Schema v1 validation, `define*` for contract authoring vs `declare*` for implementations, static `Typed*.create(...)` factories returning `AsyncResult<Instance, never>` (infrastructure failures are defects, unwrapped once with `.get()`), and namespaced `TaggedError` tags (`@amqp-contract/X`, `@temporal-contract/X`).
+
+The divergences are equally deliberate — do not expect a future release to "align" them:
+
+- **Vocabulary.** amqp-contract speaks choreography (events, commands — see the [glossary](/reference/glossary#choreography)); temporal-contract speaks orchestration (workflows, activities). Different coordination models earn different words.
+- **Retry configuration.** amqp-contract uses unit-suffixed retry-count semantics; temporal-contract exposes Temporal's native `RetryPolicy`. The mapping: `maxRetries` ≈ `maximumAttempts − 1`, `initialDelayMs` ≈ `initialInterval`, `maxDelayMs` ≈ `maximumInterval`, `backoffMultiplier` ≈ `backoffCoefficient`.
+- **Validation errors.** amqp-contract has a single `MessageValidationError` (one wire, one boundary); temporal-contract has per-surface errors because Temporal has five distinct invocation surfaces.
+- **Module format.** amqp-contract ships dual CJS + ESM; this is a compatibility stance, not an accident.
+
 ## Summary
 
 | If you need                                                       | Use                                                  |
