@@ -524,7 +524,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       // If setup fails, release the AmqpClient's connection ref-count and cancel
       // any consumers that registered before the failure, so a failed create()
       // does not leak.
-      const inner = (async (): Promise<Result<TypedAmqpWorker<TContract>, never>> => {
+      const inner = (async () => {
         const setupResult = await setup;
         if (!setupResult.isOk()) {
           const closeResult = await worker.close();

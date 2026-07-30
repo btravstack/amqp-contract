@@ -7,14 +7,7 @@ import type {
   CreateChannelOpts,
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
-import {
-  fromPromise,
-  fromSafePromise,
-  fromSafeThrowable,
-  Ok,
-  type AsyncResult,
-  type Result,
-} from "unthrown";
+import { fromPromise, fromSafePromise, fromSafeThrowable, Ok, type AsyncResult } from "unthrown";
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
@@ -469,7 +462,7 @@ export class AmqpClient {
   close(): AsyncResult<void, never> {
     if (this.closing) return this.closing;
 
-    const inner = (async (): Promise<Result<void, never>> => {
+    const inner = (async () => {
       const channelResult = await fromPromise(
         this.channelWrapper.close(),
         (error: unknown, defect) => defect(new TechnicalError("Failed to close channel", error)),
