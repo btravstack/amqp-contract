@@ -230,7 +230,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return OkAsync(undefined).flatMap(() => {
       const client = new TypedAmqpClient(
         contract,
-        new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs }),
+        new AmqpClient(contract, { urls, connectionOptions, connectTimeoutMs, logger }),
         { persistent: true, ...defaultPublishOptions },
         logger,
         telemetry ?? defaultTelemetryProvider,

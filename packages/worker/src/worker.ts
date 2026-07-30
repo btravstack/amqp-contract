@@ -493,6 +493,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           urls,
           connectionOptions,
           connectTimeoutMs,
+          logger,
         }),
         // Context types are erased at the dispatch boundary: handlers receive
         // whatever the (type-checked) middleware chain produced at runtime.

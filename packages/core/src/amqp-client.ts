@@ -11,6 +11,7 @@ import { fromPromise, fromSafePromise, fromSafeThrowable, Ok, type AsyncResult }
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { TechnicalError } from "./errors.js";
+import type { Logger } from "./logger.js";
 import { setupAmqpTopology } from "./setup.js";
 
 /**
@@ -75,12 +76,16 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
  *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
  *   Pass `null` to disable the timeout entirely (amqp-connection-manager will
  *   retry indefinitely).
+ * @property logger - Optional logger. Channel-level `'error'` events (topology
+ *   setup failures on connect/reconnect, publish-worker faults) are routed
+ *   here — they are recoverable-by-reconnect conditions, never thrown.
  */
 export type AmqpClientOptions = {
   urls: ConnectionUrl[];
   connectionOptions?: AmqpConnectionManagerOptions | undefined;
   channelOptions?: Partial<CreateChannelOpts> | undefined;
   connectTimeoutMs?: number | null | undefined;
+  logger?: Logger | undefined;
 };
 
 /**
@@ -217,6 +222,23 @@ export class AmqpClient {
     }
 
     this.channelWrapper = this.connection.createChannel(channelOpts);
+
+    // amqp-connection-manager's ChannelWrapper emits plain 'error' events for
+    // conditions it recovers from by reconnecting (topology setup failure on
+    // connect/reconnect, publish-worker faults, consumer re-establishment
+    // failures). A Node 'error' emit with zero listeners throws
+    // ERR_UNHANDLED_ERROR — inside the manager's async connect listener that
+    // becomes an unhandled rejection and crashes the process. This listener
+    // must therefore always exist: it degrades the event to a log line while
+    // still letting callers attach their own observers via `on('error', …)`.
+    const logger = options.logger;
+    this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
+      logger?.error("AMQP channel error", {
+        error: error instanceof Error ? error.message : String(error),
+        cause: error,
+        channel: info?.name,
+      });
+    });
   }
 
   /**
