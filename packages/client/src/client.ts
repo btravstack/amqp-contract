@@ -533,27 +533,22 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         return OkAsync(validatedMessage);
       };
 
+      // A full write buffer / rejected message is an unexpected publish
+      // failure — AmqpClient.publish surfaces it as a Defect already.
       return preparePayload().flatMap((payload) =>
         this.amqpClient
-          .publish(publisher.exchange.name, publisher.routingKey ?? "", payload, publishOptions)
-          .flatMap((published) => {
-            if (!published) {
-              // A full write buffer / rejected message is an unexpected publish
-              // failure → defect (the throw routes it there).
-              // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-              throw new TechnicalError(
-                `Failed to publish message for publisher "${String(publisherName)}": Channel rejected the message (buffer full or other channel issue)`,
-              );
-            }
-
+          .publish(
+            { exchange: publisher.exchange.name, routingKey: publisher.routingKey ?? "" },
+            payload,
+            publishOptions,
+          )
+          .tap(() => {
             this.logger?.info("Message published successfully", {
               publisherName: String(publisherName),
               exchange: publisher.exchange.name,
               routingKey: publisher.routingKey,
               compressed: !!compression,
             });
-
-            return Ok(undefined);
           }),
       );
     };
@@ -791,18 +786,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         correlationId,
         contentType: "application/json",
       };
-      return this.amqpClient
-        .publish("", queueName, validatedRequest, publishOptions)
-        .flatMap((published): Result<void, never> => {
-          if (!published) {
-            // A full write buffer is an unexpected publish failure → defect.
-            // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-            throw new TechnicalError(
-              `Failed to publish RPC request for "${rpcName}": channel buffer full`,
-            );
-          }
-          return Ok(undefined);
-        });
+      // A full write buffer is an unexpected publish failure — AmqpClient
+      // surfaces it as a Defect already.
+      return this.amqpClient.publish(
+        { exchange: "", routingKey: queueName },
+        validatedRequest,
+        publishOptions,
+      );
     };
 
     return validateRequest()
