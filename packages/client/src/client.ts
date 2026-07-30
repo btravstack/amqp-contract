@@ -27,16 +27,9 @@ import {
   technicalDefect,
 } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
-import {
-  Err,
-  fromPromise,
-  fromSafePromise,
-  Ok,
-  OkAsync,
-  type AsyncResult,
-  type Result,
-} from "unthrown";
+import { Err, fromSafePromise, Ok, OkAsync, P, type AsyncResult, type Result } from "unthrown";
 
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -325,24 +318,16 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       pending.resolve(result);
     };
 
-    const parseResult = safeJsonParse(
-      msg.content,
-      (error) =>
-        new TechnicalError(`Failed to parse RPC reply JSON for "${pending.rpcName}"`, error),
+    // An unparseable reply body is an unexpected infrastructure fault — route
+    // it straight to the defect channel via the qualify's injected helper.
+    const parseResult = safeJsonParse(msg.content, (error, defect) =>
+      defect(new TechnicalError(`Failed to parse RPC reply JSON for "${pending.rpcName}"`, error)),
     );
-    if (!parseResult.isOk()) {
-      settle(
-        technicalDefect(
-          parseResult.isErr()
-            ? parseResult.error
-            : new TechnicalError(
-                `Failed to parse RPC reply JSON for "${pending.rpcName}"`,
-                parseResult.cause,
-              ),
-        ),
-      );
+    if (parseResult.isDefect()) {
+      settle(parseResult);
       return;
     }
+    if (!parseResult.isOk()) return; // unreachable: the error channel is `never`
     const parsed = parseResult.value;
 
     // A reply carrying the error-code header is a typed error reply: its body
@@ -354,39 +339,17 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       return;
     }
 
-    // Wrap the validate call itself — a Standard Schema implementation may
-    // throw synchronously, and the throw would otherwise escape the consume
-    // callback and could crash the reply consumer.
-    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-    try {
-      rawValidation = pending.responseSchema["~standard"].validate(parsed);
-    } catch (error: unknown) {
-      settle(
-        technicalDefect(
-          new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
-        ),
-      );
-      return;
-    }
-    const validationPromise =
-      rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-
-    validationPromise.then(
-      (validation) => {
-        if (validation.issues) {
-          settle(Err(new MessageValidationError(pending.rpcName, validation.issues)));
-          return;
-        }
-        settle(Ok(validation.value));
-      },
-      (error: unknown) => {
-        settle(
-          technicalDefect(
-            new TechnicalError(`RPC reply validation threw for "${pending.rpcName}"`, error),
-          ),
-        );
-      },
-    );
+    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
+    // the modeled error (mapped to MessageValidationError), a validator that
+    // throws synchronously or rejects becomes a Defect — nothing can escape
+    // the consume callback and crash the reply consumer. The timer stays
+    // armed until `settle` runs (see above).
+    void fromSchemaAsync(pending.responseSchema)(parsed)
+      .mapErrCases((matcher) =>
+        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+        matcher.with(P._, (issues) => new MessageValidationError(pending.rpcName, issues)),
+      )
+      .then((result) => settle(result));
   }
 
   /**
@@ -430,39 +393,18 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     // fills in when the reply carries none.
     const message = typeof body.message === "string" ? body.message : errorSchema.message;
 
-    // Wrap the validate call itself — a Standard Schema implementation may
-    // throw synchronously, and the throw would otherwise escape the consume
-    // callback and could crash the reply consumer.
-    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-    try {
-      rawValidation = errorSchema.data["~standard"].validate(body.data);
-    } catch (error: unknown) {
-      settle(
-        technicalDefect(
-          new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
-        ),
-      );
-      return;
-    }
-    const validationPromise =
-      rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-
-    validationPromise.then(
-      (validation) => {
-        if (validation.issues) {
-          settle(Err(new MessageValidationError(pending.rpcName, validation.issues)));
-          return;
-        }
-        settle(Err(new RpcError(errorCode, validation.value, message)));
-      },
-      (error: unknown) => {
-        settle(
-          technicalDefect(
-            new TechnicalError(`RPC error data validation threw for "${pending.rpcName}"`, error),
-          ),
-        );
-      },
-    );
+    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
+    // the modeled error (mapped to MessageValidationError), a validator that
+    // throws or rejects becomes a Defect — nothing can escape the consume
+    // callback. A validated `data` resolves the caller with the typed
+    // `Err(RpcError)`; the timer stays armed until `settle` runs.
+    void fromSchemaAsync(errorSchema.data)(body.data)
+      .mapErrCases((matcher) =>
+        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+        matcher.with(P._, (issues) => new MessageValidationError(pending.rpcName, issues)),
+      )
+      .flatMap((validatedData) => Err(new RpcError(errorCode, validatedData, message)))
+      .then((result) => settle(result));
   }
 
   /**
@@ -503,30 +445,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: String(publisherName),
     });
 
-    const validateMessage = (rawMessage: unknown): AsyncResult<unknown, MessageValidationError> => {
-      // A thrown/rejected validator is an unexpected infrastructure fault →
-      // defect; schema `issues` are the modeled MessageValidationError. Guard the
-      // synchronous call too — a validator that throws before returning would
-      // otherwise escape `publish()` as a raw throw instead of a defect.
-      let validationResult: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-      try {
-        validationResult = publisher.message.payload["~standard"].validate(rawMessage);
-      } catch (error) {
-        return technicalDefect(new TechnicalError("Validation failed", error)).toAsync();
-      }
-      const promise =
-        validationResult instanceof Promise ? validationResult : Promise.resolve(validationResult);
-      return fromPromise(promise, (error, defect) =>
-        defect(new TechnicalError("Validation failed", error)),
-      ).flatMap((validation) => {
-        if (validation.issues) {
-          return Err<MessageValidationError>(
-            new MessageValidationError(String(publisherName), validation.issues),
-          );
-        }
-        return Ok(validation.value);
-      });
-    };
+    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
+    // the modeled MessageValidationError, while a validator that throws
+    // synchronously or rejects is an unexpected infrastructure fault and
+    // becomes a Defect — it can never escape `publish()` as a raw throw.
+    const validateMessage = (rawMessage: unknown): AsyncResult<unknown, MessageValidationError> =>
+      fromSchemaAsync(publisher.message.payload)(rawMessage).mapErrCases((matcher) =>
+        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+        matcher.with(P._, (issues) => new MessageValidationError(String(publisherName), issues)),
+      );
 
     const publishMessage = (
       validatedMessage: unknown,
@@ -771,28 +698,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       timer,
     });
 
-    const validateRequest = (): AsyncResult<unknown, MessageValidationError> => {
-      // Wrap the validate call — a Standard Schema implementation may throw
-      // synchronously, and that throw would otherwise escape the chain and
-      // leave the pending-call entry/timer dangling until timeout. A thrown /
-      // rejected validator is an unexpected infrastructure fault → defect;
-      // schema `issues` are the modeled MessageValidationError.
-      let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-      try {
-        rawValidation = requestSchema["~standard"].validate(request);
-      } catch (error: unknown) {
-        return technicalDefect(new TechnicalError("RPC request validation threw", error)).toAsync();
-      }
-      const validationPromise =
-        rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-      return fromPromise(validationPromise, (error, defect) =>
-        defect(new TechnicalError("RPC request validation threw", error)),
-      ).flatMap((validation) =>
-        validation.issues
-          ? Err<MessageValidationError>(new MessageValidationError(rpcName, validation.issues))
-          : Ok(validation.value),
+    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
+    // the modeled MessageValidationError, while a validator that throws
+    // synchronously or rejects becomes a Defect — a sync throw can therefore
+    // never escape the chain and leave the pending-call entry/timer dangling.
+    const validateRequest = (): AsyncResult<unknown, MessageValidationError> =>
+      fromSchemaAsync(requestSchema)(request).mapErrCases((matcher) =>
+        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+        matcher.with(P._, (issues) => new MessageValidationError(rpcName, issues)),
       );
-    };
 
     const publishRequest = (validatedRequest: unknown): AsyncResult<void, never> => {
       // Merge `defaultPublishOptions` (persistent, priority, headers, …) with
