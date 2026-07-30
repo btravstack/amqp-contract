@@ -60,7 +60,7 @@ describe("Worker close drains in-flight handlers", () => {
     }).get();
 
     // WHEN a message is mid-handler as close() begins
-    publishMessage(exchange.name, "drain.test", { id: "in-flight" });
+    publishMessage({ exchange: exchange.name, routingKey: "drain.test" }, { id: "in-flight" });
     await started;
 
     const closing = worker.close().get();

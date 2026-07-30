@@ -69,7 +69,7 @@ describe("Worker middleware context merge", () => {
     }).get();
 
     try {
-      publishMessage(exchange.name, "test.message", { id: "bare" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "bare" });
       await vi.waitFor(
         () => {
           if (seen.length === 0) throw new Error("message not processed yet");
@@ -107,7 +107,7 @@ describe("Worker middleware context merge", () => {
     }).get();
 
     try {
-      publishMessage(exchange.name, "test.message", { id: "array" });
+      publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "array" });
       await vi.waitFor(
         () => {
           if (seen.length === 0) throw new Error("message not processed yet");
