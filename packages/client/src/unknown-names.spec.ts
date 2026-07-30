@@ -52,7 +52,7 @@ const contract = defineContract({
 });
 
 async function createClient() {
-  const { _internal_resetConnections } = await import("@amqp-contract/core");
+  const { _internal_resetConnections } = await import("@amqp-contract/core/internal");
   await _internal_resetConnections();
   return TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] }).get();
 }

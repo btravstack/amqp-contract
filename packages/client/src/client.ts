@@ -10,7 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
-  type PublishOptions as AmqpClientPublishOptions,
+  type AmqpPublishOptions,
   type Logger,
   MessagingSemanticConventions,
   RPC_ERROR_CODE_HEADER,
@@ -104,9 +104,9 @@ type PendingCall = {
 };
 
 /**
- * Publish options that extend amqp-client's PublishOptions with optional compression support.
+ * Publish options that extend core's AmqpPublishOptions with optional compression support.
  */
-export type PublishOptions = AmqpClientPublishOptions & {
+export type PublishOptions = AmqpPublishOptions & {
   /**
    * Optional compression algorithm to use for the message payload.
    * When specified, the message will be compressed using the chosen algorithm
@@ -173,7 +173,7 @@ export type CallOptions = {
    * Optional AMQP message properties to merge into the request. `replyTo` and
    * `correlationId` are managed by the client and cannot be overridden.
    */
-  publishOptions?: Omit<AmqpClientPublishOptions, "replyTo" | "correlationId">;
+  publishOptions?: Omit<AmqpPublishOptions, "replyTo" | "correlationId">;
 };
 
 /**
@@ -517,7 +517,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
       // Extract compression from merged options and create publish options without it
       const { compression, ...restOptions } = mergedOptions;
-      const publishOptions: AmqpClientPublishOptions = { ...restOptions };
+      const publishOptions: AmqpPublishOptions = { ...restOptions };
 
       // Prepare payload and options based on compression configuration
       const preparePayload = (): AsyncResult<Buffer | unknown, never> => {
@@ -784,7 +784,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       // compression would break the round-trip.
       const { compression: _ignoredCompression, ...defaultsWithoutCompression } =
         this.defaultPublishOptions;
-      const publishOptions: AmqpClientPublishOptions = {
+      const publishOptions: AmqpPublishOptions = {
         ...defaultsWithoutCompression,
         ...options.publishOptions,
         replyTo: DIRECT_REPLY_TO,
