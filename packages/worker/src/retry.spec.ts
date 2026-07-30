@@ -162,12 +162,12 @@ function createMockClient(publishImpl: () => ReturnType<AmqpClient["publish"]>):
 
 describe("publishForRetry", () => {
   it("acks the original message only AFTER a successful retry publish", async () => {
-    const { client, ack, publish } = createMockClient(() => OkAsync(true));
+    const { client, ack, publish } = createMockClient(() => OkAsync(undefined));
     const callOrder: string[] = [];
     (client.ack as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push("ack"));
     (client.publish as ReturnType<typeof vi.fn>).mockImplementation(() => {
       callOrder.push("publish");
-      return OkAsync(true);
+      return OkAsync(undefined);
     });
 
     const msg = createMockConsumeMessage();
@@ -190,8 +190,17 @@ describe("publishForRetry", () => {
     expect(callOrder).toEqual(["publish", "ack"]);
   });
 
-  it("does NOT ack the original when publish reports the channel buffer is full", async () => {
-    const { client, ack, nack, publish } = createMockClient(() => OkAsync(false));
+  it("does NOT ack the original when publish surfaces a full write buffer (core-level Defect)", async () => {
+    // Since the buffer-full unification, AmqpClient.publish absorbs the
+    // channel wrapper's boolean and surfaces a full write buffer as a Defect
+    // with a TechnicalError cause — mirror exactly that shape here.
+    const { client, ack, nack, publish } = createMockClient(() =>
+      fromSafeThrowable((): void => {
+        throw new TechnicalError(
+          'Failed to publish message to queue "test-queue": channel write buffer full',
+        );
+      })().toAsync(),
+    );
 
     const msg = createMockConsumeMessage();
 
@@ -207,7 +216,8 @@ describe("publishForRetry", () => {
     );
 
     // A full write buffer is an unexpected publish failure — it surfaces as a
-    // Defect (with a TechnicalError cause), not a modeled Err.
+    // Defect (with a TechnicalError cause) from the core layer, not a
+    // modeled Err.
     expect(result).toBeDefect();
     expect(publish).toHaveBeenCalledTimes(1);
     // The whole point of the fix: the original message must remain un-ack'd
@@ -221,7 +231,7 @@ describe("publishForRetry", () => {
     // `amqpClient.publish` routes every rejection to the defect channel (with a
     // `TechnicalError` cause), so the retry publish surfaces a Defect here.
     const { client, ack, nack, publish } = createMockClient(() =>
-      fromSafeThrowable((): boolean => {
+      fromSafeThrowable((): void => {
         throw new TechnicalError("publish exploded");
       })().toAsync(),
     );
@@ -247,7 +257,7 @@ describe("publishForRetry", () => {
   });
 
   it("propagates retry headers and increments x-retry-count on publish", async () => {
-    const { client, publish } = createMockClient(() => OkAsync(true));
+    const { client, publish } = createMockClient(() => OkAsync(undefined));
 
     const msg = createMockConsumeMessage({
       properties: {
@@ -272,8 +282,7 @@ describe("publishForRetry", () => {
     );
 
     expect(publish).toHaveBeenCalledWith(
-      "retry-x",
-      "test.key",
+      { exchange: "retry-x", routingKey: "test.key" },
       expect.anything(),
       expect.objectContaining({
         expiration: "750",
@@ -295,7 +304,7 @@ describe("delivery-epoch stamping (reconnect-safe settles)", () => {
   // packages/core/src/channel-epoch.spec.ts). These tests pin the worker's
   // half of the contract: every settle in the retry pipeline is stamped.
   it("INVARIANT: the post-retry-publish ack carries the delivery epoch", async () => {
-    const { client, ack } = createMockClient(() => OkAsync(true));
+    const { client, ack } = createMockClient(() => OkAsync(undefined));
     const msg = createMockConsumeMessage();
 
     await publishForRetry(
@@ -309,7 +318,7 @@ describe("delivery-epoch stamping (reconnect-safe settles)", () => {
       },
     );
 
-    expect(ack).toHaveBeenCalledWith(msg, false, { deliveryEpoch: 7 });
+    expect(ack).toHaveBeenCalledWith(msg, { deliveryEpoch: 7 });
   });
 
   it("INVARIANT: DLQ and requeue nacks carry the delivery epoch", async () => {
@@ -319,7 +328,7 @@ describe("delivery-epoch stamping (reconnect-safe settles)", () => {
     };
 
     // No retry config → DLQ nack.
-    const dlq = createMockClient(() => OkAsync(true));
+    const dlq = createMockClient(() => OkAsync(undefined));
     await handleError(
       { amqpClient: dlq.client as unknown as AmqpClient, deliveryEpoch: 3 },
       new NonRetryableError("permanent"),
@@ -327,10 +336,10 @@ describe("delivery-epoch stamping (reconnect-safe settles)", () => {
       "processOrder",
       consumer,
     );
-    expect(dlq.nack).toHaveBeenCalledWith(expect.anything(), false, false, { deliveryEpoch: 3 });
+    expect(dlq.nack).toHaveBeenCalledWith(expect.anything(), { requeue: false, deliveryEpoch: 3 });
 
     // Immediate-requeue below budget → requeue nack.
-    const requeue = createMockClient(() => OkAsync(true));
+    const requeue = createMockClient(() => OkAsync(undefined));
     await handleError(
       { amqpClient: requeue.client as unknown as AmqpClient, deliveryEpoch: 4 },
       new RetryableError("transient"),
@@ -346,6 +355,9 @@ describe("delivery-epoch stamping (reconnect-safe settles)", () => {
         queue: defineQueue("orders", { retry: { mode: "immediate-requeue", maxRetries: 2 } }),
       },
     );
-    expect(requeue.nack).toHaveBeenCalledWith(expect.anything(), false, true, { deliveryEpoch: 4 });
+    expect(requeue.nack).toHaveBeenCalledWith(expect.anything(), {
+      requeue: true,
+      deliveryEpoch: 4,
+    });
   });
 });

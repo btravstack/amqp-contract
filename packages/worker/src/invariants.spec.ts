@@ -37,7 +37,7 @@ function mockClient(): {
 } {
   const ack = vi.fn();
   const nack = vi.fn();
-  const publish = vi.fn(() => OkAsync(true));
+  const publish = vi.fn(() => OkAsync(undefined));
   return { client: { publish, ack, nack } as never, ack, nack, publish };
 }
 
@@ -58,7 +58,8 @@ describe("invariants: handler-error routing", () => {
 
     expect(result).toBeOk();
     expect(nack).toHaveBeenCalledTimes(1);
-    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+    expect(nack).toHaveBeenCalledWith(expect.anything(), {
+      requeue: false,
       deliveryEpoch: undefined,
     });
     expect(publish).not.toHaveBeenCalled();
@@ -79,7 +80,8 @@ describe("invariants: handler-error routing", () => {
 
     expect(result).toBeOk();
     expect(nack).toHaveBeenCalledTimes(1);
-    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+    expect(nack).toHaveBeenCalledWith(expect.anything(), {
+      requeue: false,
       deliveryEpoch: undefined,
     });
     expect(publish).not.toHaveBeenCalled();
@@ -100,7 +102,8 @@ describe("invariants: handler-error routing", () => {
       "processOrder",
       consumer,
     ).get();
-    expect(below.nack).toHaveBeenCalledWith(expect.anything(), false, true, {
+    expect(below.nack).toHaveBeenCalledWith(expect.anything(), {
+      requeue: true,
       deliveryEpoch: undefined,
     });
 
@@ -113,7 +116,8 @@ describe("invariants: handler-error routing", () => {
       "processOrder",
       consumer,
     ).get();
-    expect(at.nack).toHaveBeenCalledWith(expect.anything(), false, false, {
+    expect(at.nack).toHaveBeenCalledWith(expect.anything(), {
+      requeue: false,
       deliveryEpoch: undefined,
     });
   });
@@ -141,6 +145,10 @@ describe("invariants: handler-error routing", () => {
 
     expect(result).toBeOk();
     expect(publish).toHaveBeenCalledTimes(1);
-    expect(publish).toHaveBeenCalledWith("", "orders", expect.anything(), expect.anything());
+    expect(publish).toHaveBeenCalledWith(
+      { exchange: "", routingKey: "orders" },
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });
