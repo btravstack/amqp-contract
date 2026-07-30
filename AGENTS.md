@@ -94,6 +94,7 @@ Each invariant maps to a named guarding test — extend the mapping when you add
 6. **A message is acked/nacked exactly once** — `packages/worker/src/__tests__/worker-double-ack.spec.ts`.
 7. **Middleware short-circuit skips the handler; its result routes like a handler result** — `packages/worker/src/middleware.spec.ts` + `tests/src/middleware.spec.ts`.
 8. **Middleware-substituted payloads are re-validated before the handler** — `packages/worker/src/middleware.spec.ts` ("threads substituted payloads…") + `tests/src/middleware.spec.ts` ("blocks handler execution when the substitution fails the schema").
+   8a. **A middleware's injected context merges over the `createContext` seed — bare and array middleware forms are observably identical** — `packages/worker/src/__tests__/worker-middleware-context.spec.ts`.
 9. **RPC replies require `replyTo` + `correlationId`; undeclared error codes/invalid error data → DLQ, never a malformed reply** — `tests/src/rpc.spec.ts` (undeclared-code/invalid-error-data timeout tests + "RPC DLQ routing" describe: DLQ delivery for undeclared codes and reply-less requests).
 10. **Worker creation fails fast on missing or non-callable handlers, before any connection is acquired** — `packages/worker/src/worker-cleanup.spec.ts`.
 11. **`createContext` failure routes to DLQ; the handler never runs** — `tests/src/middleware.spec.ts` ("routes a throwing createContext…").
