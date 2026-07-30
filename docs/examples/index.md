@@ -5,7 +5,7 @@ description: Annotated tours of the runnable example projects in the repository.
 
 # Examples
 
-Annotated tours of the runnable projects under [`examples/`](https://github.com/btravstack/amqp-contract/tree/main/examples). Unlike the snippets elsewhere in these docs, this code compiles and is covered by integration tests.
+Annotated tours of example projects. The [basic order processing](/examples/basic-order-processing) example is backed by the runnable code under [`examples/`](https://github.com/btravstack/amqp-contract/tree/main/examples), which compiles and is covered by integration tests. The [command pattern](/examples/command-pattern) page is an illustrative walkthrough of a fictional payment service.
 
 If you are starting out, do the [tutorial](/tutorial/getting-started) first — it builds a working publisher and consumer from nothing.
 

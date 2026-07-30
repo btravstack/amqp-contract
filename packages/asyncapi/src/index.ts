@@ -25,10 +25,10 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
  * @example
  * ```typescript
  * import { AsyncAPIGenerator } from '@amqp-contract/asyncapi';
- * import { zodToJsonSchema } from '@orpc/zod';
+ * import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
  *
  * const generator = new AsyncAPIGenerator({
- *   schemaConverters: [zodToJsonSchema]
+ *   schemaConverters: [new ZodToJsonSchemaConverter()]
  * });
  * ```
  */
@@ -73,7 +73,7 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
  * ```typescript
  * import { AsyncAPIGenerator } from '@amqp-contract/asyncapi';
  * import { defineExchange, defineMessage, defineContract, definePublisher } from '@amqp-contract/contract';
- * import { zodToJsonSchema } from '@orpc/zod';
+ * import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
  * import { z } from 'zod';
  *
  * const ordersExchange = defineExchange('orders');
@@ -91,7 +91,7 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
  * });
  *
  * const generator = new AsyncAPIGenerator({
- *   schemaConverters: [zodToJsonSchema]
+ *   schemaConverters: [new ZodToJsonSchemaConverter()]
  * });
  *
  * const asyncapi = await generator.generate(contract, {

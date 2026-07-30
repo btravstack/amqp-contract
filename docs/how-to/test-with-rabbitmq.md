@@ -30,16 +30,13 @@ export default defineConfig({
 
 The global setup starts one container before the suite and stops it after. The default timeouts are too tight for broker round trips — raise them as above.
 
-For fixture types, either add to `tsconfig.json`:
-
-```json
-{ "compilerOptions": { "types": ["@amqp-contract/testing/types/vitest"] } }
-```
-
-or reference them per file:
+No TypeScript configuration is needed for the fixtures: the `it` exported by `@amqp-contract/testing/extension` is fully typed. Only if you call Vitest's `inject()` yourself to read the raw container context (IP, ports, credentials) do you need the `ProvidedContext` augmentation — load it with a side-effect import in that test file:
 
 ```typescript
-/// <reference types="@amqp-contract/testing/types/vitest" />
+import "@amqp-contract/testing/global-setup";
+import { inject } from "vitest";
+
+const host = inject("__TESTCONTAINERS_RABBITMQ_IP__");
 ```
 
 ## Test a worker end to end
@@ -62,7 +59,7 @@ describe("order worker", () => {
       handlers: declareHandlers(contract, {
         processOrder: ({ payload }) => {
           processed.push(payload);
-          return OkAsync(undefined);
+          return OkAsync();
         },
       }),
       urls: [amqpConnectionUrl],

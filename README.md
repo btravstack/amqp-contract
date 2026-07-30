@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[**Documentation**](https://btravstack.github.io/amqp-contract) · [**Get Started**](https://btravstack.github.io/amqp-contract/guide/getting-started) · [**Examples**](https://btravstack.github.io/amqp-contract/examples/)
+[**Documentation**](https://btravstack.github.io/amqp-contract) · [**Get Started**](https://btravstack.github.io/amqp-contract/tutorial/getting-started) · [**Examples**](https://btravstack.github.io/amqp-contract/examples/)
 
 </div>
 
@@ -78,7 +78,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ payload }) => {
       console.log(payload.orderId); // ✅ TypeScript knows!
-      return OkAsync(undefined);
+      return OkAsync();
     },
   },
   urls: ["amqp://localhost"],
@@ -106,7 +106,7 @@ await client.close().get();
 await worker.close().get();
 ```
 
-▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/guide/getting-started).
+▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/tutorial/getting-started).
 
 ## Installation
 
@@ -128,18 +128,20 @@ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
 
 📖 **[Full Documentation →](https://btravstack.github.io/amqp-contract)**
 
-- [Get Started](https://btravstack.github.io/amqp-contract/guide/getting-started) — Get running in 5 minutes
-- [Core Concepts](https://btravstack.github.io/amqp-contract/guide/core-concepts) — Understand the fundamentals
+- [Get Started](https://btravstack.github.io/amqp-contract/tutorial/getting-started) — Get running in 5 minutes
+- [Core Concepts](https://btravstack.github.io/amqp-contract/explanation/core-concepts) — Understand the fundamentals
 - [Examples](https://btravstack.github.io/amqp-contract/examples/) — Real-world usage patterns
 
 ## Packages
 
-| Package                                        | Description                           |
-| ---------------------------------------------- | ------------------------------------- |
-| [@amqp-contract/contract](./packages/contract) | Contract builder and type definitions |
-| [@amqp-contract/client](./packages/client)     | Type-safe client for publishing       |
-| [@amqp-contract/worker](./packages/worker)     | Type-safe worker with retry support   |
-| [@amqp-contract/asyncapi](./packages/asyncapi) | AsyncAPI 3.1 generator                |
+| Package                                        | Description                                            |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| [@amqp-contract/contract](./packages/contract) | Contract builder and type definitions                  |
+| [@amqp-contract/client](./packages/client)     | Type-safe client for publishing                        |
+| [@amqp-contract/worker](./packages/worker)     | Type-safe worker with retry support                    |
+| [@amqp-contract/core](./packages/core)         | Shared runtime: topology setup, connections, telemetry |
+| [@amqp-contract/asyncapi](./packages/asyncapi) | AsyncAPI 3.1 generator                                 |
+| [@amqp-contract/testing](./packages/testing)   | Vitest utilities with a RabbitMQ testcontainer         |
 
 ## Contributing
 

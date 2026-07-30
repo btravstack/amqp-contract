@@ -112,22 +112,11 @@ export function defineExchange<TName extends string>(
   options: { type: "headers" } & Omit<BaseExchangeDefinition, "name" | "type">,
 ): HeadersExchangeDefinition<TName>;
 
-/**
- * Define an AMQP exchange.
- *
- * An exchange receives messages from publishers and routes them to queues based on the exchange type
- * and routing rules. This is the implementation function - use the type-specific overloads for better
- * type safety.
- *
- * @param name - The name of the exchange
- * @param options - Optional exchange configuration
- * @param options.type - Exchange type (one of "topic", "direct", "fanout", "headers") (default: "topic")
- * @param options.durable - If true, the exchange survives broker restarts (default: true)
- * @param options.autoDelete - If true, the exchange is deleted when no queues are bound
- * @param options.internal - If true, the exchange cannot be directly published to
- * @param options.arguments - Additional AMQP arguments for the exchange
- * @returns An exchange definition
- * @internal
+/*
+ * Implementation signature of defineExchange — not part of the public overload
+ * set; use the type-specific overloads above. (Deliberately a plain comment:
+ * a JSDoc `@internal` here makes TypeDoc drop the whole function from the
+ * generated API docs.)
  */
 export function defineExchange(
   name: string,

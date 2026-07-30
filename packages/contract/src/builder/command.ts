@@ -240,9 +240,10 @@ export function defineCommandConsumer<
   },
 ): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueEntry>;
 
-/**
- * Implementation of defineCommandConsumer.
- * @internal
+/*
+ * Implementation signature of defineCommandConsumer. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineCommandConsumer<TMessage extends MessageDefinition>(
   queue: QueueEntry,
@@ -428,9 +429,10 @@ export function defineCommandPublisher<
   },
 ): { message: TMessage; exchange: TopicExchangeDefinition; routingKey: TPublisherRoutingKey };
 
-/**
- * Implementation of defineCommandPublisher.
- * @internal
+/*
+ * Implementation signature of defineCommandPublisher. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function defineCommandPublisher<TMessage extends MessageDefinition>(
   commandConsumer: CommandConsumerConfig<TMessage, ExchangeDefinition, string | undefined>,

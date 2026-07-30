@@ -30,10 +30,13 @@ The returned contract exposes `exchanges`, `queues` and `bindings` extracted fro
 defineExchange(name, options?);
 ```
 
-| Option    | Type                                           | Default   |
-| --------- | ---------------------------------------------- | --------- |
-| `type`    | `"topic" \| "direct" \| "fanout" \| "headers"` | `"topic"` |
-| `durable` | `boolean`                                      | `true`    |
+| Option       | Type                                           | Default   | Notes                                                              |
+| ------------ | ---------------------------------------------- | --------- | ------------------------------------------------------------------ |
+| `type`       | `"topic" \| "direct" \| "fanout" \| "headers"` | `"topic"` |                                                                    |
+| `durable`    | `boolean`                                      | `true`    |                                                                    |
+| `autoDelete` | `boolean`                                      | `false`   | Deleted when all queues have finished using it                     |
+| `internal`   | `boolean`                                      | `false`   | Not publishable by clients; only via exchange-to-exchange bindings |
+| `arguments`  | `Record<string, unknown>`                      | —         | Raw AMQP exchange arguments (e.g. `alternate-exchange`)            |
 
 | Type      | Routing                                         |
 | --------- | ----------------------------------------------- |
@@ -188,7 +191,7 @@ Each `errors` entry is `{ data, message? }`: `data` is the Standard Schema valid
 | Option                  | Type                            | Default                     |
 | ----------------------- | ------------------------------- | --------------------------- |
 | `contract`              | contract                        | required                    |
-| `urls`                  | `string[]`                      | required                    |
+| `urls`                  | `ConnectionUrl[]`               | required                    |
 | `connectionOptions`     | amqp-connection-manager options | —                           |
 | `defaultPublishOptions` | `PublishOptions`                | `{ persistent: true }`      |
 | `connectTimeoutMs`      | `number \| null`                | 30000; `null` waits forever |
@@ -196,6 +199,8 @@ Each `errors` entry is `{ data, message? }`: `data` is the Standard Schema valid
 | `telemetry`             | `TelemetryProvider`             | auto-detected               |
 | `publishInterceptors`   | `PublishInterceptor[]`          | —                           |
 | `callInterceptors`      | `CallInterceptor[]`             | —                           |
+
+`ConnectionUrl` is amqp-connection-manager's URL type — a plain `amqp://` string, an amqplib `Options.Connect` object, or `{ url, connectionOptions }`.
 
 `PublishOptions` is amqplib's `Options.Publish` plus `compression?: "gzip" | "deflate"`. Properties are flat: `persistent`, `priority`, `expiration`, `correlationId`, `headers`, and the rest.
 
@@ -209,8 +214,9 @@ An invalid `connectTimeoutMs` (`NaN`, zero, negative, `Infinity`) surfaces as a 
 | ------------------------ | --------------------------------------------------------------- |
 | `contract`               | contract                                                        |
 | `handlers`               | one entry per consumer and RPC                                  |
-| `urls`                   | `string[]`                                                      |
+| `urls`                   | `ConnectionUrl[]`                                               |
 | `connectionOptions`      | amqp-connection-manager options                                 |
+| `connectTimeoutMs`       | `number \| null` (default 30000; `null` waits forever)          |
 | `defaultConsumerOptions` | `ConsumerOptions` (see below)                                   |
 | `middleware`             | `WorkerMiddleware`, an array of them, or `composeMiddleware(…)` |
 | `createContext`          | `(info) => context`                                             |

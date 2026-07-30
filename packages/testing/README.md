@@ -8,7 +8,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/guide/getting-started)**
+📖 **[Full documentation →](https://btravstack.github.io/amqp-contract/how-to/test-with-rabbitmq)**
 
 ## Features
 
@@ -41,23 +41,17 @@ export default defineConfig({
 
 ### 2. TypeScript Support
 
-For TypeScript projects, reference the type definitions in your `tsconfig.json`:
+The typed `it` from `@amqp-contract/testing/extension` needs no extra TypeScript configuration — its fixtures are fully typed out of the box.
 
-```json
-{
-  "compilerOptions": {
-    "types": ["@amqp-contract/testing/types/vitest"]
-  }
-}
-```
-
-Or add a triple-slash reference in your test files:
+If you call Vitest's `inject()` yourself to read the raw container context (IP, ports, credentials), load the `ProvidedContext` module augmentation with a side-effect import in that test file:
 
 ```typescript
-/// <reference types="@amqp-contract/testing/types/vitest" />
-```
+import "@amqp-contract/testing/global-setup";
+import { inject } from "vitest";
 
-This provides type-safe access to the test container context variables.
+const host = inject("__TESTCONTAINERS_RABBITMQ_IP__");
+const port = inject("__TESTCONTAINERS_RABBITMQ_PORT_5672__");
+```
 
 ### 3. Use Vitest Extension in Tests
 

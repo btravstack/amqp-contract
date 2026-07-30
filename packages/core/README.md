@@ -64,11 +64,11 @@ const amqpClient = new AmqpClient(contract, {
   urls: ["amqp://localhost"],
 });
 
-// Clean up
-await amqpClient.close();
+// Clean up — close() returns an AsyncResult with an empty error channel
+await amqpClient.close().get();
 ```
 
-For advanced channel configuration options (custom setup, prefetch, publisher confirms), see the [Channel Configuration Guide](https://btravstack.github.io/amqp-contract/guide/channel-configuration).
+For advanced channel configuration options (custom setup, prefetch, publisher confirms), see the [Channel Configuration Guide](https://btravstack.github.io/amqp-contract/how-to/configure-channels).
 
 ### Logger Interface
 

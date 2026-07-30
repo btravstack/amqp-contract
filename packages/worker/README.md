@@ -29,10 +29,9 @@ pnpm add @amqp-contract/worker
 ### Basic Usage
 
 ```typescript
-import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import type { Logger } from "@amqp-contract/core";
-import { fromPromise, type AsyncResult } from "unthrown";
-import { contract } from "./contract";
+import { TypedAmqpWorker, RetryableError, type Logger } from "@amqp-contract/worker";
+import { fromPromise } from "unthrown";
+import { contract } from "./contract.js";
 
 // Optional: Create a logger implementation
 const logger: Logger = {
@@ -63,12 +62,12 @@ const worker = await TypedAmqpWorker.create({
 // Worker is already consuming messages
 
 // Clean up when needed
-// await worker.close();
+// await worker.close().get();
 ```
 
 ### Advanced Features
 
-For advanced features like prefetch configuration and **automatic retry**, see the [Worker Usage Guide](https://btravstack.github.io/amqp-contract/guide/worker-usage).
+For advanced features like prefetch configuration and **automatic retry**, see the [Consume Messages Guide](https://btravstack.github.io/amqp-contract/how-to/consume-messages).
 
 #### Retry configuration
 
@@ -97,7 +96,7 @@ Then use `RetryableError` in your handlers:
 
 ```typescript
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
-import { fromPromise, type AsyncResult } from "unthrown";
+import { fromPromise } from "unthrown";
 
 const worker = await TypedAmqpWorker.create({
   contract,
@@ -113,7 +112,7 @@ const worker = await TypedAmqpWorker.create({
 }).get();
 ```
 
-See the [Error Handling and Retry](https://btravstack.github.io/amqp-contract/guide/worker-usage#error-handling-and-retry) section in the guide for complete details.
+See [Retry Failed Messages](https://btravstack.github.io/amqp-contract/how-to/retry-failed-messages) for complete details.
 
 ## Defining Handlers Externally
 
@@ -125,7 +124,7 @@ Worker handlers return `AsyncResult<void, HandlerError>` for explicit error hand
 
 ```typescript
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
-import { ErrAsync, fromPromise, type AsyncResult } from "unthrown";
+import { ErrAsync, fromPromise } from "unthrown";
 
 handlers: {
   processOrder: ({ payload }) => {

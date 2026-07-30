@@ -135,16 +135,11 @@ export function definePublisher<TMessage extends MessageDefinition>(
   { exchange: DirectExchangeDefinition | TopicExchangeDefinition }
 >;
 
-/**
- * Define a message publisher.
- *
- * This is the implementation function - use the type-specific overloads for better type safety.
- *
- * @param exchange - The exchange definition
- * @param message - The message definition
- * @param options - Optional publisher configuration
- * @returns A publisher definition
- * @internal
+/*
+ * Implementation signature of definePublisher — not part of the public
+ * overload set; use the type-specific overloads above. (Deliberately a plain
+ * comment: a JSDoc `@internal` here makes TypeDoc drop the whole function
+ * from the generated API docs.)
  */
 export function definePublisher<TMessage extends MessageDefinition>(
   exchange: ExchangeDefinition,
