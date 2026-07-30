@@ -6,7 +6,12 @@
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 
-import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "./builder.js";
+import type {
+  BindingPattern,
+  MatchingBindingPattern,
+  MatchingRoutingKey,
+  RoutingKey,
+} from "./builder.js";
 import {
   defineCommandConsumer,
   defineCommandPublisher,
@@ -138,6 +143,97 @@ describe("MatchingRoutingKey pattern matching", () => {
     expectTypeOf<
       MatchingRoutingKey<"order.#.completed", "user.completed">
     >().toEqualTypeOf<never>();
+  });
+
+  test("trailing # matches zero words", () => {
+    // Pattern with a trailing # matches the key even when # consumes nothing
+    expectTypeOf<
+      MatchingRoutingKey<"order.created.#", "order.created">
+    >().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      MatchingRoutingKey<"order.*.#", "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
+});
+
+describe("MatchingBindingPattern (topic consumer override enforcement)", () => {
+  test("resolves to the pattern when it can match the publisher key", () => {
+    expectTypeOf<MatchingBindingPattern<"order.*", "order.created">>().toEqualTypeOf<"order.*">();
+    expectTypeOf<MatchingBindingPattern<"order.#", "order.created">>().toEqualTypeOf<"order.#">();
+    expectTypeOf<MatchingBindingPattern<"#", "order.created">>().toEqualTypeOf<"#">();
+    expectTypeOf<
+      MatchingBindingPattern<"order.created", "order.created">
+    >().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      MatchingBindingPattern<"order.created.#", "order.created">
+    >().toEqualTypeOf<"order.created.#">();
+  });
+
+  test("resolves to a descriptive error string when the pattern can never match", () => {
+    expectTypeOf<
+      MatchingBindingPattern<"user.*", "order.created">
+    >().toEqualTypeOf<"Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'">();
+    expectTypeOf<
+      MatchingBindingPattern<"order", "order.created">
+    >().toEqualTypeOf<"Error: binding pattern 'order' can never match the publisher routing key 'order.created'">();
+  });
+
+  test("skips the check for non-literal strings", () => {
+    expectTypeOf<MatchingBindingPattern<string, "order.created">>().toEqualTypeOf<string>();
+    expectTypeOf<MatchingBindingPattern<"order.*", string>>().toEqualTypeOf<"order.*">();
+  });
+
+  test("still rejects empty patterns", () => {
+    expectTypeOf<MatchingBindingPattern<"", "order.created">>().toEqualTypeOf<never>();
+  });
+});
+
+describe("defineEventConsumer topic routing-key override enforcement", () => {
+  const ordersExchange = defineExchange("orders");
+  const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+  const allOrdersQueue = defineQueue("all-orders");
+  const bridgeExchange = defineExchange("billing");
+  const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+    routingKey: "order.created",
+  });
+
+  test("accepts patterns that can match the publisher routing key", () => {
+    defineEventConsumer(orderCreated, allOrdersQueue);
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.created" });
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.*" });
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.#" });
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "#" });
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.created.#" });
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "*.created" });
+  });
+
+  test("rejects patterns that can never match the publisher routing key", () => {
+    // @ts-expect-error — 'user.*' can never match 'order.created'
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "user.*" });
+    // @ts-expect-error — 'order' can never match 'order.created'
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order" });
+    // @ts-expect-error — 'order.created.urgent' can never match 'order.created'
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.created.urgent" });
+    // @ts-expect-error — 'order.*.urgent' can never match 'order.created'
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.*.urgent" });
+    // @ts-expect-error — '' is not a valid binding pattern
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "" });
+  });
+
+  test("enforces the same constraint on the bridged topic overload", () => {
+    defineEventConsumer(orderCreated, allOrdersQueue, {
+      bridgeExchange,
+      routingKey: "order.*",
+    });
+    defineEventConsumer(orderCreated, allOrdersQueue, {
+      bridgeExchange,
+      routingKey: "order.created",
+    });
+    defineEventConsumer(orderCreated, allOrdersQueue, {
+      bridgeExchange,
+      // @ts-expect-error — 'user.*' can never match 'order.created'
+      routingKey: "user.*",
+    });
   });
 });
 

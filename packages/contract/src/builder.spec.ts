@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { brand } from "./brand.js";
 import {
   defineCommandConsumer,
   defineCommandPublisher,
@@ -956,7 +957,7 @@ describe("builder", () => {
 
       // THEN
       expect(eventPublisher).toMatchObject({
-        __brand: "EventPublisherConfig",
+        [brand]: "EventPublisherConfig",
         exchange,
         message,
         routingKey: undefined,
@@ -984,7 +985,7 @@ describe("builder", () => {
 
       // THEN
       expect(eventPublisher).toMatchObject({
-        __brand: "EventPublisherConfig",
+        [brand]: "EventPublisherConfig",
         exchange,
         message,
         routingKey: undefined,
@@ -1019,7 +1020,7 @@ describe("builder", () => {
 
       // THEN
       expect(eventPublisher).toMatchObject({
-        __brand: "EventPublisherConfig",
+        [brand]: "EventPublisherConfig",
         exchange,
         message,
         routingKey: "order.created",
@@ -1050,7 +1051,7 @@ describe("builder", () => {
 
       // THEN
       expect(eventPublisher).toMatchObject({
-        __brand: "EventPublisherConfig",
+        [brand]: "EventPublisherConfig",
         routingKey: "task.execute",
       });
       expect(binding).toEqual({
@@ -1087,6 +1088,32 @@ describe("builder", () => {
       });
       expect(binding2).toMatchObject({
         routingKey: "order.*", // Overridden with pattern
+      });
+    });
+
+    it("should forward the publisher's bindingArguments to consumer bindings as a default", () => {
+      // GIVEN
+      const message = defineMessage(z.object({ level: z.string() }));
+      const exchange = defineExchange("logs", { type: "headers" });
+      const queue1 = defineQueue("all-logs");
+      const queue2 = defineQueue("error-logs");
+
+      // WHEN — publisher declares default binding arguments
+      const eventPublisher = defineEventPublisher(exchange, message, {
+        bindingArguments: { "x-match": "all", level: "info" },
+      });
+      const { binding: defaulted } = defineEventConsumer(eventPublisher, queue1);
+      const { binding: overridden } = defineEventConsumer(eventPublisher, queue2, {
+        arguments: { "x-match": "all", level: "error" },
+      });
+
+      // THEN — consumers inherit them unless they pass their own `arguments`
+      expect(eventPublisher.bindingArguments).toEqual({ "x-match": "all", level: "info" });
+      expect(defaulted).toMatchObject({
+        arguments: { "x-match": "all", level: "info" },
+      });
+      expect(overridden).toMatchObject({
+        arguments: { "x-match": "all", level: "error" },
       });
     });
 
@@ -1258,7 +1285,7 @@ describe("builder", () => {
 
       // THEN
       expect(command).toMatchObject({
-        __brand: "CommandConsumerConfig",
+        [brand]: "CommandConsumerConfig",
         consumer: { queue, message },
         binding: { type: "queue", queue, exchange },
         exchange,
@@ -1283,7 +1310,7 @@ describe("builder", () => {
 
       // THEN
       expect(command).toMatchObject({
-        __brand: "CommandConsumerConfig",
+        [brand]: "CommandConsumerConfig",
         consumer: { queue, message },
         binding: { type: "queue", queue, exchange },
         exchange,
@@ -1615,7 +1642,7 @@ describe("builder", () => {
 
       // THEN - Queue binds to bridge, e2e binding from source → bridge
       expect(result).toMatchObject({
-        __brand: "EventConsumerResult",
+        [brand]: "EventConsumerResult",
         exchange: ordersExchange,
         bridgeExchange: billingExchange,
         binding: {
@@ -1709,7 +1736,7 @@ describe("builder", () => {
       // THEN - Publisher is bridged
       expect(isBridgedPublisherConfig(publisher)).toBe(true);
       expect(publisher).toMatchObject({
-        __brand: "BridgedPublisherConfig",
+        [brand]: "BridgedPublisherConfig",
         bridgeExchange: localExchange,
         targetExchange: remoteExchange,
         publisher: {

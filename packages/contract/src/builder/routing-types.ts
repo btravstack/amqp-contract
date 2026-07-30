@@ -52,6 +52,19 @@ export type RoutingKey<S extends string> = S extends ""
 export type BindingPattern<S extends string> = S extends "" ? never : S;
 
 /**
+ * True when a pattern remainder consists only of `#` segments (`#`, `#.#`, …).
+ * Such a remainder can match zero words, which matters once the routing key
+ * has been fully consumed (e.g. pattern `order.created.#` vs key
+ * `order.created` — `#` matches zero trailing words, so they match).
+ * @internal
+ */
+type IsHashOnly<Pattern extends string> = Pattern extends "#"
+  ? true
+  : Pattern extends `#.${infer Rest}`
+    ? IsHashOnly<Rest>
+    : false;
+
+/**
  * Helper type for pattern matching with # in the middle
  * Handles backtracking to match # with zero or more segments
  * @internal
@@ -82,7 +95,9 @@ type MatchesPattern<
         : PatternPart extends KeyPart
           ? MatchesPattern<KeyRest, PatternRest> // Exact match
           : false
-      : false
+      : PatternPart extends "*" | Key
+        ? IsHashOnly<PatternRest> // Last key word consumed; the rest matches only if it can match zero words
+        : false
   : Pattern extends "#"
     ? true // # matches everything (including empty)
     : Pattern extends "*"
@@ -96,9 +111,11 @@ type MatchesPattern<
 /**
  * Validate that a routing key matches a binding pattern.
  *
- * This is a utility type provided for users who want compile-time validation
- * that a routing key matches a specific pattern. It's not enforced internally
- * in the API to avoid TypeScript recursion depth issues with complex routing keys.
+ * This is a utility type for users who want compile-time validation that a
+ * routing key matches a specific pattern. The library enforces the same
+ * matching on `defineEventConsumer`'s topic routing-key overrides via
+ * {@link MatchingBindingPattern} (which surfaces a readable error-message
+ * string type instead of `never`).
  *
  * Returns the routing key if it's valid and matches the pattern, `never` otherwise.
  *
@@ -119,3 +136,38 @@ export type MatchingRoutingKey<Pattern extends string, Key extends string> =
       : MatchesPattern<Key, Pattern> extends true
         ? Key
         : never;
+
+/**
+ * Binding pattern for a topic consumer, validated against the publisher's
+ * concrete routing key.
+ *
+ * `defineEventConsumer` uses this on its topic overloads: a routing-key
+ * override must be a pattern that can actually match the event publisher's
+ * routing key, otherwise the binding compiles but silently receives nothing
+ * at runtime. On a mismatch this resolves to a human-readable error-message
+ * string type — so the compile error names both sides instead of collapsing
+ * to a bare `never`:
+ *
+ * ```
+ * Type '"user.*"' is not assignable to type
+ *   "Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'"
+ * ```
+ *
+ * Non-literal strings (plain `string` on either side) skip the check — the
+ * match cannot be decided at compile time, so runtime behavior is preserved.
+ *
+ * @template Pattern - The consumer's binding pattern (can contain * and # wildcards)
+ * @template PublisherKey - The publisher's concrete routing key
+ */
+export type MatchingBindingPattern<
+  Pattern extends string,
+  PublisherKey extends string,
+> = string extends Pattern
+  ? BindingPattern<Pattern>
+  : string extends PublisherKey
+    ? BindingPattern<Pattern>
+    : [BindingPattern<Pattern>] extends [never]
+      ? never // Empty pattern — same rejection as BindingPattern
+      : MatchesPattern<PublisherKey, Pattern> extends true
+        ? Pattern
+        : `Error: binding pattern '${Pattern}' can never match the publisher routing key '${PublisherKey}'`;

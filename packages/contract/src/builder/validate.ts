@@ -42,6 +42,35 @@ export function _internal_assertKnownKeys(
 }
 
 /**
+ * Throw when a direct/topic target is defined without a usable routing key.
+ *
+ * Direct and topic exchanges route on the routing key: a missing or empty key
+ * is silently unroutable at runtime (the broker drops the message with no
+ * error), so it must fail at define time instead. The type system already
+ * requires the key for TypeScript callers — this guards JavaScript callers
+ * and casts, which previously fell through to a silent `""` default.
+ *
+ * Callers must gate on the exchange type: fanout and headers exchanges ignore
+ * routing keys and are exempt.
+ */
+export function _internal_assertRoutingKeyPresent(
+  kind: string,
+  exchangeName: string,
+  exchangeType: string,
+  routingKey: unknown,
+): asserts routingKey is string {
+  if (typeof routingKey !== "string" || routingKey.length === 0) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
+    throw new Error(
+      `${kind} on ${exchangeType} exchange "${exchangeName}" requires a non-empty routingKey ` +
+        `(got ${JSON.stringify(routingKey)}). Direct and topic exchanges route on the routing key — ` +
+        `without one, messages are silently unroutable. ` +
+        `Fanout and headers exchanges do not use routing keys.`,
+    );
+  }
+}
+
+/**
  * Duck-check that a value implements Standard Schema v1 (has a `~standard`
  * object with a `validate` function) — catches passing a plain object or a
  * schema from an incompatible library where a payload schema is expected.

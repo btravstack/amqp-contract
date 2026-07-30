@@ -1,3 +1,4 @@
+import { brandOf } from "../brand.js";
 import type {
   CommandConsumerConfigBase,
   ConsumerDefinition,
@@ -11,14 +12,14 @@ import type {
  * Type guard to check if an entry is an EventConsumerResult.
  */
 function isEventConsumerResultEntry(entry: ConsumerEntry): entry is EventConsumerResultBase {
-  return "__brand" in entry && entry.__brand === "EventConsumerResult";
+  return brandOf(entry) === "EventConsumerResult";
 }
 
 /**
  * Type guard to check if an entry is a CommandConsumerConfig.
  */
 function isCommandConsumerConfigEntry(entry: ConsumerEntry): entry is CommandConsumerConfigBase {
-  return "__brand" in entry && entry.__brand === "CommandConsumerConfig";
+  return brandOf(entry) === "CommandConsumerConfig";
 }
 
 /**

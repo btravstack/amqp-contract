@@ -27,6 +27,7 @@ export type {
   CommandConsumerConfig,
   EventConsumerResult,
   EventPublisherConfig,
+  MatchingBindingPattern,
   MatchingRoutingKey,
   RoutingKey,
 } from "./builder.js";

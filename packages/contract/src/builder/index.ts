@@ -26,7 +26,12 @@ export { defineConsumer, extractConsumer } from "./consumer.js";
 export { defineContract } from "./contract.js";
 
 // Routing types
-export type { BindingPattern, MatchingRoutingKey, RoutingKey } from "./routing-types.js";
+export type {
+  BindingPattern,
+  MatchingBindingPattern,
+  MatchingRoutingKey,
+  RoutingKey,
+} from "./routing-types.js";
 
 // Event pattern
 export {

@@ -7,6 +7,7 @@ import type {
   PublisherDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
+import { _internal_assertRoutingKeyPresent } from "./validate.js";
 
 /**
  * Define a message publisher for a fanout or headers exchange.
@@ -153,10 +154,13 @@ export function definePublisher<TMessage extends MessageDefinition>(
     } as PublisherDefinition<TMessage>;
   }
 
+  const routingKey = options?.routingKey;
+  _internal_assertRoutingKeyPresent("Publisher", exchange.name, exchange.type, routingKey);
+
   return {
     exchange,
     message,
-    routingKey: options?.routingKey ?? "",
+    routingKey,
   } as PublisherDefinition<TMessage>;
 }
 
