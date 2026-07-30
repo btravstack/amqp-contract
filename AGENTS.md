@@ -86,7 +86,7 @@ These have been re-introduced more than once across recent migrations / reviews 
 
 Each invariant maps to a named guarding test — extend the mapping when you add one (org DNA: unthrown's `invariants.spec.ts` pattern).
 
-1. **Retry publishes before ack** (a failed retry-publish must not lose the message) — `packages/worker/src/retry.spec.ts` ("acks the original message only AFTER a successful retry publish", "does NOT ack … buffer is full").
+1. **Retry publishes before ack** (a failed retry-publish must not lose the message) — `packages/worker/src/retry.spec.ts` ("acks the original message only AFTER a successful retry publish", "does NOT ack … full write buffer").
 2. **NonRetryableError → exactly one `nack(requeue=false)`** (DLQ, never republished/acked) — `packages/worker/src/invariants.spec.ts`.
 3. **Retryable without retry config → DLQ, not infinite requeue** — `packages/worker/src/invariants.spec.ts`.
 4. **Immediate-requeue honors the retry budget** (requeue below, DLQ at) — `packages/worker/src/invariants.spec.ts`.

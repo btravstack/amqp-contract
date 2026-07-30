@@ -69,8 +69,10 @@ describe("order worker", () => {
       const order = { orderId: "TEST-001", amount: 59.98 };
 
       publishMessage(
-        contract.publishers.orderCreated.exchange.name,
-        contract.publishers.orderCreated.routingKey,
+        {
+          exchange: contract.publishers.orderCreated.exchange.name,
+          routingKey: contract.publishers.orderCreated.routingKey,
+        },
         order,
       );
 
@@ -120,7 +122,7 @@ expect(result.isErr()).toBe(true);
 | `amqpConnectionUrl` | Connection URL scoped to that vhost — what you pass to `urls`           |
 | `amqpConnection`    | An open amqplib `ChannelModel`, closed automatically                    |
 | `amqpChannel`       | An open amqplib `Channel`, closed automatically                         |
-| `publishMessage`    | `(exchange, routingKey, content) => void`, JSON-serializing             |
+| `publishMessage`    | `({ exchange, routingKey }, content) => void`, JSON-serializing         |
 | `initConsumer`      | `(exchange, routingKey) => Promise<waitFn>` for collecting raw messages |
 
 The per-test vhost is what makes tests independent: queues, exchanges and messages are destroyed with it, so tests can run in any order without cleanup code.
@@ -133,7 +135,7 @@ When you care what actually went on the wire, consume directly:
 it("routes urgent updates to the urgent queue", async ({ initConsumer, publishMessage }) => {
   const waitForMessages = await initConsumer("orders", "order.*.urgent");
 
-  publishMessage("orders", "order.updated.urgent", { orderId: "1" });
+  publishMessage({ exchange: "orders", routingKey: "order.updated.urgent" }, { orderId: "1" });
 
   const messages = await waitForMessages({ count: 1, timeoutMs: 10_000 });
   expect(JSON.parse(messages[0].content.toString())).toEqual({ orderId: "1" });
@@ -163,7 +165,10 @@ it("dead-letters a non-retryable failure", async ({
   }).get();
 
   try {
-    publishMessage("orders", "order.created", { orderId: "1", amount: 1 });
+    publishMessage(
+      { exchange: "orders", routingKey: "order.created" },
+      { orderId: "1", amount: 1 },
+    );
     expect(await waitForDead({ count: 1, timeoutMs: 10_000 })).toHaveLength(1);
   } finally {
     await worker.close().get();

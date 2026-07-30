@@ -117,6 +117,24 @@ function process(options) {
 }
 ```
 
+## Exported Function Signatures
+
+Exported functions follow the [Deno style guide's signature rules](https://docs.deno.com/runtime/contributing/style_guide/):
+
+- **Max 2 positional arguments**; everything else goes in a trailing options object.
+- **Never positional booleans** — a boolean is always a named key in the options object (`nack(msg, { requeue: false })`, not `nack(msg, false, false)`).
+- Related positional strings collapse into one object when they only make sense together (`publish({ exchange, routingKey }, content, options?)`).
+
+```typescript
+// Bad — positional booleans and >2 positional args
+client.nack(msg, false, false, { deliveryEpoch });
+client.publish("orders", "order.created", payload, { priority: 5 });
+
+// Good — trailing options object
+client.nack(msg, { requeue: false, deliveryEpoch });
+client.publish({ exchange: "orders", routingKey: "order.created" }, payload, { priority: 5 });
+```
+
 ## Additional Guidance
 
 - Avoid `@ts-ignore` and `@ts-expect-error`. Fix the root cause when you can; if you genuinely can't, leave a comment explaining why and link the upstream issue.
