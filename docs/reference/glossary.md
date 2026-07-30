@@ -37,7 +37,7 @@ A local exchange that forwards to, or receives from, an exchange in another doma
 
 ### Choreography
 
-The coordination style this library's vocabulary is built for: services react to each other's messages with no central coordinator — events fan out, commands go to their single owner. This is why the authoring API says **event** and **command** rather than AsyncAPI's transport-neutral `send`/`receive` (the mapping is mechanical: an event or command publisher is a `send` operation, a consumer is a `receive` operation, an RPC is a request/reply pair — the [AsyncAPI generator](/how-to/generate-asyncapi-docs) emits exactly that). Its sibling [temporal-contract](https://btravstack.github.io/temporal-contract/) deliberately uses different vocabulary (workflows, activities) because Temporal is an **orchestrator** — one coordinator drives the steps. Same family, different coordination model, different words on purpose.
+The coordination style this library's vocabulary is built for: services react to each other's messages with no central coordinator — events fan out, commands go to their single owner. This is why the authoring API says **event** and **command** rather than AsyncAPI's transport-neutral `send`/`receive` (the mapping is mechanical: an event or command publisher is a `send` operation, a consumer is a `receive` operation, an RPC is a request/reply pair — the [AsyncAPI generator](/how-to/generate-asyncapi) emits exactly that). Its sibling [temporal-contract](https://btravstack.github.io/temporal-contract/) deliberately uses different vocabulary (workflows, activities) because Temporal is an **orchestrator** — one coordinator drives the steps. Same family, different coordination model, different words on purpose.
 
 ### Client
 

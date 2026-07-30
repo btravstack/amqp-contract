@@ -90,12 +90,79 @@ Their modeled channel is now empty (`E = never`), and `.getOrThrow()` is gated t
 
 A failed `create()` still throws — `.get()` panics on a defect, rethrowing the underlying `TechnicalError`. `.getOrThrow()` on `publish(...)` / `call(...)` is unaffected; those still carry a modeled `E`.
 
+### Implementation-side builders are `declare*`
+
+Contract authoring keeps `define*`; implementation-side APIs are renamed to make the contract boundary visible (see the [glossary](/reference/glossary#declare-define)):
+
+| Before             | After               |
+| ------------------ | ------------------- |
+| `defineHandler`    | `declareHandler`    |
+| `defineHandlers`   | `declareHandlers`   |
+| `defineMiddleware` | `declareMiddleware` |
+
+`defineRpc` error-map entries are now `{ data: schema, message? }` instead of `defineMessage(schema)`, and the testing fixture wait options renamed `{ nbEvents, timeout }` → `{ count, timeoutMs }`.
+
+### Queues are uniform; retry topology is derived
+
+`defineQueue` now always returns a plain `QueueDefinition`, whatever its retry mode. Deleted: `extractQueue`, `QueueEntry`, `isQueueWithTtlBackoffInfrastructure`, `QueueWithTtlBackoffInfrastructure`, `TtlBackoffRetryInfrastructure` — if you called `extractQueue(entry)`, use the queue definition directly.
+
+```diff
+- const queue = extractQueue(orderQueue);
+- console.log(queue.name);
++ console.log(orderQueue.name);
+```
+
+TTL-backoff infrastructure is no longer stored in the contract (so `contract.exchanges` contains only _your_ exchanges) — it is derived at topology-setup time, and the single shared wait queue is replaced by **one wait queue per distinct backoff delay** (`{queue}-wait-{delayMs}ms`, queue-level TTL, dead-lettering back to the origin queue). This fixes head-of-line blocking: a 60-second retry can no longer delay a 1-second retry queued behind it.
+
+**Broker migration:** the old `{queue}-wait` queue and the `wait-exchange`/`retry-exchange` exchanges become unused. Let the old wait queue drain (its in-flight retries still dead-letter back correctly), then delete all three. Retried deliveries now arrive with the queue name as `fields.routingKey`; the original key is preserved in the `x-original-routing-key` header.
+
+### Topic binding patterns are checked against the publisher
+
+A `defineEventConsumer` routing-key override that can never match its publisher's routing key is now a compile error (a readable one, not a bare `never`):
+
+```ts
+// Publisher routing key: "order.created"
+defineEventConsumer(orderCreated, queue, { routingKey: "user.*" });
+// Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'
+```
+
+For JS callers, `definePublisher`, `defineQueueBinding`, and `defineExchangeBinding` on direct/topic exchanges now **throw at define time** when the routing key is missing or empty instead of silently defaulting to `""`.
+
+### Renamed and relocated exports
+
+| Before                                      | After                                              |
+| ------------------------------------------- | -------------------------------------------------- |
+| `ConsumerOptions` (core)                    | `AmqpConsumeOptions`                               |
+| `PublishOptions` (core)                     | `AmqpPublishOptions`                               |
+| `_internal_*` on the core root              | `@amqp-contract/core/internal`                     |
+| `defineEventPublisher`'s `arguments` option | `bindingArguments` (it always configured bindings) |
+
+The worker's and client's own `ConsumerOptions` / `PublishOptions` (the ones you use with `Typed*`) are unchanged. Builder-result brands are now `unique symbol`s — invisible in hovers and no longer forgeable; code that referenced `__brand` structurally must stop.
+
+### Core signatures follow the options-object convention
+
+Exported functions across the btravstack family now take at most two positional arguments with everything else in a trailing options object — no positional booleans ([Deno style guide](https://docs.deno.com/runtime/contributing/style_guide/#exported-functions%3A-max-2-args%2C-put-the-rest-into-an-options-object)). This only affects the low-level `AmqpClient` and the testing fixture; the typed client/worker surface already conformed:
+
+```diff
+- amqpClient.nack(msg, false, true);
++ amqpClient.nack(msg, { requeue: true });
+
+- amqpClient.publish(exchange, routingKey, content, options);
++ amqpClient.publish({ exchange, routingKey }, content, options);
+
+- publishMessage("orders-x", "order.created", payload);
++ publishMessage({ exchange: "orders-x", routingKey: "order.created" }, payload);
+```
+
+`AmqpClient.publish` / `sendToQueue` also now return `AsyncResult<void, never>` instead of `AsyncResult<boolean, never>`: a full channel write buffer is triaged once, inside core, as a defect — downstream code no longer checks a boolean.
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
-2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible.
+2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, signature changes).
 3. Fix `create()` / `close()` extraction first; it is mechanical.
 4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
+5. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 
 ## 2.3.x → 2.4.x
 
