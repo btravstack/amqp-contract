@@ -1842,12 +1842,10 @@ describe("builder", () => {
         publishers: {
           runCommand: defineCommandPublisher(command, {
             bridgeExchange: localExchange,
+            // The local domain only owns the bridge; the remote domain owns
+            // `remote-queue` and its binding, so they are not in this contract.
+            externalConsumers: true,
           }),
-        },
-        // The bridge only forwards local → remote; the remote queue's binding
-        // has to be in the contract too, or nothing consumes the command.
-        consumers: {
-          handleCommand: command,
         },
       });
 

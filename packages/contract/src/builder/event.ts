@@ -48,6 +48,16 @@ export type EventPublisherConfig<
    * `arguments` option.
    */
   bindingArguments?: Record<string, unknown>;
+  /**
+   * Declares that this event's consumers live outside this contract — a
+   * separate service or deployment owns the binding.
+   *
+   * Carried onto the publisher definition that `defineContract` extracts, so
+   * it opts the event out of the define-time routability check.
+   *
+   * @see PublisherDefinition.externalConsumers
+   */
+  externalConsumers?: boolean | undefined;
 };
 
 /**
@@ -96,6 +106,9 @@ export type EventConsumerResult<
  * @param options.bindingArguments - Default AMQP binding arguments applied to
  *   this event's consumers' queue bindings (a consumer's own `arguments`
  *   option takes precedence)
+ * @param options.externalConsumers - Declare that this event's consumers are
+ *   owned by another service, opting the event out of `defineContract`'s
+ *   define-time routability check
  * @returns An event publisher configuration
  *
  * @example
@@ -124,6 +137,7 @@ export function defineEventPublisher<
   message: TMessage,
   options?: {
     bindingArguments?: Record<string, unknown>;
+    externalConsumers?: boolean;
   },
 ): EventPublisherConfig<TMessage, TExchange, undefined>;
 
@@ -139,6 +153,9 @@ export function defineEventPublisher<
  * @param options.bindingArguments - Default AMQP binding arguments applied to
  *   this event's consumers' queue bindings (a consumer's own `arguments`
  *   option takes precedence)
+ * @param options.externalConsumers - Declare that this event's consumers are
+ *   owned by another service, opting the event out of `defineContract`'s
+ *   define-time routability check
  * @returns An event publisher configuration
  *
  * @example
@@ -167,6 +184,7 @@ export function defineEventPublisher<
   message: TMessage,
   options?: {
     bindingArguments?: Record<string, unknown>;
+    externalConsumers?: boolean;
   },
 ): EventPublisherConfig<TMessage, TExchange, undefined>;
 
@@ -183,6 +201,9 @@ export function defineEventPublisher<
  * @param options.bindingArguments - Default AMQP binding arguments applied to
  *   this event's consumers' queue bindings (a consumer's own `arguments`
  *   option takes precedence)
+ * @param options.externalConsumers - Declare that this event's consumers are
+ *   owned by another service, opting the event out of `defineContract`'s
+ *   define-time routability check
  * @returns An event publisher configuration
  *
  * @example
@@ -205,6 +226,7 @@ export function defineEventPublisher<
   options: {
     routingKey: RoutingKey<TRoutingKey>;
     bindingArguments?: Record<string, unknown>;
+    externalConsumers?: boolean;
   },
 ): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
 
@@ -221,6 +243,9 @@ export function defineEventPublisher<
  * @param options.bindingArguments - Default AMQP binding arguments applied to
  *   this event's consumers' queue bindings (a consumer's own `arguments`
  *   option takes precedence)
+ * @param options.externalConsumers - Declare that this event's consumers are
+ *   owned by another service, opting the event out of `defineContract`'s
+ *   define-time routability check
  * @returns An event publisher configuration
  *
  * @example
@@ -254,6 +279,7 @@ export function defineEventPublisher<
   options: {
     routingKey: RoutingKey<TRoutingKey>;
     bindingArguments?: Record<string, unknown>;
+    externalConsumers?: boolean;
   },
 ): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
 
@@ -268,6 +294,7 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
   options?: {
     routingKey?: string;
     bindingArguments?: Record<string, unknown>;
+    externalConsumers?: boolean | undefined;
   },
 ): EventPublisherConfig<TMessage, ExchangeDefinition, string | undefined> {
   if (exchange.type === "direct" || exchange.type === "topic") {
@@ -288,6 +315,9 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
 
   if (options?.bindingArguments !== undefined) {
     config.bindingArguments = options.bindingArguments;
+  }
+  if (options?.externalConsumers !== undefined) {
+    config.externalConsumers = options.externalConsumers;
   }
 
   return config;

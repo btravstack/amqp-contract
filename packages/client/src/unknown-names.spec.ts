@@ -2,11 +2,9 @@ import type { EventEmitter } from "node:events";
 
 import {
   defineContract,
-  defineEventConsumer,
   defineEventPublisher,
   defineExchange,
   defineMessage,
-  defineQueue,
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,12 +46,12 @@ vi.mock("amqp-connection-manager", async () => {
 const exchange = defineExchange("orders-x", { durable: false });
 const orderCreated = defineEventPublisher(exchange, defineMessage(z.object({ id: z.string() })), {
   routingKey: "order.created",
+  // Publish-only fixture: this test only exercises the client's publish/call
+  // surface, so no consumer is declared and none is needed.
+  externalConsumers: true,
 });
 const contract = defineContract({
   publishers: { orderCreated },
-  // The publisher has to reach a queue for the contract to be definable; the
-  // consumer side is irrelevant to this test but must exist.
-  consumers: { processOrder: defineEventConsumer(orderCreated, defineQueue("orders-q")) },
 });
 
 async function createClient() {
