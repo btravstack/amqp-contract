@@ -10,6 +10,7 @@ import {
   _internal_getConnectionCount,
   _internal_resetConnections,
 } from "@amqp-contract/core/internal";
+import { OkAsync } from "unthrown";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -114,6 +115,38 @@ describe("TypedAmqpWorker.create cleanup", () => {
       expect((result.cause as TechnicalError).message).toBe(
         "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
       );
+    }
+    expect(_internal_getConnectionCount()).toBe(0);
+  });
+
+  it("fails fast when a handler key names no contract entry, before acquiring a connection", async () => {
+    const contract = defineContract({
+      consumers: {
+        processOrder: defineConsumer(
+          defineQueue("orders", { type: "classic", durable: false }),
+          defineMessage(z.object({ orderId: z.string() })),
+        ),
+      },
+    });
+
+    // A stale key in a spread-built handlers object (or a rename that missed
+    // the worker) would otherwise be silently ignored — no consumer set up,
+    // no error, the message class it was meant to handle goes unprocessed.
+    const result = await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        processOrder: () => OkAsync(),
+        processTypo: () => OkAsync(),
+      } as never,
+      urls: ["amqp://localhost:1"],
+    });
+
+    expect(result).toBeDefect();
+    if (result.isDefect()) {
+      expect(result.cause).toBeInstanceOf(TechnicalError);
+      const message = (result.cause as TechnicalError).message;
+      expect(message).toContain("processTypo");
+      expect(message).toContain("processOrder");
     }
     expect(_internal_getConnectionCount()).toBe(0);
   });

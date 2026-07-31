@@ -43,7 +43,12 @@ import {
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError } from "./errors.js";
-import { invalidHandlerNames, missingHandlerNames } from "./handlers.js";
+import {
+  availableHandlerNames,
+  invalidHandlerNames,
+  missingHandlerNames,
+  unknownHandlerNames,
+} from "./handlers.js";
 import {
   composeMiddleware,
   type AnyWorkerMiddleware,
@@ -270,6 +275,13 @@ export type CreateWorkerOptions<
    * wrapper and their promises never settle.
    */
   publishTimeoutMs?: number | undefined;
+  /**
+   * Cap on the decompressed size (bytes) of a single inbound message. Guards
+   * against a decompression bomb — a few-KB payload that expands to gigabytes
+   * before schema validation runs. Over-cap messages follow the poison-message
+   * DLQ path. Defaults to {@link DEFAULT_MAX_DECOMPRESSED_BYTES} (64 MiB).
+   */
+  maxDecompressedBytes?: number | undefined;
 };
 
 /**
@@ -344,6 +356,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     private readonly createContext?: (
       info: WorkerCreateContextInfo,
     ) => Record<string, unknown> | Promise<Record<string, unknown>>,
+    private readonly maxDecompressedBytes?: number,
   ) {
     this.telemetry = telemetry ?? defaultTelemetryProvider;
 
@@ -451,6 +464,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     telemetry,
     connectTimeoutMs,
     publishTimeoutMs,
+    maxDecompressedBytes,
   }: CreateWorkerOptions<TContract, TCreated, TContext>): AsyncResult<
     TypedAmqpWorker<TContract>,
     never
@@ -466,6 +480,15 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       return technicalDefect(
         new TechnicalError(
           "TypedAmqpWorker.create requires a `handlers` object with one handler per `consumers` and `rpcs` entry",
+        ),
+      ).toAsync();
+    }
+    const unknown = unknownHandlerNames(contract, handlers);
+    if (unknown.length > 0) {
+      return technicalDefect(
+        new TechnicalError(
+          `Unknown handler keys with no matching contract entry: ${unknown.join(", ")}. ` +
+            `Declared consumers and RPCs: ${availableHandlerNames(contract).join(", ") || "(none)"}.`,
         ),
       ).toAsync();
     }
@@ -525,6 +548,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
               info: WorkerCreateContextInfo,
             ) => Record<string, unknown> | Promise<Record<string, unknown>>)
           | undefined,
+        maxDecompressedBytes,
       );
 
       // Note: Wait queues are now created by the core package in setupAmqpTopology
@@ -709,15 +733,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     const context = { consumerName: String(consumerName) };
 
-    const parsePayload = decompressBuffer(msg.content, msg.properties.contentEncoding)
+    const parsePayload = decompressBuffer(msg.content, msg.properties.contentEncoding, {
+      maxDecompressedBytes: this.maxDecompressedBytes,
+    })
       .flatMap((buffer) =>
         // A malformed JSON body is an unexpected infrastructure/producer fault:
-        // route the parse error to the defect channel.
-        safeJsonParse(
-          buffer,
-          (error) => new TechnicalError("Failed to parse JSON", error),
-        ).mapErrCases((matcher, defect) =>
-          matcher.with(P.tag("@amqp-contract/TechnicalError"), (error) => defect(error)),
+        // route the parse error straight to the defect channel via qualify.
+        safeJsonParse(buffer, (error, defect) =>
+          defect(new TechnicalError("Failed to parse JSON", error)),
         ),
       )
       .flatMap((parsed) =>
@@ -957,6 +980,18 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     deliveryEpoch: number,
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
+      // A poison message on a queue with no DLX vanishes on nack — same
+      // warning the retry path logs, so the loss is visible in the operator's
+      // logs rather than silent.
+      if (consumer.queue.deadLetter === undefined) {
+        this.logger?.warn(
+          "Queue does not have DLX configured - poison message will be lost on nack",
+          {
+            consumerName: String(name),
+            queueName: consumer.queue.name,
+          },
+        );
+      }
       this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
     });
   }

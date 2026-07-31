@@ -21,8 +21,10 @@ import { type ConsumerOptions } from "./worker.js";
 /**
  * Build the list of available handler-target names — every key under
  * `contract.consumers` plus every key under `contract.rpcs`.
+ *
+ * @internal Shared with `TypedAmqpWorker.create` for its fail-fast messages.
  */
-function availableHandlerNames<TContract extends ContractDefinition>(
+export function availableHandlerNames<TContract extends ContractDefinition>(
   contract: TContract,
 ): readonly string[] {
   const consumers = contract.consumers ? Object.keys(contract.consumers) : [];
@@ -71,6 +73,23 @@ export function missingHandlerNames<TContract extends ContractDefinition>(
   handlers: object,
 ): readonly string[] {
   return availableHandlerNames(contract).filter((name) => !Object.hasOwn(handlers, name));
+}
+
+/**
+ * Keys in `handlers` that name no `consumers` or `rpcs` entry in the contract.
+ * The type system rejects these at the public API boundary, but a spread-built
+ * handlers object carrying a stale key, or a contract rename the worker missed,
+ * bypasses it — and the key would then be silently ignored (no consumer set
+ * up, no error), leaving the message class it was meant to handle unprocessed.
+ *
+ * @internal Shared with `TypedAmqpWorker.create` for its fail-fast check.
+ */
+export function unknownHandlerNames<TContract extends ContractDefinition>(
+  contract: TContract,
+  handlers: object,
+): readonly string[] {
+  const available = new Set(availableHandlerNames(contract));
+  return Object.keys(handlers).filter((name) => !available.has(name));
 }
 
 /**
