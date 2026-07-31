@@ -66,6 +66,7 @@
     "@btravstack/typedoc": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typedoc": "catalog:",
