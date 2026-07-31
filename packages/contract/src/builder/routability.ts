@@ -39,16 +39,39 @@ function bindingAccepts(
 }
 
 /**
- * True when a message published to `exchange` with `routingKey` reaches at
- * least one queue, directly or through exchange-to-exchange forwards.
+ * The outcome of resolving a publisher against the binding graph.
+ *
+ * `reachedExchanges` is what makes a multi-hop failure diagnosable: it names
+ * every exchange the routing key actually got to, in BFS order with the
+ * publisher's own exchange first. When it holds more than one name the key
+ * *did* match on the source and the loss happened further downstream — a
+ * distinction a bare boolean cannot express, and one the error message needs
+ * so it does not point the reader at a binding that visibly matches.
  *
  * @internal
  */
-export function _internal_isPublisherRoutable(
+export type PublisherRoutability = {
+  /** True when at least one queue is reachable. */
+  readonly routable: boolean;
+  /**
+   * Exchanges the key reached, source first. Complete only when
+   * `routable` is false — resolution stops at the first queue it finds.
+   */
+  readonly reachedExchanges: readonly string[];
+};
+
+/**
+ * Resolve whether a message published to `exchange` with `routingKey` reaches
+ * at least one queue, directly or through exchange-to-exchange forwards, and
+ * report which exchanges it got to along the way.
+ *
+ * @internal
+ */
+export function _internal_resolvePublisherRoutability(
   exchange: ExchangeDefinition,
   routingKey: string | undefined,
   bindings: readonly BindingDefinition[],
-): boolean {
+): PublisherRoutability {
   // Cycle guard: exchange graphs may contain loops, and the routing key is
   // preserved across forwards, so the exchange name alone identifies a state.
   const visited = new Set<string>();
@@ -66,7 +89,7 @@ export function _internal_isPublisherRoutable(
         if (binding.exchange.name !== current.name) continue;
         const bindingKey = "routingKey" in binding ? binding.routingKey : undefined;
         if (bindingAccepts(current, routingKey, bindingKey)) {
-          return true;
+          return { routable: true, reachedExchanges: [...visited] };
         }
         continue;
       }
@@ -79,7 +102,24 @@ export function _internal_isPublisherRoutable(
     }
   }
 
-  return false;
+  return { routable: false, reachedExchanges: [...visited] };
+}
+
+/**
+ * True when a message published to `exchange` with `routingKey` reaches at
+ * least one queue, directly or through exchange-to-exchange forwards.
+ *
+ * The boolean-only view of {@link _internal_resolvePublisherRoutability}, kept
+ * for callers that only need the verdict.
+ *
+ * @internal
+ */
+export function _internal_isPublisherRoutable(
+  exchange: ExchangeDefinition,
+  routingKey: string | undefined,
+  bindings: readonly BindingDefinition[],
+): boolean {
+  return _internal_resolvePublisherRoutability(exchange, routingKey, bindings).routable;
 }
 
 /**

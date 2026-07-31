@@ -13,7 +13,10 @@
  */
 
 import type { BindingDefinition, ExchangeDefinition } from "../types.js";
-import { _internal_declaredPatternsFor, _internal_isPublisherRoutable } from "./routability.js";
+import {
+  _internal_declaredPatternsFor,
+  _internal_resolvePublisherRoutability,
+} from "./routability.js";
 
 /** Throw unless `name` is a non-empty string (AMQP names must not be blank). */
 export function _internal_assertNonEmptyName(kind: string, name: unknown): void {
@@ -116,21 +119,57 @@ export function _internal_assertPublisherRoutable(
   bindings: readonly BindingDefinition[],
 ): void {
   if (externalConsumers === true) return;
-  if (_internal_isPublisherRoutable(exchange, routingKey, bindings)) return;
 
-  const declared = _internal_declaredPatternsFor(exchange.name, bindings);
-  const declaredText =
-    declared.length > 0
-      ? `Declared on "${exchange.name}": ${declared.map((p) => `"${p}"`).join(", ")}.`
-      : `No bindings are declared on "${exchange.name}".`;
+  const { routable, reachedExchanges } = _internal_resolvePublisherRoutability(
+    exchange,
+    routingKey,
+    bindings,
+  );
+  if (routable) return;
 
   // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
   throw new Error(
     `Publisher "${publisherName}" is unroutable: routing key ` +
       `${routingKey === undefined ? "(none)" : `"${routingKey}"`} on exchange ` +
-      `"${exchange.name}" (${exchange.type}) reaches no queue. ${declaredText} ` +
+      `"${exchange.name}" (${exchange.type}) reaches no queue. ` +
+      `${describeReach(exchange.name, reachedExchanges, bindings)} ` +
       `Messages published here would be confirmed by the broker and then discarded. ` +
       `Add a binding that matches, or set \`externalConsumers: true\` on the publisher ` +
       `if another service owns the binding.`,
+  );
+}
+
+/**
+ * Describe where the key actually got to, so the reader is not sent to the
+ * wrong exchange.
+ *
+ * With a single reached exchange the break is local and listing that
+ * exchange's patterns is the whole story. With more than one, the key *did*
+ * match on the source and was forwarded — naming only the source's patterns
+ * would show a pattern that visibly matches and hide the fact that the real
+ * gap is a missing queue binding downstream.
+ */
+function describeReach(
+  sourceName: string,
+  reachedExchanges: readonly string[],
+  bindings: readonly BindingDefinition[],
+): string {
+  const declaredOn = (name: string): string => {
+    const declared = _internal_declaredPatternsFor(name, bindings);
+    return declared.length > 0
+      ? `Declared on "${name}": ${declared.map((p) => `"${p}"`).join(", ")}.`
+      : `No bindings are declared on "${name}".`;
+  };
+
+  const downstream = reachedExchanges.filter((name) => name !== sourceName);
+  if (downstream.length === 0) {
+    return declaredOn(sourceName);
+  }
+
+  return (
+    `The key matches on "${sourceName}" and is forwarded on to ` +
+    `${downstream.map((name) => `"${name}"`).join(", ")}, but no queue binding ` +
+    `downstream accepts it — the break is not on "${sourceName}". ` +
+    [sourceName, ...downstream].map(declaredOn).join(" ")
   );
 }

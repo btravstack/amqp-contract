@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { defineQueueBinding } from "./binding.js";
+import { defineExchangeBinding, defineQueueBinding } from "./binding.js";
 import { defineCommandConsumer, defineCommandPublisher } from "./command.js";
 import { defineConsumer } from "./consumer.js";
 import { defineContract } from "./contract.js";
@@ -84,6 +84,64 @@ describe("defineContract publisher routability", () => {
     const orderCreated = definePublisher(orders, message, { routingKey: "order.created" });
 
     expect(() => defineContract({ publishers: { orderCreated } })).toThrow(/externalConsumers/);
+  });
+});
+
+/*
+ * A multi-hop failure is the case where a naive message lies: the source
+ * exchange's own patterns match, so listing them alone sends the reader to a
+ * binding that is working fine while the real gap is a queue binding one hop
+ * further on.
+ */
+describe("unroutable error message for multi-hop failures", () => {
+  const billing = defineExchange("billing", { type: "topic" });
+  const ordersToBilling = defineExchangeBinding(billing, orders, { routingKey: "order.#" });
+
+  const buildBridged = (billingBindings: Record<string, ReturnType<typeof defineQueueBinding>>) => {
+    const orderCreated = definePublisher(orders, message, { routingKey: "order.created" });
+    return () =>
+      defineContract({
+        publishers: { orderCreated },
+        exchanges: { billing },
+        bindings: { ordersToBilling, ...billingBindings },
+      });
+  };
+
+  it("says the key matched on the source and points downstream", () => {
+    const build = buildBridged({
+      billingAudit: defineQueueBinding(auditQueue, billing, { routingKey: "user.#" }),
+    });
+
+    expect(build).toThrow(/The key matches on "orders" and is forwarded on to "billing"/);
+    expect(build).toThrow(/no queue binding downstream accepts it/);
+    expect(build).toThrow(/the break is not on "orders"/);
+  });
+
+  it("lists the declared patterns of every exchange the key reached", () => {
+    const build = buildBridged({
+      billingAudit: defineQueueBinding(auditQueue, billing, { routingKey: "user.#" }),
+    });
+
+    expect(build).toThrow(/Declared on "orders": "order\.#"\./);
+    expect(build).toThrow(/Declared on "billing": "user\.#"\./);
+  });
+
+  it("reports a downstream exchange that declares nothing at all", () => {
+    const build = buildBridged({});
+
+    expect(build).toThrow(/No bindings are declared on "billing"\./);
+  });
+
+  it("keeps the single-hop message local — no downstream wording", () => {
+    const orderCreated = definePublisher(orders, message, { routingKey: "order.created" });
+    const build = () =>
+      defineContract({
+        publishers: { orderCreated },
+        bindings: { audit: defineQueueBinding(auditQueue, orders, { routingKey: "user.#" }) },
+      });
+
+    expect(build).toThrow(/Declared on "orders": "user\.#"\./);
+    expect(build).not.toThrow(/forwarded on to/);
   });
 });
 

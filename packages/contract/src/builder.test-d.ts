@@ -307,8 +307,11 @@ describe("ContractOutput type inference", () => {
   const logMessage = defineMessage(z.object({ level: z.string() }));
 
   test("should extract exchanges from EventPublisherConfig in publishers", () => {
+    // Publishers only, deliberately: the point is that the exchange arrives
+    // from the publisher and not from some consumer's binding.
     const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
       routingKey: "order.created",
+      externalConsumers: true,
     });
     const contract = defineContract({
       publishers: { orderCreated },
@@ -365,8 +368,10 @@ describe("ContractOutput type inference", () => {
   });
 
   test("should normalize EventPublisherConfig to PublisherDefinition", () => {
+    // Publishers only, deliberately: see above.
     const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
       routingKey: "order.created",
+      externalConsumers: true,
     });
     const contract = defineContract({
       publishers: { orderCreated },
@@ -406,6 +411,14 @@ describe("ContractOutput type inference", () => {
       },
       consumers: {
         processCommand,
+      },
+      // `processCommand` only binds `order.process`; without these two the
+      // other publishers would reach no queue.
+      bindings: {
+        orderCreatedBinding: defineQueueBinding(orderQueue, ordersExchange, {
+          routingKey: "order.created",
+        }),
+        notificationsBinding: defineQueueBinding(notificationQueue, fanoutExchange),
       },
     });
 
