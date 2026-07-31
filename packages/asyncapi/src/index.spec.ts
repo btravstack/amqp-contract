@@ -3,6 +3,7 @@ import {
   defineConsumer,
   defineContract,
   defineExchange,
+  defineExchangeBinding,
   defineMessage,
   definePublisher,
   defineQueue,
@@ -47,6 +48,11 @@ describe("AsyncAPIGenerator", () => {
         consumers: {
           processOrder: defineConsumer(orderQueue, orderMessage),
         },
+        bindings: {
+          orderProcessing: defineQueueBinding(orderQueue, orderExchange, {
+            routingKey: "order.created",
+          }),
+        },
       });
 
       const generator = new AsyncAPIGenerator({
@@ -88,7 +94,7 @@ describe("AsyncAPIGenerator", () => {
                   },
                 },
               },
-              "description": "AMQP Queue: order-processing",
+              "description": "AMQP Queue: order-processing (bound to exchange 'orders' with routing key 'order.created')",
               "messages": {
                 "processOrderMessage": {
                   "contentType": "application/json",
@@ -320,7 +326,9 @@ describe("AsyncAPIGenerator", () => {
 
       const contract = defineContract({
         publishers: {
-          sendEvent: definePublisher(exchange, message),
+          // Publish-only fixture: this document describes what the service
+          // emits; the consumers are owned elsewhere.
+          sendEvent: definePublisher(exchange, message, { externalConsumers: true }),
         },
       });
 
@@ -486,6 +494,11 @@ describe("AsyncAPIGenerator", () => {
         consumers: {
           processNotification: defineConsumer(notificationQueue, notificationMessage),
         },
+        bindings: {
+          notifications: defineQueueBinding(notificationQueue, notificationExchange, {
+            routingKey: "notification.send",
+          }),
+        },
       });
 
       const generator = new AsyncAPIGenerator({
@@ -519,7 +532,7 @@ describe("AsyncAPIGenerator", () => {
                   },
                 },
               },
-              "description": "AMQP Queue: notification-queue",
+              "description": "AMQP Queue: notification-queue (bound to exchange 'notifications' with routing key 'notification.send')",
               "messages": {
                 "processNotificationMessage": {
                   "contentType": "application/json",
@@ -763,6 +776,11 @@ describe("AsyncAPIGenerator", () => {
         consumers: {
           processPayment: defineConsumer(paymentQueue, paymentMessage),
         },
+        bindings: {
+          payments: defineQueueBinding(paymentQueue, paymentExchange, {
+            routingKey: "payment.created",
+          }),
+        },
       });
 
       const generator = new AsyncAPIGenerator({
@@ -796,7 +814,7 @@ describe("AsyncAPIGenerator", () => {
                   },
                 },
               },
-              "description": "AMQP Queue: payment-processing",
+              "description": "AMQP Queue: payment-processing (bound to exchange 'payments' with routing key 'payment.created')",
               "messages": {
                 "processPaymentMessage": {
                   "contentType": "application/json",
@@ -1064,11 +1082,14 @@ describe("AsyncAPIGenerator", () => {
 
       const contract = defineContract({
         publishers: {
+          // Publish-only fixture: consumers are owned elsewhere.
           publishZod: definePublisher(exchange, zodMessage, {
             routingKey: "zod.event",
+            externalConsumers: true,
           }),
           publishValibot: definePublisher(exchange, valibotMessage, {
             routingKey: "valibot.event",
+            externalConsumers: true,
           }),
         },
       });
@@ -1257,7 +1278,9 @@ describe("AsyncAPIGenerator", () => {
       const exchange = defineExchange("generic", { type: "fanout" });
       const message = defineMessage(z.object({ id: z.string() }));
       const contract = defineContract({
-        publishers: { publish: definePublisher(exchange, message) },
+        publishers: {
+          publish: definePublisher(exchange, message, { externalConsumers: true }),
+        },
       });
 
       const generator = new AsyncAPIGenerator();
@@ -1283,7 +1306,7 @@ describe("AsyncAPIGenerator", () => {
 
       const contract = defineContract({
         publishers: {
-          publish: definePublisher(exchange, message),
+          publish: definePublisher(exchange, message, { externalConsumers: true }),
         },
       });
 
@@ -1496,6 +1519,7 @@ describe("AsyncAPIGenerator", () => {
         publishers: {
           orderCreated: definePublisher(exchange, message, {
             routingKey: "order.created",
+            externalConsumers: true,
           }),
         },
       });
@@ -1646,7 +1670,7 @@ describe("AsyncAPIGenerator", () => {
 
       const contract = defineContract({
         publishers: {
-          broadcast: definePublisher(exchange, message),
+          broadcast: definePublisher(exchange, message, { externalConsumers: true }),
         },
       });
 
@@ -1763,6 +1787,9 @@ describe("AsyncAPIGenerator", () => {
         defineContract({
           publishers: { sent: definePublisher(exchange, message, { routingKey: "order.created" }) },
           consumers: { processOrder: consumer },
+          bindings: {
+            ordersQ: defineQueueBinding(queue, exchange, { routingKey: "order.created" }),
+          },
         }) as unknown as ContractDefinition,
         { info: { title: "DLX Test", version: "1.0.0" } },
       );
@@ -1797,26 +1824,21 @@ describe("AsyncAPIGenerator", () => {
       const billingQueue = defineQueue("billing-orders");
       const message = defineMessage(z.object({ id: z.string() }));
 
-      // Build a contract by hand to avoid pulling in defineEventConsumer's
-      // bridge wiring — we just want a binding of type "exchange" between
-      // the two exchanges.
+      // Declared by hand to avoid pulling in defineEventConsumer's bridge
+      // wiring — we just want a binding of type "exchange" between the two
+      // exchanges, plus the queue binding that makes `sent` routable
+      // (orders → billing → billing-orders).
       const contract = defineContract({
         publishers: { sent: definePublisher(orders, message, { routingKey: "order.created" }) },
         consumers: {
           process: defineConsumer(billingQueue, message),
         },
+        exchanges: { billing },
+        bindings: {
+          ordersToBilling: defineExchangeBinding(billing, orders, { routingKey: "order.#" }),
+          billingOrders: defineQueueBinding(billingQueue, billing, { routingKey: "order.#" }),
+        },
       }) as unknown as ContractDefinition;
-      // Inject the e2e binding manually.
-      contract.bindings = {
-        ...contract.bindings,
-        ordersToBilling: {
-          type: "exchange",
-          source: orders,
-          destination: billing,
-          routingKey: "order.#",
-        } as never,
-      };
-      contract.exchanges = { ...contract.exchanges, billing };
 
       const generator = new AsyncAPIGenerator({
         schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -1911,7 +1933,12 @@ describe("AsyncAPIGenerator", () => {
       await expect(
         generator.generate(
           defineContract({
-            publishers: { sent: definePublisher(exchange, message, { routingKey: "x" }) },
+            publishers: {
+              sent: definePublisher(exchange, message, {
+                routingKey: "x",
+                externalConsumers: true,
+              }),
+            },
           }),
           { info: { title: "Strict", version: "1.0.0" } },
         ),

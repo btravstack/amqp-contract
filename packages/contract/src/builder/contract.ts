@@ -12,6 +12,7 @@ import type {
 import { isBridgedPublisherConfig, isCommandConsumerConfig } from "./command.js";
 import { isEventConsumerResult, isEventPublisherConfig } from "./event.js";
 import { definePublisherInternal } from "./publisher.js";
+import { _internal_assertPublisherRoutable } from "./validate.js";
 
 /**
  * Structural equality for resource definitions. We compare on a JSON projection
@@ -289,6 +290,19 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   result.exchanges = exchanges;
   result.queues = queues;
   result.bindings = bindings;
+
+  // Runs last: consumers and bridged publishers contribute bindings, so
+  // routability can only be decided once every binding is collected.
+  const declaredBindings = Object.values(bindings);
+  for (const [publisherName, publisher] of Object.entries(result.publishers ?? {})) {
+    _internal_assertPublisherRoutable(
+      publisherName,
+      publisher.exchange,
+      "routingKey" in publisher ? publisher.routingKey : undefined,
+      publisher.externalConsumers,
+      declaredBindings,
+    );
+  }
 
   return result as ContractOutput<TContract>;
 }

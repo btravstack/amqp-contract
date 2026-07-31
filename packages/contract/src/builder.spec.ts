@@ -866,6 +866,13 @@ describe("builder", () => {
         consumers: {
           processOrder: defineConsumer(orderProcessingQueue, message),
         },
+        // A plain consumer contributes no binding, so the queue has to be
+        // bound explicitly — without it the publisher reaches no queue.
+        bindings: {
+          orderProcessing: defineQueueBinding(orderProcessingQueue, ordersExchange, {
+            routingKey: "order.created",
+          }),
+        },
       });
 
       // THEN - exchanges and queues are auto-extracted using resource names as keys
@@ -876,7 +883,14 @@ describe("builder", () => {
         queues: {
           "order-processing": { name: "order-processing", durable: true },
         },
-        bindings: {},
+        bindings: {
+          orderProcessing: {
+            type: "queue",
+            queue: orderProcessingQueue,
+            exchange: ordersExchange,
+            routingKey: "order.created",
+          },
+        },
         publishers: {
           orderCreated: {
             exchange: ordersExchange,
@@ -929,6 +943,11 @@ describe("builder", () => {
         consumers: {
           processOrder: defineConsumer(finalQueue, message),
         },
+        bindings: {
+          finalQueue: defineQueueBinding(finalQueue, sourceExchange, {
+            routingKey: "order.created",
+          }),
+        },
       });
 
       // THEN - exchanges and queues use resource names as keys
@@ -939,7 +958,9 @@ describe("builder", () => {
         queues: {
           "final-queue": { name: "final-queue" },
         },
-        bindings: {},
+        bindings: {
+          finalQueue: { type: "queue", queue: finalQueue, exchange: sourceExchange },
+        },
       });
     });
   });
@@ -1822,6 +1843,11 @@ describe("builder", () => {
           runCommand: defineCommandPublisher(command, {
             bridgeExchange: localExchange,
           }),
+        },
+        // The bridge only forwards local → remote; the remote queue's binding
+        // has to be in the contract too, or nothing consumes the command.
+        consumers: {
+          handleCommand: command,
         },
       });
 
