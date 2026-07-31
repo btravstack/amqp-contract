@@ -30,6 +30,7 @@ export type {
   BindingPattern,
   MatchingBindingPattern,
   MatchingRoutingKey,
+  RoutableRoutingKey,
   RoutingKey,
 } from "./routing-types.js";
 

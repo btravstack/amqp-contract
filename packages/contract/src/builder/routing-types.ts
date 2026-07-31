@@ -171,3 +171,57 @@ export type MatchingBindingPattern<
       : MatchesPattern<PublisherKey, Pattern> extends true
         ? Pattern
         : `Error: binding pattern '${Pattern}' can never match the publisher routing key '${PublisherKey}'`;
+
+/**
+ * True when `Key` matches at least one pattern in the `Patterns` union.
+ *
+ * Distributes over the union rather than recursing across a list, which
+ * keeps instantiation depth bounded by the longest single pattern instead
+ * of by the number of bindings.
+ * @internal
+ */
+type MatchesAnyPattern<Key extends string, Patterns extends string> = [Patterns] extends [never]
+  ? false
+  : true extends (Patterns extends string ? MatchesPattern<Key, Patterns> : never)
+    ? true
+    : false;
+
+/**
+ * A publisher routing key validated against the binding patterns declared on
+ * its exchange.
+ *
+ * A message routed to zero queues is confirmed by RabbitMQ and then
+ * discarded, so an unmatched routing key is silent total message loss. On no
+ * match this resolves to a human-readable error-message string type, so the
+ * compile error explains the problem instead of collapsing to `never` —
+ * matching the {@link MatchingBindingPattern} convention.
+ *
+ * Skipped (resolves to `Key`) when either side is non-literal, or when no
+ * patterns are declared: those cases cannot be decided at compile time and
+ * are left to the define-time check in `defineContract`.
+ *
+ * Scope: single-hop queue bindings on topic and direct exchanges. Fanout,
+ * headers, and exchange-to-exchange forwards are deliberately not modelled
+ * here — deciding them needs graph traversal in the type system, which risks
+ * recursion-depth failures and false compile errors on valid contracts. Those
+ * cases fall through to the define-time check, which sees the whole graph.
+ *
+ * @template Key - The publisher's concrete routing key
+ * @template Patterns - Union of binding patterns declared on the exchange
+ * @example
+ * ```typescript
+ * type Ok = RoutableRoutingKey<"order.created", "order.#" | "user.#">; // "order.created"
+ * type Bad = RoutableRoutingKey<"order.created", "user.#">;
+ * // "Error: routing key 'order.created' matches none of the declared binding
+ * //  patterns; the broker would confirm and discard every message"
+ * ```
+ */
+export type RoutableRoutingKey<Key extends string, Patterns extends string> = string extends Key
+  ? Key
+  : string extends Patterns
+    ? Key
+    : [Patterns] extends [never]
+      ? Key
+      : MatchesAnyPattern<Key, Patterns> extends true
+        ? Key
+        : `Error: routing key '${Key}' matches none of the declared binding patterns; the broker would confirm and discard every message`;
