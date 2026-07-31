@@ -29,6 +29,7 @@ export type {
   EventPublisherConfig,
   MatchingBindingPattern,
   MatchingRoutingKey,
+  RoutableRoutingKey,
   RoutingKey,
 } from "./builder.js";
 export { formatIssue, summarizeIssues } from "./issues.js";

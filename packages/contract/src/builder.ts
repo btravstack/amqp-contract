@@ -50,6 +50,7 @@ export type {
   BindingPattern,
   MatchingBindingPattern,
   MatchingRoutingKey,
+  RoutableRoutingKey,
   // Event pattern types
   EventPublisherConfig,
   EventConsumerResult,
