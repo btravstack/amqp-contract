@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { BindingDefinition, ExchangeDefinition } from "../types.js";
 import { defineExchange } from "./exchange.js";
 import { defineQueue } from "./queue.js";
-import { _internal_declaredPatternsFor, _internal_isPublisherRoutable } from "./routability.js";
+import {
+  _internal_declaredPatternsFor,
+  _internal_isPublisherRoutable,
+  _internal_resolvePublisherRoutability,
+} from "./routability.js";
 
 const ordersTopic = defineExchange("orders", { type: "topic" });
 const ordersDirect = defineExchange("orders-direct", { type: "direct" });
@@ -73,6 +77,57 @@ describe("_internal_isPublisherRoutable", () => {
       { type: "exchange", source: billing, destination: ordersTopic, routingKey: "#" },
     ] as BindingDefinition[];
     expect(_internal_isPublisherRoutable(ordersTopic, "order.created", bindings)).toBe(false);
+  });
+});
+
+describe("_internal_resolvePublisherRoutability", () => {
+  it("reports only the source exchange when the key never leaves it", () => {
+    const bindings = [queueBinding(ordersTopic, "user.#")];
+    expect(_internal_resolvePublisherRoutability(ordersTopic, "order.created", bindings)).toEqual({
+      routable: false,
+      reachedExchanges: ["orders"],
+    });
+  });
+
+  it("reports every exchange the key reached when it is forwarded but still lost", () => {
+    // The distinction the error message depends on: "orders" accepted the key
+    // and forwarded it; the missing binding is on "billing".
+    const bindings = [
+      { type: "exchange", source: ordersTopic, destination: billing, routingKey: "order.#" },
+      { type: "queue", queue: q, exchange: billing, routingKey: "user.#" },
+    ] as BindingDefinition[];
+    expect(_internal_resolvePublisherRoutability(ordersTopic, "order.created", bindings)).toEqual({
+      routable: false,
+      reachedExchanges: ["orders", "billing"],
+    });
+  });
+
+  it("does not follow a forward whose pattern rejects the key", () => {
+    const bindings = [
+      { type: "exchange", source: ordersTopic, destination: billing, routingKey: "user.#" },
+    ] as BindingDefinition[];
+    expect(_internal_resolvePublisherRoutability(ordersTopic, "order.created", bindings)).toEqual({
+      routable: false,
+      reachedExchanges: ["orders"],
+    });
+  });
+
+  it("terminates on a cyclic graph and reports the cycle's exchanges once each", () => {
+    const bindings = [
+      { type: "exchange", source: ordersTopic, destination: billing, routingKey: "#" },
+      { type: "exchange", source: billing, destination: ordersTopic, routingKey: "#" },
+    ] as BindingDefinition[];
+    expect(_internal_resolvePublisherRoutability(ordersTopic, "order.created", bindings)).toEqual({
+      routable: false,
+      reachedExchanges: ["orders", "billing"],
+    });
+  });
+
+  it("reports routable as soon as a queue is found", () => {
+    const bindings = [queueBinding(ordersTopic, "order.#")];
+    expect(
+      _internal_resolvePublisherRoutability(ordersTopic, "order.created", bindings).routable,
+    ).toBe(true);
   });
 });
 
