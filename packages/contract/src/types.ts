@@ -866,6 +866,16 @@ export type BindingDefinition = QueueBindingDefinition | ExchangeBindingDefiniti
 export type PublisherDefinition<TMessage extends MessageDefinition = MessageDefinition> = {
   /** The message definition including the payload schema */
   message: TMessage;
+  /**
+   * Declares that this publisher's consumers live outside this contract —
+   * a separate service or deployment owns the binding.
+   *
+   * Routability cannot be verified for such a publisher, so the define-time
+   * check is skipped. This is deliberately explicit: a heuristic ("no
+   * bindings at all means external") would silently miss the mistyped-key
+   * case the check exists to catch.
+   */
+  externalConsumers?: boolean | undefined;
 } & (
   | {
       /** Direct or topic exchange requiring a routing key */

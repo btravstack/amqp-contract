@@ -145,12 +145,20 @@ export function definePublisher<TMessage extends MessageDefinition>(
 export function definePublisher<TMessage extends MessageDefinition>(
   exchange: ExchangeDefinition,
   message: TMessage,
-  options?: { routingKey?: string },
+  options?: { routingKey?: string | undefined; externalConsumers?: boolean | undefined },
 ): PublisherDefinition<TMessage> {
+  // Spread rather than assigned, so an unset option leaves the key off the
+  // definition entirely instead of adding `externalConsumers: undefined`.
+  const externalConsumers =
+    options?.externalConsumers !== undefined
+      ? { externalConsumers: options.externalConsumers }
+      : {};
+
   if (exchange.type === "fanout" || exchange.type === "headers") {
     return {
       exchange,
       message,
+      ...externalConsumers,
     } as PublisherDefinition<TMessage>;
   }
 
@@ -161,6 +169,7 @@ export function definePublisher<TMessage extends MessageDefinition>(
     exchange,
     message,
     routingKey,
+    ...externalConsumers,
   } as PublisherDefinition<TMessage>;
 }
 
@@ -173,8 +182,9 @@ export function definePublisherInternal<TMessage extends MessageDefinition>(
   exchange: ExchangeDefinition,
   message: TMessage,
   options?: {
-    routingKey?: string;
+    routingKey?: string | undefined;
     arguments?: Record<string, unknown>;
+    externalConsumers?: boolean | undefined;
   },
 ): PublisherDefinition<TMessage> {
   // Type assertion is safe because overloaded signatures enforce routingKey requirement
