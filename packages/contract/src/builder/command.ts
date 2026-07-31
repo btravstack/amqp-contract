@@ -275,6 +275,9 @@ export function defineCommandConsumer<TMessage extends MessageDefinition>(
  * @param commandConsumer - The command consumer configuration
  * @param options - Configuration with required bridgeExchange
  * @param options.bridgeExchange - The local domain exchange to bridge through (must be fanout to match target)
+ * @param options.externalConsumers - Declare that the command's owner lives in
+ *   another service, opting this publisher out of `defineContract`'s
+ *   define-time routability check
  * @returns A bridged publisher configuration
  */
 export function defineCommandPublisher<
@@ -285,6 +288,7 @@ export function defineCommandPublisher<
   commandConsumer: CommandConsumerConfig<TMessage, TExchange, undefined>,
   options: {
     bridgeExchange: TBridgeExchange;
+    externalConsumers?: boolean;
   },
 ): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
 
@@ -304,6 +308,7 @@ export function defineCommandPublisher<
   commandConsumer: CommandConsumerConfig<TMessage, TExchange, undefined>,
   options: {
     bridgeExchange: TBridgeExchange;
+    externalConsumers?: boolean;
   },
 ): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
 
@@ -313,6 +318,9 @@ export function defineCommandPublisher<
  * @param commandConsumer - The command consumer configuration
  * @param options - Configuration with required bridgeExchange
  * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
+ * @param options.externalConsumers - Declare that the command's owner lives in
+ *   another service, opting this publisher out of `defineContract`'s
+ *   define-time routability check
  * @returns A bridged publisher configuration
  */
 export function defineCommandPublisher<
@@ -324,6 +332,7 @@ export function defineCommandPublisher<
   commandConsumer: CommandConsumerConfig<TMessage, TExchange, TRoutingKey>,
   options: {
     bridgeExchange: TBridgeExchange;
+    externalConsumers?: boolean;
   },
 ): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
 
@@ -334,6 +343,9 @@ export function defineCommandPublisher<
  * @param options - Configuration with required bridgeExchange and optional routingKey override
  * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
  * @param options.routingKey - Override routing key (must match consumer's pattern)
+ * @param options.externalConsumers - Declare that the command's owner lives in
+ *   another service, opting this publisher out of `defineContract`'s
+ *   define-time routability check
  * @returns A bridged publisher configuration
  */
 export function defineCommandPublisher<
@@ -347,6 +359,7 @@ export function defineCommandPublisher<
   options: {
     bridgeExchange: TBridgeExchange;
     routingKey?: RoutingKey<TPublisherRoutingKey>;
+    externalConsumers?: boolean;
   },
 ): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
 
@@ -364,7 +377,10 @@ export function defineCommandPublisher<
  */
 export function defineCommandPublisher<TMessage extends MessageDefinition>(
   commandConsumer: CommandConsumerConfig<TMessage, FanoutExchangeDefinition, undefined>,
-): { message: TMessage; exchange: FanoutExchangeDefinition };
+  options?: {
+    externalConsumers?: boolean;
+  },
+): { message: TMessage; exchange: FanoutExchangeDefinition; externalConsumers?: boolean };
 
 /**
  * Create a publisher that sends commands to a headers exchange consumer.
@@ -380,7 +396,10 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
  */
 export function defineCommandPublisher<TMessage extends MessageDefinition>(
   commandConsumer: CommandConsumerConfig<TMessage, HeadersExchangeDefinition, undefined>,
-): { message: TMessage; exchange: HeadersExchangeDefinition };
+  options?: {
+    externalConsumers?: boolean;
+  },
+): { message: TMessage; exchange: HeadersExchangeDefinition; externalConsumers?: boolean };
 
 /**
  * Create a publisher that sends commands to a direct exchange consumer.
@@ -393,7 +412,15 @@ export function defineCommandPublisher<
   TRoutingKey extends string,
 >(
   commandConsumer: CommandConsumerConfig<TMessage, DirectExchangeDefinition, TRoutingKey>,
-): { message: TMessage; exchange: DirectExchangeDefinition; routingKey: TRoutingKey };
+  options?: {
+    externalConsumers?: boolean;
+  },
+): {
+  message: TMessage;
+  exchange: DirectExchangeDefinition;
+  routingKey: TRoutingKey;
+  externalConsumers?: boolean;
+};
 
 /**
  * Create a publisher that sends commands to a topic exchange consumer.
@@ -404,6 +431,9 @@ export function defineCommandPublisher<
  * @param commandConsumer - The command consumer configuration
  * @param options - Optional binding configuration
  * @param options.routingKey - Override routing key (must match consumer's pattern)
+ * @param options.externalConsumers - Declare that the command's owner lives in
+ *   another service, opting this publisher out of `defineContract`'s
+ *   define-time routability check
  * @returns A publisher definition
  *
  * @example
@@ -427,8 +457,14 @@ export function defineCommandPublisher<
   commandConsumer: CommandConsumerConfig<TMessage, TopicExchangeDefinition, TRoutingKey>,
   options?: {
     routingKey?: RoutingKey<TPublisherRoutingKey>;
+    externalConsumers?: boolean;
   },
-): { message: TMessage; exchange: TopicExchangeDefinition; routingKey: TPublisherRoutingKey };
+): {
+  message: TMessage;
+  exchange: TopicExchangeDefinition;
+  routingKey: TPublisherRoutingKey;
+  externalConsumers?: boolean;
+};
 
 /*
  * Implementation signature of defineCommandPublisher. (Deliberately a plain
@@ -440,6 +476,7 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
   options?: {
     routingKey?: string;
     bridgeExchange?: ExchangeDefinition;
+    externalConsumers?: boolean | undefined;
   },
 ):
   | PublisherDefinition<TMessage>
@@ -451,9 +488,19 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
 
   const bridgeExchange = options?.bridgeExchange;
 
+  // Carried onto the publisher definition in both the bridged and direct
+  // forms: whether the command's owner declares its queue in *this* contract
+  // is the caller's knowledge, not something either form can infer.
+  const externalConsumers: { externalConsumers?: boolean } =
+    options?.externalConsumers !== undefined
+      ? { externalConsumers: options.externalConsumers }
+      : {};
+
   if (bridgeExchange) {
     // Bridged: publisher publishes to bridge exchange, e2e binding from bridge → target
-    const publisherOptions: { routingKey?: string } = {};
+    const publisherOptions: { routingKey?: string; externalConsumers?: boolean } = {
+      ...externalConsumers,
+    };
     if (publisherRoutingKey !== undefined) {
       publisherOptions.routingKey = publisherRoutingKey;
     }
@@ -483,7 +530,9 @@ export function defineCommandPublisher<TMessage extends MessageDefinition>(
     };
   }
 
-  const publisherOptions: { routingKey?: string } = {};
+  const publisherOptions: { routingKey?: string; externalConsumers?: boolean } = {
+    ...externalConsumers,
+  };
   if (publisherRoutingKey !== undefined) {
     publisherOptions.routingKey = publisherRoutingKey;
   }

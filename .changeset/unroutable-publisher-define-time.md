@@ -6,4 +6,5 @@
 RabbitMQ confirms an unroutable message and then discards it, so a mistyped
 binding pattern silently dropped every message while `publish()` returned
 `Ok`. Publishers whose consumers live in another service opt out with
-`externalConsumers: true`.
+`externalConsumers: true`, accepted by `definePublisher`,
+`defineEventPublisher`, and `defineCommandPublisher` alike.

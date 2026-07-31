@@ -214,9 +214,14 @@ export function defineContract<TContract extends ContractDefinitionInput>(
       } else if (isEventPublisherConfig(entry)) {
         // EventPublisherConfig: extract exchange and convert to publisher definition
         addResource(exchanges, entry.exchange.name, entry.exchange, "exchange");
-        const publisherOptions: { routingKey?: string } = {};
+        const publisherOptions: { routingKey?: string; externalConsumers?: boolean } = {};
         if (entry.routingKey !== undefined) {
           publisherOptions.routingKey = entry.routingKey;
+        }
+        // Must be carried through: an option that is accepted by the builder
+        // and then dropped here would silently fail to opt the event out.
+        if (entry.externalConsumers !== undefined) {
+          publisherOptions.externalConsumers = entry.externalConsumers;
         }
         processedPublishers[name] = definePublisherInternal(
           entry.exchange,

@@ -939,6 +939,8 @@ export type EventPublisherConfigBase = {
   routingKey: string | undefined;
   /** Default binding arguments for this event's consumers (not publish arguments). */
   bindingArguments?: Record<string, unknown>;
+  /** Opt out of the define-time routability check — see {@link PublisherDefinition.externalConsumers}. */
+  externalConsumers?: boolean | undefined;
 };
 
 /**
