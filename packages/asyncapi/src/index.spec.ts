@@ -6,6 +6,7 @@ import {
   defineMessage,
   definePublisher,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { Parser } from "@asyncapi/parser";
 import { experimental_ArkTypeToJsonSchemaConverter } from "@orpc/arktype";
@@ -1837,6 +1838,59 @@ describe("AsyncAPIGenerator", () => {
       expect(billingChannel["x-amqp-exchange-bindings"]).toMatchObject({
         receivesFrom: [{ source: "orders", routingKey: "order.#" }],
       });
+
+      const parser = new Parser();
+      await expect(parser.parse(JSON.stringify(doc))).resolves.toEqual(
+        expect.objectContaining({ diagnostics: [] }),
+      );
+    });
+  });
+
+  describe("queue bindings", () => {
+    /**
+     * Until 3.0 a `ttl-backoff` queue stored its own wait-queue binding inside
+     * the contract, so every fixture using retry exercised the queue-binding
+     * rendering for free. That infrastructure is now derived at setup time and
+     * no longer appears in `contract.bindings`, which left the rendering of a
+     * *user-declared* `defineQueueBinding` — a perfectly ordinary contract —
+     * with no test at all. This pins both arms: a keyed binding (direct/topic)
+     * and a keyless one (fanout).
+     */
+    it("renders user-declared queue bindings in the channel description", async () => {
+      // GIVEN a queue bound to a topic exchange with a routing key, and to a
+      // fanout exchange without one.
+      const auditQueue = defineQueue("audit-log");
+      const ordersExchange = defineExchange("orders", { type: "topic" });
+      const broadcastExchange = defineExchange("broadcast", { type: "fanout" });
+
+      const contract = defineContract({
+        queues: { auditQueue },
+        exchanges: { ordersExchange, broadcastExchange },
+        bindings: {
+          auditOrders: defineQueueBinding(auditQueue, ordersExchange, {
+            routingKey: "order.#",
+          }),
+          auditBroadcast: defineQueueBinding(auditQueue, broadcastExchange),
+        },
+      });
+
+      // WHEN
+      const generator = new AsyncAPIGenerator({
+        schemaConverters: [new ZodToJsonSchemaConverter()],
+      });
+      const doc = await generator.generate(contract, {
+        info: { title: "Audit", version: "1.0.0" },
+      });
+
+      // THEN both bindings appear, and only the keyed one names a routing key.
+      const channel = doc.channels?.["audit-log"] as unknown as Record<string, unknown>;
+      expect(channel["description"]).toContain(
+        "bound to exchange 'orders' with routing key 'order.#'",
+      );
+      expect(channel["description"]).toContain("bound to exchange 'broadcast'");
+      expect(channel["description"]).not.toContain(
+        "bound to exchange 'broadcast' with routing key",
+      );
 
       const parser = new Parser();
       await expect(parser.parse(JSON.stringify(doc))).resolves.toEqual(
