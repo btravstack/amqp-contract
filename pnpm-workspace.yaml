@@ -35,6 +35,7 @@ catalog:
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1
   arktype: 2.2.3
+  fast-check: ^4.3.0
   knip: 6.27.0
   lefthook: 2.1.10
   mermaid: 11.16.0
