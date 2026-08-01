@@ -350,22 +350,26 @@ function publishForRetry(
 /**
  * Send message to dead letter queue.
  * Nacks the message without requeue, relying on DLX configuration.
+ *
+ * A queue with no DLX reaches this function only when its author declared
+ * `onPoison: "drop"` — `defineContract` rejects every other consumed queue
+ * without one — so the discard is intended configuration, not a fault, and the
+ * two outcomes are logged as distinct facts at `info`.
  */
 function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDefinition): void {
   const queue = consumer.queue;
   const queueName = queue.name;
   const hasDeadLetter = queue.deadLetter !== undefined;
 
-  if (!hasDeadLetter) {
-    ctx.logger?.warn("Queue does not have DLX configured - message will be lost on nack", {
+  ctx.logger?.info(
+    hasDeadLetter
+      ? "Sending message to DLQ"
+      : 'Discarding message: queue is declared onPoison: "drop" and has no DLX',
+    {
       queueName,
-    });
-  }
-
-  ctx.logger?.info("Sending message to DLQ", {
-    queueName,
-    deliveryTag: msg.fields.deliveryTag,
-  });
+      deliveryTag: msg.fields.deliveryTag,
+    },
+  );
 
   // Nack without requeue - relies on DLX configuration
   ctx.amqpClient.nack(msg, { requeue: false, deliveryEpoch: ctx.deliveryEpoch });

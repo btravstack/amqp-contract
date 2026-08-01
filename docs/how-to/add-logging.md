@@ -121,11 +121,13 @@ The worker is where the useful output is:
 
 | Level   | Covers                                                                                                                                                                                                            |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ                                                                                            |
-| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has no DLX — message will be lost on nack**                                                                          |
+| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ; discarding on a queue declared `onPoison: "drop"`                                         |
+| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server                                                                                                                               |
 | `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (channel fault or a full write buffer) |
 
-Two of these deserve alerts rather than dashboards. `Queue does not have DLX configured - message will be lost on nack` means you are losing data — since 3.0 it can only fire on a queue declared `onPoison: "drop"`, because `defineContract` rejects any other consumed queue without a DLX. `Publish for retry failed; leaving original un-ack'd for redelivery` means retries are being dropped under load (the logged cause names the fault, e.g. `channel write buffer full`).
+`Publish for retry failed; leaving original un-ack'd for redelivery` deserves an alert rather than a dashboard: retries are being dropped under load, and the logged cause names the fault (e.g. `channel write buffer full`).
+
+`Discarding message: queue is declared onPoison: "drop" and has no DLX` is data loss, but declared data loss — since 3.0 `defineContract` rejects any other consumed queue without a DLX, so the line can only appear on a queue whose author asked for it. It is an `info` for that reason. Alert on it only if you want to know how often the deliberate drop actually fires.
 
 This is also where dead-letter failure reasons live. Messages nacked directly carry no `x-last-error` header, so the log line is the only record of _why_ — see [retry failed messages](/how-to/retry-failed-messages#inspect-retry-state).
 
