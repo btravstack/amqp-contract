@@ -45,7 +45,13 @@ Of everything on this page, [consumers prefetch 10 by default](#consumers-prefet
 
 Per-handler tuples still override the default: `processOrder: [handler, { prefetch: 1 }]`. `"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a call site as its opposite.
 
-Handlers that were implicitly serialised by a slow broker, or that assumed they could see the whole backlog, are the ones to re-measure. Picking a number is covered in [tune performance](/how-to/tune-performance#prefetch).
+**Prefetch is not a tuning knob on top of a concurrency limit — it _is_ the concurrency limit.** The worker starts each handler without awaiting the previous one, so the only thing that ever bounded in-flight handlers was how many messages the broker had pushed. That was unlimited; it is now 10. Three ways that shows up:
+
+1. **I/O-bound handlers collapse in throughput.** A handler that spends its time on an HTTP call or a database write previously ran at whatever concurrency the backlog allowed — hundreds. It now runs 10 at a time. Nothing errors; the queue just drains slower. The fix is one line: `defaultConsumerOptions: { prefetch: N }`.
+2. **RPC servers are consumers too, and this is the case that misleads.** A worker serving an RPC now handles at most 10 calls concurrently; the 11th waits for a handler to finish. If handler duration is anywhere near the caller's `timeoutMs`, callers start timing out under load that worked before — and the symptom appears on the client, pointing away from the cause. Raise the server's prefetch, not the client's timeout. (Client-side RPC is unaffected: the reply consumer runs `noAck`, and RabbitMQ ignores QoS for no-ack consumers.)
+3. **A handler that waits on another message from its own queue now deadlocks.** Once 10 such handlers are parked, the broker will not deliver the message they are waiting for. This was already an anti-pattern — it deadlocks under any bounded prefetch — but it worked under unlimited and stops working here.
+
+Handlers that assumed they could see the whole backlog are the other ones to re-measure. Picking a number is covered in [tune performance](/how-to/tune-performance#prefetch).
 
 ### Consumed queues need a dead-letter exchange
 
@@ -58,13 +64,24 @@ Handlers that were implicitly serialised by a slow broker, or that assumed they 
 On a queue that does not exist yet, the DLX costs nothing:
 
 ```diff
-+ const ordersDlx = defineExchange("orders-dlx");
++ import { defineQueueBinding } from "@amqp-contract/contract";
 +
 - const orderQueue = defineQueue("order-processing");
++ const ordersDlx = defineExchange("orders-dlx");
++ const orderDlq = defineQueue("order-processing-dlq");
 + const orderQueue = defineQueue("order-processing", {
 +   deadLetter: { exchange: ordersDlx },
 + });
+
+  export const contract = defineContract({
+    publishers: { orderCreated },
+    consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
++   queues: { orderDlq },
++   bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+  });
 ```
+
+**Add the dead-letter queue and the binding, not just the exchange.** `defineContract` requires the `deadLetter` pointer, but it cannot see whether the exchange you name routes anywhere — and RabbitMQ silently drops a dead letter that matches no binding. A DLX with nothing bound to it loses exactly the messages you added it to keep, and worse than before the upgrade: the worker now logs `Sending message to DLQ` at `info`, so the loss looks like success. Declaring the DLQ at the top level of `defineContract` is the [standalone topology](/how-to/define-a-contract#declare-standalone-topology) pattern; the DLQ itself is not consumed, so it needs no DLX of its own.
 
 Or state that dropping is deliberate — correct for a metrics firehose, a lie anywhere else, and the required declaration when the dead-lettering lives in a broker policy the contract cannot see:
 
@@ -80,6 +97,28 @@ Only _consumed_ queues are checked. A dead-letter queue you declare but do not c
 **What breaks:** a publish issued while the broker is unreachable used to buffer indefinitely with a promise that never settled. It now fails after **30 seconds**. Code that awaited a publish through an outage and never came back will now come back — with a failure.
 
 **Why it was unsafe:** an unsettled promise is invisible. Requests pile up behind it with no error, no metric, and no timeout of their own.
+
+**The timeout arrives as a `Defect`, not a modelled error.** `TypedAmqpClient.publish` models only `MessageValidationError`; every transport failure, the new timeout included, is routed to the **defect** channel. So it does **not** appear in `errCases`, and a `defect` arm you believed unreachable now fires during any outage longer than 30s. `.get()` and `.getOrThrow()` both panic on it. If you want publish failures observed rather than thrown, the `defect` branch is where they arrive:
+
+```typescript
+import { P } from "unthrown";
+
+const result = await client.publish("sendEmail", payload);
+
+result.match({
+  ok: () => {},
+  errCases: (matcher) =>
+    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {
+      log.error({ error }, "invalid payload, never sent");
+    }),
+  defect: (cause) => {
+    // Reachable since 3.0: the 30s publish timeout lands here.
+    log.error({ cause }, "publish failed");
+  },
+});
+```
+
+**A timed-out publish may still have reached the broker.** The timeout splices the message out of the unconfirmed set and rejects the promise; it does not tell the broker to forget it. So a retry in response to this failure can duplicate. AMQP is at-least-once regardless, but this is a new way to reach it — make the retry idempotent, or accept the duplicate.
 
 **The exact edit** — none, unless 30s is wrong for you:
 
