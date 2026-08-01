@@ -351,25 +351,36 @@ function publishForRetry(
  * Send message to dead letter queue.
  * Nacks the message without requeue, relying on DLX configuration.
  *
- * A queue with no DLX reaches this function only when its author declared
- * `onPoison: "drop"` — `defineContract` rejects every other consumed queue
- * without one — so the discard is intended configuration, not a fault, and the
- * two outcomes are logged as distinct facts at `info`.
+ * Three outcomes, logged as distinct facts:
+ *
+ * - a DLX is configured — the message is handed off, `info`;
+ * - no DLX but `onPoison: "drop"` — the author declared the loss, `info`;
+ * - neither — an undeclared loss. `defineContract` rejects such a queue, so
+ *   this is only reachable via a hand-built `ContractDefinition` that bypassed
+ *   it. That is exactly the accident the guard exists to catch, so it keeps the
+ *   `warn`.
+ *
+ * The branch must test what the message claims: asserting a declaration the
+ * queue does not carry would be a lie in the operator's logs.
  */
 function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDefinition): void {
   const queue = consumer.queue;
   const queueName = queue.name;
-  const hasDeadLetter = queue.deadLetter !== undefined;
+  const fields = { queueName, deliveryTag: msg.fields.deliveryTag };
 
-  ctx.logger?.info(
-    hasDeadLetter
-      ? "Sending message to DLQ"
-      : 'Discarding message: queue is declared onPoison: "drop" and has no DLX',
-    {
-      queueName,
-      deliveryTag: msg.fields.deliveryTag,
-    },
-  );
+  if (queue.deadLetter !== undefined) {
+    ctx.logger?.info("Sending message to DLQ", fields);
+  } else if (queue.onPoison === "drop") {
+    ctx.logger?.info(
+      'Discarding message: queue is declared onPoison: "drop" and has no DLX',
+      fields,
+    );
+  } else {
+    ctx.logger?.warn(
+      "Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack",
+      fields,
+    );
+  }
 
   // Nack without requeue - relies on DLX configuration
   ctx.amqpClient.nack(msg, { requeue: false, deliveryEpoch: ctx.deliveryEpoch });

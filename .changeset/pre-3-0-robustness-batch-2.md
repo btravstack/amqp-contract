@@ -21,7 +21,7 @@ Second robustness pass from the pre-3.0 audit — correctness fixes, resource-sa
 - **`maxDecompressedBytes`** (worker `create` option, default 64 MiB): caps inbound decompression so a decompression bomb follows the poison-message DLQ path instead of exhausting memory.
 - **Connection-pool keys distinguish function-valued options** (`findServers`, amqplib `credentials`), which `JSON.stringify` dropped — two clients differing only in a callback no longer collapse onto one shared connection.
 - **`TypedAmqpWorker.create` fails fast on a handler key that names no contract entry** (a stale key from a spread, or a missed rename), before any connection is acquired, instead of silently leaving that message class unprocessed.
-- **A poison message nacked on a queue with no DLX now logs a "will be lost" warning**, matching the retry path's existing diagnostic.
+- **A poison message nacked on a queue with no DLX is now logged on the validation path too**, matching the retry path's existing diagnostic. (Superseded within this same release: see the `@amqp-contract/worker` entry for the final wording and level — a _declared_ `onPoison: "drop"` is recorded at `info`, and only an undeclared loss warns.)
 
 **Internal idiom alignment (no observable behavior change)**
 

@@ -8,6 +8,7 @@ import { defineExchange } from "./exchange.js";
 import { defineMessage } from "./message.js";
 import { definePublisher } from "./publisher.js";
 import { defineQueue } from "./queue.js";
+import { defineRpc } from "./rpc.js";
 
 const message = defineMessage(z.object({ orderId: z.string() }));
 const orders = defineExchange("orders", { type: "topic" });
@@ -64,6 +65,30 @@ describe("silent poison-loss guard", () => {
         },
       }),
     ).not.toThrow();
+  });
+
+  it("applies to an RPC's queue, not just consumers", () => {
+    // The rpcs arm is a separate loop in defineContract. Without this case the
+    // whole `rpcs` loop could be deleted and every other spec would stay green.
+    const queue = defineQueue("rpc.calculate");
+    const calculate = defineRpc(queue, {
+      request: defineMessage(z.object({ a: z.number() })),
+      response: defineMessage(z.object({ sum: z.number() })),
+    });
+
+    expect(() => defineContract({ rpcs: { calculate } })).toThrow(/rpc\.calculate/);
+    expect(() => defineContract({ rpcs: { calculate } })).toThrow(/calculate/);
+    expect(() => defineContract({ rpcs: { calculate } })).toThrow(/onPoison/);
+  });
+
+  it("accepts an RPC queue with a dead-letter exchange", () => {
+    const queue = defineQueue("rpc.calculate", { deadLetter: { exchange: dlx } });
+    const calculate = defineRpc(queue, {
+      request: defineMessage(z.object({ a: z.number() })),
+      response: defineMessage(z.object({ sum: z.number() })),
+    });
+
+    expect(() => defineContract({ rpcs: { calculate } })).not.toThrow();
   });
 
   it("DOES require it once that same dead-letter queue is consumed", () => {

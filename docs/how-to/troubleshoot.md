@@ -191,7 +191,8 @@ rejects — `nack(requeue: false)` drops it and nothing records that it existed.
 The worker used to warn as it happened, which is both too late and invisible
 unless a logger was wired.
 
-Keep failed messages for inspection:
+On a queue that does not exist on the broker yet, keep failed messages for
+inspection and you are done:
 
 ```typescript
 const ordersDlx = defineExchange("orders-dlx");
@@ -211,6 +212,22 @@ Only _consumed_ queues are checked. A dead-letter queue you declare but do not
 consume needs neither — it has no dead-letter exchange of its own by design. If
 you do consume your dead-letter queue, it needs `onPoison: "drop"`: a DLQ cannot
 dead-letter to itself, so a message its handler also rejects has nowhere to go.
+
+#### If the queue already exists in production
+
+**You cannot add `deadLetter` to a live queue.** It becomes the
+`x-dead-letter-exchange` argument, which is part of the queue's identity, so the
+worker's redeclaration fails with
+[`PRECONDITION_FAILED - inequivalent arg`](#precondition-failed-inequivalent-arg)
+— a 406 at startup rather than a define-time error. Three routes out:
+
+| Route                                                                                         | What it costs                                                                                                                                                             |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Declare a **new** queue carrying the DLX and migrate consumers to it                          | Drain the old queue first; two queues exist during the cutover                                                                                                            |
+| Apply dead-lettering as a **broker policy** (`rabbitmqctl set_policy … dead-letter-exchange`) | Works on existing queues, since policies are not part of queue identity — but the contract cannot see the policy, so it still needs `onPoison: "drop"` to pass this check |
+| `onPoison: "drop"`                                                                            | You accept the loss. Honest for a metrics firehose; a lie anywhere else                                                                                                   |
+
+The upgrade guide covers the migration in full.
 
 ## Topology conflicts
 
