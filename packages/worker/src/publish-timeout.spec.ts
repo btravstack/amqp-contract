@@ -6,6 +6,7 @@ import {
   defineMessage,
   defineQueue,
 } from "@amqp-contract/contract";
+import { DEFAULT_PUBLISH_TIMEOUT_MS } from "@amqp-contract/core";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import { OkAsync } from "unthrown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,11 +86,26 @@ describe("publishTimeoutMs threading (worker)", () => {
     await worker.close().get();
   });
 
-  it("creates the channel without a publishTimeout when the option is omitted", async () => {
+  it("creates the channel with the core default publishTimeout when the option is omitted", async () => {
     const worker = await TypedAmqpWorker.create({
       contract,
       handlers: { processOrder: () => OkAsync(undefined) },
       urls: ["amqp://localhost"],
+    }).get();
+
+    expect(createChannelMock()).toHaveBeenCalledWith(
+      expect.objectContaining({ publishTimeout: DEFAULT_PUBLISH_TIMEOUT_MS }),
+    );
+
+    await worker.close().get();
+  });
+
+  it("omits publishTimeout entirely when explicitly disabled with null", async () => {
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: { processOrder: () => OkAsync(undefined) },
+      urls: ["amqp://localhost"],
+      publishTimeoutMs: null,
     }).get();
 
     const opts = createChannelMock().mock.calls[0]?.[0] as Record<string, unknown>;
