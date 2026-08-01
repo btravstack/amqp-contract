@@ -959,7 +959,12 @@ describe("builder", () => {
           "final-queue": { name: "final-queue" },
         },
         bindings: {
-          finalQueue: { type: "queue", queue: finalQueue, exchange: sourceExchange },
+          finalQueue: {
+            type: "queue",
+            queue: finalQueue,
+            exchange: sourceExchange,
+            routingKey: "order.created",
+          },
         },
       });
     });
