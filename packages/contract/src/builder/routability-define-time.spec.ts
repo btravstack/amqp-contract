@@ -187,6 +187,39 @@ describe("unroutable error message for multi-hop failures", () => {
  * `definePublisher` would leave a publish-only service written in those
  * styles unable to define a contract at all — the check rejecting valid code.
  */
+describe("unroutable error message on keyless exchanges", () => {
+  /**
+   * Fanout and headers exchanges ignore the routing key, so on those the key is
+   * *not applicable* rather than *missing*. Reporting "(none)" reads as a
+   * misconfiguration and sends the reader chasing a routing key that was never
+   * relevant — the only fix on a keyless exchange is a binding.
+   */
+  it("says the routing key is ignored rather than missing, on a fanout exchange", () => {
+    const broadcast = defineExchange("broadcast", { type: "fanout" });
+    const announce = definePublisher(broadcast, message);
+
+    expect(() => defineContract({ publishers: { announce } })).toThrow(
+      /no routing key \(fanout exchanges ignore it\)/,
+    );
+    expect(() => defineContract({ publishers: { announce } })).not.toThrow(/\(none\)/);
+    // The remedy drops "that matches" — nothing matches on a fanout exchange.
+    expect(() => defineContract({ publishers: { announce } })).toThrow(
+      /Add a binding to this exchange/,
+    );
+  });
+
+  it("keeps the routing-key wording on a topic exchange", () => {
+    const orderCreated = definePublisher(orders, message, { routingKey: "order.created" });
+
+    expect(() => defineContract({ publishers: { orderCreated } })).toThrow(
+      /routing key "order\.created"/,
+    );
+    expect(() => defineContract({ publishers: { orderCreated } })).toThrow(
+      /Add a binding that matches/,
+    );
+  });
+});
+
 describe("externalConsumers across the publisher builders", () => {
   describe("defineEventPublisher", () => {
     it("throws for a publish-only event contract that is NOT marked", () => {

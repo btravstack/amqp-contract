@@ -127,14 +127,26 @@ export function _internal_assertPublisherRoutable(
   );
   if (routable) return;
 
+  // Fanout and headers exchanges ignore the routing key entirely, so on those
+  // the key is *not applicable* rather than *missing* — reporting "(none)"
+  // there reads as a misconfiguration and sends the reader after the wrong
+  // thing. The only fix on a keyless exchange is a binding, so the remedy
+  // wording drops "that matches" too.
+  const ignoresRoutingKey = exchange.type === "fanout" || exchange.type === "headers";
+  const keyClause = ignoresRoutingKey
+    ? `no routing key (${exchange.type} exchanges ignore it)`
+    : `routing key ${routingKey === undefined ? "(none)" : `"${routingKey}"`}`;
+  const remedy = ignoresRoutingKey
+    ? "Add a binding to this exchange"
+    : "Add a binding that matches";
+
   // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
   throw new Error(
-    `Publisher "${publisherName}" is unroutable: routing key ` +
-      `${routingKey === undefined ? "(none)" : `"${routingKey}"`} on exchange ` +
+    `Publisher "${publisherName}" is unroutable: ${keyClause} on exchange ` +
       `"${exchange.name}" (${exchange.type}) reaches no queue. ` +
       `${describeReach(exchange.name, reachedExchanges, bindings)} ` +
       `Messages published here would be confirmed by the broker and then discarded. ` +
-      `Add a binding that matches, or set \`externalConsumers: true\` on the publisher ` +
+      `${remedy}, or set \`externalConsumers: true\` on the publisher ` +
       `if another service owns the binding.`,
   );
 }
