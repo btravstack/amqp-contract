@@ -6,16 +6,20 @@
 specific `publish()` call that produced it, through `amqp-connection-manager`?
 
 **Answer: yes.** The mechanism is reachable, and correlation by a per-publish
-header is empirically exact under concurrency, forced reconnects, and a
-TCP-level split between the return frame and the confirm frame.
+header held under every configuration tested — including the one that exercises
+both error oracles at once (mixed routable/unroutable traffic across a forced
+reconnect, verdict sampled at promise-settle time).
 
-**Recommendation: implement rung 3.** Scope, cost, and the parts it provably
-does _not_ cover are in [Recommendation](#recommendation).
+**Recommendation: implement rung 3.** The decision rests on the _product_
+argument in [Recommendation](#recommendation) — publishers declared
+`externalConsumers: true` have zero coverage at any rung today and fail totally
+and silently. The measurements below establish that the mechanism is sound
+enough to build on; they are not themselves the reason to build it.
 
-Everything below was measured against a real RabbitMQ 4.2.1 broker
+Everything here was measured against a real RabbitMQ 4.2.1 broker
 (`rabbitmq:4.2.1-management-alpine`) with `amqp-connection-manager@5.0.0` and
-`amqplib@2.0.1` — the versions this repo pins. Nothing here is inferred from
-documentation.
+`amqplib@2.0.1` — the versions this repo pins. Claims a given run did not
+instrument are marked **not measured**, never assumed to be zero.
 
 ---
 
@@ -59,8 +63,6 @@ Two properties of this attachment point matter and both were verified:
 - **It is re-run on every reconnect.** Each reconnect creates a _new_ channel
   object and re-runs every setup function against it, so the listener is
   re-attached exactly once per channel incarnation — no stacking, no leak.
-  (Observed: `setup incarnation 1` → forced close → `setup incarnation 2`, with
-  returns arriving on both.)
 - **It is per-channel, so returns do not leak between clients.** This codebase
   pools _connections_ (`ConnectionManagerSingleton`) but gives every
   `AmqpClient` its own `ChannelWrapper`. Two wrappers on one pooled connection,
@@ -124,37 +126,34 @@ For `sendToQueue` to a nonexistent queue, the return arrives with
 
 ---
 
-## 3. Ordering: the return always precedes the confirm
+## 3. Ordering: the return precedes the confirm
 
 RabbitMQ sends `basic.return` before `basic.ack` for the same message, amqplib
 dispatches frames in socket order, and `amqp-connection-manager` resolves the
 publish promise from the confirm callback — so the `'return'` event is observed
-strictly before the promise settles.
+before the promise settles.
 
-Measured, never violated:
+What each run actually instrumented:
 
-| run                  | publishes | unroutable | return-after-its-own-confirm |
-| -------------------- | --------- | ---------- | ---------------------------- |
-| interleaved N=200    | 200       | 100        | **0**                        |
-| interleaved N=2000   | 2000      | 1000       | **0**                        |
-| burst N=50000 + kill | 50000     | 50000      | **0**                        |
-| paced 7620 + kill    | 7620      | 7620       | **0**                        |
+| run                           | publishes  | mixed workload?         | reconnect? | return-after-its-own-confirm | return arriving _after_ its own settle |
+| ----------------------------- | ---------- | ----------------------- | ---------- | ---------------------------- | -------------------------------------- |
+| §4 interleaved N=200          | 200        | yes (50 % routable)     | no         | **0**                        | not measured                           |
+| §4 interleaved N=2000         | 2000       | yes (50 % routable)     | no         | **0**                        | not measured                           |
+| §5 paced 7620 + kill          | 7620       | no (100 % unroutable)   | yes        | not measured                 | not measured                           |
+| §5 burst 50 000 + kill        | 50 000     | no (100 % unroutable)   | yes        | not measured                 | not measured                           |
+| **§6 mixed 12 000 + kill ×4** | **48 000** | **yes (50 % routable)** | **yes**    | **0**                        | **0**                                  |
 
-The single most important derived number, from the 50 000-publish burst with a
-forced reconnect in the middle:
+The two middle rows only ever produced an _end-of-run tally_ of "did a return
+ever arrive for this publish id". That tally cannot distinguish "the return
+arrived before the confirm" from "the return arrived 5 ms after it" — and the
+proposed design reads the flag at settle time, so a late return is a silent
+false negative in production while still scoring as "seen" at end of run. §6 is
+the run that closes that gap.
 
-```
-"resolvedOk": 47353,
-"SILENT_LOSS_okButNoReturn": 0
-```
-
-**Every publish that resolved `Ok` and was in fact unroutable had already had
-its return observed by the time the promise settled.** Zero exceptions.
-
-The return is _not_ the immediately preceding event, though — under load, up to
-96 unrelated events interleaved between a return and its own confirm. So "the
-last return I saw belongs to this publish" is wrong; explicit correlation is
-required.
+Under load the return is _not_ the immediately preceding event: up to 96
+unrelated events interleaved between a return and its own confirm at N=2000. So
+"the last return I saw belongs to this publish" is wrong; explicit correlation
+is required.
 
 ---
 
@@ -169,19 +168,19 @@ when the publish promise settles.
 ```
 publish(target, payload, opts):
   id = nextId()                       // channel-scoped monotonic counter
-  entry = { unroutable: undefined }
+  entry = { unroutable: false }
   pending.set(id, entry)
   try:
     await wrapper.publish(ex, rk, body, { ...opts, mandatory: true,
                                           headers: { ...opts.headers, [H]: id } })
-    // the return, if any, has already been observed (§3)
+    // read the flag HERE, at settle time — §6 measures that no return arrives later
     return entry.unroutable ? Err(new UnroutableMessageError(...)) : Ok()
   finally:
     pending.delete(id)                // no orphan is possible: see §5
 ```
 
 Evidence, 2000 concurrent publishes with 1000 unroutable interleaved among 1000
-routable ones:
+routable ones (no reconnect — that combination is §6):
 
 ```json
 {
@@ -220,9 +219,8 @@ Measured: 6000 paced publishes to one key, binding deleted at #2000.
 }
 ```
 
-**99.4 % of returns were attributed to the wrong publish.** Both a false
-positive (a delivered message reported unroutable) and a false negative (a lost
-message reported `Ok`) on nearly every one. The header is not optional.
+**99.4 % of returns were attributed to the wrong publish** — both false
+positives and false negatives. The header is not optional.
 
 ### Rejected: reusing `messageId` / `correlationId`
 
@@ -236,16 +234,22 @@ established meanings — `correlationId` is already load-bearing for RPC
 
 Forced via the management API, `DELETE /api/connections/{name}` with basic auth
 (`guest:guest`), the port available to integration tests as
-`__TESTCONTAINERS_RABBITMQ_PORT_15672__`. Note the management DB takes ~1 s to
-register a new connection — a test that kills too early lists zero connections
-and silently no-ops.
+`__TESTCONTAINERS_RABBITMQ_PORT_15672__`. **The management DB takes 0.5–5 s to
+register a new connection**; a `DELETE` issued before that silently no-ops
+against an empty listing. Poll `/api/connections` until non-empty first.
 
 ### Can a publish be left permanently unresolved? No.
 
-Across every run — 7620 paced publishes spanning a forced reconnect, and 50 000
-burst publishes with ~40 000 still queued when the connection died — the count
-of publishes that never settled was **0**. Max observed settle latency was
-2063 ms (the reconnect gap plus the requeued backlog).
+Across every run — 7620 paced publishes spanning a forced reconnect, 50 000
+burst publishes with ~40 000 still queued when the connection died, and the four
+§6 runs — the count of publishes that never settled was **0**.
+
+Max settle latency, attributed precisely:
+
+| run                    | max settle latency |
+| ---------------------- | ------------------ |
+| §5 paced 7620 + kill   | 1021 ms            |
+| §5 burst 50 000 + kill | 2063 ms            |
 
 The 50 000-burst reconnect split as:
 
@@ -258,9 +262,15 @@ The 50 000-burst reconnect split as:
   "rejectReasons": ["channel closed"],
   "returnsPerChannelIncarnation": { "1": 7400, "2": 39953 },
   "PIDS_WITH_MULTIPLE_RETURNS": 0,
-  "SILENT_LOSS_okButNoReturn": 0
+  "SILENT_LOSS_okButNoReturn": 0,
+  "maxLatencyMs": 2063
 }
 ```
+
+Note the scope limit on that run: **every publish in it was unroutable**, so
+`PIDS_WITH_MULTIPLE_RETURNS: 0` and `SILENT_LOSS: 0` there are informative about
+false _negatives_ only. There was no routable publish available to be falsely
+blamed, so the run carries no evidence about false positives. §6 supplies that.
 
 - Messages **already sent but unconfirmed** when the connection dropped
   (2647 of them) had their confirm callbacks invoked with an error and
@@ -269,25 +279,18 @@ The 50 000-burst reconnect split as:
   (`ChannelWrapper.js:368`) was not taken. The caller sees a `Defect`.
 - Messages **still queued and never sent** (39 953) were published for the first
   time on the new channel and returned there.
-- **No message produced two returns.** The republish-with-the-same-headers
-  hazard did not materialise in any run.
 
 ### The worst window: return delivered, confirm never
 
-Tested directly with a TCP proxy that parses the broker→client frame stream,
-forwards bytes up to and including the returned message's body frame, and then
-destroys the socket — so the client observes the return and can never receive
-the ack.
+Tested with a TCP proxy that parses the broker→client frame stream, forwards
+bytes up to and including the returned message's body frame, then destroys the
+socket — so the client observes the return and can never receive the ack.
 
 ```
 [11ms] >>> forwarded the basic.return, now destroying the TCP connection
 [11ms] RETURN pid=SPLIT-1 incarnation=1
-[12ms] DISCONNECT: Unexpected close
 [12ms] publish -> REJECTED: channel closed after 2ms
-```
-
-```json
-{ "publishOutcome": "REJECTED: channel closed", "DUPLICATE_RETURN_AFTER_RECONNECT": false }
+DUPLICATE_RETURN_AFTER_RECONNECT: false
 ```
 
 The publish rejects in 2 ms. It does not hang, and the message is not
@@ -299,21 +302,104 @@ An implementation may optionally report `UnroutableMessageError` rather than the
 generic channel-closed `Defect` here, since the return _was_ observed. That is
 strictly more information; it is not required for correctness.
 
-### The one residual correlation hazard
+### The duplicate-return hazard is UNTESTED, not disproven
 
-If a message is requeued rather than rejected (the `!this._channel` branch), it
-is republished with the _same_ headers and therefore the same publish id. The
-design above tolerates that — the second return simply re-sets the same boolean
-on a still-registered entry. The only misreport it can produce is: attempt 1
+If a message takes the requeue branch of `_messageRejected` rather than the
+reject branch, it is republished with the _same_ headers and therefore the same
+publish id, and can produce a second return. Every run reported
+`PIDS_WITH_MULTIPLE_RETURNS: 0` — but that proves the hazard never _fired_, not
+that the design survives it.
+
+`_messageRejected` was instrumented directly to count which branch each
+rejection takes. Two disturbance mechanisms were tried:
+
+| disturbance                                    | reject branch | requeue branch |
+| ---------------------------------------------- | ------------- | -------------- |
+| connection-level force close (management API)  | 0             | 0              |
+| channel-level 404 (exchange deleted mid-burst) | 300           | 0              |
+| 50 000-message in-flight burst + force close   | 2647          | 0              |
+
+**The requeue branch was never reached in any attempt.** On amqplib 2.0.1,
+pending confirm callbacks are invoked with an error before
+`amqp-connection-manager`'s channel-close handler clears `this._channel`, so the
+`!this._channel` guard is false and the reject branch always wins. That may be
+timing-dependent rather than structural.
+
+An implementation must therefore be idempotent **by construction, not by
+evidence**. The design above is: a second return simply re-sets the same boolean
+on a still-registered entry. Its one misreport remains analytic — attempt 1
 unroutable, connection drops, binding restored during the gap, attempt 2
-routable → reported unroutable. That requires the topology to be repaired inside
-the reconnect window, and it fails in the safe direction (a spurious error on a
-message that got through, which at-least-once delivery already permits callers
-to handle).
+routable → reported unroutable. That fails in the safe direction (a spurious
+error on a message that got through, which at-least-once already permits), but
+it has not been observed and should be covered by a unit test that fakes the
+republish rather than by an integration test that cannot trigger it.
 
 ---
 
-## 6. Per-publish cost
+## 6. Mixed workload across a forced reconnect, verdict read at settle time
+
+This is the configuration the other runs were missing: both error oracles active
+at once, and the flag sampled at the exact instant the design would read it.
+
+- **Ground truth** = routing key. The binding is re-asserted by `setup` on every
+  reconnect, so routability is constant by construction for the whole run.
+- **Verdict** = `entry.unroutable` read synchronously inside the promise's
+  settle handler.
+- **False negative** = truly unroutable, verdict said routable (silent loss).
+- **False positive** = truly routable, verdict said unroutable.
+- **Late return** = the flag flipped _after_ the settle-time snapshot — the
+  silent-false-negative mode an end-of-run tally cannot see.
+- Publishes rejected with `"channel closed"` have unknown routability and are
+  excluded from both oracles.
+
+Four runs, 12 000 publishes each (50 % routable), connection force-closed at a
+different point in each:
+
+| kill at batch | resolved Ok | truly unroutable | truly routable | rejected | FN    | FP    | late returns | order violations | dup returns |
+| ------------- | ----------- | ---------------- | -------------- | -------- | ----- | ----- | ------------ | ---------------- | ----------- |
+| 2             | 11 093      | 5586             | 5507           | 907      | 0     | 0     | 0            | 0                | 0           |
+| 3             | 11 073      | 5537             | 5536           | 927      | 0     | 0     | 0            | 0                | 0           |
+| 6             | 11 349      | 5750             | 5599           | 651      | 0     | 0     | 0            | 0                | 0           |
+| 10            | 11 816      | 6000             | 5816           | 184      | 0     | 0     | 0            | 0                | 0           |
+| **total**     | **45 331**  | **22 873**       | **22 458**     | **2669** | **0** | **0** | **0**        | **0**            | **0**       |
+
+Representative raw output:
+
+```json
+{
+  "publishes": 12000,
+  "disconnects": 1,
+  "channelIncarnations": 2,
+  "settleOutcome": "ALL-SETTLED",
+  "permanentlyUnsettled": 0,
+  "resolvedOk": 11073,
+  "rejected_routabilityUnknown": 927,
+  "oracle": {
+    "okAndTrulyUnroutable": 5537,
+    "okAndTrulyRoutable": 5536,
+    "FALSE_NEGATIVES_lostButReportedOk": 0,
+    "FALSE_POSITIVES_deliveredButReportedUnroutable": 0
+  },
+  "LATE_RETURNS_arrivedAfterItsOwnSettle": 0,
+  "returnAfterItsOwnConfirm_seqViolations": 0,
+  "pidsWithMultipleReturns": 0
+}
+```
+
+Each run allowed a 5-second grace period after the last settle before tallying,
+so a late return had every opportunity to appear. None did.
+
+**What this does and does not establish.** It establishes that across 45 331
+successfully-confirmed publishes spanning four forced reconnects, with roughly
+equal routable and unroutable traffic, the settle-time verdict was correct every
+time. It does not establish a probabilistic bound — 0/45 331 on loopback with a
+sub-millisecond RTT is consistent with a rare ordering violation on a
+high-latency link — and it says nothing about brokers other than RabbitMQ 4.2.1
+or clients other than amqplib 2.0.1.
+
+---
+
+## 7. Per-publish cost
 
 **Wire.** An AMQP field-table entry costs `1 + len(name) + 1 + 4 + len(value)`
 bytes.
@@ -329,7 +415,9 @@ channel-scoped monotonic counter is sufficient and 19 bytes is the number to
 budget. On a 60-byte JSON body that is ~30 % overhead; on a realistic 500-byte
 event, ~4 %.
 
-**Latency.** Sequential publish-and-await, 3000 iterations after 300 warmup:
+**Latency**, sequential publish-and-await (each publish awaited before the next
+is issued), 3000 iterations after 300 warmup, small two-field JSON body, single
+channel, loopback broker, all publishes routable:
 
 | variant          | p50 (ms) | p95    | p99    | mean   |
 | ---------------- | -------- | ------ | ------ | ------ |
@@ -339,7 +427,9 @@ event, ~4 %.
 **+0.4 % mean, inside the noise floor.** For any workload that awaits its
 publishes, the cost is not measurable.
 
-**Throughput,** 20 000 publishes fired without backpressure:
+**Throughput**, 20 000 publishes enqueued in one synchronous loop with no
+backpressure (all in flight simultaneously), 60-byte JSON body, single channel,
+loopback broker, all publishes routable so returns are not a factor:
 
 | variant          | msg/s  | vs plain |
 | ---------------- | ------ | -------- |
@@ -347,9 +437,9 @@ publishes, the cost is not measurable.
 | mandatory only   | 88 560 | −9.3 %   |
 | mandatory + corr | 85 979 | −12.0 %  |
 
-Most of that is `mandatory` itself (the broker doing routing bookkeeping and
-emitting returns for 100 % of these publishes), not the correlation. The
-correlation adds 2.7 points on top.
+Most of the cost is `mandatory` itself, not the correlation; the correlation
+adds 2.7 points on top. This is a worst-case shape — maximum pipelining, tiny
+bodies, zero network latency — chosen so the overhead is visible at all.
 
 **Bookkeeping.** One `Map` entry per in-flight publish, deleted on settle;
 `pendingMapLeftover: 0` in every benchmark. Bounded by concurrency, not by
@@ -358,40 +448,42 @@ throughput.
 **Visibility.** The header is delivered to consumers — it appears in
 `properties.headers` on the receiving side and is not stripped. It does not break
 headers-exchange routing (verified with `x-match: all`), but it is permanently
-part of every message this library ever publishes, including messages consumed
-by systems that are not using this library.
+part of every message this library publishes, including messages consumed by
+systems that are not using this library.
 
 ---
 
-## 7. What rung 3 provably does _not_ cover
+## 8. What rung 3 provably does _not_ cover
 
-These are measured negative results, not caveats-by-analogy.
+Measured negative results, not caveats-by-analogy.
 
-1. **RPC replies cannot be covered.** RabbitMQ ignores `mandatory` on
-   `amq.rabbitmq.reply-to`. With the requester's connection fully closed, a
-   `mandatory` reply publish to its direct-reply-to pseudo-queue produced
-   **zero returns** — the reply is silently dropped. `worker.ts:964` is
-   therefore out of reach; a dead RPC requester still surfaces only as the
-   caller's `RpcTimeoutError`.
+1. **`amq.rabbitmq.reply-to` cannot be covered.** RabbitMQ ignores `mandatory`
+   on the direct reply-to pseudo-queue. With the requester's connection fully
+   closed, a `mandatory` reply publish produced **zero returns** — the reply is
+   silently dropped. Since `client.ts` sets `replyTo: DIRECT_REPLY_TO` for every
+   RPC it issues, `worker.ts:964` is out of reach _for this library's own RPC
+   clients_. The narrower claim is the accurate one: this is a property of
+   direct reply-to, not of reply publishing in general — a third-party requester
+   that set `replyTo` to a real declared queue would get a normal return if that
+   queue were deleted, so `mandatory` is not universally inert on that code path.
 2. **An alternate exchange suppresses the return, correctly.** An exchange
    declared with `alternate-exchange` routes its otherwise-unroutable messages
    to the AE; the message lands in the AE's queue and **no return is issued**.
-   That is right — the message _was_ routed — but it means "no return" means
+   That is right — the message _was_ routed — but "no return" then means
    "routed somewhere", not "routed to the queue you intended".
 3. **`Ok` still does not mean "processed".** A return only fires when the
-   exchange matches _zero_ queues. A message dropped by `x-max-length`
-   overflow, expired by a queue TTL, or sitting in a queue nobody consumes is
-   routed, confirmed, and returns nothing.
-4. **The reconnect window is best-effort.** 2647 of 50 000 publishes in the
-   burst test rejected with `"channel closed"` — their routability is unknown,
-   as it is today.
+   exchange matches _zero_ queues. A message dropped by `x-max-length` overflow,
+   expired by a queue TTL, or sitting in a queue nobody consumes is routed,
+   confirmed, and returns nothing.
+4. **The reconnect window is best-effort.** 2669 of 48 000 publishes in the §6
+   runs (and 2647 of 50 000 in §5) rejected with `"channel closed"` — their
+   routability is unknown, as it is today.
 
 There is also a framing correction worth recording: **"topology never set up in
 this environment" is already impossible.** `setupAmqpTopology` runs inside the
 channel `setup` callback (`amqp-client.ts:235`) and asserts every exchange,
-queue, and binding in the contract on _every_ connect and reconnect. The
-library creates its own topology. What rung 3 actually guards is narrower than
-the framing suggests:
+queue, and binding in the contract on _every_ connect and reconnect. What rung 3
+actually guards is narrower than the original framing suggests:
 
 | scenario                                                                                   | covered by                       | rung 3 adds                 |
 | ------------------------------------------------------------------------------------------ | -------------------------------- | --------------------------- |
@@ -406,21 +498,26 @@ the framing suggests:
 
 **Implement rung 3.**
 
-The single strongest piece of evidence: across 50 000 publishes spanning a
-broker-forced reconnect, `SILENT_LOSS_okButNoReturn` was **0** and
-`PIDS_WITH_MULTIPLE_RETURNS` was **0** — header-correlated detection produced
-neither a false negative nor a false positive, including when a TCP-level cut
-delivered the return and destroyed the connection before the confirm could
-arrive (that case rejects in 2 ms rather than hanging or double-reporting).
+The reason is the last row of the table above, not a zero-defect measurement
+count. `externalConsumers: true` (`contract/src/types.ts:878`) is the escape
+hatch rungs 1 and 2 hand to anyone whose consumer lives in another service, and
+it is exactly the population most likely to have drifted: another team's deploy,
+another repo's contract, a queue decommissioned without telling the publisher.
+For those publishers there is **no check at any level today** — define-time,
+connect-time, or runtime — and the failure mode is total, permanent, silent
+message loss with `publish()` reporting success. Rung 3 is the only thing that
+can catch it, and it catches it on the first message.
 
-The decisive _product_ argument is the last row of the table above.
-`externalConsumers: true` is the escape hatch rungs 1 and 2 hand to anyone whose
-consumer lives in another service, and it is exactly the population most likely
-to have drifted: another team's deploy, another repo's contract, a queue
-decommissioned without telling the publisher. For those publishers there is
-currently **no check at any level** — define-time, connect-time, or runtime —
-and the failure mode is total, permanent, silent message loss. Rung 3 is the
-only thing that can catch it, and it catches it on the first message.
+The measurements support that decision without carrying it. What they establish
+is that the mechanism is sound enough to build on: 45 331 confirmed publishes of
+mixed routable/unroutable traffic across four forced reconnects produced no
+false negative, no false positive, and no return arriving after its own settle
+(§6); a TCP-level cut delivering the return and destroying the connection before
+the confirm rejects in 2 ms rather than hanging or double-reporting (§5); and
+header-free correlation is definitively ruled out (§4). What they do **not**
+establish: a probabilistic bound on a high-latency link, and anything at all
+about the requeue-branch duplicate-return hazard, which no attempt could
+trigger (§5).
 
 ### Proposed API shape
 
@@ -437,7 +534,16 @@ TypedAmqpClient.create({
 });
 ```
 
-### Signature changes required
+### Signature changes and internal blast radius
+
+**The type widens unconditionally.** `onUnroutable: "ignore"` changes runtime
+behaviour but not the static type, so _every_ consumer of
+`AmqpClient.publish`'s result must be updated regardless of the default — unless
+the option is encoded in the type system (a generic, or a separate method),
+which is more complex and is the alternative worth weighing during
+implementation.
+
+Public surface:
 
 | location                              | from                                        | to                                                 |
 | ------------------------------------- | ------------------------------------------- | -------------------------------------------------- |
@@ -446,30 +552,37 @@ TypedAmqpClient.create({
 | `PublishError` (`interceptors.ts:12`) | `MessageValidationError`                    | `MessageValidationError \| UnroutableMessageError` |
 | `TypedAmqpClient.publish`             | `AsyncResult<void, MessageValidationError>` | `AsyncResult<void, PublishError>`                  |
 
-This is a **breaking change**: every user `errCases` matcher that handles only
+Breaking: every user `errCases` matcher handling only
 `P.tag("@amqp-contract/MessageValidationError")` without a `P._` catch-all stops
-compiling. It needs a major bump, a changeset, and an upgrade-guide entry.
+compiling. Major bump, changeset, upgrade-guide entry.
 
-Additional implementation notes for whoever picks this up:
+Internal call sites that break — all four must be fixed in the same change:
+
+| site                             | current shape                                                                                              | why it breaks / what it needs                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker.ts:964` `publishReply`   | `.publish(...).recoverDefect(cause => Err<HandlerError>(...))`, declared `AsyncResult<void, HandlerError>` | `recoverDefect` only collapses the defect channel, so the widened `E` survives and the result is `UnroutableMessageError \| HandlerError` — not assignable to `HandlerError`. Needs an explicit `mapErrCases` folding `UnroutableMessageError` into `NonRetryableError`, matching the documented "reply failure → DLQ" policy.                                                                |
+| `retry.ts:310` `publishForRetry` | `.publish(...).map(ack).tapDefect(log)`, declared `AsyncResult<void, never>`                               | Declared `E = never` no longer holds. Semantically the `.map` short-circuit already skips the ack on `Err`, so **invariant 1 (retry publishes before ack) survives** — but `tapDefect` will not fire for an `Err`, so the failure would go unlogged. Needs a `tapErrCases` alongside it. Invariant 14's default-exchange republish is routable by construction, so no new failure mode there. |
+| `client.ts:487`                  | contract publish, wrapped by interceptors                                                                  | The intended surface. `PublishError` widening flows through `chainInterceptors` and the `PublishInterceptor` type.                                                                                                                                                                                                                                                                            |
+| `client.ts:728` `publishRequest` | declared `AsyncResult<void, never>`, feeds `call()`                                                        | Declared `E = never` no longer holds, and `call()`'s error union gains `UnroutableMessageError`. Behaviourally an improvement — a missing RPC queue fails fast instead of waiting out `RpcTimeoutError` — but it is a second breaking union widening, on a separate public method.                                                                                                            |
+
+Additional implementation notes:
 
 - Register the `'return'` listener inside `AmqpClient`'s `defaultSetup`
-  (`amqp-client.ts:235`), before the user-setup wrapper, so it survives every
-  reconnect and cannot be displaced by a user-supplied `channelOptions.setup`.
+  (`amqp-client.ts:235`), before the user-setup wrapper at line 257, so it
+  survives every reconnect and cannot be displaced by a user-supplied
+  `channelOptions.setup`.
 - The publish id must be **channel-scoped** and reset per incarnation; reuse the
   existing `channelEpoch` counter (`amqp-client.ts:206`) as its prefix rather
   than inventing a second one.
 - Merge the header into `options.headers`; never replace the table.
-- `retry.ts:310` republishes to the _original_ exchange or, for classic-queue
-  immediate requeue, to the default exchange. Turning `mandatory` on there
-  converts a silently-lost retry into a modeled error, which is desirable, but
-  it changes the retry pipeline's error surface — see load-bearing invariants
-  1, 3 and 14 in `CLAUDE.md`. Cover it explicitly.
-- Do **not** enable `mandatory` on the RPC reply path (`worker.ts:964`); per §7
-  it is inert there and only costs bytes.
-- Guarding test to add to the invariant list: an unroutable publish on a
-  contract with `externalConsumers: true` returns `Err(UnroutableMessageError)`
-  while a routable one on the same channel returns `Ok`, both published
-  concurrently.
+- Do **not** enable `mandatory` on the RPC reply path (`worker.ts:964`) — per §8
+  it is inert for this library's own clients and only costs bytes. Fix the
+  _type_ there; leave the behaviour alone.
+- Guarding tests to add: (a) an unroutable publish on an
+  `externalConsumers: true` contract returns `Err(UnroutableMessageError)` while
+  a routable one on the same channel returns `Ok`, both published concurrently;
+  (b) a **unit** test that fakes a republish of the same publish id, since §5
+  shows the requeue branch cannot be reached from an integration test.
 
 ### If this is deferred instead
 
@@ -485,13 +598,26 @@ their own return listener via the already-public
 
 ## Reproduction
 
-All experiments were throwaway scripts run against a standalone
-`rabbitmq:4.2.1-management-alpine` container on ports 45672/45673, and were
-deleted after the run. The ten of them covered: reachability and message dump;
-correlation under concurrency at N=200/2000; a paced reconnect with management-API
-force-close; a 50 000-message in-flight burst kill; alternate-exchange, headers-exchange,
-and `sendToQueue` edge cases; throughput and sequential-latency benchmarks; channel
-isolation across a pooled connection; a frame-parsing TCP proxy that splits the
-return from the confirm; FIFO-correlation soundness under a mid-flight unbind;
-and an end-to-end check through the built `AmqpClient`. Raw output is recorded in
+All experiments were throwaway `.mjs` scripts run against a standalone
+`rabbitmq:4.2.1-management-alpine` container on ports 45672/45673, deleted after
+the run. Fourteen experiments across fifteen files:
+
+| script                          | covers                                                               |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `01-reachability`               | §1 reachability, §2 message dump, §3 first ordering datapoint        |
+| `02-concurrency`                | §4 header correlation at N=200 / N=2000                              |
+| `03-reconnect`                  | §5 paced 7620 + management-API force close                           |
+| `04-inflight-kill`              | §5 50 000-message in-flight burst kill                               |
+| `05-alternatives`               | §4 FIFO ordering, §8 alternate exchange, `sendToQueue`, §7 wire cost |
+| `06-overhead`                   | §7 throughput                                                        |
+| `07-seq-latency`                | §7 sequential latency                                                |
+| `08-channel-isolation`          | §1 per-channel isolation across a pooled connection                  |
+| `09-direct-reply-to`            | §8 `amq.rabbitmq.reply-to`                                           |
+| `10-proxy-split` (+`10b-debug`) | §5 frame-parsing TCP proxy splitting the return from the confirm     |
+| `11-real-client`                | §1 end-to-end through the built `AmqpClient`                         |
+| `12-fifo-unsound`               | §4 FIFO misattribution under a mid-flight unbind                     |
+| `13-mixed-reconnect`            | §6 mixed workload + reconnect, settle-time verdict                   |
+| `14-requeue-branch`             | §5 `_messageRejected` branch instrumentation                         |
+
+Raw output for every run is recorded in
 `.superpowers/sdd/2026-08-01-h1-unroutable-publish/task-6-report.md`.
