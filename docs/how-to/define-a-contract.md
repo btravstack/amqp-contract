@@ -197,6 +197,21 @@ Keys are dot-separated segments of alphanumerics, hyphens and underscores. The `
 
 TypeScript's recursion limit means very long keys fall back to `string`. That affects compile-time checking only, never runtime behaviour.
 
+## Publish to a consumer you do not own
+
+`defineContract` throws if a publisher's routing key reaches no queue in the contract. The broker would confirm those messages and then discard them, so the failure has to surface here — at runtime it looks like success.
+
+A publish-only service has no local queue by design. Say so:
+
+```typescript
+const orderCreated = definePublisher(orders, orderMessage, {
+  routingKey: "order.created",
+  externalConsumers: true,
+});
+```
+
+Reach for it only when another service really does own the binding. If the consumer is in this contract and the check still fires, the routing key and the binding pattern have drifted — fix the mismatch instead. See [troubleshoot](/how-to/troubleshoot#publisher-is-unroutable-at-define-time).
+
 ## Share a contract between services
 
 Put the contract in its own package that both the publishing and consuming services depend on:
