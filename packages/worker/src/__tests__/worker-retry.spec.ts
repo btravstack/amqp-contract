@@ -1123,7 +1123,10 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("max-retries-queue", {
         type: "classic",
         durable: false,
-        deadLetter: { exchange: retryDlx },
+        // No deadLetter configuration — this test's whole subject is the
+        // terminal drop after the retry budget is spent on a DLX-less queue,
+        // so the drop is declared rather than dead-lettered.
+        onPoison: "drop",
         retry: {
           mode: "ttl-backoff",
           maxRetries: 1, // Only allow 1 retry
@@ -1171,8 +1174,9 @@ describe("Worker Retry Mechanism", () => {
 
       expect(attemptCount).toBe(2);
 
-      // AND since no DLX is configured, the message should be lost (nacked without requeue)
-      // This is expected behavior when no DLX is configured and max retries exceeded
+      // AND since no DLX is configured, the message is dropped (nacked without
+      // requeue) once the budget is spent — the declared outcome of
+      // `onPoison: "drop"` on a queue with no dead-letter exchange.
     });
   });
 

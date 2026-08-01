@@ -39,6 +39,13 @@ describe("AmqpClient.consume prefetch default", () => {
     await ConnectionManagerSingleton.getInstance()._resetForTesting();
   });
 
+  it("is 10 — the number the docs and the changeset promise", () => {
+    // Pinned to a literal on purpose. Every other assertion here compares the
+    // constant to itself, so without this line the suite stays green if the
+    // default silently changes.
+    expect(DEFAULT_PREFETCH).toBe(10);
+  });
+
   it(`defaults an unset prefetch to ${String(DEFAULT_PREFETCH)} rather than AMQP's unlimited`, async () => {
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
 
