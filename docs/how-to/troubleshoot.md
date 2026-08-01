@@ -196,6 +196,32 @@ The worker's safety net caught it. Return `ErrAsync(...)` instead so you can cla
 
 The queue has no `deadLetter` configured, so `nack(requeue=false)` discards them. The worker logs `Queue does not have DLX configured - message will be lost on nack`. See [route dead letters](/how-to/route-dead-letters).
 
+### My worker suddenly processes fewer messages at once
+
+Consumers now prefetch **10** messages by default (previously unlimited — the
+broker pushed the entire ready backlog to a single consumer, which is unbounded
+memory and a large redelivery burst if the worker crashes).
+
+Raise it if you are throughput-bound and your handlers are cheap:
+
+```typescript
+const worker = await TypedAmqpWorker.create({
+  contract,
+  urls: ["amqp://localhost"],
+  handlers,
+  prefetch: 100,
+}).get();
+```
+
+Or restore the old behavior explicitly:
+
+```typescript
+prefetch: "unbounded";
+```
+
+`"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a
+call site as its opposite.
+
 ## RPC problems
 
 ### Every call times out

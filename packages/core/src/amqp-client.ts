@@ -70,6 +70,15 @@ function absorbWriteBufferConfirmation(published: boolean, target: string): Resu
 export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
 
 /**
+ * Default per-consumer prefetch.
+ *
+ * Bounds in-flight messages per consumer, which bounds both memory and the
+ * redelivery burst when a worker crashes. Throughput-bound consumers raise it
+ * explicitly; `"unbounded"` restores AMQP's unlimited behavior.
+ */
+export const DEFAULT_PREFETCH = 10;
+
+/**
  * Normalise the user-supplied connect timeout to either a positive finite
  * number of milliseconds, or `null` (no timeout). An invalid numeric value
  * (`NaN`, `Infinity`, zero, negative) throws a {@link TechnicalError} rather
@@ -144,9 +153,18 @@ export type AmqpPublishOptions = Options.Publish;
  * is re-established after a reconnect — so the value never bleeds onto other
  * consumers sharing the channel.
  */
-export type AmqpConsumeOptions = Options.Consume & {
-  /** Per-consumer prefetch count. Applied before `channel.consume(...)`. */
-  prefetch?: number;
+export type AmqpConsumeOptions = Omit<Options.Consume, "prefetch"> & {
+  /**
+   * Per-consumer prefetch count, applied before `channel.consume(...)`.
+   *
+   * Defaults to {@link DEFAULT_PREFETCH}. Pass `"unbounded"` to opt out and
+   * let the broker push the entire ready backlog — AMQP's original default,
+   * and a memory hazard on any queue that can build a backlog.
+   *
+   * `"unbounded"` rather than `0` because AMQP's `0` means *unlimited*, which
+   * reads at a call site as its opposite.
+   */
+  prefetch?: number | "unbounded";
 };
 
 /**
@@ -451,22 +469,26 @@ export class AmqpClient {
     // means unlimited. NaN, negatives, fractions, and out-of-range numbers
     // would travel to the broker, which either rejects or interprets them
     // unexpectedly.
-    const prefetch = options?.prefetch;
-    if (prefetch !== undefined) {
-      if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
-        // A misconfigured prefetch is a programming fault, not a modeled
-        // failure — surface it through the defect channel.
-        return fromSafeThrowable((): string => {
-          // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
-          throw new TechnicalError(
-            `Invalid prefetch: expected a non-negative integer ≤ 65535, got ${String(prefetch)}`,
-          );
-        })().toAsync();
-      }
+    //
+    // Resolve before validating so the range check sees the real value that
+    // will reach the broker. `"unbounded"` maps to AMQP's 0 (unlimited).
+    const requested = options?.prefetch;
+    const prefetch =
+      requested === undefined ? DEFAULT_PREFETCH : requested === "unbounded" ? 0 : requested;
+
+    if (!Number.isInteger(prefetch) || prefetch < 0 || prefetch > 65_535) {
+      // A misconfigured prefetch is a programming fault, not a modeled
+      // failure — surface it through the defect channel.
+      return fromSafeThrowable((): string => {
+        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
+        throw new TechnicalError(
+          `Invalid prefetch: expected a non-negative integer ≤ 65535 or "unbounded", got ${String(requested)}`,
+        );
+      })().toAsync();
     }
 
     return fromPromise(
-      this.channelWrapper.consume(queue, callback, options),
+      this.channelWrapper.consume(queue, callback, { ...options, prefetch }),
       (error: unknown, defect) =>
         defect(new TechnicalError("Failed to start consuming messages", error)),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
