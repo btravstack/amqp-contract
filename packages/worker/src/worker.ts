@@ -6,6 +6,7 @@ import {
   type RpcErrorMap,
   extractConsumer,
 } from "@amqp-contract/contract";
+import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
 import {
   AmqpClient,
   type AmqpConsumeOptions,
@@ -983,8 +984,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       // Mirrors the retry path's sendToDLQ: a declared drop is a fact at
       // `info`; a queue carrying neither a DLX nor the declaration is only
       // reachable via a hand-built ContractDefinition that bypassed
-      // defineContract, and keeps the warning.
-      if (consumer.queue.deadLetter === undefined) {
+      // defineContract, and keeps the warning. "Is there a DLX?" is the
+      // guard's own question, asked through the shared predicate so a queue
+      // dead-lettering via the raw `arguments` passthrough stays silent here.
+      if (!_internal_queueHasDeadLetterExchange(consumer.queue)) {
         const fields = { consumerName: String(name), queueName: consumer.queue.name };
         if (consumer.queue.onPoison === "drop") {
           this.logger?.info(

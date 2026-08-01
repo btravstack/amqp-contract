@@ -327,6 +327,37 @@ describe("terminal-nack logging", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
+  it("logs the same hand-off when the DLX comes only from the `arguments` passthrough", async () => {
+    // `defineContract` accepts this queue — setupAmqpTopology spreads
+    // `queue.arguments` into the declare arguments, so it really does
+    // dead-letter. Warning here would page an operator over a queue that is
+    // working, on the one line add-logging.md calls a bug report.
+    const { client } = createMockClient(() => OkAsync(undefined));
+    const logger = loggerSpy();
+
+    await handleError(
+      { amqpClient: client as unknown as AmqpClient, logger: logger as never },
+      new NonRetryableError("permanent"),
+      createMockConsumeMessage(),
+      "processOrder",
+      {
+        queue: defineQueue("orders", { arguments: { "x-dead-letter-exchange": "orders-dlx" } }),
+        message: defineMessage(z.object({ id: z.string() })),
+      },
+    );
+
+    expect(logger.info).toHaveBeenCalledWith(
+      "Sending message to DLQ",
+      expect.objectContaining({ queueName: "orders" }),
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+    // And it must not claim the message was discarded — the broker has it.
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Discarding"),
+      expect.anything(),
+    );
+  });
+
   it('logs a declared discard at info — never warn — when the queue is onPoison: "drop"', async () => {
     const { client } = createMockClient(() => OkAsync(undefined));
     const logger = loggerSpy();

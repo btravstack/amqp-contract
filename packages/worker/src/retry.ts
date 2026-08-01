@@ -5,6 +5,7 @@ import {
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
+import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
 import type { AmqpClient, Logger } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync, type AsyncResult } from "unthrown";
@@ -361,14 +362,17 @@ function publishForRetry(
  *   `warn`.
  *
  * The branch must test what the message claims: asserting a declaration the
- * queue does not carry would be a lie in the operator's logs.
+ * queue does not carry would be a lie in the operator's logs. "Is there a DLX?"
+ * is therefore the guard's own question, asked through the shared
+ * {@link _internal_queueHasDeadLetterExchange} — a queue dead-lettering through
+ * the raw `arguments` passthrough is handed off, not reported as lost.
  */
 function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDefinition): void {
   const queue = consumer.queue;
   const queueName = queue.name;
   const fields = { queueName, deliveryTag: msg.fields.deliveryTag };
 
-  if (queue.deadLetter !== undefined) {
+  if (_internal_queueHasDeadLetterExchange(queue)) {
     ctx.logger?.info("Sending message to DLQ", fields);
   } else if (queue.onPoison === "drop") {
     ctx.logger?.info(
