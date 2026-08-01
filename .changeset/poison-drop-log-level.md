@@ -19,9 +19,15 @@ undeclared:
 
 | Queue                      | Level  | Message                                                                                                                                                                                                                            |
 | -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| has `deadLetter`           | `info` | `Sending message to DLQ` (`retry.ts` only; the validation path nacks without logging and lets the DLX do its job)                                                                                                                  |
+| has a DLX                  | `info` | `Sending message to DLQ` (`retry.ts` only; the validation path nacks without logging and lets the DLX do its job)                                                                                                                  |
 | no DLX, `onPoison: "drop"` | `info` | `Discarding message: queue is declared onPoison: "drop" and has no DLX` (`retry.ts`)<br>`Discarding poison message: queue is declared onPoison: "drop" and has no DLX` (`worker.ts`)                                               |
 | no DLX, no `onPoison`      | `warn` | `Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack` (`retry.ts`)<br>`Queue has no dead-letter exchange and no onPoison declaration - poison message will be lost on nack` (`worker.ts`) |
+
+"Has a DLX" means what `defineContract`'s poison-loss check means by it —
+`deadLetter: { exchange: … }` **or** an `x-dead-letter-exchange` set through the
+raw `arguments` passthrough. Both sites ask one shared predicate, so a queue the
+builder accepts as dead-lettering is never logged as an undeclared loss and
+never described as discarded.
 
 Structured fields are unchanged (`queueName`, `deliveryTag`; plus
 `consumerName` on the validation path).
