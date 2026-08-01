@@ -342,7 +342,11 @@ describe("AmqpClient Integration", () => {
     // GIVEN - Cross-domain: source exchange → (e2e) → bridge exchange → queue
     const sourceExchange = defineExchange("source-domain", { durable: false });
     const bridgeExchange = defineExchange("local-domain", { durable: false });
-    const localQueue = defineQueue("local-processing", { type: "classic", durable: false });
+    const localQueue = defineQueue("local-processing", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 
     const orderCreated = defineEventPublisher(sourceExchange, orderMessage, {

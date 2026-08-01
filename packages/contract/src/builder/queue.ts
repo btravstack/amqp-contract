@@ -61,6 +61,7 @@ function resolveTtlBackoffOptions(
  * @param options.autoDelete - If true, the queue is deleted when the last consumer unsubscribes. Only supported with classic queues.
  * @param options.maxPriority - Maximum priority level for priority queue (1-255, recommended: 1-10). Only supported with classic queues.
  * @param options.deadLetter - Dead letter configuration for handling failed messages
+ * @param options.onPoison - Set to 'drop' to declare that poison messages on this queue are deliberately discarded. `defineContract` requires either this or `deadLetter` on any queue it sees consumed.
  * @param options.retry - Retry configuration for handling failed message processing
  * @param options.arguments - Additional AMQP arguments (e.g., x-message-ttl)
  * @returns A queue definition
@@ -125,6 +126,7 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
     "autoDelete",
     "maxPriority",
     "deadLetter",
+    "onPoison",
     "retry",
     "arguments",
   ]);
@@ -152,10 +154,12 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
   const baseProps: {
     name: string;
     deadLetter?: DeadLetterConfig;
+    onPoison?: "drop";
     arguments?: Record<string, unknown>;
   } = {
     name,
     ...(opts.deadLetter !== undefined && { deadLetter: opts.deadLetter }),
+    ...(opts.onPoison !== undefined && { onPoison: opts.onPoison }),
     ...(opts.arguments !== undefined && { arguments: opts.arguments }),
   };
 

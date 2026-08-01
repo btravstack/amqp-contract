@@ -56,7 +56,11 @@ describe("Worker defensive nack guard", () => {
     const TestMessage = z.object({ id: z.string() });
 
     const exchange = defineExchange("doubleack-x", { durable: false });
-    const queue = defineQueue("doubleack-q", { type: "classic", durable: false });
+    const queue = defineQueue("doubleack-q", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, {
       routingKey: "test.message",

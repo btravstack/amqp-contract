@@ -1,6 +1,12 @@
 import type { EventEmitter } from "node:events";
 
-import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
+import {
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineRpc,
+} from "@amqp-contract/contract";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
@@ -57,15 +63,23 @@ const neverSettlingSchema: StandardSchemaV1 = {
   },
 };
 
+const rpcDlx = defineExchange("rpc-dlx");
 const requestSchema = z.object({ a: z.number(), b: z.number() });
 
 function makeContract(responseSchema: StandardSchemaV1) {
   return defineContract({
     rpcs: {
-      calculate: defineRpc(defineQueue("rpc.calculate", { type: "classic", durable: false }), {
-        request: defineMessage(requestSchema),
-        response: defineMessage(responseSchema),
-      }),
+      calculate: defineRpc(
+        defineQueue("rpc.calculate", {
+          type: "classic",
+          durable: false,
+          deadLetter: { exchange: rpcDlx },
+        }),
+        {
+          request: defineMessage(requestSchema),
+          response: defineMessage(responseSchema),
+        },
+      ),
     },
   });
 }

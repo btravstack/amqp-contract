@@ -23,7 +23,10 @@ import {
 import { z } from "zod";
 
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
 const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
 
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
@@ -66,7 +69,10 @@ Define the consumer first; it owns the queue and decides what it accepts. The pu
 import { defineCommandConsumer, defineCommandPublisher } from "@amqp-contract/contract";
 
 const fulfillmentExchange = defineExchange("fulfillment", { type: "direct" });
-const fulfillmentQueue = defineQueue("order-fulfillment");
+const fulfillmentDlx = defineExchange("fulfillment-dlx");
+const fulfillmentQueue = defineQueue("order-fulfillment", {
+  deadLetter: { exchange: fulfillmentDlx },
+});
 
 const fulfillOrder = defineCommandConsumer(
   fulfillmentQueue,

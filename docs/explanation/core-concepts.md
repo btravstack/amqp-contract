@@ -27,7 +27,10 @@ This is why the composition pattern matters: define resources as named constants
 
 ```typescript
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
 ```
 
 Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.

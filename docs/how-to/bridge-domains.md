@@ -27,7 +27,10 @@ const ordersExchange = defineExchange("orders");
 
 // Local exchange in the billing domain — the bridge
 const billingExchange = defineExchange("billing");
-const billingQueue = defineQueue("billing-orders");
+const billingDlx = defineExchange("billing-dlx");
+const billingQueue = defineQueue("billing-orders", {
+  deadLetter: { exchange: billingDlx },
+});
 
 const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
@@ -60,7 +63,10 @@ The reverse. The remote `inventory` domain owns a queue you want to send command
 ```typescript
 // Remote domain
 const inventoryExchange = defineExchange("inventory");
-const inventoryQueue = defineQueue("inventory-commands");
+const inventoryDlx = defineExchange("inventory-dlx");
+const inventoryQueue = defineQueue("inventory-commands", {
+  deadLetter: { exchange: inventoryDlx },
+});
 
 // Local bridge
 const localExchange = defineExchange("ordering-out");

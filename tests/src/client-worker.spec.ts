@@ -103,7 +103,11 @@ describe("Client and Worker Integration", () => {
     }) => {
       // GIVEN
       const exchange = defineExchange("orders", { durable: false });
-      const queue = defineQueue("order-processing", { type: "classic", durable: false });
+      const queue = defineQueue("order-processing", {
+        type: "classic",
+        durable: false,
+        onPoison: "drop",
+      });
       const orderMessage = defineMessage(
         z.object({
           orderId: z.string(),
@@ -192,7 +196,11 @@ describe("Client and Worker Integration", () => {
     it("should handle multiple messages in sequence", async ({ clientFactory, workerFactory }) => {
       // GIVEN
       const exchange = defineExchange("events", { durable: false });
-      const queue = defineQueue("event-processing", { type: "classic", durable: false });
+      const queue = defineQueue("event-processing", {
+        type: "classic",
+        durable: false,
+        onPoison: "drop",
+      });
       const eventMessage = defineMessage(
         z.object({
           eventId: z.string(),
@@ -265,7 +273,11 @@ describe("Client and Worker Integration", () => {
     it("should handle validation errors gracefully", async ({ clientFactory, workerFactory }) => {
       // GIVEN
       const exchange = defineExchange("strict", { durable: false });
-      const queue = defineQueue("strict-processing", { type: "classic", durable: false });
+      const queue = defineQueue("strict-processing", {
+        type: "classic",
+        durable: false,
+        onPoison: "drop",
+      });
       const strictMessage = defineMessage(
         z.object({
           id: z.string().uuid(),
@@ -329,8 +341,16 @@ describe("Client and Worker Integration", () => {
     }) => {
       // GIVEN
       const exchange = defineExchange("notifications", { durable: false });
-      const emailQueue = defineQueue("email-queue", { type: "classic", durable: false });
-      const smsQueue = defineQueue("sms-queue", { type: "classic", durable: false });
+      const emailQueue = defineQueue("email-queue", {
+        type: "classic",
+        durable: false,
+        onPoison: "drop",
+      });
+      const smsQueue = defineQueue("sms-queue", {
+        type: "classic",
+        durable: false,
+        onPoison: "drop",
+      });
 
       const notificationMessage = defineMessage(
         z.object({

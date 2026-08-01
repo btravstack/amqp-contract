@@ -42,7 +42,10 @@ import { z } from "zod";
 
 // Define resources
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
 const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 
 const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {

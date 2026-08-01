@@ -854,7 +854,7 @@ describe("builder", () => {
         }),
       );
       const ordersExchange = defineExchange("orders");
-      const orderProcessingQueue = defineQueue("order-processing");
+      const orderProcessingQueue = defineQueue("order-processing", { onPoison: "drop" });
 
       // WHEN
       const contract = defineContract({
@@ -931,7 +931,7 @@ describe("builder", () => {
         }),
       );
       const sourceExchange = defineExchange("source-exchange");
-      const finalQueue = defineQueue("final-queue");
+      const finalQueue = defineQueue("final-queue", { onPoison: "drop" });
 
       // WHEN - exchanges and queues are auto-extracted from publishers/consumers
       const contract = defineContract({
@@ -1152,7 +1152,7 @@ describe("builder", () => {
         }),
       );
       const ordersExchange = defineExchange("orders");
-      const orderQueue = defineQueue("order-processing");
+      const orderQueue = defineQueue("order-processing", { onPoison: "drop" });
 
       // WHEN - EventPublisherConfig goes directly in publishers
       const orderCreated = defineEventPublisher(ordersExchange, message, {
@@ -1211,8 +1211,8 @@ describe("builder", () => {
         }),
       );
       const ordersExchange = defineExchange("orders");
-      const orderQueue = defineQueue("order-processing");
-      const notificationQueue = defineQueue("notifications");
+      const orderQueue = defineQueue("order-processing", { onPoison: "drop" });
+      const notificationQueue = defineQueue("notifications", { onPoison: "drop" });
 
       // WHEN - No manual destructuring needed!
       const orderCreated = defineEventPublisher(ordersExchange, message, {
@@ -1264,8 +1264,8 @@ describe("builder", () => {
       // GIVEN
       const message = defineMessage(z.object({ id: z.string() }));
       const exchange = defineExchange("events", { type: "fanout" });
-      const queue1 = defineQueue("queue-1");
-      const queue2 = defineQueue("queue-2");
+      const queue1 = defineQueue("queue-1", { onPoison: "drop" });
+      const queue2 = defineQueue("queue-2", { onPoison: "drop" });
 
       const eventPublisher = defineEventPublisher(exchange, message);
 
@@ -1415,7 +1415,7 @@ describe("builder", () => {
           action: z.string(),
         }),
       );
-      const auditQueue = defineQueue("audit-log");
+      const auditQueue = defineQueue("audit-log", { onPoison: "drop" });
       const auditExchange = defineExchange("audit");
 
       // WHEN - CommandConsumerConfig goes directly in consumers
@@ -1553,8 +1553,8 @@ describe("builder", () => {
       const notificationsExchange = defineExchange("notifications", {
         type: "fanout",
       });
-      const orderQueue = defineQueue("order-queue");
-      const notificationQueue = defineQueue("notification-queue");
+      const orderQueue = defineQueue("order-queue", { onPoison: "drop" });
+      const notificationQueue = defineQueue("notification-queue", { onPoison: "drop" });
 
       const orderMessage = defineMessage(z.object({ orderId: z.string() }));
       const notificationMessage = defineMessage(z.object({ message: z.string() }));
@@ -1784,7 +1784,7 @@ describe("builder", () => {
       const ordersExchange = defineExchange("orders");
       const billingExchange = defineExchange("billing");
       const message = defineMessage(z.object({ orderId: z.string() }));
-      const billingQueue = defineQueue("billing-orders");
+      const billingQueue = defineQueue("billing-orders", { onPoison: "drop" });
 
       const orderCreated = defineEventPublisher(ordersExchange, message, {
         routingKey: "order.created",
@@ -1885,8 +1885,8 @@ describe("builder", () => {
       const localExchange = defineExchange("local");
       const orderMessage = defineMessage(z.object({ orderId: z.string() }));
       const localMessage = defineMessage(z.object({ id: z.string() }));
-      const billingQueue = defineQueue("billing-orders");
-      const localQueue = defineQueue("local-processing");
+      const billingQueue = defineQueue("billing-orders", { onPoison: "drop" });
+      const localQueue = defineQueue("local-processing", { onPoison: "drop" });
 
       const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
         routingKey: "order.created",
@@ -1960,7 +1960,7 @@ describe("builder", () => {
   describe("defineContract collision detection", () => {
     it("dedupes the same exchange referenced by both a publisher and a consumer", () => {
       const exchange = defineExchange("orders");
-      const queue = defineQueue("order-processing");
+      const queue = defineQueue("order-processing", { onPoison: "drop" });
       const message = defineMessage(z.object({ orderId: z.string() }));
       const event = defineEventPublisher(exchange, message, { routingKey: "order.created" });
 

@@ -84,6 +84,7 @@ const contract = defineContract({
 - **Quorum queues are the default** and recommended for most use cases
 - Use `type: 'quorum'` (default) for reliable, replicated queues (always durable, do not support exclusive, auto-deleting, or priority queues)
 - Use `type: 'classic'` only for special cases (non-durable, exclusive, auto-deleting, or priority queues)
+- Every **consumed** queue needs a `deadLetter` — or an explicit `onPoison: "drop"`. `defineContract` throws otherwise, because a consumed queue with neither discards every rejected message with no record. Declared-but-unconsumed queues (dead-letter queues included) are exempt; a DLQ you _do_ consume needs `onPoison: "drop"`, since it cannot dead-letter to itself.
 
 ```typescript
 // Quorum queue (default, recommended)
@@ -136,7 +137,8 @@ Bridge exchanges enable cross-domain messaging by routing through a local exchan
 // Consuming events from a remote domain via bridge
 const ordersExchange = defineExchange("orders");
 const billingExchange = defineExchange("billing");
-const billingQueue = defineQueue("billing-orders");
+const billingDlx = defineExchange("billing-dlx");
+const billingQueue = defineQueue("billing-orders", { deadLetter: { exchange: billingDlx } });
 
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",

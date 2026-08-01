@@ -371,7 +371,9 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("nodlx-queue", {
         type: "classic",
         durable: false,
-        // No deadLetter configuration
+        // No deadLetter configuration — that is the subject of this test, so the
+        // resulting message loss is declared rather than dead-lettered away.
+        onPoison: "drop",
       });
 
       const testMessage = defineMessage(TestMessage);
@@ -940,7 +942,9 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("headers-retry-queue", {
         type: "classic",
         durable: false,
-        // No deadLetter configuration
+        // No deadLetter configuration — the point of this case is the wait-queue
+        // path without a DLX, so the terminal drop is declared.
+        onPoison: "drop",
         retry: {
           mode: "ttl-backoff",
           maxRetries: 2,
@@ -1045,6 +1049,9 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("routing-key-queue", {
         type: "classic",
         durable: false,
+        // A DLX would change where the exhausted message lands, which this test
+        // inspects; keep the drop explicit instead.
+        onPoison: "drop",
         retry: {
           mode: "ttl-backoff",
           maxRetries: 1,
@@ -1116,6 +1123,9 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("max-retries-queue", {
         type: "classic",
         durable: false,
+        // As above: the assertion is on attempt counts after exhaustion, not on
+        // where the message goes.
+        onPoison: "drop",
         retry: {
           mode: "ttl-backoff",
           maxRetries: 1, // Only allow 1 retry

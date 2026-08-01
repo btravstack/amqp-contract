@@ -3,6 +3,7 @@ import type { EventEmitter } from "node:events";
 import {
   defineConsumer,
   defineContract,
+  defineExchange,
   defineMessage,
   defineQueue,
 } from "@amqp-contract/contract";
@@ -54,10 +55,16 @@ vi.mock("amqp-connection-manager", async () => {
   };
 });
 
+const ordersDlx = defineExchange("orders-dlx");
+
 const contract = defineContract({
   consumers: {
     processOrder: defineConsumer(
-      defineQueue("orders", { type: "classic", durable: false }),
+      defineQueue("orders", {
+        type: "classic",
+        durable: false,
+        deadLetter: { exchange: ordersDlx },
+      }),
       defineMessage(z.object({ orderId: z.string() })),
     ),
   },

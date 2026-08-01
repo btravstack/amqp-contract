@@ -7,7 +7,11 @@ import { defineQueue } from "./queue.js";
 import { defineRpc } from "./rpc.js";
 
 describe("defineRpc", () => {
-  const queue = defineQueue("rpc.calculate", { type: "classic", durable: false });
+  const queue = defineQueue("rpc.calculate", {
+    type: "classic",
+    durable: false,
+    onPoison: "drop",
+  });
   const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const response = defineMessage(z.object({ sum: z.number() }));
 

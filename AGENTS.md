@@ -43,6 +43,7 @@ This is the canonical list — sub-files reference these rather than restating t
 ### Topology and contract authoring
 
 - Quorum queues by default. Classic queues only for features quorum doesn't support (`exclusive`, `autoDelete`, `maxPriority`).
+- Every **consumed** queue needs a `deadLetter` or an explicit `onPoison: "drop"` — `defineContract` throws otherwise. Declared-but-unconsumed queues (dead-letter queues included) are exempt.
 - Composition pattern — define resources first, then reference; never inline inside `defineContract`.
 
 ### Tooling and process

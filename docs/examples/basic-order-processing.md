@@ -231,11 +231,21 @@ const orderProcessingQueue = defineQueue("order-processing", {
     "x-message-ttl": 86400000, // 24 hours
   },
 });
-const orderNotificationsQueue = defineQueue("order-notifications");
-const orderShippingQueue = defineQueue("order-shipping");
-const orderUrgentQueue = defineQueue("order-urgent");
-const orderFulfillmentQueue = defineQueue("order-fulfillment");
-const ordersDlxQueue = defineQueue("orders-dlx-queue");
+const orderNotificationsQueue = defineQueue("order-notifications", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderShippingQueue = defineQueue("order-shipping", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderUrgentQueue = defineQueue("order-urgent", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderFulfillmentQueue = defineQueue("order-fulfillment", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+// The DLQ is itself consumed, and cannot dead-letter to itself — so the drop
+// is declared explicitly.
+const ordersDlxQueue = defineQueue("orders-dlx-queue", { onPoison: "drop" });
 
 // 2. Define messages
 const orderMessage = defineMessage(orderSchema, {

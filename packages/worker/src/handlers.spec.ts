@@ -1,6 +1,7 @@
 import {
   defineConsumer,
   defineContract,
+  defineExchange,
   defineMessage,
   defineQueue,
   defineRpc,
@@ -47,14 +48,15 @@ function createMockConsumeMessage(): ConsumeMessage {
 
 describe("handlers", () => {
   // Setup test contract
-  const testQueue = defineQueue("test-queue");
+  const dlx = defineExchange("test-dlx");
+  const testQueue = defineQueue("test-queue", { deadLetter: { exchange: dlx } });
   const testMessage = defineMessage(
     z.object({
       id: z.string(),
       data: z.string(),
     }),
   );
-  const rpcQueue = defineQueue("rpc-queue");
+  const rpcQueue = defineQueue("rpc-queue", { deadLetter: { exchange: dlx } });
   const rpcRequest = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const rpcResponse = defineMessage(z.object({ sum: z.number() }));
 
