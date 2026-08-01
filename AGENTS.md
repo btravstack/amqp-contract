@@ -105,6 +105,7 @@ Each invariant maps to a named guarding test — extend the mapping when you add
 16. **Telemetry never throws into the data path** (a buggy provider degrades to "no telemetry") — `packages/core/src/telemetry.spec.ts` ("throwing telemetry providers") + `packages/client/src/interceptors.spec.ts` (sync-throwing interceptor → Defect).
 17. **A short-delay ttl-backoff retry is never blocked by a long-delay retry parked ahead of it** (per-delay-tier wait queues; RabbitMQ only expires at the queue head) — `packages/worker/src/__tests__/worker-retry-head-of-line.spec.ts`.
 18. **`defineContract`'s runtime output has exactly the keys `ContractOutput` types** (no runtime-injected topology invisible to the type level) — `packages/contract/src/contract-output-parity.spec.ts`.
+19. **A publisher whose routing key reaches no queue is rejected at define time** (RabbitMQ confirms an unroutable message and discards it, so the runtime signal is indistinguishable from success) — `tests/src/unroutable-publish.spec.ts` (the paired prove-the-loss / prove-the-guard tests) + `packages/contract/src/builder/routability-define-time.spec.ts`.
 
 ## Workflow rules for agents
 
