@@ -349,7 +349,7 @@ describe("AmqpClient Integration", () => {
       const TestMessage = z.object({ id: z.string() });
 
       const exchange = defineExchange("integration-orders");
-      const queue = defineQueue("integration-processing"); // Default quorum queue
+      const queue = defineQueue("integration-processing", { onPoison: "drop" }); // Default quorum queue
       const message = defineMessage(TestMessage);
 
       const orderCreatedEvent = defineEventPublisher(exchange, message, {
@@ -384,6 +384,7 @@ describe("AmqpClient Integration", () => {
       const queue = defineQueue("integration-classic-processing", {
         type: "classic",
         durable: false,
+        onPoison: "drop",
       });
       const message = defineMessage(TestMessage);
 
@@ -463,7 +464,7 @@ describe("AmqpClient Integration", () => {
       const fanoutExchange = defineExchange("integration-fanout", {
         type: "fanout",
       });
-      const queue = defineQueue("integration-fanout-queue"); // Default quorum queue
+      const queue = defineQueue("integration-fanout-queue", { onPoison: "drop" }); // Default quorum queue
 
       const broadcastEvent = defineEventPublisher(
         fanoutExchange,

@@ -31,6 +31,7 @@ describe("TTL-backoff head-of-line blocking", () => {
     const queue = defineQueue("hol-queue", {
       type: "classic",
       durable: false,
+      onPoison: "drop",
       retry: {
         mode: "ttl-backoff",
         maxRetries: 2,

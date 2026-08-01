@@ -61,6 +61,7 @@ defineQueue(name, options?);
 | `exclusive`   | `boolean`                   | `false`            | `classic` only                                               |
 | `maxPriority` | `number`                    | —                  | `classic` only                                               |
 | `deadLetter`  | `{ exchange, routingKey? }` | —                  | See below                                                    |
+| `onPoison`    | `"drop"`                    | —                  | Declares deliberate loss; see below                          |
 | `retry`       | retry config                | `{ mode: "none" }` | See below                                                    |
 | `arguments`   | `Record<string, unknown>`   | —                  | Raw AMQP queue arguments                                     |
 
@@ -72,6 +73,16 @@ Quorum queues replicate through Raft and cannot be exclusive, auto-deleting, or 
 | ------------ | ------------------- | -------------------------------------------------------- |
 | `exchange`   | exchange definition | Extracted into the contract automatically                |
 | `routingKey` | `string`            | Optional. Omitted, the original routing key is preserved |
+
+### `onPoison`
+
+`defineContract` rejects a **consumed** queue that has neither a `deadLetter` nor
+`onPoison: "drop"`, because such a queue discards every message its handler
+rejects with no record of the loss. Set `onPoison: "drop"` when losing them is
+the intent — a metrics firehose, or a dead-letter queue you consume (which
+cannot dead-letter to itself).
+
+Declared-but-unconsumed queues are not checked.
 
 ### `arguments`
 

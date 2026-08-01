@@ -184,6 +184,34 @@ An exchange declaring an `alternate-exchange` argument never triggers this — t
 
 The check reads the bindings passed to `defineContract`. Mutating `contract.bindings` after it returns does not re-run it; declare every binding in the call.
 
+### `defineContract` says my queue has no dead-letter exchange
+
+A consumed queue with no dead-letter exchange discards every message its handler
+rejects — `nack(requeue: false)` drops it and nothing records that it existed.
+The worker used to warn as it happened, which is both too late and invisible
+unless a logger was wired.
+
+Keep failed messages for inspection:
+
+```typescript
+const ordersDlx = defineExchange("orders-dlx");
+
+const orderQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+```
+
+Or state that dropping them is intentional:
+
+```typescript
+const metricsQueue = defineQueue("metrics-ingest", { onPoison: "drop" });
+```
+
+Only _consumed_ queues are checked. A dead-letter queue you declare but do not
+consume needs neither — it has no dead-letter exchange of its own by design. If
+you do consume your dead-letter queue, it needs `onPoison: "drop"`: a DLQ cannot
+dead-letter to itself, so a message its handler also rejects has nowhere to go.
+
 ## Topology conflicts
 
 ### `PRECONDITION_FAILED - inequivalent arg`
@@ -220,7 +248,7 @@ The worker's safety net caught it. Return `ErrAsync(...)` instead so you can cla
 
 ### Messages vanish on failure
 
-The queue has no `deadLetter` configured, so `nack(requeue=false)` discards them. The worker logs `Queue does not have DLX configured - message will be lost on nack`. See [route dead letters](/how-to/route-dead-letters).
+The queue was declared with `onPoison: "drop"` and no `deadLetter`, so `nack(requeue=false)` discards them. Any other consumed queue would have failed at define time — see [`defineContract` says my queue has no dead-letter exchange](#definecontract-says-my-queue-has-no-dead-letter-exchange). To start keeping them, replace `onPoison: "drop"` with a `deadLetter` exchange: see [route dead letters](/how-to/route-dead-letters).
 
 ### My worker suddenly processes fewer messages at once
 

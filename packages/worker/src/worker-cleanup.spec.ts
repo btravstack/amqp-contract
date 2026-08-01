@@ -1,6 +1,7 @@
 import {
   defineConsumer,
   defineContract,
+  defineExchange,
   defineMessage,
   defineQueue,
   type ContractDefinition,
@@ -15,6 +16,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { TypedAmqpWorker } from "./worker.js";
+
+const ordersDlx = defineExchange("orders-dlx");
 
 describe("TypedAmqpWorker.create cleanup", () => {
   beforeEach(async () => {
@@ -41,7 +44,11 @@ describe("TypedAmqpWorker.create cleanup", () => {
     const contract = defineContract({
       consumers: {
         processOrder: defineConsumer(
-          defineQueue("orders", { type: "classic", durable: false }),
+          defineQueue("orders", {
+            type: "classic",
+            durable: false,
+            deadLetter: { exchange: ordersDlx },
+          }),
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },
@@ -71,7 +78,11 @@ describe("TypedAmqpWorker.create cleanup", () => {
     const contract = defineContract({
       consumers: {
         processOrder: defineConsumer(
-          defineQueue("orders", { type: "classic", durable: false }),
+          defineQueue("orders", {
+            type: "classic",
+            durable: false,
+            deadLetter: { exchange: ordersDlx },
+          }),
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },
@@ -123,7 +134,11 @@ describe("TypedAmqpWorker.create cleanup", () => {
     const contract = defineContract({
       consumers: {
         processOrder: defineConsumer(
-          defineQueue("orders", { type: "classic", durable: false }),
+          defineQueue("orders", {
+            type: "classic",
+            durable: false,
+            deadLetter: { exchange: ordersDlx },
+          }),
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },

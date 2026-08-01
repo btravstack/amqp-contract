@@ -29,7 +29,7 @@ import type {
 } from "./types.js";
 
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const orderProcessingQueue = defineQueue("order-processing", { onPoison: "drop" });
 const orderMessage = defineMessage(
   z.object({
     orderId: z.string(),
@@ -53,7 +53,7 @@ declare const client: TypedAmqpClient<typeof contract>;
 
 // RPC contract with defaults/transforms so input and output types differ, and
 // a declared error map so the call error union carries typed RpcError members.
-const rpcQueue = defineQueue("rpc.get-order");
+const rpcQueue = defineQueue("rpc.get-order", { onPoison: "drop" });
 const getOrder = defineRpc(rpcQueue, {
   request: defineMessage(
     z.object({ orderId: z.string(), includeItems: z.boolean().default(false) }),
@@ -64,7 +64,7 @@ const getOrder = defineRpc(rpcQueue, {
     FORBIDDEN: { data: z.object({ reason: z.string() }) },
   },
 });
-const plainRpc = defineRpc(defineQueue("rpc.plain"), {
+const plainRpc = defineRpc(defineQueue("rpc.plain", { onPoison: "drop" }), {
   request: defineMessage(z.object({ a: z.number() })),
   response: defineMessage(z.object({ b: z.number() })),
 });

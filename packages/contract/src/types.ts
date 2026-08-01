@@ -238,6 +238,20 @@ type BaseQueueOptions = {
   deadLetter?: DeadLetterConfig;
 
   /**
+   * Declares that poison messages on this queue are deliberately dropped.
+   *
+   * A consumed queue with no dead-letter exchange loses every message it
+   * rejects — `nack(requeue: false)` discards it and nothing observes the
+   * loss. `defineContract` therefore refuses such a queue unless the author
+   * writes this, which makes the loss a stated decision rather than an
+   * accident.
+   *
+   * Only meaningful on a queue that is consumed; a declared-but-unconsumed
+   * queue is never nacked and is not checked.
+   */
+  onPoison?: "drop" | undefined;
+
+  /**
    * Retry configuration for handling failed message processing.
    *
    * @example
@@ -547,6 +561,20 @@ export type BaseQueueDefinition<TName extends string = string> = {
    * will be automatically forwarded to the specified dead letter exchange.
    */
   deadLetter?: DeadLetterConfig;
+
+  /**
+   * Declares that poison messages on this queue are deliberately dropped.
+   *
+   * A consumed queue with no dead-letter exchange loses every message it
+   * rejects — `nack(requeue: false)` discards it and nothing observes the
+   * loss. `defineContract` therefore refuses such a queue unless the author
+   * writes this, which makes the loss a stated decision rather than an
+   * accident.
+   *
+   * Only meaningful on a queue that is consumed; a declared-but-unconsumed
+   * queue is never nacked and is not checked.
+   */
+  onPoison?: "drop" | undefined;
 
   /**
    * Retry configuration for handling failed message processing.

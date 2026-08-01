@@ -28,7 +28,7 @@ describe("Worker close drains in-flight handlers", () => {
     publishMessage,
   }) => {
     const exchange = defineExchange("drain-x", { durable: false });
-    const queue = defineQueue("drain-q", { type: "classic", durable: false });
+    const queue = defineQueue("drain-q", { type: "classic", durable: false, onPoison: "drop" });
     const message = defineMessage(z.object({ id: z.string() }));
     const event = defineEventPublisher(exchange, message, { routingKey: "drain.test" });
     const contract = defineContract({

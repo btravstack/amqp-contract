@@ -56,8 +56,9 @@ const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
 });
 
 // Multiple queues can consume the same event
-const orderQueue = defineQueue("order-processing");
-const analyticsQueue = defineQueue("analytics");
+const ordersDlx = defineExchange("orders-dlx");
+const orderQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
+const analyticsQueue = defineQueue("analytics", { deadLetter: { exchange: ordersDlx } });
 
 // Compose contract - exchanges, queues, bindings auto-extracted
 const contract = defineContract({
@@ -89,7 +90,9 @@ under the hood, so no reply queue declaration is needed.
 import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
 import { z } from "zod";
 
-const calculate = defineRpc(defineQueue("rpc.calculate"), {
+const rpcDlx = defineExchange("rpc-dlx");
+
+const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
   response: defineMessage(z.object({ sum: z.number() })),
 });

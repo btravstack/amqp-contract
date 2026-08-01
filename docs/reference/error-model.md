@@ -151,7 +151,9 @@ Since 3.0 it is not part of any operation's `E`, so it never appears in an error
 Declared in the contract alongside request and response:
 
 ```typescript
-const getOrder = defineRpc(defineQueue("rpc.get-order"), {
+const rpcDlx = defineExchange("rpc-dlx");
+
+const getOrder = defineRpc(defineQueue("rpc.get-order", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ orderId: z.string() })),
   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
   errors: {

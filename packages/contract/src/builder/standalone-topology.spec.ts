@@ -59,7 +59,11 @@ describe("defineContract standalone topology", () => {
   it("dedupes a standalone declaration against the same resource extracted from a consumer", () => {
     // GIVEN — the queue is declared standalone AND used by a consumer.
     const exchange = defineExchange("orders", { durable: false });
-    const queue = defineQueue("order-processing", { type: "classic", durable: false });
+    const queue = defineQueue("order-processing", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const message = defineMessage(z.object({ orderId: z.string() }));
     const orderCreated = defineEventPublisher(exchange, message, { routingKey: "order.created" });
 

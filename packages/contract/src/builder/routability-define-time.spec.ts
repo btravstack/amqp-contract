@@ -13,7 +13,7 @@ import { defineQueue } from "./queue.js";
 
 const message = defineMessage(z.object({ orderId: z.string() }));
 const orders = defineExchange("orders", { type: "topic" });
-const auditQueue = defineQueue("audit-log");
+const auditQueue = defineQueue("audit-log", { onPoison: "drop" });
 
 describe("defineContract publisher routability", () => {
   it("throws when a publisher's routing key reaches no queue", () => {

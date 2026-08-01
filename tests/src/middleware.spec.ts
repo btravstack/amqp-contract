@@ -83,7 +83,14 @@ const it = baseIt.extend<{
 
 const buildConsumerContract = (suffix: string) => {
   const exchange = defineExchange(`orders-${suffix}`, { type: "topic", durable: false });
-  const queue = defineQueue(`orders-${suffix}`, { type: "classic", durable: false });
+  // A real DLX, so the createContext-failure test below exercises the actual
+  // dead-letter path rather than a silent drop.
+  const dlx = defineExchange(`orders-dlx-${suffix}`, { type: "topic", durable: false });
+  const queue = defineQueue(`orders-${suffix}`, {
+    type: "classic",
+    durable: false,
+    deadLetter: { exchange: dlx },
+  });
   const message = defineMessage(z.object({ orderId: z.string() }));
   const processOrder = defineCommandConsumer(queue, exchange, message, {
     routingKey: "order.process",
@@ -96,7 +103,12 @@ const buildConsumerContract = (suffix: string) => {
 };
 
 const buildRpcContract = (suffix: string) => {
-  const queue = defineQueue(`rpc-${suffix}`, { type: "classic", durable: false });
+  const dlx = defineExchange(`rpc-dlx-${suffix}`, { type: "topic", durable: false });
+  const queue = defineQueue(`rpc-${suffix}`, {
+    type: "classic",
+    durable: false,
+    deadLetter: { exchange: dlx },
+  });
   const calculate = defineRpc(queue, {
     request: defineMessage(z.object({ a: z.number(), b: z.number() })),
     response: defineMessage(z.object({ sum: z.number() })),

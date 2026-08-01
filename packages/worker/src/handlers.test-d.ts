@@ -28,7 +28,7 @@ import type {
 } from "./types.js";
 
 const ordersExchange = defineExchange("orders");
-const orderProcessingQueue = defineQueue("order-processing");
+const orderProcessingQueue = defineQueue("order-processing", { onPoison: "drop" });
 const orderMessage = defineMessage(
   z.object({
     orderId: z.string(),
@@ -60,12 +60,14 @@ const headersEvent = defineEventPublisher(ordersExchange, headersMessage, {
 });
 const headersContract = defineContract({
   publishers: { headersPublisher: headersEvent },
-  consumers: { withHeaders: defineEventConsumer(headersEvent, defineQueue("headers-q")) },
+  consumers: {
+    withHeaders: defineEventConsumer(headersEvent, defineQueue("headers-q", { onPoison: "drop" })),
+  },
 });
 
 // RPC contract: response with a defaulted field (handler returns the INPUT
 // shape; the worker validates before replying) and a declared error map.
-const getOrder = defineRpc(defineQueue("rpc.get-order"), {
+const getOrder = defineRpc(defineQueue("rpc.get-order", { onPoison: "drop" }), {
   request: defineMessage(z.object({ orderId: z.string() })),
   response: defineMessage(z.object({ status: z.string(), cached: z.boolean().default(false) })),
   errors: {

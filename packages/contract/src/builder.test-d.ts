@@ -300,8 +300,8 @@ describe("ContractOutput type inference", () => {
     deadLetter: { exchange: dlx },
     retry: { mode: "immediate-requeue", maxRetries: 3 },
   });
-  const notificationQueue = defineQueue("notifications");
-  const logQueue = defineQueue("logs");
+  const notificationQueue = defineQueue("notifications", { onPoison: "drop" });
+  const logQueue = defineQueue("logs", { onPoison: "drop" });
   const orderMessage = defineMessage(z.object({ orderId: z.string() }));
   const notificationMessage = defineMessage(z.object({ text: z.string() }));
   const logMessage = defineMessage(z.object({ level: z.string() }));
@@ -548,7 +548,7 @@ describe("ContractOutput strict literal keys", () => {
   test("fanout exchange should preserve literal name", () => {
     const fanoutExchange = defineExchange("notifications", { type: "fanout" });
     const notifMessage = defineMessage(z.object({ text: z.string() }));
-    const notifQueue = defineQueue("notifications");
+    const notifQueue = defineQueue("notifications", { onPoison: "drop" });
     const broadcast = defineEventPublisher(fanoutExchange, notifMessage);
     const contract = defineContract({
       publishers: { broadcast },
@@ -564,7 +564,7 @@ describe("ContractOutput strict literal keys", () => {
   test("headers exchange should preserve literal name", () => {
     const headersExchange = defineExchange("logs", { type: "headers" });
     const logMessage = defineMessage(z.object({ level: z.string() }));
-    const logQueue = defineQueue("logs");
+    const logQueue = defineQueue("logs", { onPoison: "drop" });
     const logEvent = defineEventPublisher(headersExchange, logMessage);
     const contract = defineContract({
       publishers: { logEvent },
@@ -579,7 +579,7 @@ describe("ContractOutput strict literal keys", () => {
 });
 
 describe("defineRpc typed errors", () => {
-  const queue = defineQueue("rpc.orders", { type: "classic", durable: false });
+  const queue = defineQueue("rpc.orders", { type: "classic", durable: false, onPoison: "drop" });
   const request = defineMessage(z.object({ orderId: z.string() }));
   const response = defineMessage(z.object({ status: z.string() }));
 

@@ -25,7 +25,7 @@ describe("AsyncAPIGenerator", () => {
     it("should generate valid AsyncAPI 3.0 document with Zod schemas", async () => {
       // GIVEN
       const orderExchange = defineExchange("orders");
-      const orderQueue = defineQueue("order-processing");
+      const orderQueue = defineQueue("order-processing", { onPoison: "drop" });
 
       const orderSchema = z.object({
         orderId: z.string(),
@@ -472,7 +472,7 @@ describe("AsyncAPIGenerator", () => {
       const notificationExchange = defineExchange("notifications", {
         type: "direct",
       });
-      const notificationQueue = defineQueue("notification-queue");
+      const notificationQueue = defineQueue("notification-queue", { onPoison: "drop" });
 
       const notificationSchema = v.object({
         notificationId: v.string(),
@@ -752,7 +752,7 @@ describe("AsyncAPIGenerator", () => {
     it("should generate valid AsyncAPI 3.0 document with ArkType schemas", async () => {
       // GIVEN
       const paymentExchange = defineExchange("payments");
-      const paymentQueue = defineQueue("payment-processing");
+      const paymentQueue = defineQueue("payment-processing", { onPoison: "drop" });
 
       const paymentSchema = type({
         paymentId: "string",
@@ -1821,7 +1821,7 @@ describe("AsyncAPIGenerator", () => {
     it("represents exchange-to-exchange bindings in source and destination channels", async () => {
       const orders = defineExchange("orders");
       const billing = defineExchange("billing");
-      const billingQueue = defineQueue("billing-orders");
+      const billingQueue = defineQueue("billing-orders", { onPoison: "drop" });
       const message = defineMessage(z.object({ id: z.string() }));
 
       // Declared by hand to avoid pulling in defineEventConsumer's bridge

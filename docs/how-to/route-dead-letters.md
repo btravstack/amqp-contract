@@ -29,7 +29,10 @@ If `routingKey` is omitted, the message keeps its original routing key. Setting 
 The dead-letter queue is an ordinary queue, so consuming it is ordinary too. Define a publisher against the DLX to describe what lands there, then bind a consumer:
 
 ```typescript
-const ordersDlxQueue = defineQueue("orders-dlx-queue");
+// Consuming a dead-letter queue makes it subject to the poison-loss check, and
+// a DLQ cannot dead-letter to itself. Declare the drop: a message the DLQ
+// handler also rejects has nowhere left to go.
+const ordersDlxQueue = defineQueue("orders-dlx-queue", { onPoison: "drop" });
 
 const failedOrder = defineEventPublisher(ordersDlx, orderMessage, {
   routingKey: "order.failed",

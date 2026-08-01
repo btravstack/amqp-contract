@@ -83,16 +83,29 @@ const orderProcessingQueue = defineQueue("order-processing", {
     "x-message-ttl": 86400000, // 24 hours
   },
 });
-const orderNotificationsQueue = defineQueue("order-notifications");
-const orderShippingQueue = defineQueue("order-shipping");
-const orderUrgentQueue = defineQueue("order-urgent");
+// Every consumed queue dead-letters to the shared orders DLX: a handler that
+// rejects a message must leave a record behind, otherwise the message is gone.
+const orderNotificationsQueue = defineQueue("order-notifications", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderShippingQueue = defineQueue("order-shipping", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderUrgentQueue = defineQueue("order-urgent", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
 
 // The fulfillment worker owns this queue — commands sent to it are processed
 // by exactly one consumer (a task queue), not broadcast.
-const orderFulfillmentQueue = defineQueue("order-fulfillment");
+const orderFulfillmentQueue = defineQueue("order-fulfillment", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
 
-// Dead letter queue to collect failed messages
-const ordersDlxQueue = defineQueue("orders-dlx-queue");
+// Dead letter queue to collect failed messages. It is itself consumed (by
+// `handleFailedOrders`), so `defineContract` demands a poison policy — and a
+// DLQ cannot dead-letter to itself. Dropping is the deliberate choice: a
+// message the DLQ handler also rejects has nowhere left to go.
+const ordersDlxQueue = defineQueue("orders-dlx-queue", { onPoison: "drop" });
 
 // Define messages with metadata
 const orderMessage = defineMessage(orderSchema, {

@@ -27,7 +27,11 @@ describe("AmqpWorker Integration", () => {
     });
 
     const exchange = defineExchange("worker-test-exchange", { durable: false });
-    const queue = defineQueue("worker-test-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-test-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
 
@@ -81,7 +85,11 @@ describe("AmqpWorker Integration", () => {
     });
 
     const exchange = defineExchange("worker-test-exchange", { durable: false });
-    const queue = defineQueue("worker-test-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-test-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
 
@@ -139,7 +147,11 @@ describe("AmqpWorker Integration", () => {
     });
 
     const exchange = defineExchange("worker-test-exchange", { durable: false });
-    const queue = defineQueue("worker-test-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-test-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage, { headers: TestHeaders });
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
 
@@ -207,7 +219,11 @@ describe("AmqpWorker Integration", () => {
     });
 
     const exchange = defineExchange("worker-multi-exchange", { durable: false });
-    const queue = defineQueue("worker-multi-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-multi-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "multi.test" });
 
@@ -253,8 +269,16 @@ describe("AmqpWorker Integration", () => {
     const TestMessage = z.object({ id: z.string() });
 
     const exchange = defineExchange("worker-all-exchange", { durable: false });
-    const queue1 = defineQueue("worker-all-queue1", { type: "classic", durable: false });
-    const queue2 = defineQueue("worker-all-queue2", { type: "classic", durable: false });
+    const queue1 = defineQueue("worker-all-queue1", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
+    const queue2 = defineQueue("worker-all-queue2", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const event1 = defineEventPublisher(exchange, testMessage, { routingKey: "all.one" });
     const event2 = defineEventPublisher(exchange, testMessage, { routingKey: "all.two" });
@@ -310,7 +334,11 @@ describe("AmqpWorker Integration", () => {
     });
 
     const exchange = defineExchange("worker-validation-exchange", { durable: false });
-    const queue = defineQueue("worker-validation-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-validation-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, {
       routingKey: "validation.message",
@@ -359,6 +387,7 @@ describe("AmqpWorker Integration", () => {
     const exchange = defineExchange("worker-error-exchange", { durable: false });
     const queue = defineQueue("worker-error-queue", {
       type: "quorum",
+      onPoison: "drop",
       retry: { mode: "immediate-requeue", maxRetries: 3 },
     });
     const testMessage = defineMessage(TestMessage);
@@ -414,7 +443,11 @@ describe("AmqpWorker Integration", () => {
 
     const sourceExchange = defineExchange("worker-source-exchange", { durable: false });
     const destExchange = defineExchange("worker-dest-exchange", { durable: false });
-    const queue = defineQueue("worker-dest-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-dest-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const destEvent = defineEventPublisher(destExchange, testMessage, {
       routingKey: "test.important",
@@ -464,7 +497,11 @@ describe("AmqpWorker Integration", () => {
     const TestMessage = z.object({ id: z.string() });
 
     const exchange = defineExchange("worker-close-exchange", { durable: false });
-    const queue = defineQueue("worker-close-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-close-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "close.test" });
 
@@ -519,8 +556,16 @@ describe("AmqpWorker Integration", () => {
     const NotificationMessage = z.object({ userId: z.string(), message: z.string() });
 
     const exchange = defineExchange("worker-multi-type-exchange", { durable: false });
-    const orderQueue = defineQueue("worker-multi-type-orders", { type: "classic", durable: false });
-    const notifQueue = defineQueue("worker-multi-type-notifs", { type: "classic", durable: false });
+    const orderQueue = defineQueue("worker-multi-type-orders", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
+    const notifQueue = defineQueue("worker-multi-type-notifs", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const orderMessage = defineMessage(OrderMessage);
     const notifMessage = defineMessage(NotificationMessage);
     const orderEvent = defineEventPublisher(exchange, orderMessage, {
@@ -586,7 +631,11 @@ describe("AmqpWorker Integration", () => {
   }) => {
     // GIVEN
     const exchange = defineExchange("worker-cancel-exchange", { durable: false });
-    const queue = defineQueue("worker-cancel-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-cancel-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
 
     // Setup exchange and queue manually using an admin channel
     const adminChannel = await amqpConnection.createChannel();
@@ -637,7 +686,11 @@ describe("AmqpWorker Integration", () => {
     const TestMessage = z.object({ id: z.string() });
 
     const exchange = defineExchange("worker-cancel-log-exchange", { durable: false });
-    const queue = defineQueue("worker-cancel-log-queue", { type: "classic", durable: false });
+    const queue = defineQueue("worker-cancel-log-queue", {
+      type: "classic",
+      durable: false,
+      onPoison: "drop",
+    });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "cancel.test" });
 

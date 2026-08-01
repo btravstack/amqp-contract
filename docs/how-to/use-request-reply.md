@@ -13,7 +13,9 @@ An RPC is a message that returns a value. For a guided introduction see [adding 
 import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
 import { z } from "zod";
 
-const calculate = defineRpc(defineQueue("rpc.calculate"), {
+const rpcDlx = defineExchange("rpc-dlx");
+
+const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
   response: defineMessage(z.object({ sum: z.number() })),
 });
@@ -69,7 +71,7 @@ Always set `timeoutMs`. A call with no reply is otherwise bounded only by the se
 Business failures belong in the contract, not squeezed into the response schema:
 
 ```typescript
-const getOrder = defineRpc(defineQueue("rpc.get-order"), {
+const getOrder = defineRpc(defineQueue("rpc.get-order", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ orderId: z.string() })),
   response: defineMessage(z.object({ orderId: z.string(), status: z.string() })),
   errors: {

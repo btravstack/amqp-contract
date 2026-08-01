@@ -26,7 +26,7 @@ describe("worker decompression cap and poison-message loss warning", () => {
   const Message = z.object({ description: z.string() });
   const exchange = defineExchange("cap-x", { durable: false });
   // No DLX on this queue: a rejected message is dropped, and that must be logged.
-  const queue = defineQueue("cap-q", { type: "classic", durable: false });
+  const queue = defineQueue("cap-q", { type: "classic", durable: false, onPoison: "drop" });
   const event = defineEventPublisher(exchange, defineMessage(Message), {
     routingKey: "cap.test",
   });

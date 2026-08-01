@@ -88,7 +88,11 @@ async function waitForWorkerReady(delayMs = 500): Promise<void> {
 
 function buildContract() {
   const exchange = defineExchange("orders", { durable: false });
-  const queue = defineQueue("order-processing", { type: "classic", durable: false });
+  const queue = defineQueue("order-processing", {
+    type: "classic",
+    durable: false,
+    onPoison: "drop",
+  });
   const orderMessage = defineMessage(
     z.object({
       orderId: z.string(),

@@ -11,6 +11,7 @@ import type {
 } from "../types.js";
 import { isBridgedPublisherConfig, isCommandConsumerConfig } from "./command.js";
 import { isEventConsumerResult, isEventPublisherConfig } from "./event.js";
+import { _internal_assertNoSilentPoisonLoss } from "./poison-loss.js";
 import { definePublisherInternal } from "./publisher.js";
 import { _internal_assertPublisherRoutable } from "./validate.js";
 
@@ -307,6 +308,16 @@ export function defineContract<TContract extends ContractDefinitionInput>(
       publisher.externalConsumers,
       declaredBindings,
     );
+  }
+
+  // Only consumed queues can poison-loop: a declared-but-unconsumed queue is
+  // never nacked by this contract's workers. Runs after the consumer and rpc
+  // sections have populated `result`.
+  for (const [consumerName, consumer] of Object.entries(result.consumers ?? {})) {
+    _internal_assertNoSilentPoisonLoss(consumer.queue, consumerName);
+  }
+  for (const [rpcName, rpc] of Object.entries(result.rpcs ?? {})) {
+    _internal_assertNoSilentPoisonLoss(rpc.queue, rpcName);
   }
 
   return result as ContractOutput<TContract>;

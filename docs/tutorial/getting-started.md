@@ -70,7 +70,12 @@ import { z } from "zod";
 
 // 1. The AMQP resources.
 const notificationsExchange = defineExchange("notifications", { type: "direct" });
-const emailQueue = defineQueue("email-notifications");
+const notificationsDlx = defineExchange("notifications-dlx");
+const emailQueue = defineQueue("email-notifications", {
+  // Required on any consumed queue: without it a rejected message is discarded
+  // with no record. `onPoison: "drop"` is the explicit alternative.
+  deadLetter: { exchange: notificationsDlx },
+});
 
 // 2. The message: a schema, plus documentation.
 const emailMessage = defineMessage(

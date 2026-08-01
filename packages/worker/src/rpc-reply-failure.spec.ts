@@ -1,6 +1,12 @@
 import type { EventEmitter } from "node:events";
 
-import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
+import {
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineRpc,
+} from "@amqp-contract/contract";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync } from "unthrown";
@@ -57,12 +63,21 @@ vi.mock("amqp-connection-manager", async () => {
   };
 });
 
+const rpcDlx = defineExchange("rpc-dlx");
+
 const contract = defineContract({
   rpcs: {
-    calculate: defineRpc(defineQueue("rpc.calculate", { type: "classic", durable: false }), {
-      request: defineMessage(z.object({ a: z.number(), b: z.number() })),
-      response: defineMessage(z.object({ sum: z.number() })),
-    }),
+    calculate: defineRpc(
+      defineQueue("rpc.calculate", {
+        type: "classic",
+        durable: false,
+        deadLetter: { exchange: rpcDlx },
+      }),
+      {
+        request: defineMessage(z.object({ a: z.number(), b: z.number() })),
+        response: defineMessage(z.object({ sum: z.number() })),
+      },
+    ),
   },
 });
 

@@ -26,7 +26,10 @@ Then, above `defineContract`, define the RPC:
 ```typescript
 // The queue the RPC server listens on. Callers never name it — they name
 // the RPC, and the library routes to it.
-const addressCheckQueue = defineQueue("address-check");
+const addressCheckDlx = defineExchange("address-check-dlx");
+const addressCheckQueue = defineQueue("address-check", {
+  deadLetter: { exchange: addressCheckDlx },
+});
 
 const checkAddress = defineRpc(addressCheckQueue, {
   request: defineMessage(z.object({ address: z.string() })),

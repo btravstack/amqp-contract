@@ -27,7 +27,7 @@ describe("Worker middleware context merge", () => {
 
   function buildContract(exchangeName: string, queueName: string) {
     const exchange = defineExchange(exchangeName, { durable: false });
-    const queue = defineQueue(queueName, { type: "classic", durable: false });
+    const queue = defineQueue(queueName, { type: "classic", durable: false, onPoison: "drop" });
     const testEvent = defineEventPublisher(exchange, defineMessage(TestMessage), {
       routingKey: "test.message",
     });
