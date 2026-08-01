@@ -251,9 +251,77 @@ cannot.
 
 ---
 
+## Carried forward from the H1 implementation
+
+H1 shipped on branch `audit/h1-unroutable-publish`. These items were triaged during that work
+and deliberately deferred — the final whole-branch review confirmed none of them blocks merge.
+Recorded here because the working ledger is scratch and does not survive.
+
+**Feed into the H2–H4 / mock-removal plan:**
+
+- **`@amqp-contract/tests` has no `@unthrown/vitest` dependency and no `setupFiles`**, so unthrown
+  matchers are unavailable across the whole integration suite; every spec hand-rolls `isOk()`.
+  Small shared-test-config change.
+- **`docs/**/*.md` and the JSDoc `@example` blocks in ~5 source files are unswept.** Smaller than
+  first feared — the main guides (`docs/index.md`, `getting-started.md`,
+  `how-to/define-a-contract.md`) route correctly via `defineEventConsumer`/`defineCommandConsumer`.
+  Neither markdown nor JSDoc is typechecked, so nothing breaks CI.
+- **`packages/client/src/client-cleanup.spec.ts` → "releases the pooled connection when
+  waitForConnect times out" is flaky** under full-monorepo parallel load. Passes 3/3 in isolation;
+  the full suite passes on retry. Pre-existing — the H1 branch changed no runtime source in
+  `client` or `core`. Worth de-flaking: a flaky test erodes trust in the CI signal.
+- **Coverage floors** for `core` / `worker` / `client` (see the table above) still sit far below
+  actual and cannot catch a regression.
+
+**Independent bug, pre-existing and live:**
+
+- **`MatchingBindingPattern` (`packages/contract/src/builder/routing-types.ts:165`) has a
+  template-literal hole.** Its non-literal escape valve tests `string extends Pattern`, which does
+  not catch template-literal types — so a pattern typed `` `order.${string}` `` resolves to the
+  error-message type and produces a **false compile error on a valid binding**. Unlike the same
+  hole in `RoutableRoutingKey` (inert, since nothing wires it), `MatchingBindingPattern` **is**
+  wired into `defineEventConsumer`, so this one is live today. Not introduced by H1; worth its own
+  fix outside this design.
+
+**Minor, low value, fix opportunistically:**
+
+- `_internal_isPublisherRoutable` has no production callers — kept as a stable boolean view with
+  its own tests.
+- `routability.ts` marks its BFS `visited` set on dequeue rather than enqueue, so a node can be
+  queued twice; bounded and correctness-neutral, but the inline comment overstates the guard.
+- The runtime and type-level match corpora have no length guard, so they can drift (one missing
+  case was already found this way). `expect(MATCH_CORPUS).toHaveLength(N)` would pin it.
+- Type-level rejection assertions use the weak `.not.toEqualTypeOf` form; the dangerous direction
+  is still caught, only error-message wording is unguarded.
+- `definePublisher` options do not go through `_internal_assertKnownKeys`, unlike its sibling
+  builders, so a typo'd option name yields the unroutable error rather than "unknown option".
+  Fail-safe direction only.
+
+**Operational notes for the rung-3 implementation plan:**
+
+- A 40,000-message `mandatory`-unroutable burst killed the broker container outright. Keep
+  integration bursts at or below ~12k.
+- The management API takes 0.5–5s to register a connection; `DELETE /api/connections/{name}`
+  before that silently no-ops. Poll `/api/connections` until non-empty first.
+- The `_messageRejected` requeue branch proved **unreachable** from integration (0 of 2,947
+  rejections, via both connection-kill and channel-level 404). The duplicate-return hazard is
+  therefore untested rather than disproven, and needs a unit test faking the republish.
+
+---
+
 ## Open questions
 
-### H1 rung 3 correlation mechanism — requires a spike
+### H1 rung 3 correlation mechanism — resolved by the spike
+
+The spike ran and its findings are committed at
+`docs/superpowers/specs/2026-08-01-h1-rung3-spike-findings.md`. Outcome: `basic.return` is
+reachable via the raw `ConfirmChannel` handed to the `setup` callback (not via `ChannelWrapper`,
+which never emits it), and header-based correlation held across 45,331 confirmed publishes with a
+forced reconnect — 0 false negatives, 0 false positives. **Recommendation: implement rung 3**,
+justified primarily by the coverage gap (`externalConsumers: true` publishers have no check at any
+rung and fail totally and silently), not by the loopback measurements alone.
+
+### Original framing, retained for context
 
 A returned (unroutable) message arrives before its confirm, so publishes must be correlated
 with returns. Normally this uses the confirm sequence number, but `amqp-connection-manager`
