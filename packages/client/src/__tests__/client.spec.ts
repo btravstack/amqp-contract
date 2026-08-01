@@ -56,6 +56,8 @@ const it = baseIt.extend<{
   },
 });
 
+const integrationDlx = defineExchange("integration-dlx", { durable: false });
+
 describe("AmqpClient Integration", () => {
   describe("end-to-end publishing", () => {
     it("should publish messages to a real RabbitMQ instance", async ({
@@ -349,7 +351,9 @@ describe("AmqpClient Integration", () => {
       const TestMessage = z.object({ id: z.string() });
 
       const exchange = defineExchange("integration-orders");
-      const queue = defineQueue("integration-processing", { onPoison: "drop" }); // Default quorum queue
+      const queue = defineQueue("integration-processing", {
+        deadLetter: { exchange: integrationDlx },
+      }); // Default quorum queue
       const message = defineMessage(TestMessage);
 
       const orderCreatedEvent = defineEventPublisher(exchange, message, {
@@ -384,7 +388,7 @@ describe("AmqpClient Integration", () => {
       const queue = defineQueue("integration-classic-processing", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: integrationDlx },
       });
       const message = defineMessage(TestMessage);
 
@@ -464,7 +468,9 @@ describe("AmqpClient Integration", () => {
       const fanoutExchange = defineExchange("integration-fanout", {
         type: "fanout",
       });
-      const queue = defineQueue("integration-fanout-queue", { onPoison: "drop" }); // Default quorum queue
+      const queue = defineQueue("integration-fanout-queue", {
+        deadLetter: { exchange: integrationDlx },
+      }); // Default quorum queue
 
       const broadcastEvent = defineEventPublisher(
         fanoutExchange,

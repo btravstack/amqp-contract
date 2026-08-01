@@ -13,6 +13,8 @@ import { z } from "zod";
 import { RetryableError } from "../errors.js";
 import { it } from "./fixture.js";
 
+const holDlx = defineExchange("hol-dlx", { durable: false });
+
 describe("TTL-backoff head-of-line blocking", () => {
   it("INVARIANT: a short-delay retry is not blocked by a long-delay retry parked ahead of it", async ({
     workerFactory,
@@ -31,7 +33,7 @@ describe("TTL-backoff head-of-line blocking", () => {
     const queue = defineQueue("hol-queue", {
       type: "classic",
       durable: false,
-      onPoison: "drop",
+      deadLetter: { exchange: holDlx },
       retry: {
         mode: "ttl-backoff",
         maxRetries: 2,

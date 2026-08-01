@@ -22,13 +22,19 @@ import { it } from "./fixture.js";
  * into an unhandled rejection from the defensive nack) and the broker
  * redelivered fully-processed work.
  */
+const drainDlx = defineExchange("drain-dlx", { durable: false });
+
 describe("Worker close drains in-flight handlers", () => {
   it("waits for an in-flight handler and lands its ack before closing", async ({
     amqpConnectionUrl,
     publishMessage,
   }) => {
     const exchange = defineExchange("drain-x", { durable: false });
-    const queue = defineQueue("drain-q", { type: "classic", durable: false, onPoison: "drop" });
+    const queue = defineQueue("drain-q", {
+      type: "classic",
+      durable: false,
+      deadLetter: { exchange: drainDlx },
+    });
     const message = defineMessage(z.object({ id: z.string() }));
     const event = defineEventPublisher(exchange, message, { routingKey: "drain.test" });
     const contract = defineContract({

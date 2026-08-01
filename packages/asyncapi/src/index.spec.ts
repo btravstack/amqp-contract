@@ -1821,7 +1821,10 @@ describe("AsyncAPIGenerator", () => {
     it("represents exchange-to-exchange bindings in source and destination channels", async () => {
       const orders = defineExchange("orders");
       const billing = defineExchange("billing");
-      const billingQueue = defineQueue("billing-orders", { onPoison: "drop" });
+      const billingDlx = defineExchange("billing-dlx");
+      const billingQueue = defineQueue("billing-orders", {
+        deadLetter: { exchange: billingDlx },
+      });
       const message = defineMessage(z.object({ id: z.string() }));
 
       // Declared by hand to avoid pulling in defineEventConsumer's bridge
