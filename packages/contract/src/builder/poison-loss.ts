@@ -12,6 +12,13 @@ import type { QueueDefinition } from "../types.js";
  * own (that would be infinite regress) and is usually inspected rather than
  * consumed; requiring one there would reject a correct contract.
  *
+ * A false negative is acceptable here; rejecting a valid contract is not. So a
+ * DLX set through the raw `arguments` passthrough counts: `setupAmqpTopology`
+ * spreads `queue.arguments` into the declare arguments, so that queue really is
+ * dead-lettering on the broker. Only the presence of a declaration is checked —
+ * whether the named exchange has a bound queue is not something the contract
+ * can see.
+ *
  * @internal
  */
 export function _internal_assertNoSilentPoisonLoss(
@@ -20,6 +27,9 @@ export function _internal_assertNoSilentPoisonLoss(
 ): void {
   if (queue.deadLetter !== undefined) return;
   if (queue.onPoison === "drop") return;
+
+  const rawDlx = queue.arguments?.["x-dead-letter-exchange"];
+  if (typeof rawDlx === "string" && rawDlx.length > 0) return;
 
   // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
   throw new Error(

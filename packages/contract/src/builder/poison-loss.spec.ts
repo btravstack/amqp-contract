@@ -49,6 +49,29 @@ describe("silent poison-loss guard", () => {
     expect(() => defineContract(contractWith(queue))).not.toThrow();
   });
 
+  it("accepts a DLX set through the raw `arguments` passthrough", () => {
+    // setup.ts spreads `queue.arguments` into the declare arguments, so this
+    // queue genuinely dead-letters on the broker. Rejecting it would break a
+    // contract that is valid and working today.
+    const queue = defineQueue("order-processing", {
+      arguments: { "x-dead-letter-exchange": "orders-dlx" },
+    });
+
+    expect(() => defineContract(contractWith(queue))).not.toThrow();
+  });
+
+  it("does NOT accept an empty or non-string `x-dead-letter-exchange` argument", () => {
+    const empty = defineQueue("order-processing", {
+      arguments: { "x-dead-letter-exchange": "" },
+    });
+    const notAString = defineQueue("order-processing", {
+      arguments: { "x-dead-letter-exchange": 42 },
+    });
+
+    expect(() => defineContract(contractWith(empty))).toThrow(/order-processing/);
+    expect(() => defineContract(contractWith(notAString))).toThrow(/order-processing/);
+  });
+
   it("does NOT require a DLX on a declared-but-unconsumed queue (the dead-letter queue case)", () => {
     // A DLQ has no DLX of its own — that would be infinite regress — and is
     // typically inspected rather than consumed. It must not trip the check.

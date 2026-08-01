@@ -7,6 +7,14 @@ because such a queue silently discards every message its handler rejects.
 Declared-but-unconsumed queues (including dead-letter queues themselves) are not
 checked.
 
+Three forms satisfy the check: `deadLetter: { exchange: … }`, an explicit
+`onPoison: "drop"`, and — least discoverably — an `x-dead-letter-exchange` set
+through the raw `arguments` passthrough, which `setupAmqpTopology` forwards to
+the broker verbatim. Note that the check verifies a DLX is _declared_, not that
+the exchange it names has a bound queue: a dead-letter exchange with no binding
+still drops every message routed to it, so declare the dead-letter queue and its
+binding too.
+
 **Read this before adding `deadLetter` to a queue that already exists in
 production.** A queue's dead-letter configuration is part of its identity:
 `deadLetter` becomes the `x-dead-letter-exchange` argument, and RabbitMQ refuses
