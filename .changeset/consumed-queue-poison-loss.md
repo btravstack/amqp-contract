@@ -36,5 +36,11 @@ define time. Your routes out:
 On a queue that does not exist yet, `deadLetter: { exchange: … }` is the right
 answer and costs nothing.
 
+The predicate behind the check is shared with `@amqp-contract/worker`'s
+terminal-nack logging through a new `@amqp-contract/contract/internal` entry
+point, so the two can never disagree about whether a queue dead-letters. That
+subpath carries **no semver guarantee** and is not part of the
+contract-authoring API — application code has no reason to import it.
+
 See "`defineContract` says my queue has no dead-letter exchange" and
 "`PRECONDITION_FAILED - inequivalent arg`" in the troubleshooting guide.
