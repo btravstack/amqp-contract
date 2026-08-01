@@ -124,7 +124,8 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
  * @property publishTimeoutMs - Maximum time in ms a publish may sit buffered
  *   waiting for the broker before its promise settles with a failure.
  *   Defaults to {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable,
- *   restoring unbounded buffering.
+ *   restoring unbounded buffering. See the field's own doc comment for the
+ *   precedence against `channelOptions.publishTimeout`.
  * @property logger - Optional logger. Channel-level `'error'` events (topology
  *   setup failures on connect/reconnect, publish-worker faults) are routed
  *   here — they are recoverable-by-reconnect conditions, never thrown.
@@ -140,6 +141,17 @@ export type AmqpClientOptions = {
    * {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable, restoring
    * unbounded buffering — a publish issued during an outage then never
    * settles. Same convention as `connectTimeoutMs`.
+   *
+   * Precedence against `channelOptions.publishTimeout` (most specific wins):
+   * 1. This option, when explicitly set to a number or `null` — always
+   *    authoritative.
+   * 2. Otherwise `channelOptions.publishTimeout`, if the caller set one on
+   *    the passthrough bag — respected, not silently overwritten.
+   * 3. Otherwise {@link DEFAULT_PUBLISH_TIMEOUT_MS}.
+   *
+   * `null` here disables the timeout outright, even when
+   * `channelOptions.publishTimeout` is also set — it is the more specific
+   * expression of intent.
    */
   publishTimeoutMs?: number | null | undefined;
   logger?: Logger | undefined;
@@ -305,9 +317,21 @@ export class AmqpClient {
 
     // Resolved here, at the single point where every caller's channel is
     // created, so client, worker, and direct core users all inherit it.
-    // `null` is the explicit "no timeout" opt-out (see connectTimeoutMs).
-    if (options.publishTimeoutMs !== null) {
-      channelOpts.publishTimeout = options.publishTimeoutMs ?? DEFAULT_PUBLISH_TIMEOUT_MS;
+    // Precedence (most specific wins):
+    //   1. `publishTimeoutMs` explicitly set (number or `null`) — the
+    //      library-owned option is always authoritative.
+    //   2. otherwise `channelOptions.publishTimeout`, if the caller set one
+    //      via the passthrough bag — respected, not silently overwritten.
+    //   3. otherwise {@link DEFAULT_PUBLISH_TIMEOUT_MS}.
+    // `null` means "no timeout at all" and wins even over an explicit
+    // `channelOptions.publishTimeout` — it is the more specific expression of
+    // intent (see connectTimeoutMs for the same null-means-disabled convention).
+    if (options.publishTimeoutMs === null) {
+      delete channelOpts.publishTimeout;
+    } else if (options.publishTimeoutMs !== undefined) {
+      channelOpts.publishTimeout = options.publishTimeoutMs;
+    } else if (channelOpts.publishTimeout === undefined) {
+      channelOpts.publishTimeout = DEFAULT_PUBLISH_TIMEOUT_MS;
     }
 
     this.channelWrapper = this.connection.createChannel(channelOpts);
