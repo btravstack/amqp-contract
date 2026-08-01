@@ -980,18 +980,23 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
       // A poison message on a queue with no DLX is discarded by this nack.
-      // That queue can only exist because its author wrote `onPoison: "drop"`
-      // — defineContract rejects any other consumed queue without a DLX — so
-      // record the discard as a fact, not as a warning about a mistake. Same
-      // wording as the retry path's sendToDLQ.
+      // Mirrors the retry path's sendToDLQ: a declared drop is a fact at
+      // `info`; a queue carrying neither a DLX nor the declaration is only
+      // reachable via a hand-built ContractDefinition that bypassed
+      // defineContract, and keeps the warning.
       if (consumer.queue.deadLetter === undefined) {
-        this.logger?.info(
-          'Discarding poison message: queue is declared onPoison: "drop" and has no DLX',
-          {
-            consumerName: String(name),
-            queueName: consumer.queue.name,
-          },
-        );
+        const fields = { consumerName: String(name), queueName: consumer.queue.name };
+        if (consumer.queue.onPoison === "drop") {
+          this.logger?.info(
+            'Discarding poison message: queue is declared onPoison: "drop" and has no DLX',
+            fields,
+          );
+        } else {
+          this.logger?.warn(
+            "Queue has no dead-letter exchange and no onPoison declaration - poison message will be lost on nack",
+            fields,
+          );
+        }
       }
       this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
     });

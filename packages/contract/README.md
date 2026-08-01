@@ -87,7 +87,13 @@ contract (not `publishers` or `consumers`). RabbitMQ direct reply-to is used
 under the hood, so no reply queue declaration is needed.
 
 ```typescript
-import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
+import {
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineRpc,
+} from "@amqp-contract/contract";
 import { z } from "zod";
 
 const rpcDlx = defineExchange("rpc-dlx");

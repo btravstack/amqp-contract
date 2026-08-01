@@ -10,7 +10,13 @@ An RPC is a message that returns a value. For a guided introduction see [adding 
 ## Define an RPC
 
 ```typescript
-import { defineContract, defineMessage, defineQueue, defineRpc } from "@amqp-contract/contract";
+import {
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineRpc,
+} from "@amqp-contract/contract";
 import { z } from "zod";
 
 const rpcDlx = defineExchange("rpc-dlx");

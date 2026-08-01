@@ -349,6 +349,35 @@ describe("terminal-nack logging", () => {
     // A deliberate configuration must not raise an operational warning.
     expect(logger.warn).not.toHaveBeenCalled();
   });
+
+  it("keeps the warning when the queue carries neither a DLX nor onPoison", async () => {
+    // defineContract rejects this queue, so it can only arrive via a
+    // hand-built ContractDefinition that bypassed the guard — an undeclared
+    // loss, which is exactly what the warning is for.
+    const { client } = createMockClient(() => OkAsync(undefined));
+    const logger = loggerSpy();
+
+    await handleError(
+      { amqpClient: client as unknown as AmqpClient, logger: logger as never },
+      new NonRetryableError("permanent"),
+      createMockConsumeMessage(),
+      "processOrder",
+      {
+        queue: defineQueue("orders"),
+        message: defineMessage(z.object({ id: z.string() })),
+      },
+    );
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack",
+      expect.objectContaining({ queueName: "orders" }),
+    );
+    // It must NOT claim a declaration the queue does not carry.
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("onPoison"),
+      expect.anything(),
+    );
+  });
 });
 
 describe("delivery-epoch stamping (reconnect-safe settles)", () => {
