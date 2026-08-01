@@ -227,13 +227,21 @@ worker's redeclaration fails with
 | Apply dead-lettering as a **broker policy** (`rabbitmqctl set_policy … dead-letter-exchange`) | Works on existing queues, since policies are not part of queue identity — but the contract cannot see the policy, so it still needs `onPoison: "drop"` to pass this check, and the worker's logs will describe a discard that is not happening (see below) |
 | `onPoison: "drop"`                                                                            | You accept the loss. Honest for a metrics firehose; a lie anywhere else                                                                                                                                                                                    |
 
-If you take the broker-policy route, expect the worker to log
-`Discarding poison message: queue is declared onPoison: "drop" and has no DLX`
-on every rejected message. **Nothing is being lost.** The policy dead-letters
-the message correctly; the log line reports what the _contract_ declares, and
-the contract cannot see a broker policy. Treat that line as expected noise on
-policy-migrated queues, and keep your dead-letter alerting on the DLQ's depth
-rather than on this log.
+If you take the broker-policy route, expect the worker to log a discard on every
+rejected message. There are **two** wordings, from two code paths — grep for the
+shared tail, `queue is declared onPoison: "drop" and has no DLX`, not for either
+sentence on its own:
+
+| Log line                                                                       | Emitted when                                                                                                            |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `Discarding poison message: queue is declared onPoison: "drop" and has no DLX` | The payload failed decompression or schema validation — it never reached your handler                                   |
+| `Discarding message: queue is declared onPoison: "drop" and has no DLX`        | The handler rejected the message and the retry pipeline sent it to the DLQ — the common one on a retry-configured queue |
+
+**Nothing is being lost** in either case. The policy dead-letters the message
+correctly; the log line reports what the _contract_ declares, and the contract
+cannot see a broker policy. Treat both as expected noise on policy-migrated
+queues, and keep your dead-letter alerting on the DLQ's depth rather than on
+these logs.
 
 The upgrade guide covers the migration in full.
 
@@ -281,21 +289,23 @@ Consumers now prefetch **10** messages by default (previously unlimited — the
 broker pushed the entire ready backlog to a single consumer, which is unbounded
 memory and a large redelivery burst if the worker crashes).
 
-Raise it if you are throughput-bound and your handlers are cheap:
+Prefetch is a _consumer_ option, so it goes in `defaultConsumerOptions` (or the
+per-handler tuple), not at the top level of the worker options. Raise it if you
+are throughput-bound and your handlers are cheap:
 
 ```typescript
 const worker = await TypedAmqpWorker.create({
   contract,
   urls: ["amqp://localhost"],
   handlers,
-  prefetch: 100,
+  defaultConsumerOptions: { prefetch: 100 },
 }).get();
 ```
 
 Or restore the old behavior explicitly:
 
 ```typescript
-prefetch: "unbounded";
+defaultConsumerOptions: { prefetch: "unbounded" },
 ```
 
 `"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a

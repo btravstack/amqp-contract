@@ -1,6 +1,6 @@
 ---
 title: Upgrade - amqp-contract
-description: Migration notes for each major version, including the 3.0 defect-channel change and the unthrown v5 matcher renames.
+description: Migration notes for each major version, including the 3.0 safe defaults (prefetch, publish timeout, dead-letter exchanges), the defect-channel change and the unthrown v5 matcher renames.
 ---
 
 # Upgrade
@@ -9,7 +9,98 @@ All six `@amqp-contract/*` packages version together, so upgrade them in lockste
 
 ## 2.4.x → 3.0
 
-Two independent breaking changes land together. Expect to touch every site that inspects a result.
+Two independent breaking changes land together — `unthrown` v5 and the defect-channel move — plus three **safe defaults** that change runtime behaviour. Expect to touch every site that inspects a result.
+
+::: danger Read this first: prefetch changed and nothing will tell you
+Of everything on this page, [consumers prefetch 10 by default](#consumers-prefetch-10-by-default) is the only change with **no compile error and no startup failure**. Your build stays green, your tests stay green, and your throughput profile changes. If you read one section, read that one.
+:::
+
+### Consumers prefetch 10 by default
+
+**What breaks:** nothing, visibly. Consumers previously ran with no `basic.qos` at all, which is AMQP's _unlimited_ — the broker pushed the entire ready backlog into a single consumer. They now prefetch **10**.
+
+**Why it was unsafe:** an unbounded consumer holds the whole backlog in its own memory, and every one of those messages is unacked, so a crash redelivers all of it at once. Throughput was also concentrated in whichever replica connected first; idle peers got nothing.
+
+**The exact edit** — none, if 10 works for you. Otherwise tune it, or opt back out explicitly:
+
+```diff
+  const worker = await TypedAmqpWorker.create({
+    contract,
+    urls,
+    handlers,
++   // fast handlers, throughput-bound: raise it
++   defaultConsumerOptions: { prefetch: 100 },
+  }).get();
+```
+
+```diff
+  const worker = await TypedAmqpWorker.create({
+    contract,
+    urls,
+    handlers,
++   // the pre-3.0 behaviour, stated out loud
++   defaultConsumerOptions: { prefetch: "unbounded" },
+  }).get();
+```
+
+Per-handler tuples still override the default: `processOrder: [handler, { prefetch: 1 }]`. `"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a call site as its opposite.
+
+Handlers that were implicitly serialised by a slow broker, or that assumed they could see the whole backlog, are the ones to re-measure. Picking a number is covered in [tune performance](/how-to/tune-performance#prefetch).
+
+### Consumed queues need a dead-letter exchange
+
+**What breaks:** `defineContract` throws for any queue reachable from `consumers` or `rpcs` that has neither `deadLetter` nor `onPoison: "drop"`. This one is loud — it fails at import time.
+
+**Why it was unsafe:** a queue with no DLX loses every message its consumer rejects. `nack(requeue: false)` drops it and nothing records that it existed.
+
+**Before you reach for the obvious fix:** you **cannot add `deadLetter` to a queue that already exists on the broker**. It becomes the `x-dead-letter-exchange` argument, which is part of the queue's identity, so the worker's redeclaration fails with `PRECONDITION_FAILED - inequivalent arg` — a 406 at deploy time rather than a define-time error. The three routes out (new queue and migrate, broker policy, or accept the loss) are tabulated in [troubleshoot → if the queue already exists in production](/how-to/troubleshoot#if-the-queue-already-exists-in-production). Pick the route there first, then make the contract edit below match it.
+
+On a queue that does not exist yet, the DLX costs nothing:
+
+```diff
++ const ordersDlx = defineExchange("orders-dlx");
++
+- const orderQueue = defineQueue("order-processing");
++ const orderQueue = defineQueue("order-processing", {
++   deadLetter: { exchange: ordersDlx },
++ });
+```
+
+Or state that dropping is deliberate — correct for a metrics firehose, a lie anywhere else, and the required declaration when the dead-lettering lives in a broker policy the contract cannot see:
+
+```diff
+- const metricsQueue = defineQueue("metrics-ingest");
++ const metricsQueue = defineQueue("metrics-ingest", { onPoison: "drop" });
+```
+
+Only _consumed_ queues are checked. A dead-letter queue you declare but do not consume needs neither. If you do consume your DLQ, it needs `onPoison: "drop"` — a DLQ cannot dead-letter to itself.
+
+### Channels set a 30s publish timeout
+
+**What breaks:** a publish issued while the broker is unreachable used to buffer indefinitely with a promise that never settled. It now fails after **30 seconds**. Code that awaited a publish through an outage and never came back will now come back — with a failure.
+
+**Why it was unsafe:** an unsettled promise is invisible. Requests pile up behind it with no error, no metric, and no timeout of their own.
+
+**The exact edit** — none, unless 30s is wrong for you:
+
+```diff
+  const client = await TypedAmqpClient.create({
+    contract,
+    urls,
++   publishTimeoutMs: 10_000,
+  }).get();
+```
+
+```diff
+  const client = await TypedAmqpClient.create({
+    contract,
+    urls,
++   // restore the pre-3.0 unbounded buffering
++   publishTimeoutMs: null,
+  }).get();
+```
+
+`TypedAmqpWorker` takes the same option for its retry republishes and RPC replies. `publishTimeoutMs` wins over `channelOptions.publishTimeout` if you set both.
 
 ### `unthrown` v5: error handling takes a matcher
 
@@ -162,7 +253,9 @@ Exported functions across the btravstack family now take at most two positional 
 2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, signature changes).
 3. Fix `create()` / `close()` extraction first; it is mechanical.
 4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
-5. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
+5. Resolve the `defineContract` dead-letter throws — deciding the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`.
+6. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
+7. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 
 ## 2.3.x → 2.4.x
 
