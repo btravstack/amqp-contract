@@ -74,6 +74,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "test.key",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -116,6 +119,10 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "validation.test",
+            // Nothing is ever published successfully here — validation always
+            // rejects the payload before a message hits the broker — so there
+            // is no consumer to bind to.
+            externalConsumers: true,
           }),
         },
       });
@@ -147,6 +154,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "test.key",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -191,6 +201,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "test.key",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -233,6 +246,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "test.default",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -281,6 +297,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "test.override",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -405,6 +424,11 @@ describe("AmqpClient Integration", () => {
             defineMessage(z.object({ msg: z.string() })),
             {
               routingKey: "test.important",
+              // Routed via a manual exchange-to-exchange binding set up below
+              // (not supported by defineContract) plus a broker-level queue
+              // bound by the initConsumer test fixture — both outside the
+              // contract's own topology.
+              externalConsumers: true,
             },
           ),
         },
@@ -480,6 +504,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(z.object({ id: z.string() })), {
             routingKey: "test.key",
+            // Nothing is ever published in this test — it only exercises
+            // close() — so there is no consumer to bind to.
+            externalConsumers: true,
           }),
         },
       });
@@ -523,6 +550,9 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(z.object({ value: z.number() })), {
             routingKey: "test.value",
+            // The binding is declared at the broker via the initConsumer test
+            // fixture below, outside the contract, so the contract cannot see it.
+            externalConsumers: true,
           }),
         },
       });
@@ -560,6 +590,10 @@ describe("AmqpClient Integration", () => {
         publishers: {
           testPublisher: definePublisher(exchange, defineMessage(TestMessage), {
             routingKey: "validation.test",
+            // Nothing is ever published successfully here — validation always
+            // rejects the payload before a message hits the broker — so there
+            // is no consumer to bind to.
+            externalConsumers: true,
           }),
         },
       });
