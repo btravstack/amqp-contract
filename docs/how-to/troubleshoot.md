@@ -284,11 +284,39 @@ export const contract = defineContract({
 
 `exchanges` is listed explicitly here because a standalone binding does not
 extract the exchange it references — only `deadLetter` does, and there is no
-`deadLetter` on this route. Give it the same type as the exchange the policy
-targets if it already exists, or the redeclaration 406s in its own right.
+`deadLetter` on this route.
 
-The queue's arguments stay unchanged, so its redeclaration is still equivalent
-and the 406 does not return. With that in place, treat both log lines as
+::: warning Match the existing DLX before you copy this
+
+The snippet declares `orders-dlx` as a **topic** exchange (the default) and binds
+with `#`, which on a topic exchange matches every routing key. Both halves have
+to match what is already on the broker, and changing one without the other is
+how a DLQ ends up bound to nothing:
+
+- **Exchange type.** Declaring `orders-dlx` with a type different from the
+  existing one fails with `PRECONDITION_FAILED - inequivalent arg` at startup.
+  Pass `{ type: "direct" }` (or whatever the policy targets) to match.
+- **Routing key, and this one is silent.** `#` is a _topic_ wildcard. On a
+  **direct** exchange it is an ordinary routing key that matches the literal
+  string `#` — so switching the type and leaving `#` in place declares a DLQ
+  that receives nothing, dead-letters into the void, and reports no error
+  anywhere. On a direct DLX, bind the actual dead-letter routing key: the
+  policy's `dead-letter-routing-key` if it sets one, otherwise every routing key
+  the main queue can receive, since RabbitMQ preserves the original key when the
+  policy does not override it. On a **fanout** DLX the key is ignored and any
+  value binds.
+- **Queue type and durability.** `defineQueue("order-processing-dlq")` is quorum
+  and durable by default. If that DLQ already exists as a classic or
+  non-durable queue — likely on the very brownfield broker this section is
+  about — the redeclaration 406s too. Pass `{ type: "classic" }` (with
+  `durable: false` if that is how it exists) to match it.
+
+Check the broker before declaring: the management UI's Exchanges and Queues tabs
+show the type, durability and bindings you have to reproduce.
+:::
+
+The main queue's arguments stay unchanged, so its redeclaration is still
+equivalent and the 406 does not return. With that in place, treat both log lines as
 expected noise on policy-migrated queues and keep your dead-letter alerting on
 the DLQ's depth rather than on these logs.
 
