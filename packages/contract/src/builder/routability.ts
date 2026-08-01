@@ -9,6 +9,10 @@ import { _internal_matchesTopicPattern } from "./topic-match.js";
  * message may reach a queue several hops away. A single-hop check would
  * falsely reject every bridged contract.
  *
+ * The governing rule is never to reject a valid contract: a missed unroutable
+ * publisher is caught later at runtime, whereas a false alarm breaks a build
+ * that was correct. Undecidable cases therefore resolve to "routable".
+ *
  * @internal
  */
 
@@ -36,6 +40,26 @@ function bindingAccepts(
         _internal_matchesTopicPattern(routingKey, bindingRoutingKey)
       );
   }
+}
+
+/**
+ * True when the exchange declares an `alternate-exchange` argument.
+ *
+ * An alternate exchange is RabbitMQ's own catch-all for exactly the failure
+ * this check exists to prevent: a message that matches no binding is handed to
+ * the named exchange instead of being discarded. Such an exchange therefore
+ * has no unroutable keys, and a publisher on it is always routable.
+ *
+ * The argument holds a *name*, not an {@link ExchangeDefinition}, and the
+ * alternate is usually declared elsewhere — another service's contract, or a
+ * shared operational exchange — so its own bindings are typically not visible
+ * here. Following the name would mean rejecting every contract whose alternate
+ * lives outside it, which is precisely the false positive this module must not
+ * produce. We stop at the declaration instead: an alternate exchange whose own
+ * target is unbound is a far rarer and cheaper mistake than a broken build.
+ */
+function hasAlternateExchange(exchange: ExchangeDefinition): boolean {
+  return exchange.arguments?.["alternate-exchange"] !== undefined;
 }
 
 /**
@@ -83,6 +107,13 @@ export function _internal_resolvePublisherRoutability(
       continue;
     }
     visited.add(current.name);
+
+    // Checked on every hop, not just the source: a forward can land on an
+    // exchange that catches its own unmatched keys, and that hop is just as
+    // routable as the source would be.
+    if (hasAlternateExchange(current)) {
+      return { routable: true, reachedExchanges: [...visited] };
+    }
 
     for (const binding of bindings) {
       if (binding.type === "queue") {

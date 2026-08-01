@@ -88,6 +88,41 @@ describe("defineContract publisher routability", () => {
 });
 
 /*
+ * `alternate-exchange` is a documented exchange argument whose whole purpose
+ * is to catch messages that match no binding. A publisher on such an exchange
+ * is routable by construction, and throwing on it broke a valid contract.
+ */
+describe("defineContract with an alternate exchange", () => {
+  it("accepts a publisher on an exchange declaring alternate-exchange", () => {
+    const withAe = defineExchange("orders-ae", {
+      type: "topic",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+    const orderCreated = definePublisher(withAe, message, { routingKey: "order.created" });
+
+    expect(() => defineContract({ publishers: { orderCreated } })).not.toThrow();
+  });
+
+  it("accepts a bridged publisher whose downstream hop declares alternate-exchange", () => {
+    const billingAe = defineExchange("billing-ae", {
+      type: "topic",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+    const orderCreated = definePublisher(orders, message, { routingKey: "order.created" });
+
+    expect(() =>
+      defineContract({
+        publishers: { orderCreated },
+        exchanges: { billingAe },
+        bindings: {
+          ordersToBillingAe: defineExchangeBinding(billingAe, orders, { routingKey: "order.#" }),
+        },
+      }),
+    ).not.toThrow();
+  });
+});
+
+/*
  * A multi-hop failure is the case where a naive message lies: the source
  * exchange's own patterns match, so listing them alone sends the reader to a
  * binding that is working fine while the real gap is a queue binding one hop
