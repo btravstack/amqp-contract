@@ -19,10 +19,14 @@ import { z } from "zod";
  *  - the `maxDecompressedBytes` cap threads from CreateWorkerOptions all the
  *    way to the decompress call (a compressed payload exceeding the cap must
  *    not reach the handler), and
- *  - a poison message on a queue with no DLX logs the "will be lost" warning
- *    (observability parity with the retry path's sendToDLQ).
+ *  - a poison message on a queue declared `onPoison: "drop"` is still recorded
+ *    in the logs before it is discarded (observability parity with the retry
+ *    path's sendToDLQ). Since `defineContract` rejects any other consumed
+ *    queue without a DLX, this line is now an `info` about intended behaviour
+ *    rather than a `warn` about a misconfiguration — but it must still exist,
+ *    because it is the only record the message ever arrived.
  */
-describe("worker decompression cap and poison-message loss warning", () => {
+describe("worker decompression cap and poison-message drop logging", () => {
   const Message = z.object({ description: z.string() });
   const exchange = defineExchange("cap-x", { durable: false });
   // No DLX on this queue: a rejected message is dropped, and that must be logged.
@@ -36,13 +40,14 @@ describe("worker decompression cap and poison-message loss warning", () => {
   });
 
   baseIt(
-    "drops an over-cap compressed message before the handler and warns about the missing DLX",
+    "drops an over-cap compressed message before the handler and records the discard",
     async ({ amqpConnectionUrl }) => {
       const handlerCalls: unknown[] = [];
+      const infos: string[] = [];
       const warnings: string[] = [];
       const logger: Logger = {
         debug: () => {},
-        info: () => {},
+        info: (message) => infos.push(message),
         warn: (message) => warnings.push(message),
         error: () => {},
       };
@@ -75,13 +80,22 @@ describe("worker decompression cap and poison-message loss warning", () => {
         // Give the broker time to (fail to) deliver and nack.
         await vi.waitFor(
           () => {
-            if (warnings.length === 0) throw new Error("no warning logged yet");
+            if (!infos.some((m) => /onPoison/.test(m))) {
+              throw new Error("no discard logged yet");
+            }
           },
           { timeout: 5000 },
         );
 
         expect(handlerCalls).toHaveLength(0);
-        expect(warnings.some((w) => /will be lost/i.test(w))).toBe(true);
+        expect(
+          infos.some((m) =>
+            /Discarding poison message: queue is declared onPoison: "drop" and has no DLX/.test(m),
+          ),
+        ).toBe(true);
+        // The drop is declared configuration, so it must NOT raise a warning —
+        // a warn on correct config is how real warnings get ignored.
+        expect(warnings.some((w) => /DLX|lost|poison/i.test(w))).toBe(false);
       } finally {
         await worker.close().get();
         await client.close().get();

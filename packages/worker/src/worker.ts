@@ -979,12 +979,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     deliveryEpoch: number,
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
-      // A poison message on a queue with no DLX vanishes on nack — same
-      // warning the retry path logs, so the loss is visible in the operator's
-      // logs rather than silent.
+      // A poison message on a queue with no DLX is discarded by this nack.
+      // That queue can only exist because its author wrote `onPoison: "drop"`
+      // — defineContract rejects any other consumed queue without a DLX — so
+      // record the discard as a fact, not as a warning about a mistake. Same
+      // wording as the retry path's sendToDLQ.
       if (consumer.queue.deadLetter === undefined) {
-        this.logger?.warn(
-          "Queue does not have DLX configured - poison message will be lost on nack",
+        this.logger?.info(
+          'Discarding poison message: queue is declared onPoison: "drop" and has no DLX',
           {
             consumerName: String(name),
             queueName: consumer.queue.name,

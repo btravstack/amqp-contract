@@ -1,4 +1,5 @@
 import {
+  defineExchange,
   defineMessage,
   defineQueue,
   type ResolvedTtlBackoffRetryOptions,
@@ -294,6 +295,59 @@ describe("publishForRetry", () => {
         }),
       }),
     );
+  });
+});
+
+describe("terminal-nack logging", () => {
+  // The wording matters: since defineContract rejects a consumed queue with
+  // neither a DLX nor `onPoison: "drop"`, the no-DLX branch is reachable ONLY
+  // on a queue whose author declared the drop. It must therefore read as a
+  // recorded fact at `info`, not as a warning about a misconfiguration.
+  function loggerSpy(): { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> } {
+    return { info: vi.fn(), warn: vi.fn() };
+  }
+
+  it("logs a DLQ hand-off at info when the queue has a dead-letter exchange", async () => {
+    const { client } = createMockClient(() => OkAsync(undefined));
+    const logger = loggerSpy();
+    const dlx = defineExchange("orders-dlx");
+
+    await handleError(
+      { amqpClient: client as unknown as AmqpClient, logger: logger as never },
+      new NonRetryableError("permanent"),
+      createMockConsumeMessage(),
+      "processOrder",
+      {
+        queue: defineQueue("orders", { deadLetter: { exchange: dlx } }),
+        message: defineMessage(z.object({ id: z.string() })),
+      },
+    );
+
+    expect(logger.info).toHaveBeenCalledWith("Sending message to DLQ", expect.anything());
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('logs a declared discard at info — never warn — when the queue is onPoison: "drop"', async () => {
+    const { client } = createMockClient(() => OkAsync(undefined));
+    const logger = loggerSpy();
+
+    await handleError(
+      { amqpClient: client as unknown as AmqpClient, logger: logger as never },
+      new NonRetryableError("permanent"),
+      createMockConsumeMessage(),
+      "processOrder",
+      {
+        queue: defineQueue("orders", { onPoison: "drop" }),
+        message: defineMessage(z.object({ id: z.string() })),
+      },
+    );
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'Discarding message: queue is declared onPoison: "drop" and has no DLX',
+      expect.objectContaining({ queueName: "orders" }),
+    );
+    // A deliberate configuration must not raise an operational warning.
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 });
 
