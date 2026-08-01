@@ -271,24 +271,22 @@ The worker's `ConsumerOptions` is `Pick<AmqpConsumeOptions, "prefetch" | ...>`, 
 
 Add to `docs/how-to/troubleshoot.md`, matching the surrounding voice and heading style:
 
-````markdown
-### My worker suddenly processes fewer messages at once
+    ### My worker suddenly processes fewer messages at once
 
-Consumers now prefetch **10** messages by default (previously unlimited — the
-broker pushed the entire ready backlog to a single consumer, which is unbounded
-memory and a large redelivery burst if the worker crashes).
+    Consumers now prefetch **10** messages by default (previously unlimited — the
+    broker pushed the entire ready backlog to a single consumer, which is unbounded
+    memory and a large redelivery burst if the worker crashes).
 
-Raise it if you are throughput-bound and your handlers are cheap:
+    Raise it if you are throughput-bound and your handlers are cheap:
 
-```typescript
-const worker = await TypedAmqpWorker.create({
-  contract,
-  urls: ["amqp://localhost"],
-  handlers,
-  prefetch: 100,
-}).get();
-```
-````
+    ```typescript
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      urls: ["amqp://localhost"],
+      handlers,
+      prefetch: 100,
+    }).get();
+    ```
 
 Or restore the old behavior explicitly:
 
@@ -299,13 +297,10 @@ prefetch: "unbounded";
 `"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a
 call site as its opposite.
 
-````
+    - [ ] **Step 9: Add a changeset**
 
-- [ ] **Step 9: Add a changeset**
-
-```bash
-pnpm changeset
-````
+    ```bash
+    pnpm changeset
 
 Choose **major**. Summary:
 
@@ -528,23 +523,21 @@ Two existing specs pin `publishTimeoutMs` threading — `packages/client/src/pub
 
 Add to `docs/how-to/troubleshoot.md`:
 
-````markdown
-### A publish hangs forever during a broker outage
+    ### A publish hangs forever during a broker outage
 
-It no longer does. Channels now set a **30s** `publishTimeout` by default, so a
-publish issued while the broker is unreachable settles with a failure instead of
-buffering indefinitely with a promise that never resolves.
+    It no longer does. Channels now set a **30s** `publishTimeout` by default, so a
+    publish issued while the broker is unreachable settles with a failure instead of
+    buffering indefinitely with a promise that never resolves.
 
-Tune it per client or worker:
+    Tune it per client or worker:
 
-```typescript
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-  publishTimeoutMs: 10_000,
-}).get();
-```
-````
+    ```typescript
+    const client = await TypedAmqpClient.create({
+      contract,
+      urls: ["amqp://localhost"],
+      publishTimeoutMs: 10_000,
+    }).get();
+    ```
 
 Or disable it entirely, restoring the previous unbounded buffering:
 
@@ -554,13 +547,10 @@ channelOptions: {
 }
 ```
 
-````
+    - [ ] **Step 9: Add a changeset**
 
-- [ ] **Step 9: Add a changeset**
-
-```bash
-pnpm changeset
-````
+    ```bash
+    pnpm changeset
 
 Choose **major**. Summary:
 
@@ -834,24 +824,22 @@ Do not weaken or skip the check.
 
 Add to `docs/how-to/troubleshoot.md`:
 
-````markdown
-### `defineContract` says my queue has no dead-letter exchange
+    ### `defineContract` says my queue has no dead-letter exchange
 
-A consumed queue with no dead-letter exchange discards every message its handler
-rejects — `nack(requeue: false)` drops it and nothing records that it existed.
-The worker used to warn as it happened, which is both too late and invisible
-unless a logger was wired.
+    A consumed queue with no dead-letter exchange discards every message its handler
+    rejects — `nack(requeue: false)` drops it and nothing records that it existed.
+    The worker used to warn as it happened, which is both too late and invisible
+    unless a logger was wired.
 
-Keep failed messages for inspection:
+    Keep failed messages for inspection:
 
-```typescript
-const ordersDlx = defineExchange("orders-dlx");
+    ```typescript
+    const ordersDlx = defineExchange("orders-dlx");
 
-const orderQueue = defineQueue("order-processing", {
-  deadLetter: { exchange: ordersDlx },
-});
-```
-````
+    const orderQueue = defineQueue("order-processing", {
+      deadLetter: { exchange: ordersDlx },
+    });
+    ```
 
 Or state that dropping them is intentional:
 
@@ -862,13 +850,10 @@ const metricsQueue = defineQueue("metrics-ingest", { onPoison: "drop" });
 Only _consumed_ queues are checked. A dead-letter queue you declare but do not
 consume needs neither — it has no dead-letter exchange of its own by design.
 
-````
+    - [ ] **Step 10: Add a changeset**
 
-- [ ] **Step 10: Add a changeset**
-
-```bash
-pnpm changeset
-````
+    ```bash
+    pnpm changeset
 
 Choose **major**. Summary:
 
