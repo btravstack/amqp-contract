@@ -90,6 +90,7 @@ describe("publishTimeoutMs threading", () => {
       publishTimeoutMs: null,
     }).get();
 
+    expect(createChannelMock()).toHaveBeenCalledTimes(1);
     const opts = createChannelMock().mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts).not.toHaveProperty("publishTimeout");
 

@@ -36,6 +36,13 @@ describe("publishTimeout default", () => {
     await ConnectionManagerSingleton.getInstance()._resetForTesting();
   });
 
+  it("is 30s — the number the docs and the changeset promise", () => {
+    // Pinned to a literal on purpose. Every other assertion in this file
+    // compares the constant to itself, so without this line the whole suite
+    // stays green if the default silently changes.
+    expect(DEFAULT_PUBLISH_TIMEOUT_MS).toBe(30_000);
+  });
+
   it(`defaults publishTimeout to ${String(DEFAULT_PUBLISH_TIMEOUT_MS)}ms so a buffered publish always settles`, () => {
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
 
