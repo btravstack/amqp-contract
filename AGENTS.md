@@ -107,6 +107,8 @@ Each invariant maps to a named guarding test — extend the mapping when you add
 17. **A short-delay ttl-backoff retry is never blocked by a long-delay retry parked ahead of it** (per-delay-tier wait queues; RabbitMQ only expires at the queue head) — `packages/worker/src/__tests__/worker-retry-head-of-line.spec.ts`.
 18. **`defineContract`'s runtime output has exactly the keys `ContractOutput` types** (no runtime-injected topology invisible to the type level) — `packages/contract/src/contract-output-parity.spec.ts`.
 19. **A publisher whose routing key reaches no queue is rejected at define time** (RabbitMQ confirms an unroutable message and discards it, so the runtime signal is indistinguishable from success) — `tests/src/unroutable-publish.spec.ts` (the paired prove-the-loss / prove-the-guard tests) + `packages/contract/src/builder/routability-define-time.spec.ts`.
+20. **A consumer's unacked deliveries are bounded by the default prefetch** (unset prefetch used to mean AMQP unlimited — the whole ready backlog in one consumer's memory, all of it redelivered on a crash) — `tests/src/safe-defaults.spec.ts` ("default prefetch" describe: the paired unbounded-vs-default tests) + `packages/core/src/amqp-client.spec.ts` (the `DEFAULT_PREFETCH` / `"unbounded"` → `basic.qos` mapping).
+21. **A consumed queue that would silently discard its poison messages is rejected at define time** (no DLX means `nack(requeue: false)` drops the message with no record; declared-but-unconsumed queues, including dead-letter queues, are correctly exempt) — `packages/contract/src/builder/poison-loss.spec.ts` + `tests/src/safe-defaults.spec.ts`.
 
 ## Workflow rules for agents
 
