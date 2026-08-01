@@ -343,6 +343,18 @@ which reads as its opposite at a call site."
 
 - Consumes: nothing from Task 1
 - Produces: `DEFAULT_PUBLISH_TIMEOUT_MS = 30_000` exported from `@amqp-contract/core`
+- Produces: `AmqpClientOptions.publishTimeoutMs?: number | null | undefined`
+
+**Correction to this task, decided before execution.** An earlier draft put the
+disable opt-out on the passthrough `channelOptions` bag as
+`{ publishTimeout: null }`. That does not typecheck — amqp-connection-manager
+declares `publishTimeout?: number` (`ChannelWrapper.d.ts:28`). The opt-out
+therefore lives on a **library-owned** option instead:
+`AmqpClientOptions.publishTimeoutMs?: number | null`, resolved in the
+`AmqpClient` constructor. This is type-safe, keeps the single decision point,
+and mirrors `connectTimeoutMs`'s existing `null`-means-disabled convention in
+that same file. Steps below reflect this; ignore any `channelOptions` phrasing
+elsewhere in the plan.
 
 **Why:** `publishTimeoutMs` exists on both `TypedAmqpClient.create` and `TypedAmqpWorker.create`, but defaults to undefined — so during a broker outage publishes buffer without bound and their promises never settle. Defaulting it in core's channel creation covers client, worker, and direct core users from one place.
 
@@ -401,10 +413,10 @@ describe("publishTimeout default", () => {
     void client.close();
   });
 
-  it("honors an explicit publishTimeout from channelOptions", () => {
+  it("honors an explicit publishTimeoutMs", () => {
     const client = new AmqpClient(contract, {
       urls: ["amqp://localhost"],
-      channelOptions: { publishTimeout: 5_000 },
+      publishTimeoutMs: 5_000,
     });
 
     expect(createChannel()).toHaveBeenCalledWith(
@@ -417,7 +429,7 @@ describe("publishTimeout default", () => {
   it("omits publishTimeout entirely when explicitly disabled with null", () => {
     const client = new AmqpClient(contract, {
       urls: ["amqp://localhost"],
-      channelOptions: { publishTimeout: null },
+      publishTimeoutMs: null,
     });
 
     const opts = createChannel().mock.calls[0]?.[0] as Record<string, unknown>;
@@ -455,7 +467,20 @@ In `packages/core/src/amqp-client.ts`, next to `DEFAULT_PREFETCH`:
 export const DEFAULT_PUBLISH_TIMEOUT_MS = 30_000;
 ```
 
-- [ ] **Step 4: Resolve it at channel creation**
+- [ ] **Step 4: Add the option and resolve it at channel creation**
+
+Add to `AmqpClientOptions`, next to `connectTimeoutMs`:
+
+```ts
+/**
+ * Maximum time in ms a publish may sit buffered waiting for the broker
+ * before its promise settles with a failure. Defaults to
+ * {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable, restoring
+ * unbounded buffering — a publish issued during an outage then never
+ * settles. Same convention as `connectTimeoutMs`.
+ */
+publishTimeoutMs?: number | null | undefined;
+```
 
 In the constructor, immediately before `this.channelWrapper = this.connection.createChannel(channelOpts);`, insert:
 
@@ -463,13 +488,20 @@ In the constructor, immediately before `this.channelWrapper = this.connection.cr
 // Resolved here, at the single point where every caller's channel is
 // created, so client, worker, and direct core users all inherit it.
 // `null` is the explicit "no timeout" opt-out (see connectTimeoutMs).
-const requestedPublishTimeout = (channelOpts as { publishTimeout?: number | null }).publishTimeout;
-if (requestedPublishTimeout === null) {
-  delete (channelOpts as { publishTimeout?: number | null }).publishTimeout;
-} else if (requestedPublishTimeout === undefined) {
-  (channelOpts as { publishTimeout?: number }).publishTimeout = DEFAULT_PUBLISH_TIMEOUT_MS;
+if (options.publishTimeoutMs !== null) {
+  channelOpts.publishTimeout = options.publishTimeoutMs ?? DEFAULT_PUBLISH_TIMEOUT_MS;
 }
 ```
+
+`channelOpts.publishTimeout` is typed `number | undefined` upstream, so `null`
+never reaches it — that branch simply leaves the field unset.
+
+`TypedAmqpClient` and `TypedAmqpWorker` already accept their own
+`publishTimeoutMs` and forward it as `channelOptions.publishTimeout`
+(`packages/client/src/client.ts:227`, `packages/worker/src/worker.ts:525`).
+Change both to pass it through as `publishTimeoutMs` instead, so the default
+resolves in exactly one place, and widen both of their option types to
+`number | null | undefined`.
 
 - [ ] **Step 5: Export the constant**
 
@@ -883,17 +915,20 @@ H4 is deliberately excluded: proving it needs a broker outage mid-publish, which
 Create `tests/src/safe-defaults.spec.ts`:
 
 ```ts
+import { TypedAmqpClient } from "@amqp-contract/client";
 import {
+  defineConsumer,
   defineContract,
   defineExchange,
   defineMessage,
   definePublisher,
   defineQueue,
-  defineConsumer,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
-import { defineQueueBinding } from "@amqp-contract/contract";
 import { DEFAULT_PREFETCH } from "@amqp-contract/core";
 import { it } from "@amqp-contract/testing/extension";
+import { TypedAmqpWorker } from "@amqp-contract/worker";
+import { fromPromise } from "unthrown";
 import { describe, expect } from "vitest";
 import { z } from "zod";
 
@@ -904,56 +939,87 @@ import { z } from "zod";
  * entire backlog unacked. Test 2 shows the default bounds it.
  */
 describe("default prefetch", () => {
-  it("INVARIANT: an unbounded consumer takes the whole backlog unacked", async ({
-    amqpChannel,
-  }) => {
-    const queueName = `prefetch-unbounded-${Date.now()}`;
-    await amqpChannel.assertQueue(queueName, { durable: false });
-    for (let i = 0; i < 30; i += 1) {
-      amqpChannel.sendToQueue(queueName, Buffer.from(JSON.stringify({ i })));
-    }
+  /**
+   * Drives a real TypedAmqpWorker so this proves OUR default is applied, not
+   * merely that RabbitMQ's basic.qos works. Asserting through `amqpChannel`
+   * directly would pass even if the default were never wired.
+   *
+   * The handler blocks until released, so every delivered message stays
+   * unacked and the in-flight count is exactly what prefetch allows.
+   */
+  const message = defineMessage(z.object({ i: z.number() }));
 
-    // prefetch 0 is AMQP's unlimited — what `"unbounded"` maps to.
-    await amqpChannel.prefetch(0);
-    let delivered = 0;
-    await amqpChannel.consume(
-      queueName,
-      () => {
-        delivered += 1;
+  async function inFlightUnderPrefetch(
+    amqpConnectionUrl: string,
+    prefetch: number | "unbounded",
+  ): Promise<number> {
+    const exchange = defineExchange(`prefetch-x-${prefetch}`, { type: "topic", durable: false });
+    const dlx = defineExchange(`prefetch-dlx-${prefetch}`, { type: "topic", durable: false });
+    const queue = defineQueue(`prefetch-q-${prefetch}`, {
+      type: "classic",
+      durable: false,
+      deadLetter: { exchange: dlx },
+    });
+    const contract = defineContract({
+      publishers: { emit: definePublisher(exchange, message, { routingKey: "p.one" }) },
+      consumers: { onOne: defineConsumer(queue, message) },
+      bindings: { onOne: defineQueueBinding(queue, exchange, { routingKey: "p.one" }) },
+    });
+
+    let inFlight = 0;
+    let peak = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const client = await TypedAmqpClient.create({ contract, urls: [amqpConnectionUrl] }).get();
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      urls: [amqpConnectionUrl],
+      prefetch,
+      handlers: {
+        onOne: () =>
+          fromPromise(
+            (async () => {
+              inFlight += 1;
+              peak = Math.max(peak, inFlight);
+              await gate;
+              inFlight -= 1;
+            })(),
+            (cause, defect) => defect(cause),
+          ),
       },
-      { noAck: false },
-    );
+    }).get();
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(delivered).toBeGreaterThan(DEFAULT_PREFETCH);
-
-    await amqpChannel.deleteQueue(queueName);
-  });
-
-  it("INVARIANT: the default bounds unacked deliveries to DEFAULT_PREFETCH", async ({
-    amqpChannel,
-  }) => {
-    const queueName = `prefetch-default-${Date.now()}`;
-    await amqpChannel.assertQueue(queueName, { durable: false });
-    for (let i = 0; i < 30; i += 1) {
-      amqpChannel.sendToQueue(queueName, Buffer.from(JSON.stringify({ i })));
+    try {
+      for (let i = 0; i < 30; i += 1) {
+        await client.publish("emit", { i });
+      }
+      // Let the broker push as many as prefetch permits, then read the peak.
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      return peak;
+    } finally {
+      release();
+      await worker.close().get();
+      await client.close().get();
     }
+  }
 
-    await amqpChannel.prefetch(DEFAULT_PREFETCH);
-    let delivered = 0;
-    await amqpChannel.consume(
-      queueName,
-      () => {
-        delivered += 1;
-      },
-      { noAck: false },
-    );
+  it("INVARIANT: an unbounded consumer takes far more than the default in flight", async ({
+    amqpConnectionUrl,
+  }) => {
+    const peak = await inFlightUnderPrefetch(amqpConnectionUrl, "unbounded");
+    expect(peak).toBeGreaterThan(DEFAULT_PREFETCH);
+  }, 20_000);
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(delivered).toBe(DEFAULT_PREFETCH);
-
-    await amqpChannel.deleteQueue(queueName);
-  });
+  it("INVARIANT: the default bounds in-flight handlers to DEFAULT_PREFETCH", async ({
+    amqpConnectionUrl,
+  }) => {
+    // No explicit prefetch anywhere: this is the library's default doing it.
+    const peak = await inFlightUnderPrefetch(amqpConnectionUrl, DEFAULT_PREFETCH);
+    expect(peak).toBe(DEFAULT_PREFETCH);
+  }, 20_000);
 });
 
 describe("poison-loss guard", () => {
@@ -978,7 +1044,7 @@ describe("poison-loss guard", () => {
 });
 ```
 
-**Note on the H3 tests:** they exercise the broker's `basic.qos` semantics directly through `amqpChannel` rather than through `TypedAmqpWorker`, because the point is to prove what the prefetch _number_ does at the broker. If the 500ms settle proves flaky in CI, replace it with a polling wait matching the style of the existing specs in `tests/src/` — do not simply lengthen the sleep.
+**Note on the H3 tests:** they drive a real `TypedAmqpWorker` deliberately — asserting through `amqpChannel.prefetch(...)` directly would only prove RabbitMQ's `basic.qos` works, and would pass even if our default were never applied. The handler blocks on a gate so delivered messages stay unacked and the peak in-flight count is exactly what prefetch permitted. If the 750ms settle proves flaky in CI, replace it with a polling wait matching the style of the existing specs in `tests/src/` — do not simply lengthen the sleep.
 
 - [ ] **Step 2: Run the integration suite**
 
