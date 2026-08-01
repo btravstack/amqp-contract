@@ -70,4 +70,44 @@ describe("publishTimeout default", () => {
 
     void client.close();
   });
+
+  it("respects channelOptions.publishTimeout when publishTimeoutMs is not set (no silent override)", () => {
+    const client = new AmqpClient(contract, {
+      urls: ["amqp://localhost"],
+      channelOptions: { publishTimeout: 5_000 },
+    });
+
+    expect(createChannel()).toHaveBeenCalledWith(
+      expect.objectContaining({ publishTimeout: 5_000 }),
+    );
+
+    void client.close();
+  });
+
+  it("prefers publishTimeoutMs over channelOptions.publishTimeout when both are set", () => {
+    const client = new AmqpClient(contract, {
+      urls: ["amqp://localhost"],
+      channelOptions: { publishTimeout: 5_000 },
+      publishTimeoutMs: 9_000,
+    });
+
+    expect(createChannel()).toHaveBeenCalledWith(
+      expect.objectContaining({ publishTimeout: 9_000 }),
+    );
+
+    void client.close();
+  });
+
+  it("publishTimeoutMs: null disables the timeout even when channelOptions.publishTimeout is set", () => {
+    const client = new AmqpClient(contract, {
+      urls: ["amqp://localhost"],
+      channelOptions: { publishTimeout: 5_000 },
+      publishTimeoutMs: null,
+    });
+
+    const opts = createChannel().mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(opts).not.toHaveProperty("publishTimeout");
+
+    void client.close();
+  });
 });
