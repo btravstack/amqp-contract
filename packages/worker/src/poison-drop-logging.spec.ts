@@ -25,7 +25,10 @@ import { TypedAmqpWorker } from "./worker.js";
  * `parseAndValidateOrNack` stays silent when a DLX is configured — the message
  * is already being reported by the `error`-level validation failure logged just
  * above it, and the DLX does the rest. So this file pins two branches, not
- * three, plus that silence.
+ * three, plus that silence — which both forms of dead-lettering must earn,
+ * `deadLetter` and the raw `arguments` passthrough alike: the guard and this
+ * log ask one shared predicate, so a queue the guard accepts can never be
+ * logged here as an undeclared loss.
  *
  * The undeclared case is only reachable through a hand-built
  * `ContractDefinition` that never passed through `defineContract` — which now
@@ -75,7 +78,9 @@ const ordersDlx = defineExchange("orders-dlx", { durable: false });
 
 /**
  * Hand-built so the queue can carry neither a DLX nor `onPoison` —
- * `defineContract` rejects exactly that shape, which is the point.
+ * `defineContract` rejects exactly that shape, which is the point. The
+ * DLX-configured cases reuse the same harness for comparability, even though
+ * they would pass the builder.
  */
 function contractWithQueue(queue: ReturnType<typeof defineQueue>): ContractDefinition {
   return {
@@ -180,6 +185,31 @@ describe("validation-path terminal-nack logging", () => {
       expect.anything(),
     );
     // Still nacked — the DLX, not a log line, is what preserves the message.
+    expect(wrapper().nack).toHaveBeenCalledTimes(1);
+
+    await worker.close().get();
+  });
+
+  it("stays just as silent when the DLX comes only from the `arguments` passthrough", async () => {
+    // This queue passes `defineContract`'s poison-loss guard, so it is a shape
+    // users legitimately ship. The guard and this log share one predicate:
+    // anything the guard accepts as dead-lettering must not be reported here
+    // as an undeclared loss.
+    const { logger, worker } = await consumeInvalid(
+      contractWithQueue(
+        defineQueue("orders", {
+          type: "classic",
+          durable: false,
+          arguments: { "x-dead-letter-exchange": "orders-dlx" },
+        }),
+      ),
+    );
+
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Discarding"),
+      expect.anything(),
+    );
     expect(wrapper().nack).toHaveBeenCalledTimes(1);
 
     await worker.close().get();
