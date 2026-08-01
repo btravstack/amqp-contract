@@ -65,6 +65,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
@@ -76,6 +77,10 @@ const emailQueue = defineQueue("email-notifications", {
   // with no record. `onPoison: "drop"` is the explicit alternative.
   deadLetter: { exchange: notificationsDlx },
 });
+// The dead-letter exchange needs somewhere to route to. An exchange with no
+// bound queue drops what it receives, so a DLX on its own would lose exactly
+// the messages `deadLetter` is there to keep.
+const emailDlq = defineQueue("email-notifications-dlq");
 
 // 2. The message: a schema, plus documentation.
 const emailMessage = defineMessage(
@@ -104,12 +109,22 @@ export const contract = defineContract({
   consumers: {
     processEmail: defineEventConsumer(sendEmailEvent, emailQueue),
   },
+  // 5. The dead-letter queue, declared but never consumed, plus the binding
+  //    that makes the DLX route to it.
+  queues: {
+    emailDlq,
+  },
+  bindings: {
+    emailDlq: defineQueueBinding(emailDlq, notificationsDlx, { routingKey: "#" }),
+  },
 });
 ```
 
 Notice the order: resources first, then references to them. Defining a queue or an exchange inline inside `defineContract` is possible but works against you — naming them makes them reusable and keeps the contract readable.
 
 Notice too that `defineEventConsumer` takes `sendEmailEvent` — the publisher itself. That is what ties the consumer's payload type to the publisher's schema. You cannot accidentally consume a different shape than you publish.
+
+And notice that the dead-letter side is three declarations, not one. `deadLetter` only points the queue at an exchange; RabbitMQ still drops anything that exchange cannot route. `defineContract` requires the pointer but cannot check the route, so declaring the DLQ and its binding is on you. A dead-letter exchange with no bound queue loses messages exactly as thoroughly as no dead-lettering at all — and more quietly, because the worker will log that it sent them to the DLQ.
 
 ## Step 4: Publish a message
 
@@ -229,7 +244,7 @@ Received an email to send:
   Body:    This message was validated on the way out and on the way in.
 ```
 
-You have sent and received your first type-safe AMQP message. Now look at the RabbitMQ dashboard you left open: under **Exchanges** you will find `notifications`, and under **Queues** the `email-notifications` queue, bound with the routing key `email`. You never declared any of that against the broker yourself — the worker set up the topology from the contract on startup.
+You have sent and received your first type-safe AMQP message. Now look at the RabbitMQ dashboard you left open: under **Exchanges** you will find `notifications` and `notifications-dlx`, and under **Queues** the `email-notifications` queue bound with the routing key `email`, plus the empty `email-notifications-dlq` bound to the dead-letter exchange. You never declared any of that against the broker yourself — the worker set up the topology from the contract on startup.
 
 ## Step 7: Break it on purpose
 

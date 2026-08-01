@@ -192,15 +192,30 @@ The worker used to warn as it happened, which is both too late and invisible
 unless a logger was wired.
 
 On a queue that does not exist on the broker yet, keep failed messages for
-inspection and you are done:
+inspection. Declare the dead-letter queue and its binding as well — the check
+requires a `deadLetter` pointer but cannot see whether the exchange it names
+routes anywhere, and the broker silently drops a dead letter that matches no
+binding:
 
 ```typescript
 const ordersDlx = defineExchange("orders-dlx");
+const orderDlq = defineQueue("order-processing-dlq");
 
 const orderQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
+
+export const contract = defineContract({
+  publishers: { orderCreated },
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+});
 ```
+
+A DLX with nothing bound to it is not a fix: the message is as lost as it was
+before, and the worker now logs `Sending message to DLQ` at `info` while it
+happens.
 
 Or state that dropping them is intentional:
 
@@ -237,11 +252,45 @@ sentence on its own:
 | `Discarding poison message: queue is declared onPoison: "drop" and has no DLX` | The payload failed decompression or schema validation — it never reached your handler                                   |
 | `Discarding message: queue is declared onPoison: "drop" and has no DLX`        | The handler rejected the message and the retry pipeline sent it to the DLQ — the common one on a retry-configured queue |
 
-**Nothing is being lost** in either case. The policy dead-letters the message
-correctly; the log line reports what the _contract_ declares, and the contract
-cannot see a broker policy. Treat both as expected noise on policy-migrated
-queues, and keep your dead-letter alerting on the DLQ's depth rather than on
-these logs.
+**Nothing is lost _provided_ the policy's target exchange exists and has a queue
+bound to it.** Both log lines report what the _contract_ declares, and the
+contract cannot see a broker policy — so on this route neither the log line nor
+`defineContract` can tell you whether the dead-letter path actually terminates
+somewhere. If the policy names an exchange that does not exist, or one with no
+binding, RabbitMQ drops every dead-lettered message and the `info` line is the
+only trace.
+
+The library declares no DLX topology on this route: `x-dead-letter-exchange` is
+derived from `deadLetter`, which you did not set. Declare the exchange, the
+dead-letter queue and the binding yourself, as
+[standalone topology](/how-to/define-a-contract#declare-standalone-topology),
+naming the same exchange the policy targets:
+
+```typescript
+const ordersDlx = defineExchange("orders-dlx");
+const orderDlq = defineQueue("order-processing-dlq");
+
+// The policy supplies the dead-lettering, so the queue argument stays unset.
+const orderQueue = defineQueue("order-processing", { onPoison: "drop" });
+
+export const contract = defineContract({
+  publishers: { orderCreated },
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
+  exchanges: { ordersDlx },
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+});
+```
+
+`exchanges` is listed explicitly here because a standalone binding does not
+extract the exchange it references — only `deadLetter` does, and there is no
+`deadLetter` on this route. Give it the same type as the exchange the policy
+targets if it already exists, or the redeclaration 406s in its own right.
+
+The queue's arguments stay unchanged, so its redeclaration is still equivalent
+and the 406 does not return. With that in place, treat both log lines as
+expected noise on policy-migrated queues and keep your dead-letter alerting on
+the DLQ's depth rather than on these logs.
 
 The upgrade guide covers the migration in full.
 

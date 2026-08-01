@@ -19,6 +19,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
@@ -27,6 +28,9 @@ const ordersDlx = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
+// A DLX with no bound queue drops what it receives. Declare the dead-letter
+// queue and the binding, or `deadLetter` buys you nothing.
+const orderDlq = defineQueue("order-processing-dlq");
 const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
 
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
@@ -36,10 +40,14 @@ const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 
-`defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached.
+`defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached, which is exactly what a dead-letter queue is.
+
+`defineContract` requires a consumed queue to declare a `deadLetter` (or `onPoison: "drop"`), but it cannot tell whether the exchange you name has anything bound to it — that check belongs to the broker, and the broker silently drops unroutable dead letters. Declaring the DLQ and its binding alongside is what makes the dead-lettering real.
 
 ## Broadcast an event to many consumers
 
@@ -66,13 +74,18 @@ Each consumer gets its own queue, so both receive every message. Two consumers s
 Define the consumer first; it owns the queue and decides what it accepts. The publisher is derived from it.
 
 ```typescript
-import { defineCommandConsumer, defineCommandPublisher } from "@amqp-contract/contract";
+import {
+  defineCommandConsumer,
+  defineCommandPublisher,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
 
 const fulfillmentExchange = defineExchange("fulfillment", { type: "direct" });
 const fulfillmentDlx = defineExchange("fulfillment-dlx");
 const fulfillmentQueue = defineQueue("order-fulfillment", {
   deadLetter: { exchange: fulfillmentDlx },
 });
+const fulfillmentDlq = defineQueue("order-fulfillment-dlq");
 
 const fulfillOrder = defineCommandConsumer(
   fulfillmentQueue,
@@ -86,6 +99,10 @@ const requestFulfillment = defineCommandPublisher(fulfillOrder);
 export const contract = defineContract({
   publishers: { requestFulfillment },
   consumers: { fulfillOrder },
+  queues: { fulfillmentDlq },
+  bindings: {
+    fulfillmentDlq: defineQueueBinding(fulfillmentDlq, fulfillmentDlx, { routingKey: "#" }),
+  },
 });
 ```
 

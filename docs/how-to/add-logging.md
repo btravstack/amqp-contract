@@ -122,10 +122,12 @@ The worker is where the useful output is:
 | Level   | Covers                                                                                                                                                                                                            |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ; discarding on a queue declared `onPoison: "drop"`                                         |
-| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server                                                                                                                               |
+| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has neither a dead-letter exchange nor an `onPoison` declaration — message will be lost on nack**                    |
 | `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (channel fault or a full write buffer) |
 
 `Publish for retry failed; leaving original un-ack'd for redelivery` deserves an alert rather than a dashboard: retries are being dropped under load, and the logged cause names the fault (e.g. `channel write buffer full`).
+
+`Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack` is the line to alert on for genuine, undeclared loss. It has two wordings from two code paths — `message` from the retry pipeline, `poison message` when the payload never reached the handler — so match on the shared prefix `Queue has no dead-letter exchange and no onPoison declaration`. Since 3.0 `defineContract` rejects that queue shape, so this can only reach a running worker through a hand-built `ContractDefinition` that bypassed the builder: treat it as a bug report, not a tuning signal.
 
 `Discarding message: queue is declared onPoison: "drop" and has no DLX` is data loss, but declared data loss — since 3.0 `defineContract` rejects any other consumed queue without a DLX, so the line can only appear on a queue whose author asked for it. It is an `info` for that reason. Alert on it only if you want to know how often the deliberate drop actually fires.
 
