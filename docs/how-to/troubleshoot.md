@@ -123,7 +123,7 @@ Work down this list in order.
 
 **Is the consumer running?** A queue with no consumer accumulates messages. `rabbitmqctl list_queues name messages consumers`.
 
-**Is the queue bound?** In the management UI, open the queue and check its bindings. No binding means the exchange has nowhere to route to, and RabbitMQ drops unroutable messages silently.
+**Is the queue bound?** In the management UI, open the queue and check its bindings. No binding means the exchange has nowhere to route to, and RabbitMQ drops unroutable messages silently. If the binding is missing from the contract itself, `defineContract` says so — see below.
 
 **Do the routing keys match?** `order.*` matches `order.created` but _not_ `order.created.urgent` — `*` is exactly one segment, `#` is zero or more. This is the single most common cause.
 
@@ -132,6 +132,31 @@ Work down this list in order.
 **Are two consumers sharing a queue?** Then they compete, and each message goes to one of them. For broadcast, give each consumer its own queue.
 
 **Did you publish before the consumer existed?** In tests especially — `initConsumer` must be awaited before publishing, or the message is routed nowhere. See [test with RabbitMQ](/how-to/test-with-rabbitmq#assert-on-raw-messages).
+
+### `Publisher is unroutable` at define time
+
+`defineContract` throws `Publisher "orderCreated" is unroutable` when a publisher's routing key reaches no queue anywhere in the contract's binding graph — directly, or through exchange-to-exchange forwards. The error names the key, the exchange it stopped on, and the patterns actually declared there.
+
+This is a define-time error precisely because it cannot be caught at runtime. A publisher confirm means "the broker took responsibility", not "a queue received it": RabbitMQ confirms a message that matched no binding and then discards it, so `publish()` returns `Ok` while every message is lost. Nothing downstream ever reports the loss.
+
+Two remedies, and they are not interchangeable:
+
+**Add a binding that matches.** Correct when this contract owns the consumer. Usually the routing key and the binding pattern have drifted apart — `order.*` does not match `order.created.urgent`. Fix whichever one is wrong.
+
+**Set `externalConsumers: true` on the publisher.** Correct when the binding genuinely lives elsewhere: another service owns the queue, or you publish into a shared exchange whose topology you do not declare. It is an assertion that the loss is somebody else's contract to guarantee, so use it only when that is true — it disables the check for that publisher permanently.
+
+```typescript
+const orderCreated = definePublisher(orders, orderMessage, {
+  routingKey: "order.created",
+  externalConsumers: true,
+});
+```
+
+Accepted by `definePublisher`, `defineEventPublisher` and `defineCommandPublisher` alike.
+
+An exchange declaring an `alternate-exchange` argument never triggers this — the broker routes its unmatched messages there instead of discarding them, so no key on it is unroutable.
+
+The check reads the bindings passed to `defineContract`. Mutating `contract.bindings` after it returns does not re-run it; declare every binding in the call.
 
 ## Topology conflicts
 

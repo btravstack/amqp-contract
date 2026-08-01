@@ -159,6 +159,8 @@ With no `headers` schema, a handler's `headers` is `undefined`.
 
 `defineEventPublisher` adds compile-time routing-key validation and is what event consumers attach to. `defineCommandPublisher` derives everything from the command consumer.
 
+All three also accept `externalConsumers?: boolean`. `defineContract` throws when a publisher's routing key reaches no queue in the contract's binding graph — the broker would confirm those messages and discard them. Set it to `true` when another service owns the binding. An exchange declaring `alternate-exchange` is exempt. See [troubleshoot](/how-to/troubleshoot#publisher-is-unroutable-at-define-time).
+
 There is no per-call routing-key override — `publish` always uses the publisher's key.
 
 ## Consumers
