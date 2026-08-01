@@ -251,6 +251,76 @@ cannot.
 
 ---
 
+## Carried forward from the H2–H4 implementation
+
+H2–H4 shipped on branch `audit/h2-h4-safe-defaults`. The final review's Critical was not a
+defect in any guard — it was that our own documentation taught users to satisfy the H2 guard in
+a way that does not protect them.
+
+### The pattern worth naming
+
+**Every guard in this library checks that something was _declared_, not that it _routes_.**
+
+A dead-letter exchange with no queue bound to it satisfies `defineContract`, passes review, and
+loses every message — while the worker logs `Sending message to DLQ` at `info`, giving the
+operator positive confirmation that nothing is wrong. That is strictly worse than the
+pre-guard state, where a `warn` fired.
+
+This shape has now appeared three times: H1's `alternate-exchange` false positive, the H2
+Critical, and — most tellingly — inside the text written to fix the H2 Critical, where the
+broker-policy remediation instructed readers to give the DLX "the same type as the exchange the
+policy targets" while still binding `#`. A direct exchange bound with `#` matches nothing.
+Measured against a real broker: topic + `#` receives 1, **direct + `#` receives 0**.
+
+Publishers got a routability check in H1 (`_internal_assertPublisherRoutable`). Dead-lettering
+has identical semantics and has none.
+
+### Highest-value follow-up: a define-time DLX routability check
+
+Mirror `_internal_assertPublisherRoutable`: when `queue.deadLetter` is set, require a declared
+binding from that exchange, with an explicit escape hatch for a genuinely external DLX. This is
+the only thing that would have caught either instance of the defect above — snippet execution
+proves a snippet _compiles and constructs_, not that it _routes_, because `defineContract`
+accepts an unroutable binding by design.
+
+It rejects contracts that currently construct, so it is breaking and needs its own plan,
+changeset, and fixture sweep. **It is free inside the beta window and costs a 4.0 afterwards.**
+
+### Documentation still teaching a bare DLX (9 files)
+
+Fixed on the branch: `docs/tutorial/getting-started.md`, `docs/how-to/define-a-contract.md`,
+`docs/how-to/upgrade.md`, `docs/how-to/troubleshoot.md`, `docs/index.md`, root `README.md`.
+
+Still outstanding, in rough value order:
+
+- `packages/contract/README.md`, `packages/core/README.md`, `packages/worker/README.md` —
+  npm landing pages, same class as the root README
+- `docs/how-to/retry-failed-messages.md` (5 sites) — deserves care; read by people whose
+  messages are already failing
+- `docs/explanation/core-concepts.md`, `docs/tutorial/adding-request-reply.md`,
+  `docs/how-to/use-request-reply.md`, `docs/how-to/bridge-domains.md`,
+  `docs/examples/command-pattern.md`
+
+### Other deferred items
+
+- **`setup.ts` / `asyncapi` disagree on DLX precedence.** `setup.ts:94` lets `deadLetter` win
+  over `arguments`; `asyncapi/src/index.ts:371` lets `arguments` win. Pre-existing, newly
+  exposed. `setup.ts` is right — `asyncapi` describes what `setupAmqpTopology` declares, so it
+  is downstream, not a second opinion. Fix is `{ ...queue.arguments, ...derivedArgs }`.
+- **`deadLetter` + `onPoison: "drop"` together** is silently accepted; the contradiction is
+  never surfaced.
+- **`publishTimeoutMs` is unvalidated**, unlike its sibling `connectTimeoutMs`.
+- **Explicit `prefetch: 0`** is still legal and means unlimited — arguably it should now be
+  rejected in favour of `"unbounded"`.
+- **No automated gate on documentation snippets.** Two shipped snippets on this branch did not
+  compile; verification was manual throughout.
+- **A pre-existing parallel-test flake** affects both gates: multiple testcontainers competing
+  for one Docker daemon fail several projects at default concurrency. Proved to predate this
+  branch by stash-and-rebuild. Everything passes serialized. Recommend `--concurrency=1` on the
+  test tasks before CI meets a constrained runner.
+
+---
+
 ## Carried forward from the H1 implementation
 
 H1 shipped on branch `audit/h1-unroutable-publish`. These items were triaged during that work
