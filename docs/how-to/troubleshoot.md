@@ -221,11 +221,19 @@ worker's redeclaration fails with
 [`PRECONDITION_FAILED - inequivalent arg`](#precondition-failed-inequivalent-arg)
 — a 406 at startup rather than a define-time error. Three routes out:
 
-| Route                                                                                         | What it costs                                                                                                                                                             |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Declare a **new** queue carrying the DLX and migrate consumers to it                          | Drain the old queue first; two queues exist during the cutover                                                                                                            |
-| Apply dead-lettering as a **broker policy** (`rabbitmqctl set_policy … dead-letter-exchange`) | Works on existing queues, since policies are not part of queue identity — but the contract cannot see the policy, so it still needs `onPoison: "drop"` to pass this check |
-| `onPoison: "drop"`                                                                            | You accept the loss. Honest for a metrics firehose; a lie anywhere else                                                                                                   |
+| Route                                                                                         | What it costs                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Declare a **new** queue carrying the DLX and migrate consumers to it                          | Drain the old queue first; two queues exist during the cutover                                                                                                                                                                                             |
+| Apply dead-lettering as a **broker policy** (`rabbitmqctl set_policy … dead-letter-exchange`) | Works on existing queues, since policies are not part of queue identity — but the contract cannot see the policy, so it still needs `onPoison: "drop"` to pass this check, and the worker's logs will describe a discard that is not happening (see below) |
+| `onPoison: "drop"`                                                                            | You accept the loss. Honest for a metrics firehose; a lie anywhere else                                                                                                                                                                                    |
+
+If you take the broker-policy route, expect the worker to log
+`Discarding poison message: queue is declared onPoison: "drop" and has no DLX`
+on every rejected message. **Nothing is being lost.** The policy dead-letters
+the message correctly; the log line reports what the _contract_ declares, and
+the contract cannot see a broker policy. Treat that line as expected noise on
+policy-migrated queues, and keep your dead-letter alerting on the DLQ's depth
+rather than on this log.
 
 The upgrade guide covers the migration in full.
 
