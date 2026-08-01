@@ -34,6 +34,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { TypedAmqpWorker } from "@amqp-contract/worker";
@@ -47,6 +48,10 @@ const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
   retry: { mode: "ttl-backoff", maxRetries: 3, initialDelayMs: 1000 }, // Retry configured at queue level
 });
+// A dead-letter exchange with nothing bound to it drops what it receives, so the
+// DLQ and its binding are what make `deadLetter` actually keep anything. The
+// binding key must match the dead-letter routing key set above.
+const orderDlq = defineQueue("order-processing-dlq");
 
 // 2. Define message with schema validation
 const orderMessage = defineMessage(
@@ -69,6 +74,11 @@ const contract = defineContract({
   },
   consumers: {
     processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
+  },
+  // The DLQ is declared but never consumed — standalone topology
+  queues: { orderDlq },
+  bindings: {
+    orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "order.failed" }),
   },
 });
 

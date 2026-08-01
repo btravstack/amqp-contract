@@ -47,6 +47,7 @@ import {
   defineContract,
   defineExchange,
   defineQueue,
+  defineQueueBinding,
   defineEventPublisher,
   defineEventConsumer,
   defineMessage,
@@ -59,6 +60,9 @@ const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
   retry: { mode: "ttl-backoff" }, // Automatic retry with exponential backoff
 });
+// A dead-letter exchange with no queue bound to it drops what it receives.
+// Declare the dead-letter queue and the binding, or `deadLetter` keeps nothing.
+const orderDlq = defineQueue("order-processing-dlq");
 
 const orderMessage = defineMessage(
   z.object({
@@ -82,6 +86,9 @@ export const contract = defineContract({
     // EventConsumerResult → auto-extracted to consumer + binding
     processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
   },
+  // Standalone topology: the DLQ is declared, never consumed
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 
