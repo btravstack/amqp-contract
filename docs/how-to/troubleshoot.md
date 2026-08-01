@@ -47,6 +47,32 @@ To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: nu
 
 Usually missed heartbeats caused by a blocked event loop, not a network fault. See [tune performance](/how-to/tune-performance#heartbeats).
 
+### A publish hangs forever during a broker outage
+
+It no longer does. Channels now set a **30s** `publishTimeout` by default, so a
+publish issued while the broker is unreachable settles with a failure instead of
+buffering indefinitely with a promise that never resolves.
+
+Tune it per client or worker:
+
+```typescript
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  publishTimeoutMs: 10_000,
+}).get();
+```
+
+Or disable it entirely, restoring the previous unbounded buffering:
+
+```typescript
+const client = await TypedAmqpClient.create({
+  contract,
+  urls: ["amqp://localhost"],
+  publishTimeoutMs: null,
+}).get();
+```
+
 ## Type errors
 
 ### `Property 'X' does not exist on type …` in a handler

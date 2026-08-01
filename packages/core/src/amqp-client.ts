@@ -79,6 +79,19 @@ export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
 export const DEFAULT_PREFETCH = 10;
 
 /**
+ * Default `publishTimeout` for the channel, in milliseconds.
+ *
+ * Without a bound, publishes issued while the broker is unreachable buffer
+ * indefinitely and their promises never settle — a caller awaiting one waits
+ * forever. 30s is long enough that a brief reconnect does not fail healthy
+ * publishes, short enough that a real outage surfaces as an error.
+ *
+ * Pass `publishTimeoutMs: null` to disable, matching the `connectTimeoutMs`
+ * convention.
+ */
+export const DEFAULT_PUBLISH_TIMEOUT_MS = 30_000;
+
+/**
  * Normalise the user-supplied connect timeout to either a positive finite
  * number of milliseconds, or `null` (no timeout). An invalid numeric value
  * (`NaN`, `Infinity`, zero, negative) throws a {@link TechnicalError} rather
@@ -108,6 +121,10 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
  *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
  *   Pass `null` to disable the timeout entirely (amqp-connection-manager will
  *   retry indefinitely).
+ * @property publishTimeoutMs - Maximum time in ms a publish may sit buffered
+ *   waiting for the broker before its promise settles with a failure.
+ *   Defaults to {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable,
+ *   restoring unbounded buffering.
  * @property logger - Optional logger. Channel-level `'error'` events (topology
  *   setup failures on connect/reconnect, publish-worker faults) are routed
  *   here — they are recoverable-by-reconnect conditions, never thrown.
@@ -117,6 +134,14 @@ export type AmqpClientOptions = {
   connectionOptions?: AmqpConnectionManagerOptions | undefined;
   channelOptions?: Partial<CreateChannelOpts> | undefined;
   connectTimeoutMs?: number | null | undefined;
+  /**
+   * Maximum time in ms a publish may sit buffered waiting for the broker
+   * before its promise settles with a failure. Defaults to
+   * {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable, restoring
+   * unbounded buffering — a publish issued during an outage then never
+   * settles. Same convention as `connectTimeoutMs`.
+   */
+  publishTimeoutMs?: number | null | undefined;
   logger?: Logger | undefined;
 };
 
@@ -276,6 +301,13 @@ export class AmqpClient {
         await defaultSetup(channel);
         await callSetupFunc(userSetup, channel);
       };
+    }
+
+    // Resolved here, at the single point where every caller's channel is
+    // created, so client, worker, and direct core users all inherit it.
+    // `null` is the explicit "no timeout" opt-out (see connectTimeoutMs).
+    if (options.publishTimeoutMs !== null) {
+      channelOpts.publishTimeout = options.publishTimeoutMs ?? DEFAULT_PUBLISH_TIMEOUT_MS;
     }
 
     this.channelWrapper = this.connection.createChannel(channelOpts);

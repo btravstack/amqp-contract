@@ -270,11 +270,12 @@ export type CreateWorkerOptions<
    * Maximum time in ms a worker-side publish (retry republish, RPC reply) may
    * sit buffered waiting for the broker before its promise settles with a
    * timeout failure (surfaced as a `Defect`). Maps to
-   * amqp-connection-manager's channel-level `publishTimeout`. Without it,
-   * publishes issued during a broker outage buffer unboundedly in the channel
-   * wrapper and their promises never settle.
+   * amqp-connection-manager's channel-level `publishTimeout`. Defaults to 30s
+   * (the {@link AmqpClient}'s `DEFAULT_PUBLISH_TIMEOUT_MS`). Pass `null` to
+   * disable, restoring unbounded buffering — a publish issued during an
+   * outage then never settles.
    */
-  publishTimeoutMs?: number | undefined;
+  publishTimeoutMs?: number | null | undefined;
   /**
    * Cap on the decompressed size (bytes) of a single inbound message. Guards
    * against a decompression bomb — a few-KB payload that expands to gigabytes
@@ -521,10 +522,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           urls,
           connectionOptions,
           connectTimeoutMs,
+          publishTimeoutMs,
           logger,
-          ...(publishTimeoutMs !== undefined
-            ? { channelOptions: { publishTimeout: publishTimeoutMs } }
-            : {}),
         }),
         // Context types are erased at the dispatch boundary: handlers receive
         // whatever the (type-checked) middleware chain produced at runtime.

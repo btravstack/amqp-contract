@@ -1,6 +1,7 @@
 import type { EventEmitter } from "node:events";
 
 import type { ContractDefinition } from "@amqp-contract/contract";
+import { DEFAULT_PUBLISH_TIMEOUT_MS } from "@amqp-contract/core";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -68,13 +69,27 @@ describe("publishTimeoutMs threading", () => {
     await client.close().get();
   });
 
-  it("creates the channel without a publishTimeout when the option is omitted (buffer-forever default preserved)", async () => {
+  it("creates the channel with the core default publishTimeout when the option is omitted (bounded buffering)", async () => {
     const client = await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
     }).get();
 
     expect(createChannelMock()).toHaveBeenCalledTimes(1);
+    expect(createChannelMock()).toHaveBeenCalledWith(
+      expect.objectContaining({ publishTimeout: DEFAULT_PUBLISH_TIMEOUT_MS }),
+    );
+
+    await client.close().get();
+  });
+
+  it("omits publishTimeout entirely when explicitly disabled with null", async () => {
+    const client = await TypedAmqpClient.create({
+      contract,
+      urls: ["amqp://localhost"],
+      publishTimeoutMs: null,
+    }).get();
+
     const opts = createChannelMock().mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts).not.toHaveProperty("publishTimeout");
 

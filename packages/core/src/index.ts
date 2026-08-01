@@ -6,6 +6,7 @@ export {
   type ConsumeCallback,
   DEFAULT_CONNECT_TIMEOUT_MS,
   DEFAULT_PREFETCH,
+  DEFAULT_PUBLISH_TIMEOUT_MS,
 } from "./amqp-client.js";
 export { type ConnectionLease } from "./connection-manager.js";
 export { technicalDefect } from "./defect.js";
