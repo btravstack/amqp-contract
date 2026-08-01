@@ -22,12 +22,18 @@ import { it } from "./fixture.js";
  * `middleware: [mw]` disagreed: the bare form silently dropped every field the
  * seed provided.
  */
+const mwctxDlx = defineExchange("mwctx-dlx", { durable: false });
+
 describe("Worker middleware context merge", () => {
   const TestMessage = z.object({ id: z.string() });
 
   function buildContract(exchangeName: string, queueName: string) {
     const exchange = defineExchange(exchangeName, { durable: false });
-    const queue = defineQueue(queueName, { type: "classic", durable: false, onPoison: "drop" });
+    const queue = defineQueue(queueName, {
+      type: "classic",
+      durable: false,
+      deadLetter: { exchange: mwctxDlx },
+    });
     const testEvent = defineEventPublisher(exchange, defineMessage(TestMessage), {
       routingKey: "test.message",
     });

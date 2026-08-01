@@ -95,6 +95,8 @@ async function waitForWorkerReady(delayMs = 500): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+const clientWorkerDlx = defineExchange("client-worker-dlx", { durable: false });
+
 describe("Client and Worker Integration", () => {
   describe("end-to-end message flow", () => {
     it("should successfully publish and consume messages between client and worker", async ({
@@ -106,7 +108,7 @@ describe("Client and Worker Integration", () => {
       const queue = defineQueue("order-processing", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: clientWorkerDlx },
       });
       const orderMessage = defineMessage(
         z.object({
@@ -199,7 +201,7 @@ describe("Client and Worker Integration", () => {
       const queue = defineQueue("event-processing", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: clientWorkerDlx },
       });
       const eventMessage = defineMessage(
         z.object({
@@ -276,7 +278,7 @@ describe("Client and Worker Integration", () => {
       const queue = defineQueue("strict-processing", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: clientWorkerDlx },
       });
       const strictMessage = defineMessage(
         z.object({
@@ -344,12 +346,12 @@ describe("Client and Worker Integration", () => {
       const emailQueue = defineQueue("email-queue", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: clientWorkerDlx },
       });
       const smsQueue = defineQueue("sms-queue", {
         type: "classic",
         durable: false,
-        onPoison: "drop",
+        deadLetter: { exchange: clientWorkerDlx },
       });
 
       const notificationMessage = defineMessage(

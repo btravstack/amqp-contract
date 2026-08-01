@@ -81,14 +81,13 @@ const it = baseIt.extend<{
   },
 });
 
-// No DLX: these cases assert reply/timeout behaviour and never inspect a dead
-// letter. The dedicated "RPC DLQ routing" describe below builds its own
-// DLX-backed contract for the dead-letter half of INVARIANT 9.
+const rpcDlx = defineExchange("rpc-dlx", { durable: false });
+
 const buildContract = (queueName: string) => {
   const queue = defineQueue(queueName, {
     type: "classic",
     durable: false,
-    onPoison: "drop",
+    deadLetter: { exchange: rpcDlx },
   });
   const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const response = defineMessage(z.object({ sum: z.number() }));
@@ -226,7 +225,7 @@ const buildErrorContract = (queueName: string) => {
   const queue = defineQueue(queueName, {
     type: "classic",
     durable: false,
-    onPoison: "drop",
+    deadLetter: { exchange: rpcDlx },
   });
   const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const response = defineMessage(z.object({ sum: z.number() }));

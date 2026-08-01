@@ -86,12 +86,14 @@ async function waitForWorkerReady(delayMs = 500): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+const compressionDlx = defineExchange("compression-dlx", { durable: false });
+
 function buildContract() {
   const exchange = defineExchange("orders", { durable: false });
   const queue = defineQueue("order-processing", {
     type: "classic",
     durable: false,
-    onPoison: "drop",
+    deadLetter: { exchange: compressionDlx },
   });
   const orderMessage = defineMessage(
     z.object({

@@ -15,6 +15,8 @@ import { z } from "zod";
 
 import { AmqpClient } from "../amqp-client.js";
 
+const bridgeDlx = defineExchange("bridge-dlx", { durable: false });
+
 describe("AmqpClient Integration", () => {
   beforeEach(async () => {
     // Reset connection cache between tests
@@ -345,7 +347,7 @@ describe("AmqpClient Integration", () => {
     const localQueue = defineQueue("local-processing", {
       type: "classic",
       durable: false,
-      onPoison: "drop",
+      deadLetter: { exchange: bridgeDlx },
     });
     const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 

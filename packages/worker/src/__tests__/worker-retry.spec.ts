@@ -13,6 +13,8 @@ import { z } from "zod";
 import { RetryableError } from "../errors.js";
 import { it } from "./fixture.js";
 
+const retryDlx = defineExchange("retry-dlx", { durable: false });
+
 describe("Worker Retry Mechanism", () => {
   describe("Retry with Exponential Backoff", () => {
     it("should route retried message through wait queue with TTL", async ({
@@ -1049,9 +1051,7 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("routing-key-queue", {
         type: "classic",
         durable: false,
-        // A DLX would change where the exhausted message lands, which this test
-        // inspects; keep the drop explicit instead.
-        onPoison: "drop",
+        deadLetter: { exchange: retryDlx },
         retry: {
           mode: "ttl-backoff",
           maxRetries: 1,
@@ -1123,9 +1123,7 @@ describe("Worker Retry Mechanism", () => {
       const queue = defineQueue("max-retries-queue", {
         type: "classic",
         durable: false,
-        // As above: the assertion is on attempt counts after exhaustion, not on
-        // where the message goes.
-        onPoison: "drop",
+        deadLetter: { exchange: retryDlx },
         retry: {
           mode: "ttl-backoff",
           maxRetries: 1, // Only allow 1 retry

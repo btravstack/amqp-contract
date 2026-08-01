@@ -24,6 +24,8 @@ import { it } from "./fixture.js";
  * The fix tracks `messageHandled` across the dispatch path and refuses to nack
  * once the message has already been ack'd or nack'd.
  */
+const doubleAckDlx = defineExchange("doubleack-dlx", { durable: false });
+
 describe("Worker defensive nack guard", () => {
   it("does not double-act on the delivery tag when telemetry throws after ack", async ({
     amqpConnectionUrl,
@@ -59,7 +61,7 @@ describe("Worker defensive nack guard", () => {
     const queue = defineQueue("doubleack-q", {
       type: "classic",
       durable: false,
-      onPoison: "drop",
+      deadLetter: { exchange: doubleAckDlx },
     });
     const testMessage = defineMessage(TestMessage);
     const testEvent = defineEventPublisher(exchange, testMessage, {
