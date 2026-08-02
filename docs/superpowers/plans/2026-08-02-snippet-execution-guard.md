@@ -21,6 +21,30 @@
 - **Verbatim execution is the point.** No shared preamble, no injected imports, no scaffold prepended to a snippet. An earlier throwaway harness that injected a superset import preamble found **zero** defects; the version using each snippet's own imports immediately found three. A snippet that does not carry its own imports must fail.
 - **No skip mechanism.** Every in-scope snippet is made to construct. Nothing is annotated as exempt.
 
+## Ruling made before execution: snippets that connect
+
+A pre-flight scan found **two of the 29** in-scope snippets top-level `await` a
+client or worker against `amqp://localhost`:
+
+- `README.md` — `await TypedAmqpWorker.create(...)` and `await TypedAmqpClient.create(...)`
+- `packages/core/README.md` — `new AmqpClient(...)` then `await amqpClient.close().get()`
+
+Importing those attempts a real AMQP connection. `DEFAULT_CONNECT_TIMEOUT_MS` is
+**30 seconds** (`packages/core/src/amqp-client.ts:70`), so each would hang for
+half a minute and then fail for a reason unrelated to what this guard checks.
+
+**Ruling: split each of those two snippets into two fences** — one that defines the
+contract, one that uses it. The contract fence stays in scope and is guarded. The
+usage fence contains no `defineContract` call and so falls out of scope by the
+existing rule, with no marker and no exemption.
+
+Most other pages in this repository are already written that way, so this reads as
+a documentation improvement rather than a contortion. The alternative — excluding
+them — would leave the repository's single most-copied example unguarded, which is
+exactly where a broken snippet costs most.
+
+Applies in Task 3, alongside the other snippet fixes.
+
 ---
 
 ## File Structure
