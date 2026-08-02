@@ -77,6 +77,10 @@ const emailMessage = defineMessage(
     subject: z.string(),
     body: z.string(),
   }),
+  {
+    summary: "Email notification",
+    description: "Sent when an email needs to be delivered",
+  },
 );
 const sendEmailEvent = defineEventPublisher(notificationsExchange, emailMessage, {
   routingKey: "email",

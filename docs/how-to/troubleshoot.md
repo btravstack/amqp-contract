@@ -438,7 +438,7 @@ A dead-letter exchange declaring an `alternate-exchange` argument never triggers
 `#` is a _topic_ wildcard. A direct exchange has no wildcards and treats it as
 the literal routing key `#`, so a dead letter arriving under any other key
 matches nothing. Measured against RabbitMQ 4.2 in
-`tests/src/dlx-routability.spec.ts`: the same `#` binding receives the dead
+`tests/src/__tests__/dlx-routability.spec.ts`: the same `#` binding receives the dead
 letter on a topic DLX and receives nothing on a direct one.
 
 The check cannot catch this. When the queue sets no `deadLetter.routingKey`, the

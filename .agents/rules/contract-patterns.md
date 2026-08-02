@@ -2,7 +2,7 @@
 
 ## Contract Composition
 
-Resources are defined individually then composed into a contract. `defineContract` only accepts `publishers` and `consumers` — exchanges, queues, and bindings are automatically extracted and inferred:
+Resources are defined individually then composed into a contract. `publishers`, `consumers` and `rpcs` carry their own exchanges, queues, and bindings — those are automatically extracted and inferred, so the `exchanges` / `queues` / `bindings` keys are only for standalone topology nothing references:
 
 ```typescript
 import {
@@ -47,6 +47,30 @@ const contract = defineContract({
 // contract.queues contains: { processing: queue, 'processing-dlq': dlq }
 // contract.bindings contains: { processOrderBinding: ..., dlqBinding: ... }
 ```
+
+## Documented Contract Examples
+
+Every `ts`- or `typescript`-tagged fence containing `defineContract(` in `docs/`,
+`.agents/`, `README.md` and the package READMEs is **executed verbatim in CI**, with
+only the imports it shows (invariant 23 — `tests/src/snippets/snippet-execution.spec.ts`).
+There is no skip marker, allowlist, or exemption: an example that needs anything the
+reader would not copy is a broken example.
+
+Two rules follow when writing one:
+
+- **Carry your own imports.** No shared preamble is injected. Whatever the fence uses,
+  the fence must import.
+- **Split a fence that both defines a contract and connects.** A single fence that
+  defines a contract and then top-level-`await`s `TypedAmqpClient.create(...)`,
+  `TypedAmqpWorker.create(...)` or `new AmqpClient(...).connect()` attempts a real AMQP
+  connection when the guard imports it, and hangs for the full
+  `DEFAULT_CONNECT_TIMEOUT_MS` (30s — `packages/core/src/amqp-client.ts`) before failing
+  for a reason that has nothing to do with the example. Write it as two fences: a
+  `// contract.ts` fence that defines and exports the contract, then a usage fence that
+  does `import { contract } from "./contract.js"`. The usage fence contains no
+  `defineContract(` call, so it is out of scope by the same rule that puts the first one
+  in — no marker, no exemption. Most pages here are already written this way; see
+  `README.md` and `packages/core/README.md`.
 
 ## Event and Command Patterns
 
@@ -96,12 +120,16 @@ const processOrderCommand = defineCommandConsumer(orderQueue, ordersExchange, or
   routingKey: "order.process",
 });
 
-// For topic exchanges, publisher can specify concrete routing key
+// For topic exchanges, publisher can specify concrete routing key. It must be a
+// key the consumer's queue actually binds — `order.create` would be routed by
+// the sibling `order.*` event binding into `all-orders`, and `handleOrder`
+// would never see it.
 const createOrderPublisher = defineCommandPublisher(processOrderCommand, {
-  routingKey: "order.create",
+  routingKey: "order.process",
 });
 
-// Compose contract — only publishers and consumers are specified
+// Compose contract — publishers and consumers pull in the resources they
+// reference; declare only what nothing references, here the DLQ and its binding
 const contract = defineContract({
   publishers: {
     orderCreated: orderCreatedEvent,
@@ -116,6 +144,7 @@ const contract = defineContract({
   bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
 });
 // contract.exchanges, contract.queues, and contract.bindings are auto-populated
+// from those references, merged with the ones declared explicitly above
 ```
 
 ## Exchange Types

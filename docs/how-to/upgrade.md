@@ -116,7 +116,7 @@ Nothing is bound to "orders-dlx". RabbitMQ discards a message routed to zero que
   });
 ```
 
-**On a direct DLX, bind the real routing key.** `#` is a _topic_ wildcard. A direct exchange has no wildcards, so it treats `#` as the literal routing key `#` and a dead letter arriving under any other key matches nothing — measured against RabbitMQ 4.2: the same `#` binding on a topic DLX receives the dead letter, on a direct DLX it receives nothing (`tests/src/dlx-routability.spec.ts`). This is the one case the check cannot catch for you: with no `deadLetter.routingKey` set, the key a dead letter arrives under is the message's original key, which is not knowable at define time, so any binding at all satisfies the check. Bind the key the message will actually carry — the queue's `deadLetter.routingKey` if it sets one, otherwise every key the source queue can receive:
+**On a direct DLX, bind the real routing key.** `#` is a _topic_ wildcard. A direct exchange has no wildcards, so it treats `#` as the literal routing key `#` and a dead letter arriving under any other key matches nothing — measured against RabbitMQ 4.2: the same `#` binding on a topic DLX receives the dead letter, on a direct DLX it receives nothing (`tests/src/__tests__/dlx-routability.spec.ts`). This is the one case the check cannot catch for you: with no `deadLetter.routingKey` set, the key a dead letter arrives under is the message's original key, which is not knowable at define time, so any binding at all satisfies the check. Bind the key the message will actually carry — the queue's `deadLetter.routingKey` if it sets one, otherwise every key the source queue can receive:
 
 ```typescript
 import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/contract";
