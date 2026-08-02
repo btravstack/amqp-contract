@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "test:integration": "vitest run",
+    "test": "vitest run --project unit --passWithNoTests",
+    "test:integration": "vitest run --project integration",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
