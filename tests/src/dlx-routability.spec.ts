@@ -16,12 +16,16 @@ import { z } from "zod";
  *
  * Test 1 shows the hazard is genuine: a message dead-lettered to an exchange
  * with nothing bound is discarded by the broker, with no error anywhere. Test 2
- * shows the guard rejects that contract before it can run. Test 3 measures the
- * `#`-on-a-direct-exchange trap the guard's error text warns about but cannot
- * detect, which is why the warning has to travel in the message.
+ * shows the guard rejects that contract before it can run. Tests 3 and 4 are
+ * the mirror image: the same unbound exchange *does* deliver when it declares
+ * an `alternate-exchange`, so accepting that contract is not a hole in the
+ * guard. Test 5 measures the `#`-on-a-direct-exchange trap the guard's error
+ * text warns about but cannot detect, which is why the warning has to travel in
+ * the message.
  *
  * The first test is the reason the second exists; if anyone ever weakens the
- * guard, the pair reads as a complete argument for putting it back.
+ * guard, the pair reads as a complete argument for putting it back. The third
+ * is the reason the fourth exists, for the same reason in the other direction.
  */
 describe("dead-letter routability", () => {
   const message = defineMessage(z.object({ orderId: z.string() }));
@@ -136,6 +140,91 @@ describe("dead-letter routability", () => {
         },
       }),
     ).toThrow(/dead-letters to exchange/);
+  });
+
+  it("INVARIANT: a dead-letter exchange with an alternate exchange delivers with nothing bound", async ({
+    amqpChannel,
+  }) => {
+    // The guard accepts this shape, so the broker has to be the one saying it
+    // routes. Same setup as the first test's "lost" case — a DLX with nothing
+    // bound — differing only in the `alternate-exchange` argument.
+    await amqpChannel.assertExchange("ae-catch-all", "topic", { durable: false });
+    await amqpChannel.assertQueue("dlq-ae", { durable: false });
+    await amqpChannel.bindQueue("dlq-ae", "ae-catch-all", "#");
+
+    // Direct, so no wildcard can accidentally rescue the message, and bound to
+    // nothing: only the alternate exchange can catch it.
+    await amqpChannel.assertExchange("dlx-ae", "direct", {
+      durable: false,
+      alternateExchange: "ae-catch-all",
+    });
+    // The control: identical, minus the argument. This is the shape the guard
+    // still rejects, measured in the same vhost and the same window.
+    await amqpChannel.assertExchange("dlx-no-ae", "direct", { durable: false });
+
+    await amqpChannel.assertQueue("src-ae", { durable: false, deadLetterExchange: "dlx-ae" });
+    await amqpChannel.assertQueue("src-no-ae", { durable: false, deadLetterExchange: "dlx-no-ae" });
+
+    // Published through the default exchange, so each dead letter keeps its
+    // queue's name as its routing key — a key neither DLX has a binding for.
+    amqpChannel.sendToQueue("src-ae", body("with-alternate"));
+    amqpChannel.sendToQueue("src-no-ae", body("without-alternate"));
+
+    const withAe = await amqpChannel.get("src-ae", { noAck: false });
+    const withoutAe = await amqpChannel.get("src-no-ae", { noAck: false });
+    expect(withAe).not.toBe(false);
+    expect(withoutAe).not.toBe(false);
+    if (withAe === false || withoutAe === false) {
+      // oxlint-disable-next-line unthrown/no-throw -- test setup; the assertions above have already failed
+      throw new Error("the broker did not deliver the messages under test");
+    }
+
+    amqpChannel.nack(withAe, false, false);
+    amqpChannel.nack(withoutAe, false, false);
+
+    // THEN the alternate exchange catches the one the DLX could not route.
+    await vi.waitFor(
+      async () => {
+        expect((await amqpChannel.checkQueue("dlq-ae")).messageCount).toBe(1);
+        expect((await amqpChannel.checkQueue("src-no-ae")).messageCount).toBe(0);
+      },
+      { timeout: 10_000, interval: 50 },
+    );
+
+    const caught = await amqpChannel.get("dlq-ae", { noAck: true });
+    expect(caught).not.toBe(false);
+    const caughtBody = caught === false ? undefined : JSON.parse(caught.content.toString());
+    // Only the alternate-exchange message survived: the control was dead-lettered
+    // in the same window and is nowhere, which is why rejecting the first shape
+    // and accepting this one are both correct.
+    expect(caughtBody).toEqual({ orderId: "with-alternate" });
+    expect(await amqpChannel.get("dlq-ae", { noAck: true })).toBe(false);
+  }, 20_000);
+
+  it("INVARIANT: the alternate-exchange contract is accepted at define time", () => {
+    const orders = defineExchange("orders-aer", { type: "topic", durable: false });
+    const dlx = defineExchange("orders-dlx-aer", {
+      type: "direct",
+      durable: false,
+      arguments: { "alternate-exchange": "ae-catch-all" },
+    });
+    const queue = defineQueue("order-processing-aer", {
+      type: "classic",
+      durable: false,
+      deadLetter: { exchange: dlx },
+    });
+
+    expect(() =>
+      defineContract({
+        publishers: {
+          orderCreated: definePublisher(orders, message, { routingKey: "order.created" }),
+        },
+        consumers: { processOrder: defineConsumer(queue, message) },
+        bindings: {
+          processOrder: defineQueueBinding(queue, orders, { routingKey: "order.created" }),
+        },
+      }),
+    ).not.toThrow();
   });
 
   it("INVARIANT: on a direct dead-letter exchange, a '#' binding receives nothing", async ({
