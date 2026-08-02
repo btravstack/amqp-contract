@@ -10,6 +10,7 @@ import type {
   RpcDefinition,
 } from "../types.js";
 import { isBridgedPublisherConfig, isCommandConsumerConfig } from "./command.js";
+import { _internal_assertDeadLetterRoutable } from "./dead-letter-routability.js";
 import { isEventConsumerResult, isEventPublisherConfig } from "./event.js";
 import { _internal_assertNoSilentPoisonLoss } from "./poison-loss.js";
 import { definePublisherInternal } from "./publisher.js";
@@ -318,6 +319,13 @@ export function defineContract<TContract extends ContractDefinitionInput>(
   }
   for (const [rpcName, rpc] of Object.entries(result.rpcs ?? {})) {
     _internal_assertNoSilentPoisonLoss(rpc.queue, rpcName);
+  }
+
+  // Every declared queue, not only consumed ones: a queue whose DLX routes
+  // nowhere loses its dead-lettered messages whoever consumes it, and
+  // `queues` already holds every queue the contract knows about.
+  for (const queue of Object.values(queues)) {
+    _internal_assertDeadLetterRoutable(queue, declaredBindings);
   }
 
   return result as ContractOutput<TContract>;

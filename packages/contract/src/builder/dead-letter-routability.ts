@@ -78,3 +78,44 @@ export function _internal_resolveDeadLetterRoutability(
     ? "routable"
     : "unroutable";
 }
+
+/**
+ * Throw when a queue's dead-lettered messages would reach no queue.
+ *
+ * The remedy deliberately never says "add a `deadLetter` config" — the author
+ * has one; that is the premise of the finding. A remedy that does not apply is
+ * worse than none, because it sends the reader after the wrong thing while
+ * looking authoritative.
+ *
+ * @internal
+ */
+export function _internal_assertDeadLetterRoutable(
+  queue: QueueDefinition,
+  bindings: readonly BindingDefinition[],
+): void {
+  const verdict = _internal_resolveDeadLetterRoutability(queue, bindings);
+  if (verdict !== "unroutable") return;
+
+  // Non-null: "unroutable" is only reachable through rows 3 and 4, both of
+  // which require a typed `deadLetter` config.
+  const deadLetter = queue.deadLetter as NonNullable<QueueDefinition["deadLetter"]>;
+  const exchange = deadLetter.exchange;
+  const declared = _internal_declaredPatternsFor(exchange.name, bindings);
+  const declaredText =
+    declared.length > 0
+      ? `Declared on "${exchange.name}": ${declared.map((p) => `"${p}"`).join(", ")}.`
+      : `Nothing is bound to "${exchange.name}".`;
+  const keyText =
+    deadLetter.routingKey === undefined
+      ? "its dead-lettered messages keep their original routing key"
+      : `its dead-lettered messages are routed with "${deadLetter.routingKey}"`;
+
+  // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
+  throw new Error(
+    `Queue "${queue.name}" dead-letters to exchange "${exchange.name}" (${exchange.type}), but ` +
+      `nothing there can receive them: ${keyText}. ${declaredText} RabbitMQ discards a message ` +
+      `routed to zero queues, so these would be lost exactly as silently as if the queue had no ` +
+      `dead-letter exchange at all. Bind a queue to "${exchange.name}" that accepts them, or set ` +
+      `\`externalConsumers: true\` on the deadLetter config if another service owns that queue.`,
+  );
+}

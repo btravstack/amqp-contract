@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
@@ -14,6 +15,10 @@ import { RetryableError } from "../errors.js";
 import { it } from "./fixture.js";
 
 const holDlx = defineExchange("hol-dlx", { durable: false });
+// Topic DLX with no dead-letter routing key on the queue, so `#` catches
+// whatever key the rejected message arrived with. Without a queue bound here,
+// defineContract rejects the contract.
+const holDlq = defineQueue("hol-queue-dlq", { type: "classic", durable: false });
 
 describe("TTL-backoff head-of-line blocking", () => {
   it("INVARIANT: a short-delay retry is not blocked by a long-delay retry parked ahead of it", async ({
@@ -52,6 +57,8 @@ describe("TTL-backoff head-of-line blocking", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
       },
+      queues: { holDlq },
+      bindings: { holDlqBinding: defineQueueBinding(holDlq, holDlx, { routingKey: "#" }) },
     });
 
     const deliveries: Array<{ id: string; at: number }> = [];

@@ -39,8 +39,19 @@ describe("silent poison-loss guard", () => {
 
   it("accepts a consumed queue with a dead-letter exchange", () => {
     const queue = defineQueue("order-processing", { deadLetter: { exchange: dlx } });
+    const dlq = defineQueue("orders-dlq");
 
-    expect(() => defineContract(contractWith(queue))).not.toThrow();
+    expect(() =>
+      defineContract({
+        ...contractWith(queue),
+        queues: { dlq },
+        bindings: {
+          processOrder: defineQueueBinding(queue, orders, { routingKey: "order.created" }),
+          // The DLX check needs somewhere for the dead-lettered messages to land.
+          dlq: defineQueueBinding(dlq, dlx, { routingKey: "#" }),
+        },
+      }),
+    ).not.toThrow();
   });
 
   it('accepts a consumed queue that explicitly opts in to dropping with onPoison: "drop"', () => {
@@ -106,12 +117,20 @@ describe("silent poison-loss guard", () => {
 
   it("accepts an RPC queue with a dead-letter exchange", () => {
     const queue = defineQueue("rpc.calculate", { deadLetter: { exchange: dlx } });
+    const dlq = defineQueue("orders-dlq");
     const calculate = defineRpc(queue, {
       request: defineMessage(z.object({ a: z.number() })),
       response: defineMessage(z.object({ sum: z.number() })),
     });
 
-    expect(() => defineContract({ rpcs: { calculate } })).not.toThrow();
+    expect(() =>
+      defineContract({
+        rpcs: { calculate },
+        queues: { dlq },
+        // The DLX check needs somewhere for the dead-lettered messages to land.
+        bindings: { dlq: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
+      }),
+    ).not.toThrow();
   });
 
   it("DOES require it once that same dead-letter queue is consumed", () => {

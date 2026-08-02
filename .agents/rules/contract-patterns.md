@@ -11,21 +11,29 @@ const queue = defineQueue("processing", {
   deadLetter: { exchange: dlx },
   retry: { mode: "immediate-requeue", maxRetries: 5 },
 });
+// A DLX with nothing bound to it is rejected by `defineContract`: RabbitMQ
+// discards a message routed to zero queues. The DLX here is DIRECT and the
+// queue sets no dead-letter routing key, so a dead letter keeps its original
+// key — bind that key verbatim. `#` is a topic wildcard and matches nothing on
+// a direct exchange.
+const dlq = defineQueue("processing-dlq");
 const message = defineMessage(z.object({ orderId: z.string() }));
 
 // Define event publisher
 const orderCreatedEvent = defineEventPublisher(exchange, message, { routingKey: "order.created" });
 
-// Compose contract — only publishers and consumers are specified
-// Exchanges, queues, and bindings are automatically extracted
+// Compose contract — publishers, consumers, plus the standalone DLQ topology
+// Exchanges, queues, and bindings are otherwise automatically extracted
 const contract = defineContract({
   publishers: { orderCreated: orderCreatedEvent },
   consumers: { processOrder: defineEventConsumer(orderCreatedEvent, queue) },
+  queues: { dlq },
+  bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "order.created" }) },
 });
 
 // contract.exchanges contains: { orders: exchange, 'orders-dlx': dlx }
-// contract.queues contains: { processing: queue }
-// contract.bindings contains: { processOrderBinding: ... }
+// contract.queues contains: { processing: queue, 'processing-dlq': dlq }
+// contract.bindings contains: { processOrderBinding: ..., dlqBinding: ... }
 ```
 
 ## Event and Command Patterns
@@ -85,6 +93,7 @@ const contract = defineContract({
 - Use `type: 'quorum'` (default) for reliable, replicated queues (always durable, do not support exclusive, auto-deleting, or priority queues)
 - Use `type: 'classic'` only for special cases (non-durable, exclusive, auto-deleting, or priority queues)
 - Every **consumed** queue needs a `deadLetter` — or an explicit `onPoison: "drop"`. `defineContract` throws otherwise, because a consumed queue with neither discards every rejected message with no record. Declared-but-unconsumed queues (dead-letter queues included) are exempt; a DLQ you _do_ consume needs `onPoison: "drop"`, since it cannot dead-letter to itself.
+- Every `deadLetter` exchange needs **something bound to it**. `defineContract` throws for a DLX that routes nowhere, because RabbitMQ discards a message routed to zero queues — the loss is identical to having no DLX, while the worker logs a reassuring `Sending message to DLQ`. Bind a DLQ, or set `externalConsumers: true` on the `deadLetter` config when another service owns that queue. On a **direct** DLX bind the actual key: `#` is a topic wildcard and matches nothing there.
 
 ```typescript
 // Quorum queue (default, recommended)
@@ -139,6 +148,9 @@ const ordersExchange = defineExchange("orders");
 const billingExchange = defineExchange("billing");
 const billingDlx = defineExchange("billing-dlx");
 const billingQueue = defineQueue("billing-orders", { deadLetter: { exchange: billingDlx } });
+// `billing-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the message arrived with.
+const billingDlq = defineQueue("billing-orders-dlq");
 
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
@@ -150,8 +162,10 @@ const contract = defineContract({
       bridgeExchange: billingExchange,
     }),
   },
+  queues: { billingDlq },
+  bindings: { billingDlqBinding: defineQueueBinding(billingDlq, billingDlx, { routingKey: "#" }) },
 });
-// contract.exchanges: { orders, billing }
+// contract.exchanges: { orders, billing, 'billing-dlx' }
 // contract.bindings: queue binding + exchange-to-exchange binding (both auto-generated)
 
 // Publishing commands to a remote domain via bridge

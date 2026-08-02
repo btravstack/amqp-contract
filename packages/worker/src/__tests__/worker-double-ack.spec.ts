@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import type { TelemetryProvider } from "@amqp-contract/core";
 import { OkAsync } from "unthrown";
@@ -25,6 +26,10 @@ import { it } from "./fixture.js";
  * once the message has already been ack'd or nack'd.
  */
 const doubleAckDlx = defineExchange("doubleack-dlx", { durable: false });
+// Topic DLX with no dead-letter routing key on the queue, so `#` catches
+// whatever key the rejected message arrived with. Without a queue bound here,
+// defineContract rejects the contract.
+const doubleAckDlq = defineQueue("doubleack-q-dlq", { type: "classic", durable: false });
 
 describe("Worker defensive nack guard", () => {
   it("does not double-act on the delivery tag when telemetry throws after ack", async ({
@@ -72,6 +77,10 @@ describe("Worker defensive nack guard", () => {
       publishers: { testPublisher: testEvent },
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+      },
+      queues: { doubleAckDlq },
+      bindings: {
+        doubleAckDlqBinding: defineQueueBinding(doubleAckDlq, doubleAckDlx, { routingKey: "#" }),
       },
     });
 

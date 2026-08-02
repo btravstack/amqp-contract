@@ -52,6 +52,12 @@ const orderQueue = defineQueue("order-processing", {
 
 After `maxRetries`, the message is dead-lettered.
 
+`dlx` here needs a queue bound to it. `defineContract` rejects a dead-letter
+exchange with nothing bound, because RabbitMQ discards a message routed to zero
+queues — a bare DLX loses every retry-exhausted message exactly as silently as
+no DLX at all. See [route dead letters](/how-to/route-dead-letters) for the
+declaration; every `deadLetter` on this page assumes it is in place.
+
 On quorum queues the count comes from RabbitMQ's native `x-delivery-count`; on classic queues the worker maintains `x-retry-count` by republishing.
 
 ::: warning Quorum delivery limit
@@ -150,6 +156,8 @@ If you need context on the message itself, use `ttl-backoff` (which always repub
 ## Avoid the common traps
 
 **No dead-letter exchange.** `nack(requeue=false)` with no `deadLetter` configured discards the message. The worker warns; the body is gone. Configure `deadLetter` if poison messages matter.
+
+**A dead-letter exchange with nothing bound to it.** Same outcome, no warning: RabbitMQ discards a message routed to zero queues, while the worker logs a reassuring `Sending message to DLQ`. `defineContract` now rejects this at definition time — bind a queue to the DLX, or set `externalConsumers: true` on the `deadLetter` config when another service owns that queue.
 
 **Retrying non-idempotent work.** Retries are delivery attempts, not exactly-once semantics. A handler that charges a card then fails will charge again. Use an idempotency key, an upsert, or a dedupe table keyed on message ID.
 

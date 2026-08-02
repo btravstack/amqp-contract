@@ -46,6 +46,10 @@ const ordersDlx = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
+// A dead-letter exchange with nothing bound to it discards every rejected
+// message, so declare the DLQ and bind it. `orders-dlx` is topic, so `#`
+// catches whatever routing key the message arrived with.
+const orderDlq = defineQueue("order-processing-dlq");
 const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 
 const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
@@ -60,6 +64,8 @@ const contract = defineContract({
   consumers: {
     processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
   },
+  queues: { orderDlq },
+  bindings: { orderDlqBinding: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 
 // Setup AMQP resources

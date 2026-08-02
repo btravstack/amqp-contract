@@ -47,7 +47,7 @@ export const contract = defineContract({
 
 `defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached, which is exactly what a dead-letter queue is.
 
-`defineContract` requires a consumed queue to declare a `deadLetter` (or `onPoison: "drop"`), but it cannot tell whether the exchange you name has anything bound to it — that check belongs to the broker, and the broker silently drops unroutable dead letters. Declaring the DLQ and its binding alongside is what makes the dead-lettering real.
+`defineContract` requires a consumed queue to declare a `deadLetter` (or `onPoison: "drop"`), **and** requires something to be bound to the exchange it names — a dead-letter exchange that routes nowhere loses exactly the messages `deadLetter` was added to keep, because the broker silently drops what matches no binding. Declaring the DLQ and its binding alongside is what makes the dead-lettering real. When another service owns the dead-letter queue, say so with `externalConsumers: true` on the `deadLetter` config instead.
 
 ## Broadcast an event to many consumers
 
@@ -58,12 +58,20 @@ const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
 });
 
+// A second consumer means a second queue — and, since it dead-letters too, the
+// shared DLX still needs the bound DLQ from the block above.
+const notificationsQueue = defineQueue("order-notifications", {
+  deadLetter: { exchange: ordersDlx },
+});
+
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: {
     processOrder: defineEventConsumer(orderCreated, orderProcessingQueue),
     notifyCustomer: defineEventConsumer(orderCreated, notificationsQueue),
   },
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 

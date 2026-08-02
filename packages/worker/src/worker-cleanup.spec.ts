@@ -4,6 +4,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   type ContractDefinition,
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
@@ -18,6 +19,10 @@ import { z } from "zod";
 import { TypedAmqpWorker } from "./worker.js";
 
 const ordersDlx = defineExchange("orders-dlx");
+// `orders-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the rejected message arrived with. Without a queue bound
+// here, defineContract rejects the contract.
+const ordersDlq = defineQueue("orders-dlq", { type: "classic", durable: false });
 
 describe("TypedAmqpWorker.create cleanup", () => {
   beforeEach(async () => {
@@ -52,6 +57,8 @@ describe("TypedAmqpWorker.create cleanup", () => {
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },
+      queues: { ordersDlq },
+      bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
     });
 
     // Cast to bypass the type-level completeness requirement; the runtime
@@ -86,6 +93,8 @@ describe("TypedAmqpWorker.create cleanup", () => {
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },
+      queues: { ordersDlq },
+      bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
     });
 
     // `{ processOrder: undefined }` passes the missing-handlers guard
@@ -142,6 +151,8 @@ describe("TypedAmqpWorker.create cleanup", () => {
           defineMessage(z.object({ orderId: z.string() })),
         ),
       },
+      queues: { ordersDlq },
+      bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
     });
 
     // A stale key in a spread-built handlers object (or a rename that missed

@@ -7,6 +7,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
@@ -91,6 +92,9 @@ const buildConsumerContract = (suffix: string) => {
     durable: false,
     deadLetter: { exchange: dlx },
   });
+  // A DLX with nothing bound discards every message routed to it, so declare
+  // the dead-letter queue and bind it on the key the DLX will see.
+  const dlq = defineQueue(`orders-${suffix}-dlq`, { type: "classic", durable: false });
   const message = defineMessage(z.object({ orderId: z.string() }));
   const processOrder = defineCommandConsumer(queue, exchange, message, {
     routingKey: "order.process",
@@ -99,6 +103,8 @@ const buildConsumerContract = (suffix: string) => {
   return defineContract({
     publishers: { createOrder },
     consumers: { processOrder },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
   });
 };
 
@@ -109,6 +115,9 @@ const buildRpcContract = (suffix: string) => {
     durable: false,
     deadLetter: { exchange: dlx },
   });
+  // A DLX with nothing bound discards every message routed to it, so declare
+  // the dead-letter queue and bind it on the key the DLX will see.
+  const dlq = defineQueue(`rpc-${suffix}-dlq`, { type: "classic", durable: false });
   const calculate = defineRpc(queue, {
     request: defineMessage(z.object({ a: z.number(), b: z.number() })),
     response: defineMessage(z.object({ sum: z.number() })),
@@ -116,7 +125,11 @@ const buildRpcContract = (suffix: string) => {
       BLOCKED: { data: z.object({ reason: z.string() }) },
     },
   });
-  return defineContract({ rpcs: { calculate } });
+  return defineContract({
+    rpcs: { calculate },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
+  });
 };
 
 describe("worker middleware", () => {

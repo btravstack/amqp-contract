@@ -16,6 +16,10 @@ import { z } from "zod";
 import { AmqpClient } from "../amqp-client.js";
 
 const bridgeDlx = defineExchange("bridge-dlx", { durable: false });
+// `bridge-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the rejected message arrived with. Without a queue bound
+// here, defineContract rejects the contract.
+const bridgeDlq = defineQueue("local-processing-dlq", { type: "classic", durable: false });
 
 describe("AmqpClient Integration", () => {
   beforeEach(async () => {
@@ -361,6 +365,8 @@ describe("AmqpClient Integration", () => {
           bridgeExchange,
         }),
       },
+      queues: { bridgeDlq },
+      bindings: { bridgeDlqBinding: defineQueueBinding(bridgeDlq, bridgeDlx, { routingKey: "#" }) },
     });
 
     const client = new AmqpClient(contract, {

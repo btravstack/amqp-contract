@@ -4,6 +4,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import type { ConsumeMessage } from "amqplib";
@@ -60,6 +61,11 @@ describe("handlers", () => {
   const rpcRequest = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const rpcResponse = defineMessage(z.object({ sum: z.number() }));
 
+  // `test-dlx` is topic and neither queue sets a dead-letter routing key, so
+  // `#` catches whatever key the rejected message arrived with. Without a queue
+  // bound here, defineContract rejects the contract.
+  const dlq = defineQueue("test-dlq");
+
   const testContract = defineContract({
     consumers: {
       testConsumer: defineConsumer(testQueue, testMessage),
@@ -68,6 +74,8 @@ describe("handlers", () => {
     rpcs: {
       calculate: defineRpc(rpcQueue, { request: rpcRequest, response: rpcResponse }),
     },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
   });
 
   describe("declareHandler (safe handlers)", () => {

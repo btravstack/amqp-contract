@@ -53,10 +53,17 @@ describe("default prefetch", () => {
       durable: false,
       deadLetter: { exchange: dlx },
     });
+    // A DLX with nothing bound discards every message routed to it, so declare
+    // the dead-letter queue and bind it on the key the DLX will see.
+    const dlq = defineQueue(`prefetch-q-${label}-dlq`, { type: "classic", durable: false });
     const contract = defineContract({
       publishers: { emit: definePublisher(exchange, message, { routingKey: "p.one" }) },
       consumers: { onOne: defineConsumer(queue, message) },
-      bindings: { onOne: defineQueueBinding(queue, exchange, { routingKey: "p.one" }) },
+      queues: { dlq },
+      bindings: {
+        onOne: defineQueueBinding(queue, exchange, { routingKey: "p.one" }),
+        dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }),
+      },
     });
 
     let inFlight = 0;

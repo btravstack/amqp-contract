@@ -37,6 +37,7 @@ import {
   defineContract,
   defineExchange,
   defineQueue,
+  defineQueueBinding,
   defineMessage,
 } from "@amqp-contract/contract";
 import { z } from "zod";
@@ -59,6 +60,10 @@ const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
 const ordersDlx = defineExchange("orders-dlx");
 const orderQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
 const analyticsQueue = defineQueue("analytics", { deadLetter: { exchange: ordersDlx } });
+// A dead-letter exchange with nothing bound to it discards every rejected
+// message, so declare the DLQ and bind it. `orders-dlx` is topic, so `#`
+// catches whatever routing key the message arrived with.
+const ordersDlq = defineQueue("orders-dlq");
 
 // Compose contract - exchanges, queues, bindings auto-extracted
 const contract = defineContract({
@@ -73,6 +78,10 @@ const contract = defineContract({
     trackOrders: defineEventConsumer(orderCreatedEvent, analyticsQueue, {
       routingKey: "order.*", // Subscribe to all order events
     }),
+  },
+  queues: { ordersDlq },
+  bindings: {
+    ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }),
   },
 });
 ```
@@ -92,11 +101,14 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
 const rpcDlx = defineExchange("rpc-dlx");
+
+const rpcDlq = defineQueue("rpc-dlq");
 
 const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
@@ -105,6 +117,10 @@ const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchang
 
 const contract = defineContract({
   rpcs: { calculate },
+  // A dead-letter exchange with nothing bound to it discards every rejected
+  // request, so declare the DLQ and bind it.
+  queues: { rpcDlq },
+  bindings: { rpcDlqBinding: defineQueueBinding(rpcDlq, rpcDlx, { routingKey: "#" }) },
 });
 
 // Server handler returns the response value, not void:

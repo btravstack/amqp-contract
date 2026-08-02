@@ -8,6 +8,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "./index.js";
 
 /**
@@ -31,9 +32,16 @@ describe("ContractOutput / defineContract parity", () => {
     routingKey: "order.created",
   });
 
+  // The DLX is `direct` and the queue sets no dead-letter routing key, so a
+  // dead-lettered message keeps its original key — bind that exact key. `#` is
+  // a topic wildcard; on a direct exchange it is a literal that matches nothing.
+  const orderDlq = defineQueue("order-processing-dlq");
+
   const contract = defineContract({
     publishers: { orderCreated },
     consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
+    queues: { orderDlq },
+    bindings: { dlqBinding: defineQueueBinding(orderDlq, dlx, { routingKey: "order.created" }) },
   });
 
   it("exchanges: runtime keys match the type-level keys", () => {
@@ -43,13 +51,13 @@ describe("ContractOutput / defineContract parity", () => {
   });
 
   it("queues: runtime keys match the type-level keys (no injected wait queues)", () => {
-    const expected = ["order-processing"] as const;
+    const expected = ["order-processing", "order-processing-dlq"] as const;
     expectTypeOf<keyof typeof contract.queues>().toEqualTypeOf<(typeof expected)[number]>();
     expect(Object.keys(contract.queues).sort()).toEqual([...expected].sort());
   });
 
   it("bindings: runtime keys match the type-level keys (no injected retry bindings)", () => {
-    const expected = ["processOrderBinding"] as const;
+    const expected = ["processOrderBinding", "dlqBinding"] as const;
     expectTypeOf<keyof typeof contract.bindings>().toEqualTypeOf<(typeof expected)[number]>();
     expect(Object.keys(contract.bindings).sort()).toEqual([...expected].sort());
   });

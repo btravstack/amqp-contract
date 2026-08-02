@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
@@ -16,6 +17,14 @@ import { TypedAmqpWorker } from "../worker.js";
 import { it } from "./fixture.js";
 
 const workerDlx = defineExchange("worker-dlx", { durable: false });
+// `worker-dlx` is topic and no queue below sets a dead-letter routing key, so
+// `#` catches whatever key the rejected message arrived with. Without a queue
+// bound here, defineContract rejects every contract in this file.
+const workerDlq = defineQueue("worker-dlq", { type: "classic", durable: false });
+const workerDlqTopology = {
+  queues: { workerDlq },
+  bindings: { workerDlqBinding: defineQueueBinding(workerDlq, workerDlx, { routingKey: "#" }) },
+};
 
 describe("AmqpWorker Integration", () => {
   it("should consume messages from a real RabbitMQ instance", async ({
@@ -42,6 +51,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string; message: string }> = [];
@@ -100,6 +110,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string; count: number }> = [];
@@ -162,6 +173,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string; count: number }> = [];
@@ -234,6 +246,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "multi.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string; count: number }> = [];
@@ -291,6 +304,7 @@ describe("AmqpWorker Integration", () => {
         consumer1: defineEventConsumer(event1, queue1),
         consumer2: defineEventConsumer(event2, queue2),
       },
+      ...workerDlqTopology,
     });
 
     const messages1: Array<{ id: string }> = [];
@@ -351,6 +365,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "validation.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string; count: number }> = [];
@@ -400,6 +415,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "error.#" }),
       },
+      ...workerDlqTopology,
     });
 
     let attemptCount = 0;
@@ -460,6 +476,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         destConsumer: defineEventConsumer(destEvent, queue),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ msg: string }> = [];
@@ -512,6 +529,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "close.#" }),
       },
+      ...workerDlqTopology,
     });
 
     const messages: Array<{ id: string }> = [];
@@ -585,6 +603,7 @@ describe("AmqpWorker Integration", () => {
           routingKey: "notification.#",
         }),
       },
+      ...workerDlqTopology,
     });
 
     const orders: Array<{ orderId: string; amount: number }> = [];
@@ -701,6 +720,7 @@ describe("AmqpWorker Integration", () => {
       consumers: {
         testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "cancel.#" }),
       },
+      ...workerDlqTopology,
     });
 
     // Create a mock logger to capture warnings

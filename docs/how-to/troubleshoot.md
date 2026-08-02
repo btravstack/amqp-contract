@@ -193,9 +193,8 @@ unless a logger was wired.
 
 On a queue that does not exist on the broker yet, keep failed messages for
 inspection. Declare the dead-letter queue and its binding as well — the check
-requires a `deadLetter` pointer but cannot see whether the exchange it names
-routes anywhere, and the broker silently drops a dead letter that matches no
-binding:
+requires a `deadLetter` pointer _and_ rejects an exchange with nothing bound to
+it, because the broker silently drops a dead letter that matches no binding:
 
 ```typescript
 const ordersDlx = defineExchange("orders-dlx");

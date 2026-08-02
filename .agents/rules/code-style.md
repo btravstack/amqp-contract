@@ -24,6 +24,10 @@ const ordersDlx = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
+// A DLX with nothing bound to it is rejected: RabbitMQ discards a message
+// routed to zero queues. `orders-dlx` is topic, so `#` catches whatever key the
+// message arrived with.
+const orderDlq = defineQueue("order-processing-dlq");
 const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 
 const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
@@ -33,6 +37,8 @@ const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
 const contract = defineContract({
   publishers: { orderCreated: orderCreatedEvent },
   consumers: { processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlqBinding: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 
