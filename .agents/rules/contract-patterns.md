@@ -5,17 +5,29 @@
 Resources are defined individually then composed into a contract. `defineContract` only accepts `publishers` and `consumers` — exchanges, queues, and bindings are automatically extracted and inferred:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
 const dlx = defineExchange("orders-dlx", { type: "direct" });
 const exchange = defineExchange("orders");
+// A DLX with nothing bound to it is rejected by `defineContract`: RabbitMQ
+// discards a message routed to zero queues. Set `deadLetter.routingKey` and
+// bind that exact key. Without it a dead letter keeps whatever key it arrived
+// under — which a `ttl-backoff` retry or a `classic` queue's immediate requeue
+// rewrites to the queue name — and on a DIRECT exchange `#` is a literal key,
+// not a wildcard, so it would match nothing.
 const queue = defineQueue("processing", {
-  deadLetter: { exchange: dlx },
+  deadLetter: { exchange: dlx, routingKey: "processing.dlq" },
   retry: { mode: "immediate-requeue", maxRetries: 5 },
 });
-// A DLX with nothing bound to it is rejected by `defineContract`: RabbitMQ
-// discards a message routed to zero queues. The DLX here is DIRECT and the
-// queue sets no dead-letter routing key, so a dead letter keeps its original
-// key — bind that key verbatim. `#` is a topic wildcard and matches nothing on
-// a direct exchange.
 const dlq = defineQueue("processing-dlq");
 const message = defineMessage(z.object({ orderId: z.string() }));
 
@@ -28,7 +40,7 @@ const contract = defineContract({
   publishers: { orderCreated: orderCreatedEvent },
   consumers: { processOrder: defineEventConsumer(orderCreatedEvent, queue) },
   queues: { dlq },
-  bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "order.created" }) },
+  bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "processing.dlq" }) },
 });
 
 // contract.exchanges contains: { orders: exchange, 'orders-dlx': dlx }

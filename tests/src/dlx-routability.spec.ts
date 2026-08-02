@@ -151,6 +151,14 @@ describe("dead-letter routability", () => {
     await amqpChannel.assertQueue("dlq-direct", { durable: false });
     await amqpChannel.bindQueue("dlq-direct", "dlx-direct", "#");
 
+    // ...plus a positive control ON THE DIRECT EXCHANGE ITSELF, bound to the
+    // literal key the dead letter will carry. Without it, `dlq-direct === 0`
+    // would be equally consistent with "the direct source never dead-lettered
+    // at all"; with it, the same dead letter is measured arriving on the same
+    // exchange, so 0 on the `#` binding can only mean the key did not match.
+    await amqpChannel.assertQueue("dlq-direct-literal", { durable: false });
+    await amqpChannel.bindQueue("dlq-direct-literal", "dlx-direct", "order.created");
+
     // Both source queues are reached under the routing key "order.created" —
     // the key a dead letter keeps when the queue sets no dead-letter key.
     await amqpChannel.assertExchange("orders-measured", "topic", { durable: false });
@@ -179,16 +187,29 @@ describe("dead-letter routability", () => {
     amqpChannel.nack(fromDirect, false, false);
     amqpChannel.nack(fromTopic, false, false);
 
-    // THEN the topic DLQ receives it and the direct DLQ does not. The topic
-    // arrival proves dead-lettering ran at all; the direct DLQ's emptiness does
-    // not depend on the wait, since "#" as a literal key can never match
-    // "order.created" no matter how long anyone waits.
+    // THEN the topic DLQ receives it and the `#`-bound direct DLQ does not.
+    // Both waits are positive controls: the topic arrival proves dead-lettering
+    // ran on the topic side, and `dlq-direct-literal` proves it ran on the
+    // DIRECT side too — the same exchange, the same dead letter, delivered
+    // under the literal key "order.created". Only with that second count does
+    // `dlq-direct === 0` mean "the key did not match" rather than "nothing was
+    // dead-lettered here".
     await vi.waitFor(
       async () => {
         expect((await amqpChannel.checkQueue("dlq-topic")).messageCount).toBe(1);
+        expect((await amqpChannel.checkQueue("dlq-direct-literal")).messageCount).toBe(1);
       },
       { timeout: 10_000, interval: 50 },
     );
     expect((await amqpChannel.checkQueue("dlq-direct")).messageCount).toBe(0);
+
+    // And it is the message under test that arrived, not a leftover: the
+    // literal-key DLQ holds exactly the dead letter, and nothing follows it.
+    const viaLiteral = await amqpChannel.get("dlq-direct-literal", { noAck: true });
+    expect(viaLiteral).not.toBe(false);
+    const viaLiteralBody =
+      viaLiteral === false ? undefined : JSON.parse(viaLiteral.content.toString());
+    expect(viaLiteralBody).toEqual({ orderId: "measured" });
+    expect(await amqpChannel.get("dlq-direct-literal", { noAck: true })).toBe(false);
   }, 20_000);
 });
