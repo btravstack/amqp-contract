@@ -15,8 +15,28 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
 
-/** Backticked tokens that look like a repo path: contain a slash and end in a known extension. */
-const PATH_LIKE = /^[\w@./-]+\.(?:ts|tsx|js|mjs|cjs|md|json|ya?ml)(?::\d+)?$/;
+/**
+ * Backticked tokens that look like a repo path: contain a slash and either
+ * end in a known extension (a file, optionally with a `:LINE` suffix) or have
+ * no extension on their final path segment (a directory, e.g. `packages/contract`
+ * or `docs/`).
+ */
+const FILE_PATH_LIKE = /^[\w@./-]+\.(?:ts|tsx|js|mjs|cjs|md|json|ya?ml)(?::\d+)?$/;
+
+/** Character class shared with `FILE_PATH_LIKE`, without the extension requirement. */
+const PATH_CHARS = /^[\w@./-]+$/;
+
+/**
+ * True when `token`'s final path segment has no extension — i.e. it names a
+ * directory, not a file. A leading dot (`.agents`, a hidden directory) does
+ * not count as an extension marker: only a `.` preceded by at least one
+ * character does.
+ */
+function isDirectoryLike(token: string): boolean {
+  const withoutTrailingSlash = token.endsWith("/") ? token.slice(0, -1) : token;
+  const lastSegment = withoutTrailingSlash.split("/").at(-1) ?? "";
+  return lastSegment !== "" && lastSegment.lastIndexOf(".") <= 0;
+}
 
 /**
  * Top-level entries of the repo. A citation is rooted at one of these; an
@@ -35,7 +55,9 @@ function pathsIn(markdown: string): readonly string[] {
   return [...markdown.matchAll(/`([^`\n]+)`/g)]
     .map((match) => match[1] ?? "")
     .filter((token) => token.includes("/") && !token.includes("*"))
-    .filter((token) => PATH_LIKE.test(token))
+    .filter(
+      (token) => FILE_PATH_LIKE.test(token) || (PATH_CHARS.test(token) && isDirectoryLike(token)),
+    )
     .filter((token) => repoRootEntries.has(token.split("/")[0] ?? ""))
     .map((token) => token.replace(/:\d+$/, ""));
 }
