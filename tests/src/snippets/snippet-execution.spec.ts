@@ -39,8 +39,13 @@ afterAll(() => {
 describe("documentation snippets", () => {
   it("finds snippets to check", () => {
     // Guards the guard: a discovery bug that returns nothing would otherwise
-    // make this whole suite pass vacuously.
-    expect(snippets.length).toBeGreaterThanOrEqual(20);
+    // make this whole suite pass vacuously. The floor is the CURRENT corpus
+    // size, not a comfortable margin below it — a floor far under the real
+    // count is the same failure this suite exists to prevent, one layer up:
+    // green while quietly covering less. At 20 against a corpus of 31,
+    // dropping two whole ROOTS still passed. Adding pages never breaks this;
+    // losing coverage forces an explicit, deliberate edit here.
+    expect(snippets.length).toBeGreaterThanOrEqual(31);
   });
 
   for (const [index, snippet] of snippets.entries()) {
