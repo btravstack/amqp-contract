@@ -150,10 +150,14 @@ type MatchesPattern<
  * `MatchingRoutingKey<"order.*", "order.*">` is `never`: the key matches the
  * pattern textually, but a routing key may not itself contain a wildcard.
  *
- * The check runs only when both the pattern and the key are fully known at
- * compile time. Plain `string`, template-literal types, and unions containing
- * either resolve to `Key` unchecked — the match cannot be decided, and
- * guessing would reject a key that routes at runtime.
+ * Each side's validity ({@link RoutingKey} for `Key`, {@link BindingPattern}
+ * for `Pattern`) is always enforced, even when the other side is not fully
+ * known — validity is decidable from one side alone. Only the *match* between
+ * the two is skipped when either side is not a fully known compile-time
+ * literal: plain `string`, a template-literal type, or a union containing
+ * either resolves to `Key` unchecked once both sides pass their own validity
+ * check — the match cannot be decided, and guessing would reject a key that
+ * routes at runtime.
  *
  * @example
  * ```typescript
@@ -165,14 +169,14 @@ type MatchesPattern<
  * @template Key - The routing key to validate
  */
 export type MatchingRoutingKey<Pattern extends string, Key extends string> =
-  IsStringLiteral<Pattern> extends false
-    ? Key // Undecidable at compile time — defer rather than guess
-    : IsStringLiteral<Key> extends false
-      ? Key
-      : RoutingKey<Key> extends never
-        ? never // Invalid routing key
-        : BindingPattern<Pattern> extends never
-          ? never // Invalid pattern
+  RoutingKey<Key> extends never
+    ? never // Invalid routing key — decidable from the key alone
+    : BindingPattern<Pattern> extends never
+      ? never // Invalid pattern — decidable from the pattern alone
+      : IsStringLiteral<Pattern> extends false
+        ? Key // The match is undecidable — defer rather than guess
+        : IsStringLiteral<Key> extends false
+          ? Key
           : MatchesPattern<Key, Pattern> extends true
             ? Key
             : never;

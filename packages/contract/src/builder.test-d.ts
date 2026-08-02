@@ -164,6 +164,15 @@ describe("MatchingRoutingKey pattern matching", () => {
       MatchingRoutingKey<`order.${string}`, "order.created">
     >().toEqualTypeOf<"order.created">();
   });
+
+  test("still rejects a side that is invalid on its own", () => {
+    // Each side's validity is decidable from that side alone; only the match
+    // between them becomes undecidable. Deferring the match must not defer
+    // these — a wildcard is illegal in a routing key, and "" is not a pattern.
+    expectTypeOf<MatchingRoutingKey<string, "order.*">>().toEqualTypeOf<never>();
+    expectTypeOf<MatchingRoutingKey<`order.${string}`, "order.*">>().toEqualTypeOf<never>();
+    expectTypeOf<MatchingRoutingKey<"", string>>().toEqualTypeOf<never>();
+  });
 });
 
 describe("MatchingBindingPattern (topic consumer override enforcement)", () => {
