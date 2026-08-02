@@ -127,10 +127,16 @@ them as committed `test-d` cases.
 
 ## Documentation and release
 
-- Three doc comments say "plain `string`" where they mean "non-literal". That
-  phrasing is the defect written down; each becomes an accurate statement that
-  any type not fully known at compile time — including a template literal —
-  skips the check and defers to the define-time check.
+- `MatchingBindingPattern`'s doc comment says "Non-literal strings (plain
+  `string` on either side) skip the check". The parenthetical is the defect
+  written down — it narrows "non-literal" to the one case the code handled. It
+  becomes an accurate statement that any type not fully known at compile time,
+  including a template literal, skips the check and defers to the define-time
+  check.
+- `RoutableRoutingKey`'s doc comment already says "non-literal" and needs no
+  change; only its code disagreed with it.
+- `MatchingRoutingKey` documents no skip behavior at all. It gains a sentence
+  describing the new arms.
 - `.changeset/routable-routing-key-type.md` contains a paragraph presenting the
   template-literal limitation as intended behavior. It is unreleased; the
   paragraph is removed and the surrounding text corrected.
