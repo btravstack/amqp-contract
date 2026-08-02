@@ -129,12 +129,14 @@ describe("discoverMarkdownFiles", () => {
       parseSnippets(readFileSync(file, "utf8"), file),
     );
 
-    // The floor tracks the CURRENT corpus size (31), not a slack margin
-    // below it. A floor well under the real count only catches discovery
-    // collapsing to nothing — at 20, dropping `.agents` and `packages` from
-    // ROOTS silently lost 8 snippets and still passed. Adding pages never
-    // breaks this; removing coverage has to be acknowledged here.
-    expect(found.length).toBeGreaterThanOrEqual(31);
+    // The count is pinned to the CURRENT corpus size (31), exactly, not a
+    // floor. A >= comparison only catches discovery collapsing to nothing —
+    // at 20, dropping `.agents` and `packages` from ROOTS silently lost 8
+    // snippets and still passed — but stays green if the corpus grows past
+    // it while discovery quietly drops pages. Both directions now require a
+    // deliberate edit here: adding a documented example fails until this
+    // number is bumped, and removing coverage fails too.
+    expect(found.length).toBe(31);
   });
 
   describe("path-segment anchoring", () => {
