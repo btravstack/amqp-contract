@@ -100,6 +100,56 @@ describe("_internal_resolveDeadLetterRoutability", () => {
     expect(_internal_resolveDeadLetterRoutability(queue, [])).toBe("unroutable");
   });
 
+  /*
+   * Row 4 decides without the shared resolver, because the key that will reach
+   * the DLX is unknowable — so it has to consult the alternate-exchange
+   * predicate itself. Counting bindings alone rejected a DLX the broker routes
+   * correctly, the same false positive the publisher check already had.
+   */
+  describe("row 4: alternate-exchange", () => {
+    const directDlxWithAe = defineExchange("orders-dlx-direct-ae", {
+      type: "direct",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+    const topicDlxWithAe = defineExchange("orders-dlx-topic-ae", {
+      type: "topic",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+
+    it("a direct DLX declaring one is routable with nothing bound", () => {
+      const queue = defineQueue("order-processing", {
+        deadLetter: { exchange: directDlxWithAe },
+      });
+      expect(_internal_resolveDeadLetterRoutability(queue, [])).toBe("routable");
+    });
+
+    it("the same direct DLX without one is unroutable — the control", () => {
+      // Identical in every way but the argument, so the verdict above can only
+      // come from the alternate exchange.
+      const queue = defineQueue("order-processing", { deadLetter: { exchange: directDlx } });
+      expect(_internal_resolveDeadLetterRoutability(queue, [])).toBe("unroutable");
+    });
+
+    it("a topic DLX declaring one is routable with nothing bound", () => {
+      const queue = defineQueue("order-processing", { deadLetter: { exchange: topicDlxWithAe } });
+      expect(_internal_resolveDeadLetterRoutability(queue, [])).toBe("routable");
+    });
+
+    it("the same topic DLX without one is unroutable — the control", () => {
+      const queue = defineQueue("order-processing", { deadLetter: { exchange: topicDlx } });
+      expect(_internal_resolveDeadLetterRoutability(queue, [])).toBe("unroutable");
+    });
+
+    it("stays routable when the declared bindings all reject the key", () => {
+      // Row 4 accepts any binding anyway; asserted so the alternate-exchange
+      // path is not silently doing nothing here.
+      const queue = defineQueue("order-processing", { deadLetter: { exchange: topicDlxWithAe } });
+      expect(
+        _internal_resolveDeadLetterRoutability(queue, [bindingTo(topicDlxWithAe, "user.#")]),
+      ).toBe("routable");
+    });
+  });
+
   it("follows an exchange-to-exchange forward out of the DLX", () => {
     const archive = defineExchange("archive", { type: "topic" });
     const queue = defineQueue("order-processing", {
@@ -173,6 +223,18 @@ describe("defineContract dead-letter routability", () => {
     const queue = defineQueue("order-processing-external", {
       deadLetter: { exchange: dlx, externalConsumers: true },
     });
+
+    expect(() => defineContract(contractWith(queue))).not.toThrow();
+  });
+
+  it("accepts an unbound dead-letter exchange declaring an alternate-exchange", () => {
+    // The broker hands what matches nothing to the alternate exchange instead
+    // of discarding it, so there is nothing to reject.
+    const dlx = defineExchange("orders-dlx-ae", {
+      type: "direct",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+    const queue = defineQueue("order-processing-ae", { deadLetter: { exchange: dlx } });
 
     expect(() => defineContract(contractWith(queue))).not.toThrow();
   });
