@@ -218,7 +218,57 @@ const orderHeadersSchema = z.object({
 
 ### Contract Structure
 
+The complete `contract.ts`, schemas included, so the block stands on its own:
+
 ```typescript
+import {
+  defineCommandConsumer,
+  defineCommandPublisher,
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  definePublisher,
+  defineQueue,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+// 0. The schemas from above
+const orderSchema = z.object({
+  orderId: z.string(),
+  customerId: z.string(),
+  items: z.array(
+    z.object({
+      productId: z.string(),
+      quantity: z.number().int().positive(),
+      price: z.number().positive(),
+    }),
+  ),
+  totalAmount: z.number().positive(),
+  createdAt: z
+    .string()
+    .datetime()
+    .default(() => new Date().toISOString()),
+});
+const orderStatusSchema = z.object({
+  orderId: z.string(),
+  status: z.enum(["processing", "shipped", "delivered", "cancelled"]),
+  updatedAt: z
+    .string()
+    .datetime()
+    .default(() => new Date().toISOString()),
+});
+const fulfillmentSchema = z.object({
+  orderId: z.string(),
+  warehouseId: z.string(),
+  priority: z.enum(["standard", "express"]).default("standard"),
+});
+const orderHeadersSchema = z.object({
+  eventSource: z.string().default("order-service"),
+  eventVersion: z.number().default(1),
+});
+
 // 1. Define resources first
 const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");

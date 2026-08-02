@@ -7,18 +7,56 @@ The cross-cutting language and tooling rules ("no `any`", "AsyncResult handlers"
 Define resources first, then reference them. Never define resources inline:
 
 ```typescript
-// Bad — defining resources inline
+// Bad — defining resources inline. Nothing has a name, so the dead-letter
+// exchange and the DLQ have to be spelled out again wherever they are needed.
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
 const contract = defineContract({
-  publishers: {
-    orderCreated: definePublisher(
-      defineExchange("orders"),
-      defineMessage(z.object({ orderId: z.string() })),
-      { routingKey: "order.created" },
+  consumers: {
+    processOrder: defineEventConsumer(
+      defineEventPublisher(
+        defineExchange("orders"),
+        defineMessage(z.object({ orderId: z.string() })),
+        { routingKey: "order.created" },
+      ),
+      defineQueue("order-processing", {
+        deadLetter: { exchange: defineExchange("orders-dlx"), routingKey: "order.failed" },
+      }),
+    ),
+  },
+  queues: { orderDlq: defineQueue("order-processing-dlq") },
+  bindings: {
+    orderDlqBinding: defineQueueBinding(
+      defineQueue("order-processing-dlq"),
+      defineExchange("orders-dlx"),
+      { routingKey: "order.failed" },
     ),
   },
 });
+```
 
+```typescript
 // Good — define resources first, then reference
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
 const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {

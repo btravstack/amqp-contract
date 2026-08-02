@@ -29,7 +29,6 @@ yarn add @amqp-contract/core
 The core package exports an `AmqpClient` class that handles the creation of all AMQP resources defined in a contract.
 
 ```typescript
-import { AmqpClient } from "@amqp-contract/core";
 import {
   defineContract,
   defineEventPublisher,
@@ -58,7 +57,7 @@ const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
 });
 
 // Define your contract
-const contract = defineContract({
+export const contract = defineContract({
   publishers: {
     orderCreated: orderCreatedEvent,
   },
@@ -68,6 +67,14 @@ const contract = defineContract({
   queues: { orderDlq },
   bindings: { orderDlqBinding: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
+```
+
+Hand that contract to an `AmqpClient`, which asserts its topology on connect:
+
+```typescript
+import { AmqpClient } from "@amqp-contract/core";
+
+import { contract } from "./contract.js";
 
 // Setup AMQP resources
 const amqpClient = new AmqpClient(contract, {

@@ -15,6 +15,32 @@ The central idea is that a single expression produces two things that normally h
 - the **AMQP topology** — exchanges, queues, bindings — declared against the broker at startup.
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+// The dead-letter queue is a named resource too. A dead-letter exchange with
+// nothing bound to it discards every rejected message, so `defineContract`
+// rejects it; the binding below is what makes the DLX actually route.
+const orderDlq = defineQueue("order-processing-dlq");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+  routingKey: "order.created",
+});
+
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
@@ -25,21 +51,7 @@ export const contract = defineContract({
 
 There is no separate topology setup step and no separate type declaration. When a worker starts, it walks the contract and asserts every exchange, queue and binding it finds. When you call `client.publish("orderCreated", …)`, the payload type comes from the same object.
 
-This is why the composition pattern matters: define resources as named constants first, then reference them.
-
-```typescript
-const ordersExchange = defineExchange("orders");
-const ordersDlx = defineExchange("orders-dlx");
-const orderProcessingQueue = defineQueue("order-processing", {
-  deadLetter: { exchange: ordersDlx },
-});
-// The dead-letter queue is a named resource too. A dead-letter exchange with
-// nothing bound to it discards every rejected message, so `defineContract`
-// rejects it; the binding above is what makes the DLX actually route.
-const orderDlq = defineQueue("order-processing-dlq");
-```
-
-Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.
+This is also why the composition pattern matters: every resource above is a named constant, defined first and then referenced. Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.
 
 ## Bindings are derived, not declared
 

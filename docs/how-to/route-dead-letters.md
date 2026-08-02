@@ -29,6 +29,26 @@ If `routingKey` is omitted, the message keeps its original routing key. Setting 
 The dead-letter queue is an ordinary queue, so consuming it is ordinary too. Define a publisher against the DLX to describe what lands there, then bind a consumer:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
+});
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+  routingKey: "order.created",
+});
+
 // Consuming a dead-letter queue makes it subject to the poison-loss check, and
 // a DLQ cannot dead-letter to itself. Declare the drop: a message the DLQ
 // handler also rejects has nowhere left to go.
@@ -70,6 +90,30 @@ Give the dead-letter queue a `retry: { mode: "none" }` policy, or none at all, a
 If no consumer in this service drains the DLQ — an operator replays from it, or another process owns it — declare it as standalone topology instead of inventing a consumer:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+// No dead-letter routing key here, so a dead letter keeps the key it arrived
+// with — and `orders-dlx` is topic, where `#` catches all of them.
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+const ordersDlxQueue = defineQueue("orders-dlx-queue");
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+  routingKey: "order.created",
+});
+
 export const contract = defineContract({
   consumers: {
     processOrder: defineEventConsumer(orderCreated, orderProcessingQueue),

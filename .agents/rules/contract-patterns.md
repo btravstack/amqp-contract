@@ -56,6 +56,31 @@ const contract = defineContract({
 | **Command** | Many publishers, one consumer (task queue) | `defineCommandConsumer` → `defineCommandPublisher` |
 
 ```typescript
+import {
+  defineCommandConsumer,
+  defineCommandPublisher,
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+
+// Every consumed queue dead-letters to the shared DLX; `orders-dlx` is topic
+// and no queue sets a dead-letter routing key, so `#` catches whatever key the
+// message arrived with.
+const processingQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
+const allOrdersQueue = defineQueue("all-orders", { deadLetter: { exchange: ordersDlx } });
+const orderQueue = defineQueue("order-commands", { deadLetter: { exchange: ordersDlx } });
+const ordersDlq = defineQueue("orders-dlq");
+
 // Event Pattern: Publisher broadcasts, multiple consumers subscribe
 const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
@@ -87,6 +112,8 @@ const contract = defineContract({
     allOrders: allOrdersConsumer,
     handleOrder: processOrderCommand,
   },
+  queues: { ordersDlq },
+  bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
 });
 // contract.exchanges, contract.queues, and contract.bindings are auto-populated
 ```
@@ -155,6 +182,19 @@ Bridge exchanges enable cross-domain messaging by routing through a local exchan
 - Bridge exchange type must be compatible with source: fanout↔fanout, topic/direct↔topic/direct
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+
 // Consuming events from a remote domain via bridge
 const ordersExchange = defineExchange("orders");
 const billingExchange = defineExchange("billing");
@@ -179,10 +219,29 @@ const contract = defineContract({
 });
 // contract.exchanges: { orders, billing, 'billing-dlx' }
 // contract.bindings: queue binding + exchange-to-exchange binding (both auto-generated)
+```
+
+```typescript
+import {
+  defineCommandConsumer,
+  defineCommandPublisher,
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
 
 // Publishing commands to a remote domain via bridge
 const remoteExchange = defineExchange("remote");
 const localExchange = defineExchange("local");
+const remoteDlx = defineExchange("remote-dlx");
+// `remote-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the message arrived with.
+const remoteQueue = defineQueue("remote-commands", { deadLetter: { exchange: remoteDlx } });
+const remoteDlq = defineQueue("remote-commands-dlq");
+const message = defineMessage(z.object({ orderId: z.string() }));
 
 const command = defineCommandConsumer(remoteQueue, remoteExchange, message, {
   routingKey: "cmd.run",
@@ -192,6 +251,9 @@ const contract = defineContract({
   publishers: {
     runCommand: defineCommandPublisher(command, { bridgeExchange: localExchange }),
   },
+  consumers: { runCommandHandler: command },
+  queues: { remoteDlq },
+  bindings: { remoteDlqBinding: defineQueueBinding(remoteDlq, remoteDlx, { routingKey: "#" }) },
 });
 // Publisher publishes to localExchange, e2e binding forwards to remoteExchange
 ```

@@ -10,7 +10,48 @@ Options for every contract-building function. For recipes see [define a contract
 ## `defineContract`
 
 ```typescript
-defineContract({ publishers, consumers, rpcs, exchanges, queues, bindings });
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+  defineRpc,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const auditExchange = defineExchange("audit");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+// `orders-dlx` is topic and neither queue sets a dead-letter routing key, so
+// `#` catches whatever key the message arrived with.
+const orderQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
+const lookupQueue = defineQueue("order-lookup", { deadLetter: { exchange: ordersDlx } });
+const ordersDlq = defineQueue("order-processing-dlq");
+const auditQueue = defineQueue("order-audit");
+
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+  routingKey: "order.created",
+});
+const lookupOrder = defineRpc(lookupQueue, {
+  request: orderMessage,
+  response: defineMessage(z.object({ status: z.string() })),
+});
+
+defineContract({
+  publishers: { orderCreated },
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
+  rpcs: { lookupOrder },
+  exchanges: { auditExchange },
+  queues: { ordersDlq, auditQueue },
+  bindings: {
+    ordersDlq: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }),
+    auditBinding: defineQueueBinding(auditQueue, auditExchange, { routingKey: "order.#" }),
+  },
+});
 ```
 
 | Key          | Contains                                                                |
