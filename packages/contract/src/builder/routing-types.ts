@@ -180,24 +180,26 @@ export type MatchingRoutingKey<Pattern extends string, Key extends string> =
  *   "Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'"
  * ```
  *
- * Non-literal strings (plain `string` on either side) skip the check — the
- * match cannot be decided at compile time, so runtime behavior is preserved.
+ * The check runs only when both sides are fully known at compile time. Plain
+ * `string`, a template-literal type with a `${…}` hole (`` `${string}.created` ``),
+ * and any union containing either are skipped: the match cannot be decided, and
+ * guessing would reject a pattern that matches at runtime. Those contracts are
+ * covered by the define-time routability check in `defineContract`, which runs
+ * on concrete strings.
  *
  * @template Pattern - The consumer's binding pattern (can contain * and # wildcards)
  * @template PublisherKey - The publisher's concrete routing key
  */
-export type MatchingBindingPattern<
-  Pattern extends string,
-  PublisherKey extends string,
-> = string extends Pattern
-  ? BindingPattern<Pattern>
-  : string extends PublisherKey
+export type MatchingBindingPattern<Pattern extends string, PublisherKey extends string> =
+  IsStringLiteral<Pattern> extends false
     ? BindingPattern<Pattern>
-    : [BindingPattern<Pattern>] extends [never]
-      ? never // Empty pattern — same rejection as BindingPattern
-      : MatchesPattern<PublisherKey, Pattern> extends true
-        ? Pattern
-        : `Error: binding pattern '${Pattern}' can never match the publisher routing key '${PublisherKey}'`;
+    : IsStringLiteral<PublisherKey> extends false
+      ? BindingPattern<Pattern>
+      : [BindingPattern<Pattern>] extends [never]
+        ? never // Empty pattern — same rejection as BindingPattern
+        : MatchesPattern<PublisherKey, Pattern> extends true
+          ? Pattern
+          : `Error: binding pattern '${Pattern}' can never match the publisher routing key '${PublisherKey}'`;
 
 /**
  * True when `Key` matches at least one pattern in the `Patterns` union.
