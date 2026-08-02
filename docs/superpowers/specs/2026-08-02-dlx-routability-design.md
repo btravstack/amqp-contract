@@ -57,8 +57,8 @@ agree, but the implementation must not depend on that coincidence.)
 
 | #   | Case                                                                           | Decision                                                                                   |
 | --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 1   | `externalConsumers: true`                                                      | Skip — the author declared the DLQ is owned outside this contract.                         |
-| 2   | DLX supplied only through the `arguments` passthrough (no `deadLetter` config) | Skip — undecidable.                                                                        |
+| 1   | DLX supplied only through the `arguments` passthrough (no `deadLetter` config) | Skip — undecidable.                                                                        |
+| 2   | `externalConsumers: true`                                                      | Skip — the author declared the DLQ is owned outside this contract.                         |
 | 3   | `routingKey` set, **or** the DLX is `fanout`/`headers`                         | Decidable. Run `_internal_isPublisherRoutable(deadLetter.exchange, routingKey, bindings)`. |
 | 4   | `routingKey` unset (a `direct` or `topic` DLX)                                 | Accept iff at least one binding is declared on that exchange.                              |
 

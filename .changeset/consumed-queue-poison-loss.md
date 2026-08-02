@@ -10,10 +10,10 @@ checked.
 Three forms satisfy the check: `deadLetter: { exchange: … }`, an explicit
 `onPoison: "drop"`, and — least discoverably — an `x-dead-letter-exchange` set
 through the raw `arguments` passthrough, which `setupAmqpTopology` forwards to
-the broker verbatim. Note that the check verifies a DLX is _declared_, not that
-the exchange it names has a bound queue: a dead-letter exchange with no binding
-still drops every message routed to it, so declare the dead-letter queue and its
-binding too.
+the broker verbatim. This check verifies only that a DLX is _declared_; whether
+the exchange it names actually routes anywhere is enforced by a separate check
+in this same release — see the entry on a dead-letter exchange with nothing
+bound to it.
 
 **Read this before adding `deadLetter` to a queue that already exists in
 production.** A queue's dead-letter configuration is part of its identity:

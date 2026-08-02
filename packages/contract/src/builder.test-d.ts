@@ -296,8 +296,12 @@ describe("ContractOutput type inference", () => {
   const dlx = defineExchange("orders-dlx", { type: "direct" });
   const fanoutExchange = defineExchange("notifications", { type: "fanout" });
   const headersExchange = defineExchange("logs", { type: "headers" });
+  // `externalConsumers` rather than a real DLQ + binding: `orderQueue` is shared
+  // by every test below, several of which assert exactly which queues and
+  // bindings a contract extracts. Threading a dead-letter queue through them all
+  // would change the surface those assertions exist to measure.
   const orderQueue = defineQueue("order-processing", {
-    deadLetter: { exchange: dlx },
+    deadLetter: { exchange: dlx, externalConsumers: true },
     retry: { mode: "immediate-requeue", maxRetries: 3 },
   });
   const notificationQueue = defineQueue("notifications", { onPoison: "drop" });
@@ -479,8 +483,11 @@ describe("ContractOutput type inference", () => {
 describe("ContractOutput strict literal keys", () => {
   const ordersExchange = defineExchange("orders");
   const dlx = defineExchange("orders-dlx", { type: "direct" });
+  // `externalConsumers` rather than a real DLQ + binding: these tests pin exact
+  // key unions (`"orders" | "orders-dlx"`, `"order-processing"`), so a
+  // dead-letter queue would mean rewriting the very literals under test.
   const orderQueue = defineQueue("order-processing", {
-    deadLetter: { exchange: dlx },
+    deadLetter: { exchange: dlx, externalConsumers: true },
     retry: { mode: "immediate-requeue", maxRetries: 3 },
   });
   const orderMessage = defineMessage(z.object({ orderId: z.string() }));
@@ -612,20 +619,30 @@ describe("standalone topology typing", () => {
   test("standalone queues and exchanges are re-keyed by NAME in the contract output", () => {
     const auditExchange = defineExchange("audit");
     const dlx = defineExchange("orders-dlx", { type: "direct" });
-    const dlq = defineQueue("orders-dlq", { deadLetter: { exchange: dlx } });
+    const dlq = defineQueue("orders-dlq");
+    // A real DLQ + binding here: every assertion below is `toHaveProperty`, so
+    // the extra queue distorts nothing, and the sibling test already binds this
+    // exact key. The explicit `routingKey` is what the binding matches — on a
+    // direct exchange nothing else would.
+    const orderQueue = defineQueue("order-processing", {
+      deadLetter: { exchange: dlx, routingKey: "orders.dlq" },
+    });
 
     const contract = defineContract({
       exchanges: { someLabel: auditExchange },
-      queues: { anotherLabel: dlq },
+      queues: { anotherLabel: orderQueue, dlqLabel: dlq },
+      bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "orders.dlq" }) },
     });
 
     // Authoring labels are dropped; resources key by their broker name.
     expectTypeOf(contract.exchanges).toHaveProperty("audit");
+    expectTypeOf(contract.queues).toHaveProperty("order-processing");
     expectTypeOf(contract.queues).toHaveProperty("orders-dlq");
     // The standalone queue's DLX is auto-extracted into exchanges.
     expectTypeOf(contract.exchanges).toHaveProperty("orders-dlx");
     expectTypeOf(contract.exchanges).not.toHaveProperty("someLabel");
     expectTypeOf(contract.queues).not.toHaveProperty("anotherLabel");
+    expectTypeOf(contract.queues).not.toHaveProperty("dlqLabel");
   });
 
   test("standalone binding labels are kept verbatim", () => {
