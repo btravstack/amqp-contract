@@ -134,6 +134,7 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
     _internal_assertKnownKeys("queue deadLetter config of", name, options.deadLetter, [
       "exchange",
       "routingKey",
+      "externalConsumers",
     ]);
   }
   if (options?.retry !== undefined) {
