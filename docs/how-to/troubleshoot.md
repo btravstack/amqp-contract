@@ -323,6 +323,140 @@ the DLQ's depth rather than on these logs.
 
 The upgrade guide covers the migration in full.
 
+### `defineContract` says nothing is bound to my dead-letter exchange
+
+```
+Queue "order-processing" dead-letters to exchange "orders-dlx" (topic), but nothing
+there can receive them: its dead-lettered messages keep their original routing key.
+Nothing is bound to "orders-dlx". RabbitMQ discards a message routed to zero queues,
+so these would be lost exactly as silently as if the queue had no dead-letter
+exchange at all. Bind a queue to "orders-dlx" that accepts them, or set
+`externalConsumers: true` on the deadLetter config if another service owns that queue.
+```
+
+A dead letter is an ordinary publish, and RabbitMQ discards a publish that
+matches no binding. So a `deadLetter` pointer at an exchange with nothing bound
+loses precisely the messages you added it to keep — and the worker logs
+`Sending message to DLQ` at `info` while it happens, so the loss reads as a
+successful hand-off. This check does not create that loss; it surfaces one that
+was already running.
+
+This is a **separate rule** from [the `deadLetter` pointer
+itself](#definecontract-says-my-queue-has-no-dead-letter-exchange). The pointer
+is required on _consumed_ queues; this rule applies to **every** queue the
+contract declares, because a dead letter is dropped whoever consumes the source.
+
+Two remedies, and they are not interchangeable.
+
+**Bind a queue to the exchange.** Correct when this contract owns the DLQ. The
+DLQ is not consumed, so it needs no DLX of its own; declare it as
+[standalone topology](/how-to/define-a-contract#declare-standalone-topology):
+
+```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const orders = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+const orderCreated = defineEventPublisher(orders, orderMessage, {
+  routingKey: "order.created",
+});
+
+const orderQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+const orderDlq = defineQueue("order-processing-dlq");
+
+export const contract = defineContract({
+  publishers: { orderCreated },
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+});
+```
+
+**Set `externalConsumers: true` on the `deadLetter` config.** Correct when the
+dead-letter queue genuinely lives elsewhere — another service owns it, or your
+IaC declares it. It asserts that the binding exists and that guaranteeing it is
+somebody else's job, so use it only when that is true; it disables the check for
+that queue permanently:
+
+```typescript
+import { defineExchange, defineQueue } from "@amqp-contract/contract";
+
+const inventoryDlx = defineExchange("inventory-dlx");
+const inventoryCommands = defineQueue("inventory-commands", {
+  deadLetter: { exchange: inventoryDlx, externalConsumers: true },
+});
+```
+
+::: warning `#` on a direct DLX binds nothing
+
+`#` is a _topic_ wildcard. A direct exchange has no wildcards and treats it as
+the literal routing key `#`, so a dead letter arriving under any other key
+matches nothing. Measured against RabbitMQ 4.2 in
+`tests/src/dlx-routability.spec.ts`: the same `#` binding receives the dead
+letter on a topic DLX and receives nothing on a direct one.
+
+The check cannot catch this. When the queue sets no `deadLetter.routingKey`, the
+key a dead letter arrives under is the message's _original_ key, which is not
+knowable at define time — so the check accepts any binding on the exchange, and
+a `#` binding on a direct DLX passes it while routing nothing. That is why the
+error text carries the warning rather than the check carrying a rule.
+
+On a direct DLX, bind the key the message will actually carry: the queue's
+`deadLetter.routingKey` if it sets one, otherwise every key the source queue can
+receive. On a **fanout** or **headers** DLX the key is ignored and any binding
+routes.
+
+```typescript
+import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/contract";
+
+const paymentsDlx = defineExchange("payments-dlx", { type: "direct" });
+const paymentsDlq = defineQueue("payments-dlq");
+
+const paymentsQueue = defineQueue("payments", {
+  deadLetter: { exchange: paymentsDlx, routingKey: "payments.dead" },
+});
+
+const paymentsDlqBinding = defineQueueBinding(paymentsDlq, paymentsDlx, {
+  routingKey: "payments.dead",
+});
+```
+
+:::
+
+**A DLX supplied through the raw `arguments` passthrough is not checked.** It
+names an exchange as a bare string rather than an `ExchangeDefinition`, and the
+contract need not declare that exchange at all, so its bindings are unknowable.
+The queue is skipped — no error, and no protection either:
+
+```typescript
+import { defineQueue } from "@amqp-contract/contract";
+
+// Skipped by the check — verify this exchange's bindings on the broker yourself.
+const legacyQueue = defineQueue("legacy-processing", {
+  arguments: { "x-dead-letter-exchange": "legacy-dlx" },
+});
+```
+
+**If the queue already exists in production,** adding a binding to live topology
+carries the same constraints as adding `deadLetter` to a live queue — see
+[if the queue already exists in production](#if-the-queue-already-exists-in-production),
+and especially the warning there about matching the existing exchange type,
+routing key, queue type and durability before you declare. A binding is cheap to
+add to a live exchange; declaring the _exchange_ with a type that differs from
+the live one is what 406s.
+
 ## Topology conflicts
 
 ### `PRECONDITION_FAILED - inequivalent arg`
