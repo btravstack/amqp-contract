@@ -34,6 +34,18 @@ describe("RoutableRoutingKey", () => {
   it("skips the check when there are no patterns", () => {
     expectTypeOf<RoutableRoutingKey<"order.created", never>>().toEqualTypeOf<"order.created">();
   });
+
+  it("skips the check when either side is not a compile-time literal", () => {
+    expectTypeOf<
+      RoutableRoutingKey<`order.${string}`, "order.#">
+    >().toEqualTypeOf<`order.${string}`>();
+    expectTypeOf<
+      RoutableRoutingKey<"order.created", `order.${string}`>
+    >().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      RoutableRoutingKey<"order.created", "order.#" | `x.${string}`>
+    >().toEqualTypeOf<"order.created">();
+  });
 });
 
 /**
