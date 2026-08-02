@@ -52,6 +52,33 @@ export type RoutingKey<S extends string> = S extends ""
 export type BindingPattern<S extends string> = S extends "" ? never : S;
 
 /**
+ * True when every member of `S` is a string literal fully known at compile
+ * time; false for `string`, for template-literal types with a `${…}` hole, for
+ * a union containing either, and for the empty union.
+ *
+ * The matcher types below can only decide a match when both sides are fully
+ * known. `string extends S` alone does not establish that: a partially literal
+ * type such as `` `${string}.orders` `` is not `string`, so it passes that test
+ * and then reaches a matcher that cannot decide it — which reports a pattern
+ * that matches at runtime as an error. Deciding it here, once, is what keeps
+ * the three matchers from drifting apart again.
+ *
+ * `Record<S, 1>` yields a concrete property for a literal key and a pattern
+ * index signature for a template-literal key. `{}` is assignable to the latter
+ * and not the former, which separates them in one step — no per-character
+ * recursion, so no instantiation-depth risk on long routing keys.
+ *
+ * @internal
+ */
+export type IsStringLiteral<S extends string> = string extends S
+  ? false
+  : [S] extends [never]
+    ? false
+    : (S extends string ? ({} extends Record<S, 1> ? false : true) : never) extends true
+      ? true
+      : false;
+
+/**
  * True when a pattern remainder consists only of `#` segments (`#`, `#.#`, …).
  * Such a remainder can match zero words, which matters once the routing key
  * has been fully consumed (e.g. pattern `order.created.#` vs key
