@@ -55,12 +55,12 @@ The rows are **evaluated in order, first match wins** — they are not independe
 (Without an explicit order a fanout DLX with no `routingKey` would match two rows; both happen to
 agree, but the implementation must not depend on that coincidence.)
 
-| #   | Case                                                                           | Decision                                                                                   |
-| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 1   | DLX supplied only through the `arguments` passthrough (no `deadLetter` config) | Skip — undecidable.                                                                        |
-| 2   | `externalConsumers: true`                                                      | Skip — the author declared the DLQ is owned outside this contract.                         |
-| 3   | `routingKey` set, **or** the DLX is `fanout`/`headers`                         | Decidable. Run `_internal_isPublisherRoutable(deadLetter.exchange, routingKey, bindings)`. |
-| 4   | `routingKey` unset (a `direct` or `topic` DLX)                                 | Accept iff at least one binding is declared on that exchange.                              |
+| #   | Case                                                                           | Decision                                                                                          |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| 1   | DLX supplied only through the `arguments` passthrough (no `deadLetter` config) | Skip — undecidable.                                                                               |
+| 2   | `externalConsumers: true`                                                      | Skip — the author declared the DLQ is owned outside this contract.                                |
+| 3   | `routingKey` set, **or** the DLX is `fanout`/`headers`                         | Decidable. Run `_internal_isPublisherRoutable(deadLetter.exchange, routingKey, bindings)`.        |
+| 4   | `routingKey` unset (a `direct` or `topic` DLX)                                 | Accept if the DLX declares `alternate-exchange`, else iff at least one binding is declared on it. |
 
 Row 4 exists because the shared resolver's `bindingAccepts` returns `false` for a `direct` or
 `topic` exchange when the routing key is `undefined` — correct for publishers, where a missing key
@@ -88,8 +88,18 @@ forbids:
 > A false negative is acceptable; rejecting a valid contract is not.
 
 "At least one binding" catches the defect actually observed in production documentation — a DLX
-with **nothing** bound — at zero false-positive risk. A DLX bound only to non-matching patterns
-still passes. That is a known, accepted false negative.
+with **nothing** bound. A DLX bound only to non-matching patterns still passes: a known, accepted
+false negative.
+
+Binding count alone is **not** free of false positives, though, and the review of this branch
+found the one case it gets wrong: an exchange declaring `alternate-exchange` has no unroutable
+keys at all, so a DLX with that argument and zero bindings dead-letters correctly on a real
+broker and was still rejected. That is the same false positive H1 had, reintroduced by a row that
+decides routability without the resolver H1 was fixed in. Row 4 therefore short-circuits on
+`_internal_exchangeHasAlternateExchange` (`packages/contract/src/builder/routability.ts`) — the
+resolver's own predicate, promoted to a shared export so the two checks cannot disagree about
+what an alternate exchange means — before it counts bindings. The remaining inaccuracy is the
+false negative above, and only that.
 
 ### Why the `arguments` form is skipped
 

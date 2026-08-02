@@ -399,6 +399,8 @@ const inventoryCommands = defineQueue("inventory-commands", {
 });
 ```
 
+A dead-letter exchange declaring an `alternate-exchange` argument never triggers this, exactly as for a publisher's exchange — the broker routes what matches no binding there instead of discarding it, so no dead letter is lost whatever key it arrives under.
+
 ::: warning `#` on a direct DLX binds nothing
 
 `#` is a _topic_ wildcard. A direct exchange has no wildcards and treats it as
