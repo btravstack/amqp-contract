@@ -543,6 +543,19 @@ export type DeadLetterConfig = {
    * If not specified, the original message routing key is used.
    */
   routingKey?: string;
+
+  /**
+   * Declares that the queue bound to this dead-letter exchange lives outside
+   * this contract — another service, or infrastructure-as-code, owns it.
+   *
+   * `defineContract` otherwise requires a declared binding from the exchange,
+   * because a dead-letter exchange with nothing bound to it discards every
+   * message routed to it, exactly as silently as an unroutable publish.
+   *
+   * Named to match `PublisherDefinition.externalConsumers`: the concept is
+   * identical — the consuming side is not this contract's to declare.
+   */
+  externalConsumers?: boolean | undefined;
 };
 
 /**
