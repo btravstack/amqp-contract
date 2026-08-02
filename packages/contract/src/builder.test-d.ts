@@ -183,6 +183,26 @@ describe("MatchingBindingPattern (topic consumer override enforcement)", () => {
     expectTypeOf<MatchingBindingPattern<"order.*", string>>().toEqualTypeOf<"order.*">();
   });
 
+  test("skips the check for template-literal patterns", () => {
+    // These all match at runtime. Deciding them at compile time is not
+    // possible, so the check must defer to `defineContract` rather than
+    // guess — guessing here rejected a valid contract.
+    expectTypeOf<
+      MatchingBindingPattern<`${string}.created`, "order.created">
+    >().toEqualTypeOf<`${string}.created`>();
+    expectTypeOf<
+      MatchingBindingPattern<`order.${string}`, "order.created">
+    >().toEqualTypeOf<`order.${string}`>();
+    expectTypeOf<
+      MatchingBindingPattern<`${string}.orders.#`, "acme.orders.created">
+    >().toEqualTypeOf<`${string}.orders.#`>();
+    expectTypeOf<MatchingBindingPattern<"order.#", `order.${string}`>>().toEqualTypeOf<"order.#">();
+    // A union with one undecidable member is undecidable as a whole.
+    expectTypeOf<
+      MatchingBindingPattern<"order.*" | `x.${string}`, "order.created">
+    >().toEqualTypeOf<"order.*" | `x.${string}`>();
+  });
+
   test("still rejects empty patterns", () => {
     expectTypeOf<MatchingBindingPattern<"", "order.created">>().toEqualTypeOf<never>();
   });
@@ -205,6 +225,24 @@ describe("defineEventConsumer topic routing-key override enforcement", () => {
     defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "#" });
     defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "order.created.#" });
     defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: "*.created" });
+  });
+
+  test("accepts a template-literal pattern through the public API", () => {
+    // The defect this suite exists to prevent, reproduced end-to-end: a
+    // tenant-prefixed pattern matches 'order.created' at runtime, and the
+    // library used to fail the build with
+    //   "binding pattern '${string}.created' can never match the publisher
+    //    routing key 'order.created'".
+    const tenantPattern = "acme.created" as `${string}.created`;
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: tenantPattern });
+
+    const suffixPattern = "order.created" as `order.${string}`;
+    defineEventConsumer(orderCreated, allOrdersQueue, { routingKey: suffixPattern });
+
+    defineEventConsumer(orderCreated, allOrdersQueue, {
+      bridgeExchange,
+      routingKey: tenantPattern,
+    });
   });
 
   test("rejects patterns that can never match the publisher routing key", () => {
