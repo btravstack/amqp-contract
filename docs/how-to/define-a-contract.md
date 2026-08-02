@@ -268,7 +268,7 @@ type NoMatch = MatchingRoutingKey<"order.*", "user.created">; // never
 
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. The `defineEvent*` and `defineCommand*` functions apply these internally; use them directly when writing your own routing helpers.
 
-The examples above use fully literal types, where `MatchingRoutingKey` can decide the match. When either side is not fully known at compile time — plain `string`, a template-literal type such as `` `${string}.created` ``, or a union containing either — the check is skipped and the key is returned unchecked rather than guessed at.
+The examples above use fully literal types, where `MatchingRoutingKey` can decide the match. When either side is not a fully resolved string literal — a plain `string`, a template-literal type such as `` `${string}.created` ``, a union containing either, or a branded string type, among others — the check is skipped and the key is returned unchecked rather than guessed at.
 
 TypeScript's recursion limit means very long keys fall back to `string`. That affects compile-time checking only, never runtime behaviour.
 

@@ -144,8 +144,11 @@ type MatchesPattern<
  * {@link MatchingBindingPattern} (which surfaces a readable error-message
  * string type instead of `never`).
  *
- * Returns the routing key when it is known to match the pattern, and `never`
- * when it is known not to.
+ * Returns the routing key when both the pattern and the key are valid (see
+ * {@link RoutingKey} and {@link BindingPattern}) and the key matches the
+ * pattern; `never` when either is invalid or the key does not match — so
+ * `MatchingRoutingKey<"order.*", "order.*">` is `never`: the key matches the
+ * pattern textually, but a routing key may not itself contain a wildcard.
  *
  * The check runs only when both the pattern and the key are fully known at
  * compile time. Plain `string`, template-literal types, and unions containing
