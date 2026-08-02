@@ -384,7 +384,9 @@ export type RoutableRoutingKey<Key extends string, Patterns extends string> =
       : [Patterns] extends [never]
 ```
 
-The `[Patterns] extends [never]` arm becomes unreachable — `IsStringLiteral<never>` is `false`, so the empty union is already returned by the arm above it. Keep the arm anyway: it documents the intent locally and costs nothing. Do not add a comment claiming it is reachable.
+Then delete the now-dead `[Patterns] extends [never] ? Key :` arm and its comment, so the type reads `… : IsStringLiteral<Patterns> extends false ? Key : MatchesAnyPattern<Key, Patterns> extends true ? Key : …`.
+
+That arm is unreachable once the guard is in place: `IsStringLiteral<never>` is `false`, so the empty union already returns `Key` one arm earlier. Behavior is identical — the existing assertion `RoutableRoutingKey<"order.created", never>` resolving to `"order.created"` must still pass, and it is what proves the deletion is safe. Leaving a dead arm in place to "document intent" is how a reader later concludes the guard does not cover `never`.
 
 Its doc comment already says "non-literal" and needs no change.
 
