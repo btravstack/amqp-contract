@@ -87,6 +87,13 @@ export function _internal_resolveDeadLetterRoutability(
  * worse than none, because it sends the reader after the wrong thing while
  * looking authoritative.
  *
+ * On a DIRECT exchange the remedy carries an extra warning about `#`. Row 4 of
+ * the decision table accepts ANY binding when the queue sets no dead-letter
+ * routing key, so a reader who reaches for `#` here passes this check and still
+ * routes nothing — `#` is a topic wildcard, and a direct exchange treats it as a
+ * literal key. The guard structurally cannot catch that (it does not know which
+ * key will arrive), so this message is the only place that can warn.
+ *
  * @internal
  */
 export function _internal_assertDeadLetterRoutable(
@@ -109,6 +116,13 @@ export function _internal_assertDeadLetterRoutable(
     deadLetter.routingKey === undefined
       ? "its dead-lettered messages keep their original routing key"
       : `its dead-lettered messages are routed with "${deadLetter.routingKey}"`;
+  // See the doc comment: on a direct exchange this check cannot tell a routing
+  // binding from a decorative one, so the warning has to travel in the message.
+  const directHint =
+    exchange.type === "direct"
+      ? ` Bind the routing key itself: "#" is a topic wildcard, and on a direct exchange it is a` +
+        ` literal key that matches nothing.`
+      : "";
 
   // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
   throw new Error(
@@ -116,6 +130,7 @@ export function _internal_assertDeadLetterRoutable(
       `nothing there can receive them: ${keyText}. ${declaredText} RabbitMQ discards a message ` +
       `routed to zero queues, so these would be lost exactly as silently as if the queue had no ` +
       `dead-letter exchange at all. Bind a queue to "${exchange.name}" that accepts them, or set ` +
-      `\`externalConsumers: true\` on the deadLetter config if another service owns that queue.`,
+      `\`externalConsumers: true\` on the deadLetter config if another service owns that queue.` +
+      directHint,
   );
 }

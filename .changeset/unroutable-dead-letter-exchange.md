@@ -12,6 +12,12 @@ another service owns it. A dead-letter exchange supplied through the raw
 checked.
 
 `DeadLetterConfig.externalConsumers?: boolean` is the new opt-out, accepted by
-`defineQueue` and mirroring `PublisherDefinition.externalConsumers`. On a
-`direct` dead-letter exchange bind the actual routing key: `#` is a topic
-wildcard and matches nothing there.
+`defineQueue` and mirroring `PublisherDefinition.externalConsumers`.
+
+Bind the key that will actually arrive. On a `direct` dead-letter exchange `#` is
+a literal that matches nothing — the error message says so, because when the
+queue sets no `deadLetter.routingKey` the check accepts any binding and cannot
+catch it. On a queue with `retry: { mode: "ttl-backoff" }` a retried message
+re-enters through the wait queue carrying the queue name as its routing key, so
+the publisher's key is not what reaches the dead-letter exchange either. Setting
+an explicit `deadLetter.routingKey` sidesteps both.

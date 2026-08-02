@@ -36,6 +36,7 @@ import {
   defineEventConsumer,
   defineExchange,
   defineQueue,
+  defineQueueBinding,
   defineMessage,
 } from "@amqp-contract/contract";
 import { z } from "zod";

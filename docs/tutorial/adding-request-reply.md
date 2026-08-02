@@ -21,6 +21,8 @@ Open `contract.ts` and add to the imports:
 import { defineRpc } from "@amqp-contract/contract";
 ```
 
+`defineQueueBinding` is already imported from step 1 — the RPC's dead-letter queue needs it too.
+
 Then, above `defineContract`, define the RPC:
 
 ```typescript

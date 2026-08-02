@@ -177,6 +177,25 @@ describe("defineContract dead-letter routability", () => {
     expect(() => defineContract(contractWith(queue))).not.toThrow();
   });
 
+  it("warns that '#' matches nothing when the dead-letter exchange is direct", () => {
+    // Row 4 accepts ANY binding when the queue sets no dead-letter routing key,
+    // so a reader who answers this error with `#` on a direct exchange passes
+    // the check and still routes nothing. The message is the only warning.
+    const dlx = defineExchange("orders-dlx-direct-hint", { type: "direct" });
+    const queue = defineQueue("order-processing-direct-hint", { deadLetter: { exchange: dlx } });
+
+    expect(() => defineContract(contractWith(queue))).toThrow(/"#" is a topic wildcard/);
+    expect(() => defineContract(contractWith(queue))).toThrow(/matches nothing/);
+  });
+
+  it("does NOT mention '#' when the dead-letter exchange is topic — there it is correct", () => {
+    const dlx = defineExchange("orders-dlx-topic-hint", { type: "topic" });
+    const queue = defineQueue("order-processing-topic-hint", { deadLetter: { exchange: dlx } });
+
+    expect(() => defineContract(contractWith(queue))).toThrow(/orders-dlx-topic-hint/);
+    expect(() => defineContract(contractWith(queue))).not.toThrow(/topic wildcard/);
+  });
+
   it("checks an rpc's queue too, not only consumers", () => {
     const dlx = defineExchange("rpc-dlx-bare", { type: "topic" });
     const rpcQueue = defineQueue("rpc-processing-bare", { deadLetter: { exchange: dlx } });
