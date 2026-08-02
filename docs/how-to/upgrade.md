@@ -81,7 +81,7 @@ On a queue that does not exist yet, the DLX costs nothing:
   });
 ```
 
-**Add the dead-letter queue and the binding, not just the exchange.** `defineContract` requires the `deadLetter` pointer _and_ rejects a dead-letter exchange with nothing bound to it, because RabbitMQ silently drops a dead letter that matches no binding. A DLX with nothing bound loses exactly the messages you added it to keep, and the worker logs `Sending message to DLQ` at `info` while it happens, so the loss looks like success. Declaring the DLQ at the top level of `defineContract` is the [standalone topology](/how-to/define-a-contract#declare-standalone-topology) pattern; the DLQ itself is not consumed, so it needs no DLX of its own. If another service owns that queue, set `externalConsumers: true` on the `deadLetter` config — the check then skips the exchange.
+**Add the dead-letter queue and the binding, not just the exchange.** The `deadLetter` pointer satisfies _this_ check; a second check, [below](#a-dead-letter-exchange-needs-something-bound-to-it), rejects the exchange it names if nothing is bound there. Declaring the DLQ at the top level of `defineContract` is the [standalone topology](/how-to/define-a-contract#declare-standalone-topology) pattern; the DLQ itself is not consumed, so it needs no DLX of its own.
 
 Or state that dropping is deliberate — correct for a metrics firehose, a lie anywhere else, and the required declaration when the dead-lettering lives in a broker policy the contract cannot see:
 
@@ -91,6 +91,75 @@ Or state that dropping is deliberate — correct for a metrics firehose, a lie a
 ```
 
 Only _consumed_ queues are checked. A dead-letter queue you declare but do not consume needs neither. If you do consume your DLQ, it needs `onPoison: "drop"` — a DLQ cannot dead-letter to itself.
+
+### A dead-letter exchange needs something bound to it
+
+**What breaks:** `defineContract` throws for any queue whose `deadLetter` exchange has nothing bound to it in the contract's binding graph. Loud, at import time, like the check above. Unlike it, this one applies to **every** queue the contract declares, consumed or not — a dead letter is discarded regardless of who consumes the source queue.
+
+```
+Queue "order-processing" dead-letters to exchange "orders-dlx" (topic), but nothing
+there can receive them: its dead-lettered messages keep their original routing key.
+Nothing is bound to "orders-dlx". RabbitMQ discards a message routed to zero queues, …
+```
+
+**This is not a new restriction — it is the discovery of an existing data-loss path.** If your contract trips this, those messages are already being discarded, today, in production. RabbitMQ drops a message that matches no binding, and a dead letter is an ordinary publish: an exchange with nothing bound loses exactly the messages you added it to keep. Nothing reports it. Worse, the worker logs `Sending message to DLQ` at `info` as it happens, so the loss reads as a successful hand-off in the one place you would look. The check moves that from silent runtime loss to a define-time error; it does not create the loss.
+
+**The fix:** declare the dead-letter queue and bind it — two lines, on the same shape as the check above, and the full pattern is at [define a contract → declare standalone topology](/how-to/define-a-contract#declare-standalone-topology):
+
+```diff
++ const orderDlq = defineQueue("order-processing-dlq");
+
+  export const contract = defineContract({
+    consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
++   queues: { orderDlq },
++   bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+  });
+```
+
+**On a direct DLX, bind the real routing key.** `#` is a _topic_ wildcard. A direct exchange has no wildcards, so it treats `#` as the literal routing key `#` and a dead letter arriving under any other key matches nothing — measured against RabbitMQ 4.2: the same `#` binding on a topic DLX receives the dead letter, on a direct DLX it receives nothing (`tests/src/dlx-routability.spec.ts`). This is the one case the check cannot catch for you: with no `deadLetter.routingKey` set, the key a dead letter arrives under is the message's original key, which is not knowable at define time, so any binding at all satisfies the check. Bind the key the message will actually carry — the queue's `deadLetter.routingKey` if it sets one, otherwise every key the source queue can receive:
+
+```typescript
+import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/contract";
+
+const paymentsDlx = defineExchange("payments-dlx", { type: "direct" });
+const paymentsDlq = defineQueue("payments-dlq");
+
+const paymentsQueue = defineQueue("payments", {
+  deadLetter: { exchange: paymentsDlx, routingKey: "payments.dead" },
+});
+
+// The same key the dead letter arrives under — not "#", which a direct
+// exchange matches literally and therefore never.
+const paymentsDlqBinding = defineQueueBinding(paymentsDlq, paymentsDlx, {
+  routingKey: "payments.dead",
+});
+```
+
+**One more key that is not what you expect:** on a queue with `retry: { mode: "ttl-backoff" }`, a retried message re-enters through the wait queue carrying the **queue name** as its routing key, so a binding on the publisher's key stops matching after the first retry. Setting an explicit `deadLetter.routingKey` and binding that sidesteps both this and the direct-exchange trap above.
+
+**The opt-out** is `externalConsumers: true`, for a dead-letter queue that another service or your IaC owns. It is an assertion that the binding exists on the broker and someone else guarantees it, so use it only when that is true — it disables the check for that queue permanently:
+
+```typescript
+import { defineExchange, defineQueue } from "@amqp-contract/contract";
+
+const inventoryDlx = defineExchange("inventory-dlx");
+const inventoryCommands = defineQueue("inventory-commands", {
+  deadLetter: { exchange: inventoryDlx, externalConsumers: true },
+});
+```
+
+**Not checked:** a dead-letter exchange supplied through the raw `arguments` passthrough. It names an exchange as a bare string rather than an `ExchangeDefinition`, and the contract need not declare that exchange at all, so its bindings are not knowable and the queue is skipped. You get no error and no protection:
+
+```typescript
+import { defineQueue } from "@amqp-contract/contract";
+
+// Skipped by the check — verify this exchange's bindings on the broker yourself.
+const legacyQueue = defineQueue("legacy-processing", {
+  arguments: { "x-dead-letter-exchange": "legacy-dlx" },
+});
+```
+
+**If the queue already exists in production:** adding the DLQ binding is subject to the same constraint as adding `deadLetter` in the first place — see [troubleshoot → if the queue already exists in production](/how-to/troubleshoot#if-the-queue-already-exists-in-production), and in particular the warning there about matching the existing exchange type and routing key before you declare. Declaring `orders-dlx` with a type that differs from the live one fails with a 406 at startup; declaring it with the right type and the wrong key fails silently, which is the failure this whole check exists to prevent.
 
 ### Channels set a 30s publish timeout
 
@@ -292,7 +361,7 @@ Exported functions across the btravstack family now take at most two positional 
 2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, signature changes).
 3. Fix `create()` / `close()` extraction first; it is mechanical.
 4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
-5. Resolve the `defineContract` dead-letter throws — deciding the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`.
+5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange and nothing on a direct one.
 6. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
 7. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 
