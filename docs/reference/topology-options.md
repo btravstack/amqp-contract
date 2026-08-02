@@ -306,7 +306,7 @@ import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "@amqp-contr
 
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. `*` matches one segment, `#` matches zero or more, and both are valid only in patterns.
 
-`MatchingRoutingKey` can only decide a match when both `P` and `K` are fully resolved string literals at compile time — a plain `string`, a template-literal type, a union containing either, or a branded string type, among others, skips the check and resolves to `K` unchecked rather than guessing.
+`MatchingRoutingKey` always enforces each side's own validity — `RoutingKey<K>`, `BindingPattern<P>` — since that's decidable from one side alone, regardless of the other side's shape. It can only decide the _match_ between a valid pattern and a valid key when both `P` and `K` are fully resolved string literals at compile time; a plain `string`, a template-literal type, a union containing either, or a branded string type, among others, skips the match and resolves to `K` unchecked rather than guessing.
 
 TypeScript's recursion limit means very long keys fall back to `string`. Compile-time checking only; runtime behaviour is unaffected.
 
