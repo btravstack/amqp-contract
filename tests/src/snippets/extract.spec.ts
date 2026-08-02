@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { discoverMarkdownFiles } from "./discover.js";
 import { parseSnippets } from "./extract.js";
@@ -132,5 +133,47 @@ describe("discoverMarkdownFiles", () => {
     // exact count keeps this from failing every time someone adds a page,
     // while still catching discovery silently collapsing to nothing.
     expect(found.length).toBeGreaterThanOrEqual(20);
+  });
+
+  describe("path-segment anchoring", () => {
+    // A plain substring match on EXCLUDED fragments would silently drop pages
+    // whose name merely contains a fragment, or whose fragment is a prefix of
+    // a longer, unrelated segment — a doc missing from discovery still leaves
+    // this whole suite green, since nothing counts what should have been
+    // found.
+    let tmpRoot: string;
+
+    afterEach(() => {
+      rmSync(tmpRoot, { recursive: true, force: true });
+    });
+
+    it("keeps a doc whose path merely contains an excluded fragment as a substring", () => {
+      tmpRoot = mkdtempSync(join(tmpdir(), "amqp-contract-discover-"));
+      mkdirSync(join(tmpRoot, "docs", "how-to"), { recursive: true });
+      mkdirSync(join(tmpRoot, "docs", "api"), { recursive: true });
+      // "dist" is an EXCLUDED fragment; it must not disqualify a segment that
+      // merely contains it, like "distributed-tracing.md".
+      writeFileSync(join(tmpRoot, "docs", "how-to", "distributed-tracing.md"), "# ok\n");
+      // "docs/api" is an EXCLUDED fragment; the real generated-docs directory
+      // must still be excluded.
+      writeFileSync(join(tmpRoot, "docs", "api", "whatever.md"), "# generated\n");
+
+      const files = discoverMarkdownFiles(tmpRoot).map((f) => f.slice(tmpRoot.length + 1));
+
+      expect(files).toContain(join("docs", "how-to", "distributed-tracing.md"));
+      expect(files).not.toContain(join("docs", "api", "whatever.md"));
+    });
+
+    it("does not throw when a broken symlink appears mid-walk", () => {
+      tmpRoot = mkdtempSync(join(tmpdir(), "amqp-contract-discover-"));
+      mkdirSync(join(tmpRoot, "docs"), { recursive: true });
+      writeFileSync(join(tmpRoot, "docs", "real.md"), "# ok\n");
+      symlinkSync(join(tmpRoot, "docs", "nonexistent-target"), join(tmpRoot, "docs", "broken.md"));
+
+      const files = discoverMarkdownFiles(tmpRoot).map((f) => f.slice(tmpRoot.length + 1));
+
+      expect(files).toContain(join("docs", "real.md"));
+      expect(files).not.toContain(join("docs", "broken.md"));
+    });
   });
 });
