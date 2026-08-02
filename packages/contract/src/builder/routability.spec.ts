@@ -5,6 +5,7 @@ import { defineExchange } from "./exchange.js";
 import { defineQueue } from "./queue.js";
 import {
   _internal_declaredPatternsFor,
+  _internal_exchangeHasAlternateExchange,
   _internal_isPublisherRoutable,
   _internal_resolvePublisherRoutability,
 } from "./routability.js";
@@ -133,6 +134,33 @@ describe("alternate-exchange", () => {
       arguments: { "x-custom": "value" },
     });
     expect(_internal_isPublisherRoutable(other, "order.created", [])).toBe(false);
+  });
+});
+
+/*
+ * The predicate is exported so the dead-letter check can ask the same question
+ * without re-reading `arguments` — deciding it twice is how the publisher false
+ * positive came back on the dead-letter side.
+ */
+describe("_internal_exchangeHasAlternateExchange", () => {
+  it("is true when the argument is declared", () => {
+    const withAe = defineExchange("ae-declared", {
+      type: "direct",
+      arguments: { "alternate-exchange": "catch-all" },
+    });
+    expect(_internal_exchangeHasAlternateExchange(withAe)).toBe(true);
+  });
+
+  it("is false with no arguments at all", () => {
+    expect(_internal_exchangeHasAlternateExchange(ordersDirect)).toBe(false);
+  });
+
+  it("is false when other arguments are declared", () => {
+    const other = defineExchange("ae-absent", {
+      type: "direct",
+      arguments: { "x-custom": "value" },
+    });
+    expect(_internal_exchangeHasAlternateExchange(other)).toBe(false);
   });
 });
 

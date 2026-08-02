@@ -9,7 +9,9 @@ all — while the worker logged a reassuring "Sending message to DLQ". Bind a qu
 to the exchange, or set `externalConsumers: true` on the deadLetter config if
 another service owns it. A dead-letter exchange supplied through the raw
 `arguments` passthrough names an exchange this contract cannot inspect and is not
-checked.
+checked, and a dead-letter exchange declaring an `alternate-exchange` argument is
+always accepted — the broker hands its unmatched messages there rather than
+discarding them, exactly as for publishers.
 
 `DeadLetterConfig.externalConsumers?: boolean` is the new opt-out, accepted by
 `defineQueue` and mirroring `PublisherDefinition.externalConsumers`.

@@ -1,6 +1,7 @@
 import type { BindingDefinition, QueueDefinition } from "../types.js";
 import {
   _internal_declaredPatternsFor,
+  _internal_exchangeHasAlternateExchange,
   _internal_resolvePublisherRoutability,
 } from "./routability.js";
 
@@ -70,10 +71,22 @@ export function _internal_resolveDeadLetterRoutability(
   // message's ORIGINAL key, which is not knowable at define time. Proving this
   // case properly means showing every key that can reach the source queue also
   // matches a binding out of the DLX — pattern-subset reasoning, and getting it
-  // wrong rejects a valid contract. "At least one binding" catches the defect
-  // actually observed (a DLX with nothing bound) at zero false-positive risk,
-  // and accepts a DLX bound only to non-matching patterns. A known, deliberate
-  // false negative.
+  // wrong rejects a valid contract.
+  //
+  // An alternate exchange answers the question without the key: the broker
+  // hands whatever matches nothing to the named exchange rather than discarding
+  // it, so no key on this DLX is lost. Asked through the shared predicate, not
+  // re-read from `arguments` — this row bypasses the resolver, and deciding
+  // `alternate-exchange` a second time here is exactly how the publisher
+  // check's false positive was reintroduced.
+  if (_internal_exchangeHasAlternateExchange(exchange)) {
+    return "routable";
+  }
+
+  // What is left is the weak test: "at least one binding" catches the defect
+  // actually observed (a DLX with nothing bound). It accepts a DLX bound only
+  // to non-matching patterns — a known, deliberate false negative, and the only
+  // inaccuracy this row still carries.
   return _internal_declaredPatternsFor(exchange.name, bindings).length > 0
     ? "routable"
     : "unroutable";

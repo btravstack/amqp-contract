@@ -45,10 +45,22 @@ function bindingAccepts(
 /**
  * True when the exchange declares an `alternate-exchange` argument.
  *
+ * The single answer to that question, for every define-time check that asks
+ * "could a message on this exchange be discarded?" — the publisher resolver
+ * below, and row 4 of the dead-letter check in
+ * `./dead-letter-routability.ts`, which decides without the resolver because
+ * the arriving routing key is unknowable there. Both must agree on what an
+ * alternate exchange means: this predicate was added once to fix a publisher
+ * false positive, and the dead-letter row reintroduced the same bug by
+ * re-deciding routability without it. A third caller that decides routability
+ * on its own must consult this, not re-read `arguments`.
+ *
  * An alternate exchange is RabbitMQ's own catch-all for exactly the failure
- * this check exists to prevent: a message that matches no binding is handed to
+ * these checks exist to prevent: a message that matches no binding is handed to
  * the named exchange instead of being discarded. Such an exchange therefore
- * has no unroutable keys, and a publisher on it is always routable.
+ * has no unroutable keys, and a message reaching it is always routable —
+ * whatever key it carries, which is what makes the predicate usable by a caller
+ * that does not know the key.
  *
  * The argument holds a *name*, not an {@link ExchangeDefinition}, and the
  * alternate is usually declared elsewhere — another service's contract, or a
@@ -57,8 +69,10 @@ function bindingAccepts(
  * lives outside it, which is precisely the false positive this module must not
  * produce. We stop at the declaration instead: an alternate exchange whose own
  * target is unbound is a far rarer and cheaper mistake than a broken build.
+ *
+ * @internal
  */
-function hasAlternateExchange(exchange: ExchangeDefinition): boolean {
+export function _internal_exchangeHasAlternateExchange(exchange: ExchangeDefinition): boolean {
   return exchange.arguments?.["alternate-exchange"] !== undefined;
 }
 
@@ -111,7 +125,7 @@ export function _internal_resolvePublisherRoutability(
     // Checked on every hop, not just the source: a forward can land on an
     // exchange that catches its own unmatched keys, and that hop is just as
     // routable as the source would be.
-    if (hasAlternateExchange(current)) {
+    if (_internal_exchangeHasAlternateExchange(current)) {
       return { routable: true, reachedExchanges: [...visited] };
     }
 
