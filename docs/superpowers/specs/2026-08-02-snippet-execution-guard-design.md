@@ -141,6 +141,50 @@ should not be in the documentation as executable TypeScript.
 6. A new markdown file with a `defineContract` snippet is picked up automatically — discovery is
    by walk, never by a hand-maintained list.
 
+## Carried forward from the implementation
+
+Shipped on branch `audit/snippet-execution-guard`. **16 of 29 snippets failed on first run** —
+more than half the corpus — which is the strongest evidence the guard was worth committing.
+
+### The strongest remaining follow-up
+
+**The same rot class exists for file paths, and has no guard.** This branch moved
+`tests/src/*.spec.ts` into `__tests__/` and broke nine invariant-to-test mappings in
+`AGENTS.md` — while adding invariant 23 to that very file, under a line that says "extend the
+mapping when you add one". `CLAUDE.md` is a symlink, so it inherited all of them. An agent
+verifying an invariant would have got file-not-found and could reasonably have concluded the
+guard did not exist.
+
+A test asserting that every backticked path in `AGENTS.md` resolves would have caught it at
+commit time. That is precisely the argument this branch makes for snippets, applied to a
+different artifact, and it is cheaper than what was built here.
+
+### Known limits of what shipped
+
+- **The corpus floor is a hand-maintained number.** It is set to the exact corpus size (31), so
+  removing coverage fails loudly — but it drifts slack upward as pages are added and nobody
+  raises it. Deriving it, or failing on any decrease, would be tighter.
+- **`AGENTS.md` and `CLAUDE.md` are not in the guard's `ROOTS`.** A contract snippet added to
+  either would be unguarded. None exists today.
+- **`discover.ts` walks all of `packages/` before filtering**, recursing into each package's
+  `node_modules` and `dist`. Wasted I/O only, measured ~450ms.
+
+### A trap the guard structurally cannot catch
+
+Of the dead-letter bindings in this branch's swept fences, **14 route only because
+`defineExchange` defaults to `topic`**. Two pages — `docs/how-to/define-a-contract.md` and
+`docs/tutorial/adding-request-reply.md` — place a `direct` main exchange on the line adjacent to
+a bare DLX. A reader "harmonizing" those two lines creates total silent loss, and nothing in the
+repository fails: `dead-letter-routability.ts` documents accepting any binding in that row as a
+deliberate false negative.
+
+Worth its own follow-up: reject a `direct` exchange bound with a wildcard-containing key at
+define time. `#` is a topic wildcard and matches nothing on a direct exchange — measured, topic
+receives 1 and direct receives 0 — and that trap has now produced defects on three separate
+branches, including inside text written to fix it.
+
+---
+
 ## What this does and does not guarantee
 
 It guarantees a documented contract **compiles far enough to run and constructs successfully with
