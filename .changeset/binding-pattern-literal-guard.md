@@ -16,11 +16,19 @@ compile time, and skip the match when it is not. `MatchingRoutingKey` also loses
 an asymmetry where a plain-`string` pattern collapsed to `never` while a
 plain-`string` key did not.
 
-A pattern fully known at compile time and unable to match is still rejected
-exactly as before. The guard gives up a narrower class in exchange: a pattern
-with a hole and a literal tail, such as `` `user.${string}` `` against
-`order.created`, could in principle be shown unmatchable and is now accepted.
-That trade is deliberate — rejecting a valid contract is the costlier error.
+Rejection is unchanged only when both the pattern and the publisher routing
+key are fully known at compile time. When either side is not — a hole
+anywhere in the type, a union containing one, or a type carrying extra
+structure such as a brand — the check is skipped, even when the known side
+alone already proves no match is possible. ``MatchingBindingPattern<"user.x",
+`${string}.created`>`` is one such case: `"user.x"` can never equal any
+string ending in `.created`, and this used to fail the build; it is accepted
+now, unchecked, because the key side is not fully known. The same happens
+when the pattern side is the undecidable one — a pattern with a hole and a
+literal tail, such as `` `${string}.updated` ``, or a pattern narrowed by an
+intersection such as `"user.*" & {__b: "x"}`, is accepted against a fully
+known key for the same reason. That trade is deliberate — rejecting a valid
+contract is the costlier error.
 
 The define-time routability check in `defineContract` covers the publisher
 side — it fails a contract whose publisher reaches no queue. It does not cover
