@@ -22,6 +22,17 @@ If both sides live in the same codebase, do not bridge — share the exchange de
 The remote `orders` domain publishes `order.created` on its `orders` exchange. Your `billing` service wants those on its own queue.
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
 // Remote domain's exchange — referenced once, to declare the bridge
 const ordersExchange = defineExchange("orders");
 
@@ -69,6 +80,16 @@ flowchart LR
 The reverse. The remote `inventory` domain owns a queue you want to send commands to.
 
 ```typescript
+import {
+  defineCommandConsumer,
+  defineCommandPublisher,
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
 // Remote domain
 const inventoryExchange = defineExchange("inventory");
 const inventoryDlx = defineExchange("inventory-dlx");

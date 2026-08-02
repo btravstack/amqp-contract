@@ -1616,15 +1616,19 @@ describe("builder", () => {
       const ordersExchange = defineExchange("orders");
       const orderMessage = defineMessage(z.object({ orderId: z.string() }));
       const orderQueue = defineQueue("order-processing", {
-        deadLetter: { exchange: dlx },
+        // The DLX is `direct`, so the binding below must match exactly — and
+        // with ttl-backoff the arriving key is NOT the publisher's. A retried
+        // message re-enters the main queue through the wait queue's
+        // `x-dead-letter-routing-key` (the queue name), so from the second
+        // delivery on its key is "order-processing", not "order.created".
+        // Naming the dead-letter key here makes the DLX hop deterministic.
+        deadLetter: { exchange: dlx, routingKey: "order-processing.dlq" },
         retry: { mode: "ttl-backoff", maxRetries: 5, initialDelayMs: 2000 },
       });
 
       const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
         routingKey: "order.created",
       });
-      // The DLX is `direct` and the queue sets no dead-letter routing key, so a
-      // dead-lettered message keeps its original key — bind that exact key.
       const orderDlq = defineQueue("order-processing-dlq");
 
       // WHEN
@@ -1635,7 +1639,7 @@ describe("builder", () => {
         },
         queues: { orderDlq },
         bindings: {
-          dlqBinding: defineQueueBinding(orderDlq, dlx, { routingKey: "order.created" }),
+          dlqBinding: defineQueueBinding(orderDlq, dlx, { routingKey: "order-processing.dlq" }),
         },
       });
 

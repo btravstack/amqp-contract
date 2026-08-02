@@ -47,7 +47,9 @@ export const contract = defineContract({
 
 `defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached, which is exactly what a dead-letter queue is.
 
-`defineContract` requires a consumed queue to declare a `deadLetter` (or `onPoison: "drop"`), **and** requires something to be bound to the exchange it names — a dead-letter exchange that routes nowhere loses exactly the messages `deadLetter` was added to keep, because the broker silently drops what matches no binding. Declaring the DLQ and its binding alongside is what makes the dead-lettering real. When another service owns the dead-letter queue, say so with `externalConsumers: true` on the `deadLetter` config instead.
+Two separate rules apply here. `defineContract` requires a **consumed** queue to declare a `deadLetter` (or `onPoison: "drop"`). Separately, it requires something to be bound to whatever exchange a `deadLetter` names — and that rule applies to **every queue the contract declares**, consumed or not, because an unbound dead-letter exchange loses the message whoever consumes the source queue. A dead-letter exchange that routes nowhere loses exactly the messages `deadLetter` was added to keep, since the broker silently drops what matches no binding. Declaring the DLQ and its binding alongside is what makes the dead-lettering real. When another service owns the dead-letter queue, say so with `externalConsumers: true` on the `deadLetter` config instead.
+
+Bind the key that will actually arrive, not the one the publisher sends. On a `direct` dead-letter exchange `#` is a literal that matches nothing, and on a queue with `retry: { mode: "ttl-backoff" }` a retried message re-enters through the wait queue and carries the _queue name_ as its routing key from the second delivery on. Setting an explicit `deadLetter.routingKey` sidesteps both.
 
 ## Broadcast an event to many consumers
 

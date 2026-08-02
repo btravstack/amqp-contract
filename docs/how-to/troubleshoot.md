@@ -192,9 +192,11 @@ The worker used to warn as it happened, which is both too late and invisible
 unless a logger was wired.
 
 On a queue that does not exist on the broker yet, keep failed messages for
-inspection. Declare the dead-letter queue and its binding as well — the check
-requires a `deadLetter` pointer _and_ rejects an exchange with nothing bound to
-it, because the broker silently drops a dead letter that matches no binding:
+inspection. Declare the dead-letter queue and its binding as well. These are two
+separate rules: the `deadLetter` pointer is required on _consumed_ queues, while
+the "something must be bound to that exchange" rule applies to **every queue the
+contract declares** — the broker silently drops a dead letter that matches no
+binding, whoever consumes the source queue:
 
 ```typescript
 const ordersDlx = defineExchange("orders-dlx");
