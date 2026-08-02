@@ -172,6 +172,58 @@ true` only where the fixture genuinely models externally-owned topology. Fixture
 8. Every command that executes a contract is green: root `pnpm test`, all four integration
    projects run serially, and the example packages.
 
+## Carried forward from the implementation
+
+Shipped on branch `audit/dlx-routability`. The guard works: the final review independently
+confirmed it cannot reject a valid contract, and that all 48 swept bindings genuinely route.
+
+### The one structural gap left open
+
+**No CI guard on documentation snippets.** This branch's sweep introduced three broken snippets
+(`core/README.md` missing an import, `bridge-domains.md` — a page with no import lines at all —
+gaining a `defineQueueBinding` call, and `adding-request-reply.md` gaining one without saying
+where it came from). All three were found only by an extraction harness that used **each
+snippet's own imports**; an earlier harness that injected a superset preamble found none of them,
+because it supplied imports the reader would not have.
+
+That harness is still throwaway and uncommitted. It is the only structural guard against a class
+of defect that has now consumed four reviews across three branches, and it stays unguarded the
+moment this work merges. Committing a snippet-execution test that uses only each snippet's own
+import block would close it — the extractor works, it just is not in the repo.
+
+Note what snippet execution does and does not prove: a snippet **compiles and constructs**. It
+does not prove the topology **routes**, because `defineContract` accepts a binding that reaches
+nowhere by design in the undecidable rows. The two checks are complementary.
+
+### Deferred
+
+- **`packages/contract/src/builder.test-d.ts` fixture 1** takes `externalConsumers: true` with a
+  rationale the re-review disproved: all eight sibling tests sharing that queue use
+  `toHaveProperty`, tolerate extra queues, and the assertion the comment cites is on an unrelated
+  queue. A real DLQ and binding would have worked with no rework. The comment ships misleading.
+  Two of three type-test fixtures took the opt-out, so the exemplar value lands in one.
+- **The `Declared on "X": …` and `routed with "<key>"` error-message arms** are reachable (row 3)
+  but untested.
+- **The `#` hint fires for row 3 as well as row 4**, where the advice is generic rather than
+  targeted. Not wrong, just imprecise.
+- **The guard is define-time only.** A hand-rolled `ContractDefinition` literal bypasses it
+  entirely, as several core and worker specs do.
+
+### What the direct-`#` trap cost
+
+Worth recording, because it recurred: `#` is a **topic** wildcard. On a direct exchange it is a
+literal key matching nothing. Measured on a real broker and now pinned by
+`tests/src/dlx-routability.spec.ts`: topic + `#` receives 1, **direct + `#` receives 0**.
+
+It appeared three times on this branch — in the original sweep (four sites needed literal keys),
+in two ttl-backoff fixtures where the retry pipeline rewrites the key to the queue name so the
+publisher's key never arrives, and latent in `.agents/rules/contract-patterns.md`, which was
+correct only because the queue happened to be quorum. The guard structurally cannot catch it:
+in the no-`routingKey` row, **any** binding satisfies the check. The error message now carries the
+warning when the DLX is direct, because that is the only place it can live.
+
+---
+
 ## Migration impact
 
 Breaking by design, and it lands before 3.0 stable.
