@@ -21,8 +21,27 @@ const ROOTS = ["docs", "packages", ".agents", "README.md"] as const;
  * - `docs/superpowers` holds specs and plans, deliberately illustrative.
  * - `node_modules`, `dist` and `.vitepress` are build artifacts.
  * - Only `packages/<name>/README.md` is wanted from `packages`, not sources.
+ *
+ * Matched against whole path segments via {@link matchesExcludedFragment}, never as a
+ * plain substring — `"dist"` must not disqualify `docs/how-to/distributed-tracing.md`,
+ * and `` `docs/api` `` must not disqualify a hypothetical `docs/apis-overview.md`.
  */
 const EXCLUDED = ["node_modules", `docs${sep}api`, `docs${sep}superpowers`, "dist", ".vitepress"];
+
+/**
+ * True when `fragment` matches `rel` on path-segment boundaries: as the whole path, a
+ * leading segment run, a trailing segment run, or a segment run in the middle. A plain
+ * `rel.includes(fragment)` would also match `fragment` as a mere substring of some
+ * unrelated, longer segment (`"dist"` inside `distributed-tracing.md`).
+ */
+function matchesExcludedFragment(rel: string, fragment: string): boolean {
+  return (
+    rel === fragment ||
+    rel.startsWith(`${fragment}${sep}`) ||
+    rel.endsWith(`${sep}${fragment}`) ||
+    rel.includes(`${sep}${fragment}${sep}`)
+  );
+}
 
 function walk(absolute: string, out: string[]): void {
   let entries: string[];
@@ -33,7 +52,15 @@ function walk(absolute: string, out: string[]): void {
   }
   for (const entry of entries) {
     const child = join(absolute, entry);
-    if (statSync(child).isDirectory()) {
+    let stats: ReturnType<typeof statSync>;
+    try {
+      stats = statSync(child);
+    } catch {
+      // A broken symlink or a file removed mid-walk: skip it rather than take
+      // the whole discovery run down.
+      continue;
+    }
+    if (stats.isDirectory()) {
       walk(child, out);
     } else if (entry.endsWith(".md")) {
       out.push(child);
@@ -60,7 +87,7 @@ export function discoverMarkdownFiles(repoRoot: string): readonly string[] {
   return found
     .filter((file) => {
       const rel = relative(repoRoot, file);
-      if (EXCLUDED.some((fragment) => rel.includes(fragment))) return false;
+      if (EXCLUDED.some((fragment) => matchesExcludedFragment(rel, fragment))) return false;
       // From packages, only the package READMEs.
       if (rel.startsWith(`packages${sep}`))
         return rel.split(sep).length === 3 && rel.endsWith("README.md");
