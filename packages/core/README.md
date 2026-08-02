@@ -29,6 +29,7 @@ yarn add @amqp-contract/core
 The core package exports an `AmqpClient` class that handles the creation of all AMQP resources defined in a contract.
 
 ```typescript
+// contract.ts
 import {
   defineContract,
   defineEventPublisher,

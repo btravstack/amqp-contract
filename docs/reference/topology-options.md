@@ -9,6 +9,10 @@ Options for every contract-building function. For recipes see [define a contract
 
 ## `defineContract`
 
+`defineContract({ publishers, consumers, rpcs, exchanges, queues, bindings })`
+
+Every key is optional. A worked example, using all six:
+
 ```typescript
 import {
   defineContract,

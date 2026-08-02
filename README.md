@@ -27,6 +27,7 @@ Define your AMQP contracts once — get **type safety**, **autocompletion**, and
 ## Quick Example
 
 ```typescript
+// contract.ts
 import {
   defineContract,
   defineEventConsumer,
