@@ -146,6 +146,11 @@ type MatchesPattern<
  *
  * Returns the routing key if it's valid and matches the pattern, `never` otherwise.
  *
+ * The check runs only when both the pattern and the key are fully known at
+ * compile time. Plain `string`, template-literal types, and unions containing
+ * either resolve to `Key` unchecked — the match cannot be decided, and
+ * guessing would reject a key that routes at runtime.
+ *
  * @example
  * ```typescript
  * type ValidKey = MatchingRoutingKey<"order.*", "order.created">; // "order.created"
@@ -156,13 +161,17 @@ type MatchesPattern<
  * @template Key - The routing key to validate
  */
 export type MatchingRoutingKey<Pattern extends string, Key extends string> =
-  RoutingKey<Key> extends never
-    ? never // Invalid routing key
-    : BindingPattern<Pattern> extends never
-      ? never // Invalid pattern
-      : MatchesPattern<Key, Pattern> extends true
-        ? Key
-        : never;
+  IsStringLiteral<Pattern> extends false
+    ? Key // Undecidable at compile time — defer rather than guess
+    : IsStringLiteral<Key> extends false
+      ? Key
+      : RoutingKey<Key> extends never
+        ? never // Invalid routing key
+        : BindingPattern<Pattern> extends never
+          ? never // Invalid pattern
+          : MatchesPattern<Key, Pattern> extends true
+            ? Key
+            : never;
 
 /**
  * Binding pattern for a topic consumer, validated against the publisher's
@@ -245,11 +254,10 @@ type MatchesAnyPattern<Key extends string, Patterns extends string> = [Patterns]
  * //  patterns; the broker would confirm and discard every message"
  * ```
  */
-export type RoutableRoutingKey<Key extends string, Patterns extends string> = string extends Key
-  ? Key
-  : string extends Patterns
+export type RoutableRoutingKey<Key extends string, Patterns extends string> =
+  IsStringLiteral<Key> extends false
     ? Key
-    : [Patterns] extends [never]
+    : IsStringLiteral<Patterns> extends false
       ? Key
       : MatchesAnyPattern<Key, Patterns> extends true
         ? Key

@@ -154,6 +154,16 @@ describe("MatchingRoutingKey pattern matching", () => {
       MatchingRoutingKey<"order.*.#", "order.created">
     >().toEqualTypeOf<"order.created">();
   });
+
+  test("skips the check when either side is not a compile-time literal", () => {
+    // Previously asymmetric: a plain-`string` pattern collapsed to `never`
+    // while a plain-`string` key did not. Both now skip.
+    expectTypeOf<MatchingRoutingKey<string, "order.created">>().toEqualTypeOf<"order.created">();
+    expectTypeOf<MatchingRoutingKey<"order.#", string>>().toEqualTypeOf<string>();
+    expectTypeOf<
+      MatchingRoutingKey<`order.${string}`, "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
 });
 
 describe("MatchingBindingPattern (topic consumer override enforcement)", () => {
