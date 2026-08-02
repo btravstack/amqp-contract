@@ -144,7 +144,8 @@ type MatchesPattern<
  * {@link MatchingBindingPattern} (which surfaces a readable error-message
  * string type instead of `never`).
  *
- * Returns the routing key if it's valid and matches the pattern, `never` otherwise.
+ * Returns the routing key when it is known to match the pattern, and `never`
+ * when it is known not to.
  *
  * The check runs only when both the pattern and the key are fully known at
  * compile time. Plain `string`, template-literal types, and unions containing
@@ -192,9 +193,12 @@ export type MatchingRoutingKey<Pattern extends string, Key extends string> =
  * The check runs only when both sides are fully known at compile time. Plain
  * `string`, a template-literal type with a `${…}` hole (`` `${string}.created` ``),
  * and any union containing either are skipped: the match cannot be decided, and
- * guessing would reject a pattern that matches at runtime. Those contracts are
- * covered by the define-time routability check in `defineContract`, which runs
- * on concrete strings.
+ * guessing would reject a pattern that matches at runtime. The define-time
+ * routability check in `defineContract` does not cover the gap this leaves:
+ * it fails a contract whose *publisher* reaches no queue, but it does not
+ * detect a consumer binding like this one that receives nothing while a
+ * sibling binding keeps the publisher routable. There is no compile-time or
+ * define-time backstop for that case.
  *
  * @template Pattern - The consumer's binding pattern (can contain * and # wildcards)
  * @template PublisherKey - The publisher's concrete routing key
@@ -218,11 +222,11 @@ export type MatchingBindingPattern<Pattern extends string, PublisherKey extends 
  * of by the number of bindings.
  * @internal
  */
-type MatchesAnyPattern<Key extends string, Patterns extends string> = [Patterns] extends [never]
-  ? false
-  : true extends (Patterns extends string ? MatchesPattern<Key, Patterns> : never)
-    ? true
-    : false;
+type MatchesAnyPattern<Key extends string, Patterns extends string> = true extends (
+  Patterns extends string ? MatchesPattern<Key, Patterns> : never
+)
+  ? true
+  : false;
 
 /**
  * A publisher routing key validated against the binding patterns declared on

@@ -298,13 +298,15 @@ The `middleware` array form composes at runtime like `composeMiddleware(…)` (f
 import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "@amqp-contract/contract";
 ```
 
-| Type                       | Purpose                                    |
-| -------------------------- | ------------------------------------------ |
-| `RoutingKey<K>`            | `K` if it is a valid key, else `never`     |
-| `BindingPattern<P>`        | `P` if it is a valid pattern, else `never` |
-| `MatchingRoutingKey<P, K>` | `K` if it matches `P`, else `never`        |
+| Type                       | Purpose                                               |
+| -------------------------- | ----------------------------------------------------- |
+| `RoutingKey<K>`            | `K` if it is a valid key, else `never`                |
+| `BindingPattern<P>`        | `P` if it is a valid pattern, else `never`            |
+| `MatchingRoutingKey<P, K>` | `K` if it matches `P`, `never` if it provably doesn't |
 
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. `*` matches one segment, `#` matches zero or more, and both are valid only in patterns.
+
+`MatchingRoutingKey` can only decide a match when both `P` and `K` are fully known at compile time — a plain `string`, a template-literal type, or a union containing either skips the check and resolves to `K` unchecked rather than guessing.
 
 TypeScript's recursion limit means very long keys fall back to `string`. Compile-time checking only; runtime behaviour is unaffected.
 
