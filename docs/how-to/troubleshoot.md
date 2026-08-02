@@ -199,11 +199,27 @@ contract declares** — the broker silently drops a dead letter that matches no
 binding, whoever consumes the source queue:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");
 const orderDlq = defineQueue("order-processing-dlq");
 
 const orderQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
+});
+
+const orderCreated = defineEventPublisher(ordersExchange, defineMessage(z.object({})), {
+  routingKey: "order.created",
 });
 
 export const contract = defineContract({
@@ -268,11 +284,27 @@ dead-letter queue and the binding yourself, as
 naming the same exchange the policy targets:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");
 const orderDlq = defineQueue("order-processing-dlq");
 
 // The policy supplies the dead-lettering, so the queue argument stays unset.
 const orderQueue = defineQueue("order-processing", { onPoison: "drop" });
+
+const orderCreated = defineEventPublisher(ordersExchange, defineMessage(z.object({})), {
+  routingKey: "order.created",
+});
 
 export const contract = defineContract({
   publishers: { orderCreated },

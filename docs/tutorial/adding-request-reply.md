@@ -48,9 +48,57 @@ const checkAddress = defineRpc(addressCheckQueue, {
 });
 ```
 
-And register it in the contract, alongside what is already there:
+And register it in the contract, alongside what is already there. `contract.ts` now reads in full:
 
 ```typescript
+// contract.ts
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+  defineRpc,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+// From the previous lesson.
+const notificationsExchange = defineExchange("notifications", { type: "direct" });
+const notificationsDlx = defineExchange("notifications-dlx");
+const emailQueue = defineQueue("email-notifications", {
+  deadLetter: { exchange: notificationsDlx },
+});
+const emailDlq = defineQueue("email-notifications-dlq");
+const emailMessage = defineMessage(
+  z.object({
+    to: z.string().email(),
+    subject: z.string(),
+    body: z.string(),
+  }),
+);
+const sendEmailEvent = defineEventPublisher(notificationsExchange, emailMessage, {
+  routingKey: "email",
+});
+
+// New in this lesson.
+const addressCheckDlx = defineExchange("address-check-dlx");
+const addressCheckQueue = defineQueue("address-check", {
+  deadLetter: { exchange: addressCheckDlx },
+});
+const addressCheckDlq = defineQueue("address-check-dlq");
+
+const checkAddress = defineRpc(addressCheckQueue, {
+  request: defineMessage(z.object({ address: z.string() })),
+  response: defineMessage(
+    z.object({
+      deliverable: z.boolean(),
+      reason: z.string(),
+    }),
+  ),
+});
+
 export const contract = defineContract({
   publishers: {
     sendEmail: sendEmailEvent,

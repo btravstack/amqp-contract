@@ -36,9 +36,6 @@ import {
   defineQueue,
   defineQueueBinding,
 } from "@amqp-contract/contract";
-import { TypedAmqpClient } from "@amqp-contract/client";
-import { TypedAmqpWorker } from "@amqp-contract/worker";
-import { OkAsync } from "unthrown";
 import { z } from "zod";
 
 // 1. Define resources with Dead Letter Exchange and retry configuration
@@ -68,7 +65,7 @@ const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
 
 // 4. Define contract - only publishers and consumers needed
 //    Exchanges, queues, and bindings are automatically extracted
-const contract = defineContract({
+export const contract = defineContract({
   publishers: {
     orderCreated: orderCreatedEvent,
   },
@@ -81,6 +78,16 @@ const contract = defineContract({
     orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "order.failed" }),
   },
 });
+```
+
+Then use that contract — the worker consumes, the client publishes:
+
+```typescript
+import { TypedAmqpClient } from "@amqp-contract/client";
+import { TypedAmqpWorker } from "@amqp-contract/worker";
+import { OkAsync } from "unthrown";
+
+import { contract } from "./contract.js";
 
 // 5. Type-safe consuming with automatic retry (configured at queue level)
 const worker = await TypedAmqpWorker.create({

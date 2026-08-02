@@ -171,3 +171,6 @@ vite.config.ts.timestamp-*
 ._*
 .Spotlight-V100
 .Trashes
+
+# Snippets materialised from the docs by tests/src/snippets/snippet-execution.spec.ts
+tests/.snippets/

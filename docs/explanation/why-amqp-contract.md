@@ -43,6 +43,26 @@ The idea is not new — it is what [tRPC](https://trpc.io/), [oRPC](https://orpc
 You write one contract:
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+// `orders-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the message arrived with.
+const orderDlq = defineQueue("order-processing-dlq");
+
 const orderMessage = defineMessage(
   z.object({
     orderId: z.string(),
@@ -57,6 +77,8 @@ const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlqBinding: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 

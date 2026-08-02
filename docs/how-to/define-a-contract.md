@@ -56,12 +56,31 @@ Bind the key that will actually arrive, not the one the publisher sends. On a `d
 Define the publisher first; it owns the fact. Consumers attach to it.
 
 ```typescript
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
+
+const ordersExchange = defineExchange("orders");
+const ordersDlx = defineExchange("orders-dlx");
+const orderProcessingQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+});
+const orderDlq = defineQueue("order-processing-dlq");
+const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
+
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
 });
 
 // A second consumer means a second queue — and, since it dead-letters too, the
-// shared DLX still needs the bound DLQ from the block above.
+// shared DLX still needs the bound DLQ.
 const notificationsQueue = defineQueue("order-notifications", {
   deadLetter: { exchange: ordersDlx },
 });
@@ -87,8 +106,13 @@ Define the consumer first; it owns the queue and decides what it accepts. The pu
 import {
   defineCommandConsumer,
   defineCommandPublisher,
+  defineContract,
+  defineExchange,
+  defineMessage,
+  defineQueue,
   defineQueueBinding,
 } from "@amqp-contract/contract";
+import { z } from "zod";
 
 const fulfillmentExchange = defineExchange("fulfillment", { type: "direct" });
 const fulfillmentDlx = defineExchange("fulfillment-dlx");
@@ -96,6 +120,7 @@ const fulfillmentQueue = defineQueue("order-fulfillment", {
   deadLetter: { exchange: fulfillmentDlx },
 });
 const fulfillmentDlq = defineQueue("order-fulfillment-dlq");
+const fulfillmentMessage = defineMessage(z.object({ orderId: z.string() }));
 
 const fulfillOrder = defineCommandConsumer(
   fulfillmentQueue,
@@ -168,13 +193,28 @@ const tempQueue = defineQueue("temp-queue", {
 Sometimes a service must assert topology it neither publishes to nor consumes from. The classic cases: a dead-letter queue bound to the auto-extracted DLX so failed messages land somewhere durable, or an audit queue that another process drains. Pass them at the top level of `defineContract`:
 
 ```typescript
-import { defineQueueBinding } from "@amqp-contract/contract";
+import {
+  defineContract,
+  defineEventConsumer,
+  defineEventPublisher,
+  defineExchange,
+  defineMessage,
+  defineQueue,
+  defineQueueBinding,
+} from "@amqp-contract/contract";
+import { z } from "zod";
 
+const ordersExchange = defineExchange("orders");
 const ordersDlxExchange = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlxExchange },
 });
 const orderDlq = defineQueue("order-processing-dlq");
+const orderMessage = defineMessage(z.object({ orderId: z.string() }));
+
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
+  routingKey: "order.created",
+});
 
 export const contract = defineContract({
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
