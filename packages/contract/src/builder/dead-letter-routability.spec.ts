@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import type {
   BindingDefinition,
   DirectExchangeDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
+import { defineQueueBinding } from "./binding.js";
+import { defineConsumer } from "./consumer.js";
+import { defineContract } from "./contract.js";
 import { _internal_resolveDeadLetterRoutability } from "./dead-letter-routability.js";
 import { defineExchange } from "./exchange.js";
+import { defineMessage } from "./message.js";
+import { definePublisher } from "./publisher.js";
 import { defineQueue } from "./queue.js";
+import { defineRpc } from "./rpc.js";
 
 const topicDlx = defineExchange("orders-dlx", { type: "topic" });
 const directDlx = defineExchange("orders-dlx-direct", { type: "direct" });
@@ -103,5 +110,83 @@ describe("_internal_resolveDeadLetterRoutability", () => {
       { type: "queue", queue: dlq, exchange: archive, routingKey: "#" },
     ] as BindingDefinition[];
     expect(_internal_resolveDeadLetterRoutability(queue, bindings)).toBe("routable");
+  });
+});
+
+describe("defineContract dead-letter routability", () => {
+  const message = defineMessage(z.object({ orderId: z.string() }));
+  const orders = defineExchange("orders", { type: "topic" });
+
+  /** A routable publisher and binding, so only the DLX check can fail. */
+  function contractWith(queue: ReturnType<typeof defineQueue>, extra: object = {}) {
+    return {
+      publishers: {
+        orderCreated: definePublisher(orders, message, { routingKey: "order.created" }),
+      },
+      consumers: { processOrder: defineConsumer(queue, message) },
+      bindings: {
+        processOrder: defineQueueBinding(queue, orders, { routingKey: "order.created" }),
+      },
+      ...extra,
+    };
+  }
+
+  it("throws when the dead-letter exchange has nothing bound to it", () => {
+    const dlx = defineExchange("orders-dlx-bare", { type: "topic" });
+    const queue = defineQueue("order-processing-bare", { deadLetter: { exchange: dlx } });
+
+    expect(() => defineContract(contractWith(queue))).toThrow(/orders-dlx-bare/);
+    expect(() => defineContract(contractWith(queue))).toThrow(/order-processing-bare/);
+  });
+
+  it("does NOT tell the author to add a deadLetter config — they have one", () => {
+    // The remedy that does not apply is the failure mode this project has hit
+    // three times: a confidently wrong pointer sends the reader after the wrong
+    // thing entirely.
+    const dlx = defineExchange("orders-dlx-advice", { type: "topic" });
+    const queue = defineQueue("order-processing-advice", { deadLetter: { exchange: dlx } });
+
+    expect(() => defineContract(contractWith(queue))).not.toThrow(/add .*deadLetter/i);
+    expect(() => defineContract(contractWith(queue))).toThrow(/externalConsumers/);
+  });
+
+  it("accepts a dead-letter exchange with a bound dead-letter queue", () => {
+    const dlx = defineExchange("orders-dlx-bound", { type: "topic" });
+    const boundDlq = defineQueue("orders-dlq-bound", { onPoison: "drop" });
+    const queue = defineQueue("order-processing-bound", { deadLetter: { exchange: dlx } });
+
+    expect(() =>
+      defineContract(
+        contractWith(queue, {
+          queues: { boundDlq },
+          bindings: {
+            processOrder: defineQueueBinding(queue, orders, { routingKey: "order.created" }),
+            dlq: defineQueueBinding(boundDlq, dlx, { routingKey: "#" }),
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts an unbound dead-letter exchange marked externalConsumers", () => {
+    const dlx = defineExchange("orders-dlx-external", { type: "topic" });
+    const queue = defineQueue("order-processing-external", {
+      deadLetter: { exchange: dlx, externalConsumers: true },
+    });
+
+    expect(() => defineContract(contractWith(queue))).not.toThrow();
+  });
+
+  it("checks an rpc's queue too, not only consumers", () => {
+    const dlx = defineExchange("rpc-dlx-bare", { type: "topic" });
+    const rpcQueue = defineQueue("rpc-processing-bare", { deadLetter: { exchange: dlx } });
+
+    expect(() =>
+      defineContract({
+        rpcs: {
+          calculate: defineRpc(rpcQueue, { request: message, response: message }),
+        },
+      }),
+    ).toThrow(/rpc-processing-bare/);
   });
 });

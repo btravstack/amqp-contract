@@ -30,6 +30,10 @@ const addressCheckDlx = defineExchange("address-check-dlx");
 const addressCheckQueue = defineQueue("address-check", {
   deadLetter: { exchange: addressCheckDlx },
 });
+// Same rule as the email queue in step 1: a dead-letter exchange with nothing
+// bound to it discards what it receives, so the DLQ is declared here and bound
+// in the contract below.
+const addressCheckDlq = defineQueue("address-check-dlq");
 
 const checkAddress = defineRpc(addressCheckQueue, {
   request: defineMessage(z.object({ address: z.string() })),
@@ -54,6 +58,14 @@ export const contract = defineContract({
   },
   rpcs: {
     checkAddress,
+  },
+  queues: {
+    emailDlq,
+    addressCheckDlq,
+  },
+  bindings: {
+    emailDlq: defineQueueBinding(emailDlq, notificationsDlx, { routingKey: "#" }),
+    addressCheckDlq: defineQueueBinding(addressCheckDlq, addressCheckDlx, { routingKey: "#" }),
   },
 });
 ```

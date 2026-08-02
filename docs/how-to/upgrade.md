@@ -81,7 +81,7 @@ On a queue that does not exist yet, the DLX costs nothing:
   });
 ```
 
-**Add the dead-letter queue and the binding, not just the exchange.** `defineContract` requires the `deadLetter` pointer, but it cannot see whether the exchange you name routes anywhere — and RabbitMQ silently drops a dead letter that matches no binding. A DLX with nothing bound to it loses exactly the messages you added it to keep, and worse than before the upgrade: the worker now logs `Sending message to DLQ` at `info`, so the loss looks like success. Declaring the DLQ at the top level of `defineContract` is the [standalone topology](/how-to/define-a-contract#declare-standalone-topology) pattern; the DLQ itself is not consumed, so it needs no DLX of its own.
+**Add the dead-letter queue and the binding, not just the exchange.** `defineContract` requires the `deadLetter` pointer _and_ rejects a dead-letter exchange with nothing bound to it, because RabbitMQ silently drops a dead letter that matches no binding. A DLX with nothing bound loses exactly the messages you added it to keep, and the worker logs `Sending message to DLQ` at `info` while it happens, so the loss looks like success. Declaring the DLQ at the top level of `defineContract` is the [standalone topology](/how-to/define-a-contract#declare-standalone-topology) pattern; the DLQ itself is not consumed, so it needs no DLX of its own. If another service owns that queue, set `externalConsumers: true` on the `deadLetter` config — the check then skips the exchange.
 
 Or state that dropping is deliberate — correct for a metrics firehose, a lie anywhere else, and the required declaration when the dead-lettering lives in a broker policy the contract cannot see:
 

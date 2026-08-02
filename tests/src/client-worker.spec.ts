@@ -7,6 +7,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker, type WorkerInferHandlers, declareHandlers } from "@amqp-contract/worker";
@@ -110,6 +111,9 @@ describe("Client and Worker Integration", () => {
         durable: false,
         deadLetter: { exchange: clientWorkerDlx },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the key the DLX will see.
+      const dlq = defineQueue("order-processing-dlq", { type: "classic", durable: false });
       const orderMessage = defineMessage(
         z.object({
           orderId: z.string(),
@@ -138,6 +142,8 @@ describe("Client and Worker Integration", () => {
         consumers: {
           processOrder: defineEventConsumer(orderCreatedEvent, queue),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, clientWorkerDlx, { routingKey: "#" }) },
       });
 
       // GIVEN
@@ -203,6 +209,9 @@ describe("Client and Worker Integration", () => {
         durable: false,
         deadLetter: { exchange: clientWorkerDlx },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the key the DLX will see.
+      const dlq = defineQueue("event-processing-dlq", { type: "classic", durable: false });
       const eventMessage = defineMessage(
         z.object({
           eventId: z.string(),
@@ -224,6 +233,8 @@ describe("Client and Worker Integration", () => {
             routingKey: "event.#",
           }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, clientWorkerDlx, { routingKey: "#" }) },
       });
 
       // GIVEN
@@ -280,6 +291,9 @@ describe("Client and Worker Integration", () => {
         durable: false,
         deadLetter: { exchange: clientWorkerDlx },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the key the DLX will see.
+      const dlq = defineQueue("strict-processing-dlq", { type: "classic", durable: false });
       const strictMessage = defineMessage(
         z.object({
           id: z.string().uuid(),
@@ -298,6 +312,8 @@ describe("Client and Worker Integration", () => {
         consumers: {
           processStrict: defineEventConsumer(strictEvent, queue),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, clientWorkerDlx, { routingKey: "#" }) },
       });
 
       const mockHandler = vi.fn().mockReturnValue(OkAsync(undefined));
@@ -353,6 +369,9 @@ describe("Client and Worker Integration", () => {
         durable: false,
         deadLetter: { exchange: clientWorkerDlx },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the key the DLX will see.
+      const dlq = defineQueue("notifications-dlq", { type: "classic", durable: false });
 
       const notificationMessage = defineMessage(
         z.object({
@@ -381,6 +400,8 @@ describe("Client and Worker Integration", () => {
             routingKey: "notification.sms.*",
           }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, clientWorkerDlx, { routingKey: "#" }) },
       });
 
       // GIVEN

@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
@@ -64,6 +65,9 @@ vi.mock("amqp-connection-manager", async () => {
 });
 
 const rpcDlx = defineExchange("rpc-dlx");
+// `rpc-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the rejected request arrived with.
+const rpcDlq = defineQueue("rpc.calculate-dlq", { type: "classic", durable: false });
 
 const contract = defineContract({
   rpcs: {
@@ -79,6 +83,8 @@ const contract = defineContract({
       },
     ),
   },
+  queues: { rpcDlq },
+  bindings: { rpcDlqBinding: defineQueueBinding(rpcDlq, rpcDlx, { routingKey: "#" }) },
 });
 
 function rpcRequestMessage(): ConsumeMessage {

@@ -31,6 +31,10 @@ const billingDlx = defineExchange("billing-dlx");
 const billingQueue = defineQueue("billing-orders", {
   deadLetter: { exchange: billingDlx },
 });
+// A dead-letter exchange with nothing bound to it discards every rejected
+// message, so `defineContract` rejects it. `billing-dlx` is topic, so `#`
+// catches whatever routing key the message arrived with.
+const billingDlq = defineQueue("billing-orders-dlq");
 
 const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
@@ -42,6 +46,10 @@ export const contract = defineContract({
     handleOrder: defineEventConsumer(orderCreated, billingQueue, {
       bridgeExchange: billingExchange,
     }),
+  },
+  queues: { billingDlq },
+  bindings: {
+    billingDlqBinding: defineQueueBinding(billingDlq, billingDlx, { routingKey: "#" }),
   },
 });
 ```
@@ -64,8 +72,12 @@ The reverse. The remote `inventory` domain owns a queue you want to send command
 // Remote domain
 const inventoryExchange = defineExchange("inventory");
 const inventoryDlx = defineExchange("inventory-dlx");
+// The remote domain owns `inventory-commands` and its dead-letter queue with
+// it. Nothing in THIS contract binds `inventory-dlx`, so declare that instead
+// of asserting a DLQ this service does not own — otherwise `defineContract`
+// rejects the unbound DLX.
 const inventoryQueue = defineQueue("inventory-commands", {
-  deadLetter: { exchange: inventoryDlx },
+  deadLetter: { exchange: inventoryDlx, externalConsumers: true },
 });
 
 // Local bridge
@@ -80,6 +92,10 @@ export const contract = defineContract({
   publishers: {
     reserveStock: defineCommandPublisher(reserveCommand, {
       bridgeExchange: localExchange,
+      // The remote domain owns the queue binding on `inventory`, so this
+      // contract cannot see it — say so, or the routability check rejects the
+      // publisher as unroutable.
+      externalConsumers: true,
     }),
   },
 });

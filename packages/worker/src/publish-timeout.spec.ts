@@ -6,6 +6,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { DEFAULT_PUBLISH_TIMEOUT_MS } from "@amqp-contract/core";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
@@ -56,6 +57,9 @@ vi.mock("amqp-connection-manager", async () => {
 });
 
 const ordersDlx = defineExchange("orders-dlx");
+// `orders-dlx` is topic and the queue sets no dead-letter routing key, so `#`
+// catches whatever key the rejected message arrived with.
+const ordersDlq = defineQueue("orders-dlq", { type: "classic", durable: false });
 
 const contract = defineContract({
   consumers: {
@@ -68,6 +72,8 @@ const contract = defineContract({
       defineMessage(z.object({ orderId: z.string() })),
     ),
   },
+  queues: { ordersDlq },
+  bindings: { ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }) },
 });
 
 describe("publishTimeoutMs threading (worker)", () => {

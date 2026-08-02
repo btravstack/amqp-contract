@@ -8,6 +8,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker, type WorkerInferHandlers, declareHandlers } from "@amqp-contract/worker";
@@ -95,6 +96,9 @@ function buildContract() {
     durable: false,
     deadLetter: { exchange: compressionDlx },
   });
+  // A DLX with nothing bound discards every message routed to it, so declare
+  // the dead-letter queue and bind it on the key the DLX will see.
+  const dlq = defineQueue("order-processing-dlq", { type: "classic", durable: false });
   const orderMessage = defineMessage(
     z.object({
       orderId: z.string(),
@@ -108,6 +112,8 @@ function buildContract() {
   return defineContract({
     publishers: { orderCreated },
     consumers: { processOrder: defineEventConsumer(orderCreated, queue) },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, compressionDlx, { routingKey: "#" }) },
   });
 }
 

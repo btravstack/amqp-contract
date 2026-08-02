@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { OkAsync, fromSafePromise } from "unthrown";
 import { describe, expect, vi } from "vitest";
@@ -23,6 +24,10 @@ import { it } from "./fixture.js";
  * redelivered fully-processed work.
  */
 const drainDlx = defineExchange("drain-dlx", { durable: false });
+// Topic DLX with no dead-letter routing key on the queue, so `#` catches
+// whatever key the rejected message arrived with. Without a queue bound here,
+// defineContract rejects the contract.
+const drainDlq = defineQueue("drain-q-dlq", { type: "classic", durable: false });
 
 describe("Worker close drains in-flight handlers", () => {
   it("waits for an in-flight handler and lands its ack before closing", async ({
@@ -40,6 +45,8 @@ describe("Worker close drains in-flight handlers", () => {
     const contract = defineContract({
       publishers: { drainPublisher: event },
       consumers: { drainConsumer: defineEventConsumer(event, queue, { routingKey: "drain.#" }) },
+      queues: { drainDlq },
+      bindings: { drainDlqBinding: defineQueueBinding(drainDlq, drainDlx, { routingKey: "#" }) },
     });
 
     let handlerStarted!: () => void;

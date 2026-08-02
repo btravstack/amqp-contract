@@ -20,6 +20,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
@@ -30,6 +31,12 @@ const paymentsQueue = defineQueue("payments", {
   deadLetter: { exchange: paymentsDlx, routingKey: "payments.dead" },
   retry: { mode: "ttl-backoff", maxRetries: 5, initialDelayMs: 1000 },
 });
+
+// A dead-letter exchange with nothing bound to it discards every rejected
+// message, so `defineContract` rejects it. `payments-dlx` is DIRECT, so the
+// binding must name `payments.dead` exactly — `#` is a topic wildcard and on a
+// direct exchange it is a literal key that matches nothing.
+const paymentsDlq = defineQueue("payments-dlq");
 
 const chargeCommandMessage = defineMessage(
   z.object({
@@ -59,6 +66,12 @@ export const contract = defineContract({
   },
   consumers: {
     chargeCustomer: chargeCustomerCommand,
+  },
+  queues: { paymentsDlq },
+  bindings: {
+    paymentsDlqBinding: defineQueueBinding(paymentsDlq, paymentsDlx, {
+      routingKey: "payments.dead",
+    }),
   },
 });
 ```

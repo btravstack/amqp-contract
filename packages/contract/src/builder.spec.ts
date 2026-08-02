@@ -1623,12 +1623,19 @@ describe("builder", () => {
       const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
         routingKey: "order.created",
       });
+      // The DLX is `direct` and the queue sets no dead-letter routing key, so a
+      // dead-lettered message keeps its original key — bind that exact key.
+      const orderDlq = defineQueue("order-processing-dlq");
 
       // WHEN
       const contract = defineContract({
         publishers: { orderCreated },
         consumers: {
           processOrder: defineEventConsumer(orderCreated, orderQueue),
+        },
+        queues: { orderDlq },
+        bindings: {
+          dlqBinding: defineQueueBinding(orderDlq, dlx, { routingKey: "order.created" }),
         },
       });
 
@@ -1637,8 +1644,11 @@ describe("builder", () => {
       // bindings appear (they are derived by setupAmqpTopology from the
       // queue's retry config).
       expect(Object.keys(contract.exchanges).sort()).toEqual(["orders", "orders-dlx"]);
-      expect(Object.keys(contract.queues)).toEqual(["order-processing"]);
-      expect(Object.keys(contract.bindings)).toEqual(["processOrderBinding"]);
+      expect(Object.keys(contract.queues).sort()).toEqual([
+        "order-processing",
+        "order-processing-dlq",
+      ]);
+      expect(Object.keys(contract.bindings).sort()).toEqual(["dlqBinding", "processOrderBinding"]);
 
       expect(contract.queues["order-processing"]).toBe(orderQueue);
       expect(contract.bindings.processOrderBinding).toMatchObject({

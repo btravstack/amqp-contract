@@ -93,7 +93,7 @@ Nothing here makes a retried operation safe to repeat. If a handler charges a ca
 
 The retry model guarantees delivery attempts, not idempotency. Making the _work_ idempotent — an idempotency key at the payment provider, an upsert instead of an insert, a deduplication table keyed on message ID — remains yours. This is inherent to at-least-once messaging rather than specific to this library, but it is the assumption most often left unexamined when retries are switched on.
 
-A related trap: a queue with no dead-letter exchange configured discards messages on `nack(requeue=false)`. The worker warns, but the body is gone. If you care about poison messages, configure `deadLetter`.
+A related trap: a queue with no dead-letter exchange configured discards messages on `nack(requeue=false)`. The worker warns, but the body is gone. If you care about poison messages, configure `deadLetter` — and bind a queue to the exchange you name. A DLX with nothing bound loses the message just as completely and without the warning, which is why `defineContract` rejects one.
 
 ## Where next
 

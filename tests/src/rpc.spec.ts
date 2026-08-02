@@ -8,11 +8,12 @@ import {
 } from "@amqp-contract/client";
 import {
   type ContractDefinition,
-  type ExchangeDefinition,
+  type TopicExchangeDefinition,
   defineContract,
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
@@ -89,10 +90,17 @@ const buildContract = (queueName: string) => {
     durable: false,
     deadLetter: { exchange: rpcDlx },
   });
+  // A DLX with nothing bound discards every message routed to it, so declare
+  // the dead-letter queue and bind it on the key the DLX will see.
+  const dlq = defineQueue(`${queueName}-dlq`, { type: "classic", durable: false });
   const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const response = defineMessage(z.object({ sum: z.number() }));
   const calculate = defineRpc(queue, { request, response });
-  return defineContract({ rpcs: { calculate } });
+  return defineContract({
+    rpcs: { calculate },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, rpcDlx, { routingKey: "#" }) },
+  });
 };
 
 describe("TypedAmqpClient RPC", () => {
@@ -227,6 +235,9 @@ const buildErrorContract = (queueName: string) => {
     durable: false,
     deadLetter: { exchange: rpcDlx },
   });
+  // A DLX with nothing bound discards every message routed to it, so declare
+  // the dead-letter queue and bind it on the key the DLX will see.
+  const dlq = defineQueue(`${queueName}-dlq`, { type: "classic", durable: false });
   const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
   const response = defineMessage(z.object({ sum: z.number() }));
   const calculate = defineRpc(queue, {
@@ -237,7 +248,11 @@ const buildErrorContract = (queueName: string) => {
       LIMIT_EXCEEDED: { data: z.object({ limit: z.number() }) },
     },
   });
-  return defineContract({ rpcs: { calculate } });
+  return defineContract({
+    rpcs: { calculate },
+    queues: { dlq },
+    bindings: { dlqBinding: defineQueueBinding(dlq, rpcDlx, { routingKey: "#" }) },
+  });
 };
 
 describe("TypedAmqpClient RPC typed errors", () => {
@@ -368,12 +383,15 @@ describe("TypedAmqpClient RPC typed errors", () => {
 // REQUEST to the DLQ — never produce a malformed reply. The timeout tests
 // above prove "no reply"; these prove the DLQ half.
 describe("TypedAmqpClient RPC DLQ routing", () => {
-  const buildDlqErrorContract = (queueName: string, dlx: ExchangeDefinition) => {
+  const buildDlqErrorContract = (queueName: string, dlx: TopicExchangeDefinition) => {
     const queue = defineQueue(queueName, {
       type: "classic",
       durable: false,
       deadLetter: { exchange: dlx, routingKey: `${queueName}.dlq` },
     });
+    // A DLX with nothing bound discards every message routed to it, so declare
+    // the dead-letter queue and bind it on the key the DLX will see.
+    const dlq = defineQueue(`${queueName}-dlq`, { type: "classic", durable: false });
     const request = defineMessage(z.object({ a: z.number(), b: z.number() }));
     const response = defineMessage(z.object({ sum: z.number() }));
     const calculate = defineRpc(queue, {
@@ -383,7 +401,11 @@ describe("TypedAmqpClient RPC DLQ routing", () => {
         LIMIT_EXCEEDED: { data: z.object({ limit: z.number() }) },
       },
     });
-    return defineContract({ rpcs: { calculate } });
+    return defineContract({
+      rpcs: { calculate },
+      queues: { dlq },
+      bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: `${queueName}.dlq` }) },
+    });
   };
 
   it("routes a request to the DLQ when the handler returns an undeclared error code", async ({

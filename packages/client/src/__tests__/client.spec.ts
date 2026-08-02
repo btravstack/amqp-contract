@@ -7,6 +7,7 @@ import {
   defineMessage,
   definePublisher,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { it as baseIt } from "@amqp-contract/testing/extension";
 import { describe, expect } from "vitest";
@@ -57,6 +58,16 @@ const it = baseIt.extend<{
 });
 
 const integrationDlx = defineExchange("integration-dlx", { durable: false });
+// `integration-dlx` is topic and none of the queues below set a dead-letter
+// routing key, so `#` catches whatever key the rejected message arrived with.
+// Without a queue bound here, defineContract rejects the contract.
+const integrationDlq = defineQueue("integration-dlq", { type: "classic", durable: false });
+const integrationDlqTopology = {
+  queues: { integrationDlq },
+  bindings: {
+    integrationDlqBinding: defineQueueBinding(integrationDlq, integrationDlx, { routingKey: "#" }),
+  },
+};
 
 describe("AmqpClient Integration", () => {
   describe("end-to-end publishing", () => {
@@ -369,6 +380,7 @@ describe("AmqpClient Integration", () => {
             routingKey: "order.#",
           }),
         },
+        ...integrationDlqTopology,
       });
 
       // WHEN
@@ -405,6 +417,7 @@ describe("AmqpClient Integration", () => {
             routingKey: "order.#",
           }),
         },
+        ...integrationDlqTopology,
       });
 
       // WHEN
@@ -484,6 +497,7 @@ describe("AmqpClient Integration", () => {
         consumers: {
           fanoutConsumer: defineEventConsumer(broadcastEvent, queue),
         },
+        ...integrationDlqTopology,
       });
 
       const client = await clientFactory(contract);

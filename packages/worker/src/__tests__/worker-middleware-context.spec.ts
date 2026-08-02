@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
@@ -23,6 +24,10 @@ import { it } from "./fixture.js";
  * seed provided.
  */
 const mwctxDlx = defineExchange("mwctx-dlx", { durable: false });
+// Topic DLX with no dead-letter routing key on the queue, so `#` catches
+// whatever key the rejected message arrived with. Without a queue bound here,
+// defineContract rejects the contract.
+const mwctxDlq = defineQueue("mwctx-dlq", { type: "classic", durable: false });
 
 describe("Worker middleware context merge", () => {
   const TestMessage = z.object({ id: z.string() });
@@ -44,6 +49,8 @@ describe("Worker middleware context merge", () => {
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
         },
+        queues: { mwctxDlq },
+        bindings: { mwctxDlqBinding: defineQueueBinding(mwctxDlq, mwctxDlx, { routingKey: "#" }) },
       }),
     };
   }

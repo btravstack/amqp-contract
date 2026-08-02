@@ -5,6 +5,7 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
@@ -43,6 +44,9 @@ describe("Worker Retry Mechanism", () => {
           jitter: false, // Disable jitter for predictable testing
         },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("retry-flow-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -51,6 +55,10 @@ describe("Worker Retry Mechanism", () => {
         publishers: { testPublisher: testEvent },
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+        },
+        queues: { dlq },
+        bindings: {
+          dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "retry-flow-queue.dlq" }),
         },
       });
 
@@ -147,6 +155,9 @@ describe("Worker Retry Mechanism", () => {
           jitter: false,
         },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("backoff-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -156,6 +167,8 @@ describe("Worker Retry Mechanism", () => {
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "backoff-queue.dlq" }) },
       });
 
       await workerFactory(contract, {
@@ -239,6 +252,9 @@ describe("Worker Retry Mechanism", () => {
           jitter: false,
         },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("maxretry-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -247,6 +263,10 @@ describe("Worker Retry Mechanism", () => {
         publishers: { testPublisher: testEvent },
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+        },
+        queues: { dlq },
+        bindings: {
+          dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "maxretry-queue.dlq" }),
         },
       });
 
@@ -318,6 +338,9 @@ describe("Worker Retry Mechanism", () => {
           jitter: false,
         },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("headers-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -327,6 +350,8 @@ describe("Worker Retry Mechanism", () => {
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "headers-queue.dlq" }) },
       });
 
       await workerFactory(contract, {
@@ -432,6 +457,9 @@ describe("Worker Retry Mechanism", () => {
         },
         retry: { mode: "none" },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("none-retry-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -440,6 +468,10 @@ describe("Worker Retry Mechanism", () => {
         publishers: { testPublisher: testEvent },
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+        },
+        queues: { dlq },
+        bindings: {
+          dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "none-retry-queue.dlq" }),
         },
       });
 
@@ -506,6 +538,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 3, // Allow up to 3 retry attempts before dead-lettering
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("quorum-queue-dlq");
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -516,6 +551,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "quorum-queue.dlq" }),
           },
         });
 
@@ -570,6 +609,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 2, // Message dead-lettered after 2 retry attempts
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("quorum-dlq-queue-dlq");
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -580,6 +622,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "quorum-dlq-queue.dlq" }),
           },
         });
 
@@ -646,6 +692,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 3, // Allow up to 3 retry attempts before dead-lettering
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("classic-queue-dlq", { type: "classic", durable: false });
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -656,6 +705,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "classic-queue.dlq" }),
           },
         });
 
@@ -714,6 +767,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 2, // Message dead-lettered after 2 retry attempts
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("classic-dlq-queue-dlq", { type: "classic", durable: false });
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -724,6 +780,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "classic-dlq-queue.dlq" }),
           },
         });
 
@@ -788,6 +848,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 2,
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("exclusive-queue-dlq", { type: "classic", durable: false });
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -798,6 +861,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "exclusive-queue.dlq" }),
           },
         });
 
@@ -853,6 +920,9 @@ describe("Worker Retry Mechanism", () => {
             maxRetries: 2,
           },
         });
+        // A DLX with nothing bound discards every message routed to it, so declare
+        // the dead-letter queue and bind it on the exact key the queue uses.
+        const dlq = defineQueue("headers-queue-dlq", { type: "classic", durable: false });
 
         const testMessage = defineMessage(TestMessage);
         const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -863,6 +933,10 @@ describe("Worker Retry Mechanism", () => {
           publishers: { testPublisher: testEvent },
           consumers: {
             testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
+          },
+          queues: { dlq },
+          bindings: {
+            dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "headers-queue.dlq" }),
           },
         });
 
@@ -1059,6 +1133,10 @@ describe("Worker Retry Mechanism", () => {
           jitter: false,
         },
       });
+      // A DLX with nothing bound discards every message routed to it. This queue
+      // sets no dead-letter routing key, so a dead letter keeps its original key
+      // — `retry-dlx` is topic, so `#` catches whatever that turns out to be.
+      const dlq = defineQueue("routing-key-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, {
@@ -1070,6 +1148,8 @@ describe("Worker Retry Mechanism", () => {
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "orders.#" }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, retryDlx, { routingKey: "#" }) },
       });
 
       let attemptCount = 0;
@@ -1210,6 +1290,9 @@ describe("Worker Retry Mechanism", () => {
           jitter: false,
         },
       });
+      // A DLX with nothing bound discards every message routed to it, so declare
+      // the dead-letter queue and bind it on the exact key the queue uses.
+      const dlq = defineQueue("poison-queue-dlq", { type: "classic", durable: false });
 
       const testMessage = defineMessage(TestMessage);
       const testEvent = defineEventPublisher(exchange, testMessage, { routingKey: "test.message" });
@@ -1219,6 +1302,8 @@ describe("Worker Retry Mechanism", () => {
         consumers: {
           testConsumer: defineEventConsumer(testEvent, queue, { routingKey: "test.#" }),
         },
+        queues: { dlq },
+        bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "poison-queue.dlq" }) },
       });
 
       let handlerCalls = 0;

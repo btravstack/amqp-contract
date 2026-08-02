@@ -74,7 +74,7 @@ For advanced features like prefetch configuration and **automatic retry**, see t
 Retry is configured at the queue level in your contract definition. Add `retry` to your queue definition:
 
 ```typescript
-import { defineQueue, defineExchange, defineContract } from "@amqp-contract/contract";
+import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/contract";
 
 const dlx = defineExchange("orders-dlx");
 
@@ -90,6 +90,16 @@ const orderQueue = defineQueue("order-processing", {
     jitter: true, // Add randomness to prevent thundering herd (default: true)
   },
 });
+
+// A dead-letter exchange with nothing bound to it discards every rejected
+// message, and `defineContract` rejects that. Declare the dead-letter queue and
+// bind it; `orders-dlx` is topic, so `#` catches whatever routing key the
+// message arrived with.
+const orderDlq = defineQueue("order-processing-dlq");
+const orderDlqBinding = defineQueueBinding(orderDlq, dlx, { routingKey: "#" });
+
+// …then pass both through:
+//   defineContract({ …, queues: { orderDlq }, bindings: { orderDlqBinding } })
 ```
 
 Then use `RetryableError` in your handlers:

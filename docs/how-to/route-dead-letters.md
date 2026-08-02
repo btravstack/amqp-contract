@@ -20,7 +20,7 @@ const orderProcessingQueue = defineQueue("order-processing", {
 });
 ```
 
-The DLX is extracted into the contract automatically — you do not list it in `defineContract` yourself.
+The DLX is extracted into the contract automatically — you do not list it in `defineContract` yourself. What is _not_ automatic is a queue bound to it: `defineContract` rejects a dead-letter exchange with nothing bound, because RabbitMQ discards a message routed to zero queues. Bind one of the two ways below, or set `externalConsumers: true` on the `deadLetter` config when another service owns the dead-letter queue.
 
 If `routingKey` is omitted, the message keeps its original routing key. Setting one is usually clearer, because it lets a single DLX distinguish sources.
 

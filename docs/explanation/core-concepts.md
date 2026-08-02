@@ -18,6 +18,8 @@ The central idea is that a single expression produces two things that normally h
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
+  queues: { orderDlq },
+  bindings: { orderDlqBinding: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 
@@ -31,6 +33,10 @@ const ordersDlx = defineExchange("orders-dlx");
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
+// The dead-letter queue is a named resource too. A dead-letter exchange with
+// nothing bound to it discards every rejected message, so `defineContract`
+// rejects it; the binding above is what makes the DLX actually route.
+const orderDlq = defineQueue("order-processing-dlq");
 ```
 
 Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.

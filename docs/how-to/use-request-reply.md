@@ -15,18 +15,27 @@ import {
   defineExchange,
   defineMessage,
   defineQueue,
+  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
 const rpcDlx = defineExchange("rpc-dlx");
+// A dead-letter exchange with nothing bound to it discards every rejected
+// request, so `defineContract` rejects it. `rpc-dlx` is topic, so `#` catches
+// whatever routing key the request arrived with.
+const rpcDlq = defineQueue("rpc-dlq");
 
 const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
   response: defineMessage(z.object({ sum: z.number() })),
 });
 
-export const contract = defineContract({ rpcs: { calculate } });
+export const contract = defineContract({
+  rpcs: { calculate },
+  queues: { rpcDlq },
+  bindings: { rpcDlqBinding: defineQueueBinding(rpcDlq, rpcDlx, { routingKey: "#" }) },
+});
 ```
 
 An RPC owns its queue and goes in `rpcs`, not in `publishers` or `consumers` — it is both.

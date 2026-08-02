@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { defineQueueBinding } from "./binding.js";
 import { defineContract } from "./contract.js";
 import { defineMessage } from "./message.js";
 import { defineQueue } from "./queue.js";
@@ -121,10 +122,15 @@ describe("defineRpc", () => {
         deadLetter: { exchange: dlx },
       });
       const calculate = defineRpc(dlqQueue, { request, response });
+      const dlq = defineQueue("rpc.dlq", { type: "classic", durable: false });
 
       // WHEN
       const contract = defineContract({
         rpcs: { calculate },
+        queues: { dlq },
+        // A DLX with nothing bound discards everything routed to it, so
+        // defineContract rejects it. `rpc.dlx` is topic, so `#` matches.
+        bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
       });
 
       // THEN

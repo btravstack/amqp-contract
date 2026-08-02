@@ -1778,6 +1778,7 @@ describe("AsyncAPIGenerator", () => {
       });
       const message = defineMessage(z.object({ id: z.string() }));
       const consumer = defineConsumer(queue, message);
+      const dlq = defineQueue("orders-dlq");
 
       const generator = new AsyncAPIGenerator({
         schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -1787,8 +1788,12 @@ describe("AsyncAPIGenerator", () => {
         defineContract({
           publishers: { sent: definePublisher(exchange, message, { routingKey: "order.created" }) },
           consumers: { processOrder: consumer },
+          queues: { dlq },
           bindings: {
             ordersQ: defineQueueBinding(queue, exchange, { routingKey: "order.created" }),
+            // `orders-dlx` is direct, so bind the dead-letter routing key
+            // verbatim — `#` would be a literal key matching nothing.
+            ordersDlq: defineQueueBinding(dlq, dlx, { routingKey: "orders.dead" }),
           },
         }) as unknown as ContractDefinition,
         { info: { title: "DLX Test", version: "1.0.0" } },
@@ -1825,6 +1830,7 @@ describe("AsyncAPIGenerator", () => {
       const billingQueue = defineQueue("billing-orders", {
         deadLetter: { exchange: billingDlx },
       });
+      const billingDlq = defineQueue("billing-orders-dlq");
       const message = defineMessage(z.object({ id: z.string() }));
 
       // Declared by hand to avoid pulling in defineEventConsumer's bridge
@@ -1837,9 +1843,13 @@ describe("AsyncAPIGenerator", () => {
           process: defineConsumer(billingQueue, message),
         },
         exchanges: { billing },
+        queues: { billingDlq },
         bindings: {
           ordersToBilling: defineExchangeBinding(billing, orders, { routingKey: "order.#" }),
           billingOrders: defineQueueBinding(billingQueue, billing, { routingKey: "order.#" }),
+          // `billing-dlx` is topic and the queue sets no dead-letter routing
+          // key, so `#` catches whatever key the message arrived with.
+          billingDlqBinding: defineQueueBinding(billingDlq, billingDlx, { routingKey: "#" }),
         },
       }) as unknown as ContractDefinition;
 
