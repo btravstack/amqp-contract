@@ -23,7 +23,7 @@ catalog:
   "@commitlint/cli": 21.2.1
   "@opentelemetry/api": 1.9.1
   "@orpc/arktype": 1.14.8
-  "@orpc/openapi": 1.14.8
+  "@orpc/openapi": 1.14.12
   "@orpc/valibot": 1.14.8
   "@orpc/zod": 1.14.8
   "@standard-schema/spec": 1.1.0
