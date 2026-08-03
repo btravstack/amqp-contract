@@ -187,7 +187,7 @@ result.match({
 });
 ```
 
-**A timed-out publish may still have reached the broker.** The timeout splices the message out of the unconfirmed set and rejects the promise; it does not tell the broker to forget it. So a retry in response to this failure can duplicate. AMQP is at-least-once regardless, but this is a new way to reach it — make the retry idempotent, or accept the duplicate.
+**A timed-out publish may still have reached the broker.** The timeout splices the message out of the unconfirmed set and rejects the promise; it does not tell the broker to forget it. So a retry in response to this failure can duplicate. AMQP is at-least-once regardless, but this is a new way to reach it — make the retry idempotent, or accept the duplicate. [Delivery guarantees](/explanation/delivery-guarantees) covers this and every other source of duplication in one place.
 
 **The exact edit** — none, unless 30s is wrong for you:
 

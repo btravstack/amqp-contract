@@ -111,6 +111,6 @@ No. Retries are delivery attempts. A handler that charges a card and then fails 
 
 ## Does amqp-contract ever deliver a message twice, even with retries off?
 
-Yes. A crash, a dropped connection, a drain timeout, or even a successful publish can each produce a duplicate, and none of them need a retry policy to happen.
+Yes. A crash, a dropped connection, or a drain timeout can each produce a duplicate, and none of them need a retry policy to happen.
 
 → [Delivery guarantees](/explanation/delivery-guarantees)
