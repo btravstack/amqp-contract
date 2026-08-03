@@ -72,20 +72,20 @@ overrides:
   # GHSA-v2hh-gcrm-f6hx (High): fast-uri host confusion via literal backslash
   # authority delimiter. Only the vulnerable <3.1.4 line is present (transitive,
   # via ajv under commitlint/prisma tooling); 3.1.4 is the first patched release.
-  # Newly disclosed; reaches us only through dev/build tooling. fast-uri is added
-  # to minimumReleaseAgeExclude below because 3.1.4 is younger than the 7-day cutoff.
+  # Reaches us only through dev/build tooling.
   "fast-uri@<3.1.4": "3.1.4"
   # GHSA-3jxr-9vmj-r5cp (High, ReDoS) + GHSA-mh99-v99m-4gvg (High, DoS via
-  # unbounded expansion length): brace-expansion. Three distinct lines are
-  # present: 1.x via @asyncapi/parser > spectral, 2.x via testcontainers >
-  # archiver, and 5.x via typedoc > minimatch. The 5.x line is pulled to 5.0.8
-  # (the only release patched for GHSA-mh99); the 1.x/2.x lines stay on their
-  # ReDoS-patched releases — GHSA-mh99 has NO patched release for them (its
-  # vulnerable range is <=5.0.7), so that advisory is ignored via
+  # unbounded expansion length) + GHSA-rgw5-rvv9-x895 (High, DoS via unbounded
+  # intermediate arrays, bypassing the CVE-2026-14257 mitigation):
+  # brace-expansion. Three distinct lines are present: 1.x via @asyncapi/parser
+  # > spectral, 2.x via testcontainers > archiver, and 5.x via typedoc >
+  # minimatch. All three lines are pulled to their first GHSA-rgw5-patched
+  # release. GHSA-mh99 still has no patched 1.x/2.x release (its vulnerable
+  # range is <=5.0.7), so that advisory remains ignored via
   # auditConfig.ignoreGhsas below rather than force-upgrading across majors.
-  "brace-expansion@1": "1.1.16"
-  "brace-expansion@2": "2.1.2"
-  "brace-expansion@5": "5.0.8"
+  "brace-expansion@1": "1.1.18"
+  "brace-expansion@2": "2.1.4"
+  "brace-expansion@5": "5.0.9"
   # GHSA-52cp-r559-cp3m (High) + GHSA-h67p-54hq-rp68 (moderate): js-yaml
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
@@ -100,9 +100,11 @@ overrides:
   # also drags esbuild up to a patched 0.25.x. The `vitepress build` is verified
   # against it.
   "vite@<6.4.3": "6.4.3"
-  # GHSA-cmwh-pvxp-8882 (moderate) + GHSA-vxr8-fq34-vvx9 (low): dompurify XSS /
-  # mXSS, via docs > mermaid > dompurify. 3.4.11 is the first fixed release.
-  dompurify: 3.4.11
+  # GHSA-cmwh-pvxp-8882 (moderate) + GHSA-vxr8-fq34-vvx9 (low) +
+  # GHSA-c2j3-45gr-mqc4 (low, CUSTOM_ELEMENT_HANDLING bypass): dompurify XSS /
+  # mXSS / afterSanitizeElements bypass, via docs > mermaid > dompurify.
+  # 3.4.12 is the first release patched for GHSA-c2j3.
+  dompurify: 3.4.12
   # GHSA-j3f2-48v5-ccww (moderate): protobufjs prototype pollution, via
   # packages/testing > testcontainers > dockerode > @grpc/proto-loader. 7.6.5 is
   # the first fixed release.
@@ -130,21 +132,18 @@ minimumReleaseAgeExclude:
   - "@unthrown/oxlint"
   - "@unthrown/standard-schema"
   - "@unthrown/vitest"
-  # Temporary: fast-uri 3.1.4 (the GHSA-v2hh-gcrm-f6hx override above) is younger
-  # than the 7-day cutoff. Remove once 3.1.4 is 7 days old (published 2026-07-19).
-  - fast-uri
-  # Temporary: brace-expansion 5.0.8 (the GHSA-mh99-v99m-4gvg override above) is
-  # younger than the 7-day cutoff. Remove once 5.0.8 is 7 days old (published
-  # 2026-07-23).
+  # Temporary: brace-expansion 1.1.18 / 2.1.4 / 5.0.9 (the GHSA-rgw5-rvv9-x895
+  # overrides above) are younger than the 7-day cutoff (all published
+  # 2026-07-30). Remove once they are 7 days old (i.e. after 2026-08-06).
   - brace-expansion
 
 # GHSA-mh99-v99m-4gvg (brace-expansion DoS via unbounded expansion length) has a
-# patched release ONLY on the 5.x line (>=5.0.8, applied via the override above);
-# the 1.x/2.x lines resolved under @asyncapi/parser > spectral and
-# testcontainers > archiver have no patched release, and forcing them to 5.x
-# across majors is unsafe. Accepted risk: the expansion input at those sites is
-# library-internal glob patterns, never user input. Remove this ignore as soon as
-# upstream ships patched 1.x/2.x releases (or the parents move to minimatch@10).
+# patched release ONLY on the 5.x line (>=5.0.8); the 1.x/2.x lines resolved
+# under @asyncapi/parser > spectral and testcontainers > archiver have no patched
+# release, and forcing them to 5.x across majors is unsafe. Accepted risk: the
+# expansion input at those sites is library-internal glob patterns, never user
+# input. Remove this ignore if upstream ships patched 1.x/2.x releases for GHSA-mh99
+# (distinct from GHSA-rgw5-rvv9-x895, which is already handled by the overrides above).
 auditConfig:
   ignoreGhsas:
     - GHSA-mh99-v99m-4gvg
