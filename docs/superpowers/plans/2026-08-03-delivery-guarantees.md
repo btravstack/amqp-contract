@@ -12,7 +12,7 @@
 
 - Documentation only. No source change, no API change, no new dependency.
 - Every factual claim must be true of the current tree, and defaults must be stated with the value the code actually uses. Where a guarantee has a boundary, name the boundary rather than rounding it off. This branch exists because the existing docs rounded one off.
-- **Do not add a `defineContract` snippet to any page in this plan.** `tests/src/snippets/extract.ts` executes every `ts / `typescript fence that calls `defineContract`, and `tests/src/snippets/snippet-execution.spec.ts` pins the corpus at exactly `31`. A `defineContract` example would have to construct standalone from only the imports it shows AND require bumping that number in the same commit. The examples in this plan deliberately show `publish` and handler code instead, which the parser skips.
+- **Do not add a `defineContract` snippet to any page in this plan.** `tests/src/snippets/extract.ts` executes every fence tagged `ts` or `typescript` that calls `defineContract`, and `tests/src/snippets/snippet-execution.spec.ts` pins the corpus at exactly `31`. A `defineContract` example would have to construct standalone from only the imports it shows AND require bumping that number in the same commit. The examples in this plan deliberately show `publish` and handler code instead, which the parser skips.
 - Do not edit generated output: `docs/api/**` and `docs/.vitepress/dist/**` are generated (`dist` is gitignored). `docs/guide/**` pages are 3.0 redirect stubs — leave them alone.
 - Conventional commits required (`docs` for all tasks here).
 - Internal links use VitePress root-relative form without the `.md` extension: `/explanation/delivery-guarantees`.
@@ -64,15 +64,20 @@ Before writing, confirm each of these against the tree, and record the file:line
 
 - [ ] **Step 2: Create the page**
 
-Create `docs/explanation/delivery-guarantees.md` with exactly the content between the two markers below. Do not include the marker lines themselves.
+Create `docs/explanation/delivery-guarantees.md`.
 
-**>>> FILE CONTENT BEGINS ON THE NEXT LINE >>>**
+It opens with a VitePress frontmatter block: four consecutive lines, no blank line inside. Written as a table because a raw `---` block in this plan gets reflowed by the repo formatter — build the block from these cells, and match the shape of the first four lines of `docs/explanation/errors-as-values.md`:
 
----
+| Line | Exact content                                                                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `---`                                                                                                                                                 |
+| 2    | `title: Delivery guarantees - amqp-contract`                                                                                                          |
+| 3    | `description: Why delivery is at-least-once regardless of retry configuration, why a failed publish is ambiguous, and where idempotency has to live.` |
+| 4    | `---`                                                                                                                                                 |
 
-title: Delivery guarantees - amqp-contract
-description: Why delivery is at-least-once regardless of retry configuration, why a failed publish is ambiguous, and where idempotency has to live.
----
+Then one blank line, then the body exactly as it appears between the two markers below. Do not include the marker lines themselves, and do not re-add a frontmatter block inside the body.
+
+**>>> BODY BEGINS ON THE NEXT LINE >>>**
 
 # Delivery guarantees
 
@@ -147,7 +152,7 @@ What you do with it is ordinary application work, and the right answer depends o
 - [Consume messages](/how-to/consume-messages) — prefetch, draining, and reaching the raw message.
 - [Route dead letters](/how-to/route-dead-letters) — where a message goes when retrying is over.
 
-**<<< FILE CONTENT ENDS ON THE PREVIOUS LINE <<<**
+**<<< BODY ENDS ON THE PREVIOUS LINE <<<**
 
 - [ ] **Step 3: Register the page in the sidebar**
 
