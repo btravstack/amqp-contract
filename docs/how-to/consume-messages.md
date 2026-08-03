@@ -202,7 +202,7 @@ process.on("SIGINT", shutdown);
 
 `close()` stops accepting new deliveries and waits for in-flight handlers before tearing the channel down. The `.get()` is required — without it a failure to close is discarded.
 
-The drain is bounded by `drainTimeoutMs` (default 30 000 ms, exported as `DEFAULT_DRAIN_TIMEOUT_MS`), so a hung handler cannot wedge shutdown — on timeout the channel closes anyway and the un-acked deliveries are redelivered by the broker (at-least-once semantics). Pass `null` to wait forever:
+The drain is bounded by `drainTimeoutMs` (default 30 000 ms, exported as `DEFAULT_DRAIN_TIMEOUT_MS`), so a hung handler cannot wedge shutdown — on timeout the channel closes anyway and the un-acked deliveries are redelivered by the broker ([at-least-once semantics](/explanation/delivery-guarantees)). Pass `null` to wait forever:
 
 ```typescript
 await worker.close({ drainTimeoutMs: 5_000 }).get(); // cap the drain at 5s
