@@ -133,11 +133,12 @@ Declared-but-unconsumed queues are not checked.
 
 Common raw arguments:
 
-| Argument           | Effect                                               |
-| ------------------ | ---------------------------------------------------- |
-| `x-message-ttl`    | Per-message TTL in ms; expiry routes to the DLX      |
-| `x-max-length`     | Max messages; overflow routes to the DLX             |
-| `x-delivery-limit` | Quorum-queue redelivery cap (RabbitMQ 4 default: 20) |
+| Argument           | Effect                                                                      |
+| ------------------ | --------------------------------------------------------------------------- |
+| `x-message-ttl`    | Per-message TTL in ms; expiry routes to the DLX                             |
+| `x-expires`        | Queue idle TTL in ms; deletes the queue and its messages, not dead-lettered |
+| `x-max-length`     | Max messages; overflow routes to the DLX                                    |
+| `x-delivery-limit` | Quorum-queue redelivery cap (RabbitMQ 4 default: 20)                        |
 
 ## Retry configuration
 
