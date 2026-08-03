@@ -19,7 +19,7 @@ Of everything on this page, [consumers prefetch 10 by default](#consumers-prefet
 
 **What breaks:** nothing, visibly. Consumers previously ran with no `basic.qos` at all, which is AMQP's _unlimited_ — the broker pushed the entire ready backlog into a single consumer. They now prefetch **10**.
 
-**Why it was unsafe:** an unbounded consumer holds the whole backlog in its own memory, and every one of those messages is unacked, so a crash redelivers all of it at once. Throughput was also concentrated in whichever replica connected first; idle peers got nothing.
+**Why it was unsafe:** an unbounded consumer holds the whole backlog in its own memory, and every one of those messages is unacked, so a crash redelivers all of it at once. Throughput was also concentrated in whichever replica connected first; idle peers got nothing. Redelivery on a crash is not specific to prefetch — see [Delivery guarantees](/explanation/delivery-guarantees).
 
 **The exact edit** — none, if 10 works for you. Otherwise tune it, or opt back out explicitly:
 

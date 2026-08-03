@@ -533,7 +533,7 @@ The queue was declared with `onPoison: "drop"` and no `deadLetter`, so `nack(req
 
 Consumers now prefetch **10** messages by default (previously unlimited — the
 broker pushed the entire ready backlog to a single consumer, which is unbounded
-memory and a large redelivery burst if the worker crashes).
+memory and a large redelivery burst if the worker crashes). See [Delivery guarantees](/explanation/delivery-guarantees) for when redelivery happens.
 
 Prefetch is a _consumer_ option, so it goes in `defaultConsumerOptions` (or the
 per-handler tuple), not at the top level of the worker options. Raise it if you
