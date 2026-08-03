@@ -174,3 +174,6 @@ vite.config.ts.timestamp-*
 
 # Snippets materialised from the docs by tests/src/snippets/snippet-execution.spec.ts
 tests/.snippets/
+
+# SDD specs and plans: local scratch, never published to the docs site.
+docs/superpowers/

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -113,15 +113,51 @@ describe("parseSnippets", () => {
 describe("discoverMarkdownFiles", () => {
   const repoRoot = join(import.meta.dirname, "..", "..", "..");
 
-  it("finds hand-written docs and excludes generated and planning ones", () => {
+  it("finds hand-written docs and excludes generated ones", () => {
     const files = discoverMarkdownFiles(repoRoot).map((f) => f.slice(repoRoot.length + 1));
 
     expect(files).toContain("docs/how-to/define-a-contract.md");
     expect(files).toContain("README.md");
     expect(files).toContain("packages/core/README.md");
     expect(files.some((f) => f.startsWith("docs/api/"))).toBe(false);
-    expect(files.some((f) => f.startsWith("docs/superpowers/"))).toBe(false);
     expect(files.some((f) => f.includes("node_modules"))).toBe(false);
+  });
+
+  it("excludes every excluded fragment, on a tree built to contain them", () => {
+    // Asserted against a synthetic tree rather than the repo, because an
+    // exclusion assertion is only worth anything when the thing being excluded
+    // is present. `docs/superpowers` is no longer committed, so checking the
+    // real tree for it would pass while testing nothing — and `docs/api` is
+    // only there after a build. Everything below exists by construction.
+    const root = mkdtempSync(join(tmpdir(), "discover-"));
+    try {
+      for (const rel of [
+        "docs/how-to/keep.md",
+        "docs/api/generated.md",
+        "docs/superpowers/specs/plan.md",
+        "docs/.vitepress/cache/built.md",
+        "docs/dist/bundled.md",
+        "packages/core/README.md",
+        "packages/core/src/internal-notes.md",
+        "packages/core/node_modules/dep/readme.md",
+      ]) {
+        const abs = join(root, rel);
+        mkdirSync(dirname(abs), { recursive: true });
+        writeFileSync(abs, "# x\n", "utf8");
+      }
+
+      const found = discoverMarkdownFiles(root).map((f) => f.slice(root.length + 1));
+
+      // Only a hand-written doc and the package README survive: everything else
+      // is generated, planning scratch, a build artifact, a dependency, or a
+      // source-tree file that is not a package README.
+      expect(found).toEqual([
+        join("docs", "how-to", "keep.md"),
+        join("packages", "core", "README.md"),
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("finds contract snippets across the real corpus", () => {
