@@ -53,7 +53,7 @@ Three outcomes, and only one of them consults the retry mode:
 
 That `NonRetryableError` skips the retry mode entirely is the important asymmetry. It is a statement about the _failure_, and no amount of policy should override it — retrying a permanently declined card five times with exponential backoff is pure latency for a guaranteed dead-letter.
 
-The default mode is `none`, which means a `RetryableError` behaves like a `NonRetryableError` until you opt into a retry policy. This is intentional. Retrying is a choice with real consequences (duplicate side effects, queue growth), so it is not on by default.
+The default mode is `none`, which means a `RetryableError` behaves like a `NonRetryableError` until you opt into a retry policy. This is intentional. Retrying is a choice with real consequences — more duplicate deliveries, and queue growth — so it is not on by default. It does not follow that `none` means no duplicates: a crash, a dropped connection, or a drain timeout redelivers whatever was un-acked, whatever the retry mode. [Delivery guarantees](/explanation/delivery-guarantees) has the full list.
 
 ## Why validation failures never retry
 
@@ -91,12 +91,13 @@ This is not an oversight but it is a real limitation, and it is the thing most l
 
 Nothing here makes a retried operation safe to repeat. If a handler charges a card and then fails while writing the receipt, retrying charges the card again.
 
-The retry model guarantees delivery attempts, not idempotency. Making the _work_ idempotent — an idempotency key at the payment provider, an upsert instead of an insert, a deduplication table keyed on message ID — remains yours. This is inherent to at-least-once messaging rather than specific to this library, but it is the assumption most often left unexamined when retries are switched on.
+The retry model guarantees delivery attempts, not idempotency. Making the _work_ idempotent remains yours, and switching retries on raises how often it matters rather than introducing the problem — delivery is at-least-once either way. [Delivery guarantees](/explanation/delivery-guarantees) covers where duplicates come from, why a failed publish is ambiguous, and the identifier you need before a deduplication table is worth anything.
 
 A related trap: a queue with no dead-letter exchange configured discards messages on `nack(requeue=false)`. The worker warns, but the body is gone. If you care about poison messages, configure `deadLetter` — and bind a queue to the exchange you name. A DLX with nothing bound loses the message just as completely and without the warning, which is why `defineContract` rejects one.
 
 ## Where next
 
+- [Delivery guarantees](/explanation/delivery-guarantees) — why at-least-once holds regardless of retry configuration, and where idempotency has to live.
 - [Retry failed messages](/how-to/retry-failed-messages) — configuring each mode, and classifying errors in handlers.
 - [Route dead letters](/how-to/route-dead-letters) — where messages go when retrying is over.
 - [Error model](/reference/error-model) — `RetryableError`, `NonRetryableError` and the rest.
