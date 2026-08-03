@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -116,11 +116,13 @@ describe("discoverMarkdownFiles", () => {
   it("finds hand-written docs and excludes generated ones", () => {
     const files = discoverMarkdownFiles(repoRoot).map((f) => f.slice(repoRoot.length + 1));
 
-    expect(files).toContain("docs/how-to/define-a-contract.md");
+    // Built with `node:path`, so the separator is platform-dependent; compare
+    // with `join`/`sep` rather than hard-coded forward slashes.
+    expect(files).toContain(join("docs", "how-to", "define-a-contract.md"));
     expect(files).toContain("README.md");
-    expect(files).toContain("packages/core/README.md");
-    expect(files.some((f) => f.startsWith("docs/api/"))).toBe(false);
-    expect(files.some((f) => f.includes("node_modules"))).toBe(false);
+    expect(files).toContain(join("packages", "core", "README.md"));
+    expect(files.some((f) => f.startsWith(join("docs", "api") + sep))).toBe(false);
+    expect(files.some((f) => f.split(sep).includes("node_modules"))).toBe(false);
   });
 
   it("excludes every excluded fragment, on a tree built to contain them", () => {
@@ -140,6 +142,12 @@ describe("discoverMarkdownFiles", () => {
         "packages/core/README.md",
         "packages/core/src/internal-notes.md",
         "packages/core/node_modules/dep/readme.md",
+        // Under `docs`, where the `packages/<name>/README.md` rule cannot reach
+        // it. The `packages/...` entry above is masked by that rule, so on its
+        // own this test passed with `node_modules` deleted from EXCLUDED —
+        // verified by mutation. This entry is what makes the exclusion
+        // load-bearing.
+        "docs/node_modules/dep/readme.md",
       ]) {
         const abs = join(root, rel);
         mkdirSync(dirname(abs), { recursive: true });
