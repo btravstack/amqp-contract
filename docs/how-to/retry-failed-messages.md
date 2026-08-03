@@ -159,7 +159,7 @@ If you need context on the message itself, use `ttl-backoff` (which always repub
 
 **A dead-letter exchange with nothing bound to it.** Same outcome, no warning: RabbitMQ discards a message routed to zero queues, while the worker logs a reassuring `Sending message to DLQ`. `defineContract` now rejects this at definition time — bind a queue to the DLX, or set `externalConsumers: true` on the `deadLetter` config when another service owns that queue.
 
-**Retrying non-idempotent work.** Retries are delivery attempts, not exactly-once semantics. A handler that charges a card then fails will charge again. Use an idempotency key, an upsert, or a dedupe table keyed on message ID.
+**Retrying non-idempotent work.** Retries are delivery attempts, not exactly-once semantics. A handler that charges a card then fails will charge again. The library never sets AMQP's `messageId` for you, so a dedupe table keyed on it starts out keyed on `undefined` — set one yourself first, or use a business key from the payload. [Delivery guarantees](/explanation/delivery-guarantees#idempotency-lives-in-your-handler) covers the id and the three ways to spend it.
 
 **Tuning `maxRetries` by intuition.** The number that matters is how long the dependency actually takes to recover. That lives in your dead-letter queue and your metrics, not in your head.
 

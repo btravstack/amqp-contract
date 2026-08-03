@@ -108,3 +108,9 @@ No — per process. The cache is a per-process singleton, so each process, worke
 No. Retries are delivery attempts. A handler that charges a card and then fails will charge again on retry. Making the work idempotent is yours.
 
 → [The retry model](/explanation/the-retry-model#retries-are-not-exactly-once)
+
+## Does amqp-contract ever deliver a message twice, even with retries off?
+
+Yes. A crash, a dropped connection, a drain timeout, or even a successful publish can each produce a duplicate, and none of them need a retry policy to happen.
+
+→ [Delivery guarantees](/explanation/delivery-guarantees)
