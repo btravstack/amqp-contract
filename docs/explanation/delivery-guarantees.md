@@ -5,9 +5,9 @@ description: Why delivery is at-least-once regardless of retry configuration, wh
 
 # Delivery guarantees
 
-amqp-contract delivers **at-least-once**. A message the broker accepts will reach a consumer one or more times. No configuration makes that exactly once, because no such configuration exists to make.
+amqp-contract delivers **at-least-once**: a message the broker accepts will reach a consumer one or more times, as long as the queue holding it still exists by the time a consumer looks. That qualifier is not a formality — `x-expires` is a documented, supported queue argument ([topology options](/reference/topology-options#definequeue)), and setting it deletes the queue, and everything still in it, once the queue has gone unused for that long; nothing dead-letters the loss. `x-message-ttl` and `x-max-length[-bytes]` evict individual messages sooner. Where the queue has a dead-letter exchange, those evictions land in the DLQ instead of vanishing outright — but only reach a consumer if something consumes that queue too, and a consumed queue can skip a dead-letter exchange entirely via `onPoison: "drop"`, in which case eviction just discards the message. At-least-once is a statement about the acknowledgment protocol, not an unconditional promise that every accepted message arrives. No configuration makes at-least-once exactly-once, because no such configuration exists to make.
 
-This page is the whole statement in one place: when a message can arrive twice, what a failed publish does and does not tell you, and what those two facts leave you responsible for.
+This page is the whole statement in one place: when a message can arrive twice, what a publish result does and does not tell you, and what those two facts leave you responsible for.
 
 ## At-least-once is not a retry setting
 
@@ -24,15 +24,19 @@ Two more appear once you do configure retries:
 - **`immediate-requeue`** returns the message to its own queue for another attempt.
 - **`ttl-backoff`** republishes it through a wait queue.
 
-The first three are properties of running a consumer against a broker; you did not choose them and you cannot switch them off. The last two are choices. All five produce the same thing at your handler: a message it has seen before.
+The first three are properties of running a consumer against a broker, and you did not choose them. Two of the three you cannot switch off. The third you can: pass `drainTimeoutMs: null` to `worker.close()` and it waits for every in-flight handler instead of cutting them off at a deadline ([consume messages](/how-to/consume-messages#shut-down-without-dropping-messages)). The last two are choices. All five produce the same thing at your handler: a message it has seen before.
 
 ## A failed publish is ambiguous
 
 `publish()` waits for a publisher confirm, bounded by `publishTimeoutMs` (30 000 ms by default). When that deadline passes, the call settles as a failure.
 
-That failure means the client stopped waiting. It does not mean the broker failed to receive the message.
+That failure means the client stopped waiting. It does not mean the broker failed to receive the message. And it does not arrive as an `Err` your `errCases` matcher can see: `client.publish` widens the error channel only to `MessageValidationError`, so a publish timeout — like every other transport failure — surfaces as a `Defect` instead. Code written to catch "publish failed" with `.recoverErrCases(...)` or `.flatMapErrCases(...)` will never run for it; the `defect` arm of `.match(...)` is where it lands. [Upgrade guide](/how-to/upgrade#channels-set-a-30s-publish-timeout) walks through the pattern.
 
-So a publish error is not proof of non-delivery, and the natural response — send it again — can produce a duplicate. Nothing closes this gap from the publisher's side: an acknowledgement can always be lost after the work it acknowledges is done, and no protocol removes that.
+So a publish error is not proof of non-delivery, and the natural response — send it again — can produce a duplicate.
+
+**A successful `publish()` is not proof of a single delivery either.** If the connection drops after the broker has already enqueued the message but before the confirm comes back, the connection manager underneath the client replays the unconfirmed message once it reconnects — that's not something you asked for, it's what staying connected means. If the original had already landed, the queue now holds two copies, and `publish()` still resolves `Ok`: the replay is what succeeded. [Upgrade guide](/how-to/upgrade#channels-set-a-30s-publish-timeout) notes the same replay risk for a timed-out publish specifically.
+
+Nothing closes this gap within core AMQP 0-9-1: an acknowledgement can always be lost after the work it acknowledges is done, and no message in the protocol lets the broker recognise a repeat on its own. Deduplication does exist outside core AMQP — RabbitMQ's `rabbitmq-message-deduplication` plugin keys off a header you supply, RabbitMQ Streams do it natively, Kafka ships an idempotent producer — but amqp-contract ships none of it.
 
 Two honest responses:
 
@@ -43,7 +47,7 @@ Two honest responses:
 
 The library does not deduplicate for you, and it attaches no identity you could deduplicate on: it never sets AMQP's `messageId`. If you want one, you set it.
 
-Publish options are amqplib's, so `messageId` is available:
+The client's publish options are amqplib's plus an optional `compression` field, so `messageId` is available:
 
 ```typescript
 await client
@@ -55,12 +59,15 @@ A handler reads it from the raw message:
 
 ```typescript
 processOrder: ({ payload }, rawMessage) => {
-  const id = rawMessage.properties.messageId;
-  return OkAsync(undefined);
+  const { messageId } = rawMessage.properties;
+  const id = typeof messageId === "string" ? messageId : undefined;
+  return upsertOrder(payload, id).map(() => undefined);
 },
 ```
 
-Or ignore AMQP's field and carry a business key in the payload — which has the advantage of surviving anything that rebuilds the message on the way through.
+`messageId` is typed `any` on the raw amqplib message, so narrow it before use rather than passing it on as-is.
+
+Or carry a business key in the payload instead of relying on `messageId`. Both survive the library's own paths that rebuild the message: retry republishing spreads the original properties — `messageId` included — onto the new message, and RabbitMQ carries properties and body unchanged across a dead-letter hop.
 
 Whichever you choose, the property that matters is that the id is **stable across the sender's own retries** and unique per logical operation. An id that changes when the sender retries deduplicates nothing.
 
