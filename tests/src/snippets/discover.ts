@@ -43,7 +43,12 @@ function matchesExcludedFragment(rel: string, fragment: string): boolean {
   );
 }
 
-function walk(absolute: string, out: string[]): void {
+/** True when `rel` sits under any excluded fragment. */
+function isExcluded(rel: string): boolean {
+  return EXCLUDED.some((fragment) => matchesExcludedFragment(rel, fragment));
+}
+
+function walk(absolute: string, out: string[], repoRoot: string): void {
   let entries: string[];
   try {
     entries = readdirSync(absolute);
@@ -61,7 +66,13 @@ function walk(absolute: string, out: string[]): void {
       continue;
     }
     if (stats.isDirectory()) {
-      walk(child, out);
+      // Prune before descending, not after collecting. The excluded fragments
+      // include `node_modules`, and this repo has 344 of those directories
+      // holding ~70 000 files — walking them to find ~60 markdown files and
+      // then filtering them back out cost enough wall-clock to time this
+      // suite out in CI while passing locally on a warm cache.
+      if (isExcluded(relative(repoRoot, child))) continue;
+      walk(child, out, repoRoot);
     } else if (entry.endsWith(".md")) {
       out.push(child);
     }
@@ -78,7 +89,7 @@ export function discoverMarkdownFiles(repoRoot: string): readonly string[] {
   for (const root of ROOTS) {
     const absolute = join(repoRoot, root);
     try {
-      if (statSync(absolute).isDirectory()) walk(absolute, found);
+      if (statSync(absolute).isDirectory()) walk(absolute, found, repoRoot);
       else if (absolute.endsWith(".md")) found.push(absolute);
     } catch {
       continue;
@@ -87,7 +98,7 @@ export function discoverMarkdownFiles(repoRoot: string): readonly string[] {
   return found
     .filter((file) => {
       const rel = relative(repoRoot, file);
-      if (EXCLUDED.some((fragment) => matchesExcludedFragment(rel, fragment))) return false;
+      if (isExcluded(rel)) return false;
       // From packages, only the package READMEs.
       if (rel.startsWith(`packages${sep}`))
         return rel.split(sep).length === 3 && rel.endsWith("README.md");
