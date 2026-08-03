@@ -111,6 +111,7 @@ const GUIDE_SIDEBAR = [
       { text: "Core concepts", link: "/explanation/core-concepts" },
       { text: "Errors as values", link: "/explanation/errors-as-values" },
       { text: "The retry model", link: "/explanation/the-retry-model" },
+      { text: "Delivery guarantees", link: "/explanation/delivery-guarantees" },
       { text: "Comparison", link: "/explanation/comparison" },
     ],
   },
