@@ -70,10 +70,17 @@ peerDependencyRules:
 # dev/build/test tooling.
 overrides:
   # GHSA-v2hh-gcrm-f6hx (High): fast-uri host confusion via literal backslash
-  # authority delimiter. Only the vulnerable <3.1.4 line is present (transitive,
-  # via ajv under commitlint/prisma tooling); 3.1.4 is the first patched release.
-  # Reaches us only through dev/build tooling.
-  "fast-uri@<3.1.4": "3.1.4"
+  # authority delimiter, and GHSA-7p8r-x3mc-p8w7 (High): the same class of host
+  # confusion via backslash, which 3.1.4 did not fully close. Only the
+  # vulnerable line is present (transitive, via ajv under commitlint/prisma
+  # tooling); 3.1.5 is the first release patched against both. Reaches us only
+  # through dev/build tooling.
+  "fast-uri@<3.1.5": "3.1.5"
+  # GHSA-4cwx-7wf7-3272 (High): undici cross-user information disclosure.
+  # Reaches us only through packages/testing > testcontainers, i.e. the
+  # integration-test harness, never a published package's runtime. 8.9.0 is the
+  # first patched release.
+  "undici@<8.9.0": "8.9.0"
   # GHSA-3jxr-9vmj-r5cp (High, ReDoS) + GHSA-mh99-v99m-4gvg (High, DoS via
   # unbounded expansion length) + GHSA-rgw5-rvv9-x895 (High, DoS via unbounded
   # intermediate arrays, bypassing the CVE-2026-14257 mitigation):
@@ -136,6 +143,12 @@ minimumReleaseAgeExclude:
   # overrides above) are younger than the 7-day cutoff (all published
   # 2026-07-30). Remove once they are 7 days old (i.e. after 2026-08-06).
   - brace-expansion
+  # Temporary: fast-uri 3.1.5 (the GHSA-7p8r-x3mc-p8w7 override above) was
+  # published 2026-07-31, inside the 7-day cutoff. It is the only release
+  # patched against that advisory, so the choice was a young release or a known
+  # High. Remove this entry once it is 7 days old (i.e. after 2026-08-07).
+  # undici 8.9.0 needs no entry — published 2026-07-24, already past the cutoff.
+  - fast-uri
 
 # GHSA-mh99-v99m-4gvg (brace-expansion DoS via unbounded expansion length) has a
 # patched release ONLY on the 5.x line (>=5.0.8); the 1.x/2.x lines resolved
