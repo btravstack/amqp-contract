@@ -18,7 +18,9 @@ const ROOTS = ["docs", "packages", ".agents", "README.md"] as const;
  * Path fragments that disqualify a file.
  *
  * - `docs/api` is generated TypeDoc output: signature fragments, not programs.
- * - `docs/superpowers` holds specs and plans, deliberately illustrative.
+ * - `docs/superpowers` holds SDD specs and plans. No longer committed (it is
+ *   gitignored scratch), but a local run writes there mid-task, so it stays
+ *   excluded rather than being discovered on whoever's machine is running.
  * - `node_modules`, `dist` and `.vitepress` are build artifacts.
  * - Only `packages/<name>/README.md` is wanted from `packages`, not sources.
  *
