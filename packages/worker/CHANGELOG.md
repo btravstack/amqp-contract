@@ -1,5 +1,158 @@
 # @amqp-contract/worker
 
+## 3.0.0-beta.5
+
+### Major Changes
+
+- a297dfd: Consumers now prefetch 10 messages by default instead of AMQP's unlimited,
+  bounding in-flight memory and the redelivery burst on a worker crash. Set
+  `prefetch` to a number to tune it, or `"unbounded"` to restore the previous
+  behavior.
+- ef447ed: Channels now set a 30s `publishTimeout` by default. Publishes issued during a
+  broker outage previously buffered without bound and their promises never
+  settled. Set `publishTimeoutMs` to tune it, or `publishTimeoutMs: null` to
+  disable.
+
+  The timeout surfaces on the **defect** channel, not as a modelled error: publish
+  models only `MessageValidationError`, so a timed-out publish will not appear in
+  `errCases` and will panic `.get()` / `.getOrThrow()`. Code with a `defect` arm it
+  believed unreachable should expect to reach it during an outage.
+
+  Note also that a timed-out publish may still have reached the broker — the
+  timeout drops the message from the unconfirmed set locally, it does not recall
+  it. Retrying in response can therefore duplicate.
+
+- 1acd68b: The DLX-less poison-message log changed text, and a _declared_ drop moved from
+  `warn` to `info`. **If you alert on the old string, that alert will silently
+  stop firing** — the new `warn` uses different wording and fires in strictly
+  fewer cases.
+
+  Old — two outcomes, level `warn`:
+
+  - `Queue does not have DLX configured - message will be lost on nack` —
+    `retry.ts`, terminal nack after retries are exhausted or skipped
+  - `Queue does not have DLX configured - poison message will be lost on nack` —
+    `worker.ts`, payload/header validation failure
+
+  New — **three** outcomes, because "no DLX" now splits into declared and
+  undeclared:
+
+  | Queue                      | Level  | Message                                                                                                                                                                                                                            |
+  | -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | has a DLX                  | `info` | `Sending message to DLQ` (`retry.ts` only; the validation path nacks without logging and lets the DLX do its job)                                                                                                                  |
+  | no DLX, `onPoison: "drop"` | `info` | `Discarding message: queue is declared onPoison: "drop" and has no DLX` (`retry.ts`)<br>`Discarding poison message: queue is declared onPoison: "drop" and has no DLX` (`worker.ts`)                                               |
+  | no DLX, no `onPoison`      | `warn` | `Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack` (`retry.ts`)<br>`Queue has no dead-letter exchange and no onPoison declaration - poison message will be lost on nack` (`worker.ts`) |
+
+  "Has a DLX" means what `defineContract`'s poison-loss check means by it —
+  `deadLetter: { exchange: … }` **or** an `x-dead-letter-exchange` set through the
+  raw `arguments` passthrough. Both sites ask one shared predicate, so a queue the
+  builder accepts as dead-lettering is never logged as an undeclared loss and
+  never described as discarded.
+
+  Structured fields are unchanged (`queueName`, `deliveryTag`; plus
+  `consumerName` on the validation path).
+
+  Why the split: `defineContract` now rejects any consumed queue that has neither
+  a `deadLetter` nor `onPoison: "drop"`, so the `info` lines are reachable only on
+  a queue whose author declared the drop. A warning that fires on correct,
+  intentional configuration is noise, and noise is how real warnings get ignored.
+  The `warn` survives for the case that is still a genuine accident: a hand-built
+  `ContractDefinition` that bypassed `defineContract` and carries neither. The
+  event is always logged, because a directly-nacked message carries no `x-death`
+  header and this line is the only record it ever arrived.
+
+  Also: `sendToDLQ` no longer logs `Sending message to DLQ` on a queue that has no
+  DLQ. The three outcomes are mutually exclusive log lines.
+
+  **If you migrated by broker policy** (`rabbitmqctl set_policy … dead-letter-exchange`)
+  rather than by a `deadLetter` queue argument, your contract still declares
+  `onPoison: "drop"`, so the worker logs the _discard_ line while the broker is in
+  fact dead-lettering the message correctly. The log describes what the contract
+  knows, not what the broker does. Nothing is lost; the line is expected.
+
+  To keep an alert on genuine unexpected loss, alert on the new `warn` wording, or
+  better on the `defineContract` throw at deploy time — it fires before a message
+  is ever published.
+
+- 8b50784: Pre-3.0 audit: one decision point for a full write buffer, and Deno-style exported signatures.
+
+  - **`AmqpClient.publish` / `sendToQueue` return `AsyncResult<void, never>`** (was `AsyncResult<boolean, never>`). The channel wrapper's boolean `false` (write buffer full) used to be re-triaged four different ways downstream; it is now absorbed inside core and surfaces as a Defect with a `TechnicalError` cause ("channel write buffer full"), like every other publish-side infrastructure failure. The worker's RPC reply publish is the one site that still needs a modeled error: it recovers the defect into a `NonRetryableError`, so a failed reply publish keeps routing the request to the DLQ.
+  - **Exported signatures follow the [Deno style rule](https://docs.deno.com/runtime/contributing/style_guide/)** — max two positional arguments, trailing options object, no positional booleans:
+
+    - `client.ack(msg, allUpTo?, options?)` → `client.ack(msg, { allUpTo?, deliveryEpoch? })`
+    - `client.nack(msg, allUpTo?, requeue?, options?)` → `client.nack(msg, { allUpTo?, requeue?, deliveryEpoch? })` (requeue still defaults to true)
+    - `client.publish(exchange, routingKey, content, options?)` → `client.publish({ exchange, routingKey }, content, options?)`
+    - `@amqp-contract/testing`'s `publishMessage(exchange, routingKey, content, options?)` fixture → `publishMessage({ exchange, routingKey }, content, options?)`
+
+    The typed client's `client.publish(name, message, options?)` is unaffected.
+
+  - **`defineExchangeBinding` requires a non-empty routing key for direct/topic source exchanges.** It was the last builder still defaulting a missing key to `""` (silently unroutable); it now throws the same actionable define-time error as `definePublisher` and `defineQueueBinding`. Fanout/headers sources remain exempt.
+
+- 6d8593b: Uniform `QueueDefinition` + per-delay-tier TTL-backoff wait queues: the `QueueEntry`/`extractQueue` split is gone and the retry schedule no longer degrades to the longest in-flight delay.
+
+  - **`defineQueue` always returns a single uniform `QueueDefinition`** — with TTL-backoff retry it no longer returns a branded wrapper carrying wait-queue/exchange infrastructure. Access `queue.name` / `queue.type` directly. Deleted exports: `extractQueue`, `isQueueWithTtlBackoffInfrastructure`, and the `QueueEntry`, `QueueWithTtlBackoffInfrastructure`, `QueueEntryWithDeadLetterExchange` (renamed to `QueueDefinitionWithDeadLetterExchange`), `TtlBackoffRetryInfrastructure` types, plus the `__brand` machinery on queues.
+  - **TTL-backoff topology is derived, never stored.** The new pure helpers `deriveTtlBackoffInfrastructure(queue)`, `ttlBackoffBaseDelay(retry, retryCount)`, and `ttlBackoffWaitQueueName(queueName, delayMs)` (with the `TtlBackoffInfrastructure` / `TtlBackoffWaitQueueDefinition` types) compute everything from `queue.retry`; `setupAmqpTopology` declares the wait queues at channel-setup time and the worker's retry pipeline publishes to them. `ContractOutput` now matches the runtime `defineContract` object exactly — no more runtime-injected `wait-exchange` / wait-queue entries that failed to typecheck.
+  - **One wait queue per distinct backoff delay** (`{queue}-wait-{delayMs}ms`) fixes head-of-line blocking: RabbitMQ only dead-letters expired messages at the head of a queue, so the old single shared wait queue let a parked 60s retry block a later 1s retry — the configured schedule silently degraded to the longest in-flight delay. Each tier queue is declared with a queue-level `x-message-ttl` backstop (the jitter ceiling, `ceil(base * 1.5)`) and dead-letters back to the main queue via the default exchange; the per-message `expiration` carries the jittered delay. Within a tier, head-of-line skew is bounded by the jitter spread and is zero with `jitter: false`.
+  - **The wait/retry headers exchanges are gone.** The retry copy is published straight to the tier queue via the default exchange, so the `x-wait-queue` / `x-retry-queue` routing headers are no longer stamped. Retried deliveries arrive with `fields.routingKey` set to the queue name; the original routing key is preserved in the new `x-original-routing-key` header (also stamped by classic-queue immediate-requeue republishes). The `x-retry-count` / `x-last-error` / `x-first-failure-timestamp` accounting is unchanged.
+  - **`TtlBackoffRetryOptions` lost `waitQueueName` / `waitExchangeName` / `retryExchangeName`** — tier wait-queue names are derived and no longer configurable.
+  - **Migration**: broker-side wait-queue names change. The old `{queue}-wait` queues and the `wait-exchange` / `retry-exchange` headers exchanges become unused after upgrading — drain them (any parked retries will still dead-letter back to their main queue when their TTL expires, as long as you leave the old topology in place until empty), then delete them.
+
+- e479a35: Pre-3.0 audit: routing-key safety and naming/export hygiene, taken while the major window is open.
+
+  - **`defineEventConsumer` topic routing-key overrides are now checked against the publisher's routing key at compile time.** A pattern that can never match — `defineEventConsumer(orderCreatedEvent, queue, { routingKey: "user.*" })` against a publisher on `order.created` — used to compile and silently receive nothing at runtime; it is now a type error whose message names both sides (`"Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'"`). The new `MatchingBindingPattern<Pattern, PublisherKey>` type is exported; pattern matching also learned that a trailing `#` matches zero words (`order.created.#` now accepts `order.created`).
+  - **Direct/topic publishers and queue bindings require a non-empty routing key at define time.** `definePublisher` silently defaulted a missing routing key to `""` and `defineQueueBinding` left it `undefined` — both silently misroute. `definePublisher`, `defineQueueBinding`, `defineEventPublisher`, and `defineCommandConsumer` (via its binding) now throw an actionable error at define time for JavaScript callers and casts. Fanout/headers exchanges are exempt (they ignore routing keys).
+  - **`@amqp-contract/core`'s option types renamed**: `ConsumerOptions` → `AmqpConsumeOptions`, `PublishOptions` → `AmqpPublishOptions`. They collided with the user-facing `ConsumerOptions` (worker) and `PublishOptions` (client), which keep their names and shapes.
+  - **`_internal_*` helpers moved off `@amqp-contract/core`'s root** to a new `@amqp-contract/core/internal` subpath: `_internal_getConnectionCount`, `_internal_resetConnections`, `_internal_resetTelemetryCache`. They are test-lifecycle helpers with no semver guarantee and no longer clutter the public root.
+  - **`defineEventPublisher`'s `arguments` option renamed to `bindingArguments`.** It never was a publish argument — it is forwarded as the default AMQP binding arguments for that event's consumers' queue bindings (a consumer's own `arguments` option overrides it). The name now says so; `EventPublisherConfig`/`EventPublisherConfigBase` carry `bindingArguments` accordingly.
+  - **Builder-result brands are now a non-exported `unique symbol`** instead of `__brand: "EventConsumerResult"`-style string fields on `EventPublisherConfig`, `EventConsumerResult`, `CommandConsumerConfig`, and `BridgedPublisherConfig` (and their `*Base` types). The brand no longer shows up in IDE hovers and cannot be forged by user code; nominal separation and the `is*` type guards behave as before. Code that constructed these config objects by hand (rather than via `defineEvent*` / `defineCommand*`) no longer compiles — use the builders.
+
+### Patch Changes
+
+- e039d82: Move the `@unthrown/standard-schema` runtime dependency from 5.0.0 to 5.1.0.
+
+  The `unthrown` peer range is unchanged (`^5.0.0`), which 5.1.0 already satisfies,
+  so consumers pinned to any 5.x need no action. The bump is a minor on a
+  first-party package with no API removal: the full type-test suite, unit suite and
+  integration suite pass unmodified against it.
+
+- d30cbf3: Second robustness pass from the pre-3.0 audit — correctness fixes, resource-safety guards, and internal idiom alignment. All additive or bug-fix; no further breaking changes beyond those already listed in the other pre-3.0 changesets.
+
+  **Correctness fixes**
+
+  - **A channel `error` event no longer crashes the process.** amqp-connection-manager's `ChannelWrapper` emits plain `'error'` events for conditions it recovers from by reconnecting (topology setup failure on connect/reconnect, publish-worker faults, consumer re-establishment). With no listener attached, Node escalated the emit to `ERR_UNHANDLED_ERROR` and the process died. `AmqpClient` now always attaches a listener that degrades the event to `logger.error`; the typed client/worker thread their logger down, and user `on('error', …)` listeners still fire. (`AmqpClientOptions` gains an optional `logger`.)
+  - **A single un-composed middleware now merges its context over the `createContext` seed** instead of replacing it, so `middleware: mw` and `middleware: [mw]` behave identically (previously the bare form silently dropped every seed field).
+  - **`client.publish(...)` / `client.call(...)` with a name the contract does not declare** now resolve to a `Defect` (a `TechnicalError` naming the culprit and the declared names) instead of throwing a raw `TypeError`, honoring the client's "nothing in the public API throws" contract.
+  - **Reconnect-safe settles.** Delivery tags are per-channel, but a buffered retry publish or RPC reply can confirm on a _new_ channel; the follow-up ack/nack then targeted a foreign tag (channel-closing 406, or settling an unrelated delivery whose own DLQ nack was lost). `AmqpClient` now tracks a channel epoch (`currentChannelEpoch`) and skips a settle stamped with a stale epoch — the broker's redelivery preserves at-least-once.
+  - **The RPC timeout stays armed through async reply validation**, so a slow or never-settling response validator can no longer leave the caller hanging past `timeoutMs`.
+
+  **Resource-safety guards**
+
+  - **`publishTimeoutMs`** (client and worker `create` options): bounds how long a publish may sit buffered during a broker outage before its promise settles as a `Defect`, instead of buffering unboundedly forever.
+  - **`maxDecompressedBytes`** (worker `create` option, default 64 MiB): caps inbound decompression so a decompression bomb follows the poison-message DLQ path instead of exhausting memory.
+  - **Connection-pool keys distinguish function-valued options** (`findServers`, amqplib `credentials`), which `JSON.stringify` dropped — two clients differing only in a callback no longer collapse onto one shared connection.
+  - **`TypedAmqpWorker.create` fails fast on a handler key that names no contract entry** (a stale key from a spread, or a missed rename), before any connection is acquired, instead of silently leaving that message class unprocessed.
+  - **A poison message nacked on a queue with no DLX is now logged on the validation path too**, matching the retry path's existing diagnostic. (Superseded within this same release: see the `@amqp-contract/worker` entry for the final wording and level — a _declared_ `onPoison: "drop"` is recorded at `info`, and only an undeclared loss warns.)
+
+  **Internal idiom alignment (no observable behavior change)**
+
+  - Adopt `@unthrown/standard-schema`'s `fromSchemaAsync` at the six hand-rolled Standard Schema validation boundaries in the client and worker.
+  - Hoist the `technicalDefect` defect-mint seam into `@amqp-contract/core` (deleting the three copies), and give `safeJsonParse` the full `(cause, defect)` qualify signature so callers no longer model-then-defect.
+
+- Updated dependencies [a80a3d7]
+- Updated dependencies [22ea72b]
+- Updated dependencies [7c78dc0]
+- Updated dependencies [a297dfd]
+- Updated dependencies [ef447ed]
+- Updated dependencies [8b50784]
+- Updated dependencies [6d8593b]
+- Updated dependencies [d30cbf3]
+- Updated dependencies [e479a35]
+- Updated dependencies [9729fa6]
+- Updated dependencies [783f6f9]
+- Updated dependencies [9aae6a2]
+  - @amqp-contract/contract@3.0.0-beta.5
+  - @amqp-contract/core@3.0.0-beta.5
+
 ## 3.0.0-beta.4
 
 ### Major Changes
