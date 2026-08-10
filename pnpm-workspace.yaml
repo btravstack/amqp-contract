@@ -97,8 +97,16 @@ overrides:
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
   # @changesets/parse and @asyncapi/parser. Both pulled to their patched release.
-  "js-yaml@3": "3.15.0"
-  "js-yaml@4": "4.3.0"
+  #
+  # Raised to 3.15.1 / 4.3.1 for GHSA-5p4m-2wfm-xmqj (High), a later advisory on
+  # the same package that 3.15.0 / 4.3.0 predate.
+  "js-yaml@3": "3.15.1"
+  "js-yaml@4": "4.3.1"
+  # GHSA-2v37-7h3g-55p8 (High): nanoid custom generators can loop indefinitely
+  # when size is zero. Reaches us only through the docs build —
+  # docs > @btravstack/theme > vitepress > postcss > nanoid — never the shipped
+  # package. Pinned to its first patched release.
+  "nanoid@<3.3.17": "3.3.17"
   # GHSA-fx2h-pf6j-xcff (High) + GHSA-v6wh-96g9-6wx3 / GHSA-4w7w-66w2-5vf9 /
   # GHSA-67mh-4wv8-2f99 (moderate): vite `server.fs.deny` bypass + esbuild
   # dev-server CORS (dev-server only; the docs ship as static HTML). Reaches us
