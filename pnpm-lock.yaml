@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.18.5
       version: 0.18.5
     '@asyncapi/parser':
-      specifier: 3.6.0
-      version: 3.6.0
+      specifier: 3.6.1
+      version: 3.6.1
     '@btravstack/commitlint':
       specifier: 0.1.0
       version: 0.1.0
@@ -374,7 +374,7 @@ importers:
         version: 0.18.5
       '@asyncapi/parser':
         specifier: 'catalog:'
-        version: 3.6.0
+        version: 3.6.1
       '@btravstack/tsconfig':
         specifier: 'catalog:'
         version: 0.2.0
@@ -841,8 +841,8 @@ packages:
   '@ark/util@0.56.2':
     resolution: {integrity: sha512-9kU2sUE38FZEGG7l3hamYMBieLYEJh2L1mrYD2eXpT+78EnQSV1bhjxJhnxGBMSTbtwpBSDNSK+K60WvaI/DTQ==}
 
-  '@asyncapi/parser@3.6.0':
-    resolution: {integrity: sha512-6S0Yr8vI418a1IrpGsOYbfWVo9+aHvSqN2oSkiY0YJltS/C7oDOt9e0mo6hSld8bg+EeKrtgkVmpW4obh1JFvA==}
+  '@asyncapi/parser@3.6.1':
+    resolution: {integrity: sha512-pqacvPdtkCI6DUOHxMfhumaqRwXAGaV05JzHIP3CxF3Jd3EMu25PWqsiVmbeLf8YDCy0K5UWm4NXW6TpwXwlSw==}
 
   '@asyncapi/specs@6.11.1':
     resolution: {integrity: sha512-A3WBLqAKGoJ2+6FWFtpjBlCQ1oFCcs4GxF7zsIGvNqp/klGUHjlA3aAcZ9XMMpLGE8zPeYDz2x9FmO6DSuKraQ==}
@@ -5773,7 +5773,7 @@ snapshots:
 
   '@ark/util@0.56.2': {}
 
-  '@asyncapi/parser@3.6.0':
+  '@asyncapi/parser@3.6.1':
     dependencies:
       '@asyncapi/specs': 6.11.1
       '@openapi-contrib/openapi-schema-to-json-schema': 3.2.0
