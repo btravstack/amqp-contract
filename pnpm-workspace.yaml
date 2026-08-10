@@ -12,7 +12,7 @@ packages:
 
 catalog:
   "@arethetypeswrong/cli": 0.18.5
-  "@asyncapi/parser": 3.6.0
+  "@asyncapi/parser": 3.6.1
   "@btravstack/commitlint": 0.1.0
   "@btravstack/lefthook": 0.1.1
   "@btravstack/oxlint": 0.2.1
