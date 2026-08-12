@@ -2,7 +2,7 @@ import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, it } from "vitest";
 
-import { nonRetryable } from "./errors.js";
+import { NonRetryableError } from "./errors.js";
 import { composeMiddleware, declareMiddleware, type WorkerMiddlewareArgs } from "./middleware.js";
 
 const baseArgs: WorkerMiddlewareArgs<Record<string, unknown>> = {
@@ -90,7 +90,9 @@ describe("composeMiddleware", () => {
 
   it("short-circuits when a middleware returns without calling next", async () => {
     // GIVEN
-    const guard = declareMiddleware((_args, _next) => ErrAsync(nonRetryable("blocked by guard")));
+    const guard = declareMiddleware((_args, _next) =>
+      ErrAsync(new NonRetryableError("blocked by guard")),
+    );
     let handlerRan = false;
 
     // WHEN

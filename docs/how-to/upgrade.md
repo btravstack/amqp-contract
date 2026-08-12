@@ -439,15 +439,15 @@ Upgrades `unthrown` to `1.0.0`, which renames the value constructors: **`ok` →
 
 Replaces `neverthrow` with `unthrown`, which keeps errors-as-values but adds the defect channel.
 
-| neverthrow (0.x)                     | unthrown (1.x)                                             |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `ResultAsync<T, E>`                  | `AsyncResult<T, E>`                                        |
-| `result.match(okFn, errFn)`          | `result.match({ ok, err, defect })`                        |
-| `.andThen` / `.andTee` / `.orTee`    | `.flatMap` / `.tap` / `.tapErr`                            |
-| `okAsync(v)` / `errAsync(e)`         | `ok(v).toAsync()` / `err(e).toAsync()`                     |
-| `ResultAsync.fromPromise(p, mapper)` | `fromPromise(p, qualify)` — free function, mapper required |
-| `._unsafeUnwrap()`                   | `.unwrap()`                                                |
-| `error instanceof HandlerError`      | `isHandlerError(error)` — now a union type                 |
+| neverthrow (0.x)                     | unthrown (1.x)                                                                   |
+| ------------------------------------ | -------------------------------------------------------------------------------- |
+| `ResultAsync<T, E>`                  | `AsyncResult<T, E>`                                                              |
+| `result.match(okFn, errFn)`          | `result.match({ ok, err, defect })`                                              |
+| `.andThen` / `.andTee` / `.orTee`    | `.flatMap` / `.tap` / `.tapErr`                                                  |
+| `okAsync(v)` / `errAsync(e)`         | `ok(v).toAsync()` / `err(e).toAsync()`                                           |
+| `ResultAsync.fromPromise(p, mapper)` | `fromPromise(p, qualify)` — free function, mapper required                       |
+| `._unsafeUnwrap()`                   | `.unwrap()`                                                                      |
+| `error instanceof HandlerError`      | `instanceof RetryableError \|\| instanceof NonRetryableError` — now a union type |
 
 The constructors here are the 1.x lowercase forms. Going straight to 2.0+? Use `Ok` / `Err`. Going straight to 3.0? `match`'s `err` key is `errCases` and takes a matcher, and `OkAsync(v)` / `ErrAsync(e)` replace the `.toAsync()` lifts.
 

@@ -62,7 +62,7 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  * into the handler's third argument — or short-circuit by returning without
  * calling `next`:
  *
- * - `Err(retryable(...))` / `Err(nonRetryable(...))` routes through the normal
+ * - `Err(new RetryableError(...))` / `Err(new NonRetryableError(...))` routes through the normal
  *   retry/DLQ pipeline, exactly as if the handler had returned it.
  * - `Err(rpcError(code, data))` (on an RPC with a declared `errors` map)
  *   publishes a typed error reply.
@@ -74,13 +74,13 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  *
  * @example
  * ```typescript
- * import { declareMiddleware, nonRetryable } from '@amqp-contract/worker';
+ * import { declareMiddleware, NonRetryableError } from '@amqp-contract/worker';
  * import { ErrAsync } from 'unthrown';
  *
  * const auth = declareMiddleware<EmptyContext, { tenantId: string }>((args, next) => {
  *   const tenantId = args.rawMessage.properties.headers?.['x-tenant-id'];
  *   if (typeof tenantId !== 'string') {
- *     return ErrAsync(nonRetryable('Missing x-tenant-id header'));
+ *     return ErrAsync(new NonRetryableError('Missing x-tenant-id header'));
  *   }
  *   return next({ context: { tenantId } });
  * });
@@ -125,10 +125,10 @@ export function declareMiddleware<
  * across the chain — each middleware's `TContextIn` must match what the
  * previous one produced.
  *
- * Typed overloads cover up to 8 middleware. For longer chains, nest: a
+ * Typed overloads cover up to 4 middleware. For longer chains, nest: a
  * composed chain is itself a `WorkerMiddleware<EmptyContext, T>` and can be
  * the *first* argument of an outer `composeMiddleware` call —
- * `composeMiddleware(composeMiddleware(a, ..., h), i, j)` — preserving
+ * `composeMiddleware(composeMiddleware(a, b, c, d), e, f)` — preserving
  * context-type accumulation at any length.
  *
  * @example
@@ -168,74 +168,6 @@ export function composeMiddleware<
   m3: WorkerMiddleware<TB, TC>,
   m4: WorkerMiddleware<TC, TD>,
 ): WorkerMiddleware<TIn, TD>;
-export function composeMiddleware<
-  TIn extends Record<string, unknown> | EmptyContext,
-  TA extends TIn,
-  TB extends TA,
-  TC extends TB,
-  TD extends TC,
-  TE extends TD,
->(
-  m1: WorkerMiddleware<TIn, TA>,
-  m2: WorkerMiddleware<TA, TB>,
-  m3: WorkerMiddleware<TB, TC>,
-  m4: WorkerMiddleware<TC, TD>,
-  m5: WorkerMiddleware<TD, TE>,
-): WorkerMiddleware<TIn, TE>;
-export function composeMiddleware<
-  TIn extends Record<string, unknown> | EmptyContext,
-  TA extends TIn,
-  TB extends TA,
-  TC extends TB,
-  TD extends TC,
-  TE extends TD,
-  TF extends TE,
->(
-  m1: WorkerMiddleware<TIn, TA>,
-  m2: WorkerMiddleware<TA, TB>,
-  m3: WorkerMiddleware<TB, TC>,
-  m4: WorkerMiddleware<TC, TD>,
-  m5: WorkerMiddleware<TD, TE>,
-  m6: WorkerMiddleware<TE, TF>,
-): WorkerMiddleware<TIn, TF>;
-export function composeMiddleware<
-  TIn extends Record<string, unknown> | EmptyContext,
-  TA extends TIn,
-  TB extends TA,
-  TC extends TB,
-  TD extends TC,
-  TE extends TD,
-  TF extends TE,
-  TG extends TF,
->(
-  m1: WorkerMiddleware<TIn, TA>,
-  m2: WorkerMiddleware<TA, TB>,
-  m3: WorkerMiddleware<TB, TC>,
-  m4: WorkerMiddleware<TC, TD>,
-  m5: WorkerMiddleware<TD, TE>,
-  m6: WorkerMiddleware<TE, TF>,
-  m7: WorkerMiddleware<TF, TG>,
-): WorkerMiddleware<TIn, TG>;
-export function composeMiddleware<
-  TIn extends Record<string, unknown> | EmptyContext,
-  TA extends TIn,
-  TB extends TA,
-  TC extends TB,
-  TD extends TC,
-  TE extends TD,
-  TF extends TE,
-  TG extends TF,
-  TH extends TG,
->(
-  m1: WorkerMiddleware<TIn, TA>,
-  m2: WorkerMiddleware<TA, TB>,
-  m3: WorkerMiddleware<TB, TC>,
-  m4: WorkerMiddleware<TC, TD>,
-  m5: WorkerMiddleware<TD, TE>,
-  m6: WorkerMiddleware<TE, TF>,
-  m7: WorkerMiddleware<TF, TG>,
-  m8: WorkerMiddleware<TG, TH>,
-): WorkerMiddleware<TIn, TH>;
 export function composeMiddleware(
   ...middlewares: readonly AnyWorkerMiddleware[]
 ): AnyWorkerMiddleware {

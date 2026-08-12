@@ -4,9 +4,6 @@ import { gunzip, inflate } from "node:zlib";
 import { TechnicalError } from "@amqp-contract/core";
 import { fromPromise, fromSafeThrowable, OkAsync, type AsyncResult } from "unthrown";
 
-const gunzipAsync = promisify(gunzip);
-const inflateAsync = promisify(inflate);
-
 /**
  * Default cap on the decompressed size of a single message. A few-KB
  * malicious or corrupt payload can otherwise expand to gigabytes before
@@ -17,21 +14,15 @@ const inflateAsync = promisify(inflate);
 export const DEFAULT_MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024;
 
 /**
- * Supported content encodings for message decompression.
+ * Supported content encodings, keyed by the header value they answer to. The
+ * map is the whole encoding-support story: membership decides whether an
+ * encoding is supported, the key list renders the error message, and the value
+ * does the work.
  */
-const SUPPORTED_ENCODINGS = ["gzip", "deflate"] as const;
-
-/**
- * Type for supported content encodings.
- */
-type SupportedEncoding = (typeof SUPPORTED_ENCODINGS)[number];
-
-/**
- * Type guard to check if a string is a supported encoding.
- */
-function isSupportedEncoding(encoding: string): encoding is SupportedEncoding {
-  return SUPPORTED_ENCODINGS.includes(encoding.toLowerCase() as SupportedEncoding);
-}
+const DECOMPRESSORS = {
+  gzip: promisify(gunzip),
+  deflate: promisify(inflate),
+} as const;
 
 /**
  * Decompress a buffer based on the content-encoding header.
@@ -53,28 +44,23 @@ export function decompressBuffer(
     return OkAsync(buffer);
   }
   const maxOutputLength = options?.maxDecompressedBytes ?? DEFAULT_MAX_DECOMPRESSED_BYTES;
+  const encoding = contentEncoding.toLowerCase();
+  const decompress = Object.hasOwn(DECOMPRESSORS, encoding)
+    ? DECOMPRESSORS[encoding as keyof typeof DECOMPRESSORS]
+    : undefined;
 
-  const normalizedEncoding = contentEncoding.toLowerCase();
-
-  if (!isSupportedEncoding(normalizedEncoding)) {
+  if (!decompress) {
     return fromSafeThrowable((): Buffer => {
       // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
       throw new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
-          `Supported encodings are: ${SUPPORTED_ENCODINGS.join(", ")}. ` +
+          `Supported encodings are: ${Object.keys(DECOMPRESSORS).join(", ")}. ` +
           `Please check your publisher configuration.`,
       );
     })().toAsync();
   }
 
-  switch (normalizedEncoding) {
-    case "gzip":
-      return fromPromise(gunzipAsync(buffer, { maxOutputLength }), (error, defect) =>
-        defect(new TechnicalError("Failed to decompress gzip", error)),
-      );
-    case "deflate":
-      return fromPromise(inflateAsync(buffer, { maxOutputLength }), (error, defect) =>
-        defect(new TechnicalError("Failed to decompress deflate", error)),
-      );
-  }
+  return fromPromise(decompress(buffer, { maxOutputLength }), (error, defect) =>
+    defect(new TechnicalError(`Failed to decompress ${encoding}`, error)),
+  );
 }

@@ -95,12 +95,15 @@ export type EventConsumerResult<
 };
 
 /**
- * Define an event publisher for broadcasting messages via fanout exchange.
+ * Define an event publisher for broadcasting messages via a keyless exchange
+ * (fanout or headers).
  *
  * Events are published without knowing who consumes them. Multiple consumers
- * can subscribe to the same event using `defineEventConsumer`.
+ * can subscribe to the same event using `defineEventConsumer`. Neither
+ * exchange type routes on the routing key — fanout broadcasts to every bound
+ * queue, headers routes on header values — so no routing key is accepted.
  *
- * @param exchange - The fanout exchange to publish to
+ * @param exchange - The fanout or headers exchange to publish to
  * @param message - The message definition (schema and metadata)
  * @param options - Optional configuration
  * @param options.bindingArguments - Default AMQP binding arguments applied to
@@ -131,54 +134,7 @@ export type EventConsumerResult<
  */
 export function defineEventPublisher<
   TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition,
->(
-  exchange: TExchange,
-  message: TMessage,
-  options?: {
-    bindingArguments?: Record<string, unknown>;
-    externalConsumers?: boolean;
-  },
-): EventPublisherConfig<TMessage, TExchange, undefined>;
-
-/**
- * Define an event publisher for broadcasting messages via headers exchange.
- *
- * Events are published without knowing who consumes them. Multiple consumers
- * can subscribe to the same event using `defineEventConsumer`.
- *
- * @param exchange - The headers exchange to publish to
- * @param message - The message definition (schema and metadata)
- * @param options - Optional configuration
- * @param options.bindingArguments - Default AMQP binding arguments applied to
- *   this event's consumers' queue bindings (a consumer's own `arguments`
- *   option takes precedence)
- * @param options.externalConsumers - Declare that this event's consumers are
- *   owned by another service, opting the event out of `defineContract`'s
- *   define-time routability check
- * @returns An event publisher configuration
- *
- * @example
- * ```typescript
- * const logsExchange = defineExchange('logs', { type: 'headers' });
- * const logMessage = defineMessage(z.object({
- *   level: z.enum(['info', 'warn', 'error']),
- *   message: z.string(),
- * }));
- *
- * // Create event publisher
- * const logEvent = defineEventPublisher(logsExchange, logMessage);
- *
- * // Multiple consumers can subscribe
- * const { consumer: fileConsumer, binding: fileBinding } =
- *   defineEventConsumer(logEvent, fileLogsQueue);
- * const { consumer: alertConsumer, binding: alertBinding } =
- *   defineEventConsumer(logEvent, alertsQueue);
- * ```
- */
-export function defineEventPublisher<
-  TMessage extends MessageDefinition,
-  TExchange extends HeadersExchangeDefinition,
+  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
 >(
   exchange: TExchange,
   message: TMessage,
@@ -324,7 +280,8 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
 }
 
 /**
- * Create a consumer that subscribes to an event from a fanout exchange via a bridge exchange.
+ * Create a consumer that subscribes to an event from a keyless exchange
+ * (fanout or headers) via a bridge exchange.
  *
  * When `bridgeExchange` is provided, the queue binds to the bridge exchange instead of the
  * source exchange, and an exchange-to-exchange binding is created from the source to the bridge.
@@ -332,48 +289,20 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
  * @param eventPublisher - The event publisher configuration
  * @param queue - The queue that will receive messages
  * @param options - Binding configuration with required bridgeExchange
- * @param options.bridgeExchange - The fanout bridge exchange (must be fanout to match source)
+ * @param options.bridgeExchange - The bridge exchange. Its type must match the
+ *   source exchange's: a fanout source needs a fanout bridge, a headers source
+ *   a headers bridge, so the routing semantics survive the hop.
  * @param options.arguments - Additional AMQP arguments
  * @returns An object with the consumer definition, queue binding, and exchange binding
  */
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition,
+  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
   TQueueDefinition extends QueueDefinition,
-  TBridgeExchange extends FanoutExchangeDefinition,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueDefinition,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<
-  TMessage,
-  TExchange,
-  TQueueDefinition,
-  ExchangeBindingDefinition,
-  TBridgeExchange
->;
-
-/**
- * Create a consumer that subscribes to an event from a headers exchange via a bridge exchange.
- *
- * When `bridgeExchange` is provided, the queue binds to the bridge exchange instead of the
- * source exchange, and an exchange-to-exchange binding is created from the source to the bridge.
- *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Binding configuration with required bridgeExchange
- * @param options.bridgeExchange - The headers bridge exchange (must be headers to match source)
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition, queue binding, and exchange binding
- */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TExchange extends HeadersExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
-  TBridgeExchange extends HeadersExchangeDefinition,
+  TBridgeExchange extends Extract<
+    FanoutExchangeDefinition | HeadersExchangeDefinition,
+    { type: TExchange["type"] }
+  >,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
   queue: TQueueDefinition,
@@ -457,7 +386,8 @@ export function defineEventConsumer<
 >;
 
 /**
- * Create a consumer that subscribes to an event from a fanout exchange.
+ * Create a consumer that subscribes to an event from a keyless exchange
+ * (fanout or headers).
  *
  * @param eventPublisher - The event publisher configuration
  * @param queue - The queue that will receive messages
@@ -473,34 +403,7 @@ export function defineEventConsumer<
  */
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueDefinition,
-  options?: {
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
-
-/**
- * Create a consumer that subscribes to an event from a headers exchange.
- *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Optional binding configuration
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition and binding
- *
- * @example
- * ```typescript
- * const logEvent = defineEventPublisher(logsExchange, logMessage);
- * const { consumer, binding } = defineEventConsumer(logEvent, logsQueue);
- * ```
- */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TExchange extends HeadersExchangeDefinition,
+  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
   TQueueDefinition extends QueueDefinition,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,

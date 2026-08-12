@@ -4,11 +4,12 @@ import { it } from "@amqp-contract/testing/extension";
 import { beforeEach, describe, expect } from "vitest";
 
 import { AmqpClient } from "../amqp-client.js";
+import { _internal_resetConnections } from "../connection-manager.js";
 
 describe("Dead Letter Exchange Support", () => {
   beforeEach(async () => {
     // Reset connection cache between tests
-    await AmqpClient._resetConnectionCacheForTesting();
+    await _internal_resetConnections();
   });
 
   it("should setup queue with dead letter exchange", async ({ amqpConnectionUrl, amqpChannel }) => {

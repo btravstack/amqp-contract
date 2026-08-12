@@ -20,7 +20,7 @@ export {
   isEventPublisherConfig,
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
-} from "./builder.js";
+} from "./builder/index.js";
 export type {
   BindingPattern,
   BridgedPublisherConfig,
@@ -28,11 +28,10 @@ export type {
   EventConsumerResult,
   EventPublisherConfig,
   MatchingBindingPattern,
-  MatchingRoutingKey,
   RoutableRoutingKey,
   RoutingKey,
-} from "./builder.js";
-export { formatIssue, summarizeIssues } from "./issues.js";
+} from "./builder/index.js";
+export { summarizeIssues } from "./issues.js";
 export type {
   AnySchema,
   BaseExchangeDefinition,

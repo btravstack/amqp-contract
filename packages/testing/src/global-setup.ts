@@ -22,7 +22,7 @@ import type { TestProject } from "vitest/node";
 const DEFAULT_RABBITMQ_IMAGE = "rabbitmq:4.2.1-management-alpine";
 
 declare module "vitest" {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- Module augmentation requires interface for declaration merging
+  // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging into vitest's ProvidedContext only works on an interface
   export interface ProvidedContext {
     __TESTCONTAINERS_RABBITMQ_IP__: string;
     __TESTCONTAINERS_RABBITMQ_PORT_5672__: number;

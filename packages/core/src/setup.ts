@@ -5,6 +5,38 @@ import type { Channel } from "amqplib";
 import { TechnicalError } from "./errors.js";
 
 /**
+ * Declare every item concurrently and, if any rejected, throw ONE
+ * `AggregateError` naming all of them.
+ *
+ * Concurrent-then-collect rather than fail-fast: when a topology is wrong it is
+ * usually wrong in more than one place, and a report listing every broken
+ * exchange beats discovering them one redeploy at a time.
+ *
+ * @param label - Plural noun for the message ("exchanges", "queues", …).
+ * @param describe - How an item names itself in the failure list.
+ */
+async function settleAll<T>(
+  items: readonly T[],
+  label: string,
+  describe: (item: T) => string,
+  run: (item: T) => Promise<unknown>,
+): Promise<void> {
+  const results = await Promise.allSettled(items.map(run));
+  const failures = results.flatMap((result, index) =>
+    result.status === "rejected"
+      ? [{ reason: result.reason as unknown, name: describe(items[index]!) }]
+      : [],
+  );
+  if (failures.length === 0) return;
+
+  // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
+  throw new AggregateError(
+    failures.map(({ reason }) => reason),
+    `Failed to setup ${label}: ${failures.map(({ name }) => name).join(", ")}`,
+  );
+}
+
+/**
  * Setup AMQP topology (exchanges, queues, and bindings) from a contract definition.
  *
  * This function sets up the complete AMQP topology in the correct order:
@@ -34,30 +66,18 @@ export async function setupAmqpTopology(
   // Setup exchanges. The AMQP default exchange (name "") is implicit; RabbitMQ
   // does not allow asserting it, so we skip empty-named exchange entries.
   const exchanges = Object.values(contract.exchanges ?? {}).filter((e) => e.name !== "");
-  const exchangeResults = await Promise.allSettled(
-    exchanges.map((exchange) =>
+  await settleAll(
+    exchanges,
+    "exchanges",
+    (exchange) => exchange.name,
+    (exchange) =>
       channel.assertExchange(exchange.name, exchange.type, {
         ...(exchange.durable !== undefined && { durable: exchange.durable }),
         ...(exchange.autoDelete !== undefined && { autoDelete: exchange.autoDelete }),
         ...(exchange.internal !== undefined && { internal: exchange.internal }),
         ...(exchange.arguments !== undefined && { arguments: exchange.arguments }),
       }),
-    ),
   );
-  const exchangeErrors = exchangeResults
-    .map((result, i) => ({ result, name: exchanges[i]!.name }))
-    .filter(
-      (entry): entry is { result: PromiseRejectedResult; name: string } =>
-        entry.result.status === "rejected",
-    );
-  if (exchangeErrors.length > 0) {
-    const names = exchangeErrors.map((e) => e.name).join(", ");
-    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
-    throw new AggregateError(
-      exchangeErrors.map(({ result }) => result.reason),
-      `Failed to setup exchanges: ${names}`,
-    );
-  }
 
   // Validate dead letter exchanges before setting up queues
   for (const queue of Object.values(contract.queues ?? {})) {
@@ -150,62 +170,34 @@ export async function setupAmqpTopology(
       }
     }
   }
-  const queueResults = await Promise.allSettled(queueAsserts.map(({ assert }) => assert()));
-  const queueErrors = queueResults
-    .map((result, i) => ({ result, name: queueAsserts[i]!.name }))
-    .filter(
-      (entry): entry is { result: PromiseRejectedResult; name: string } =>
-        entry.result.status === "rejected",
-    );
-  if (queueErrors.length > 0) {
-    const names = queueErrors.map((e) => e.name).join(", ");
-    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
-    throw new AggregateError(
-      queueErrors.map(({ result }) => result.reason),
-      `Failed to setup queues: ${names}`,
-    );
-  }
+  await settleAll(
+    queueAsserts,
+    "queues",
+    ({ name }) => name,
+    ({ assert }) => assert(),
+  );
 
   // Setup bindings
-  const bindings = Object.values(contract.bindings ?? {});
-  const bindingResults = await Promise.allSettled(
-    bindings.map((binding) => {
-      if (binding.type === "queue") {
-        return channel.bindQueue(
-          binding.queue.name,
-          binding.exchange.name,
-          binding.routingKey ?? "",
-          binding.arguments,
-        );
-      }
-
-      return channel.bindExchange(
-        binding.destination.name,
-        binding.source.name,
-        binding.routingKey ?? "",
-        binding.arguments,
-      );
-    }),
+  await settleAll(
+    Object.values(contract.bindings ?? {}),
+    "bindings",
+    (binding) =>
+      binding.type === "queue"
+        ? `${binding.exchange.name} -> ${binding.queue.name}`
+        : `${binding.source.name} -> ${binding.destination.name}`,
+    (binding) =>
+      binding.type === "queue"
+        ? channel.bindQueue(
+            binding.queue.name,
+            binding.exchange.name,
+            binding.routingKey ?? "",
+            binding.arguments,
+          )
+        : channel.bindExchange(
+            binding.destination.name,
+            binding.source.name,
+            binding.routingKey ?? "",
+            binding.arguments,
+          ),
   );
-  const bindingErrors = bindingResults
-    .map((result, i) => {
-      const binding = bindings[i]!;
-      const name =
-        binding.type === "queue"
-          ? `${binding.exchange.name} -> ${binding.queue.name}`
-          : `${binding.source.name} -> ${binding.destination.name}`;
-      return { result, name };
-    })
-    .filter(
-      (entry): entry is { result: PromiseRejectedResult; name: string } =>
-        entry.result.status === "rejected",
-    );
-  if (bindingErrors.length > 0) {
-    const names = bindingErrors.map((e) => e.name).join(", ");
-    // oxlint-disable-next-line unthrown/no-throw -- plain async helper; the rejection is adopted as a Defect at the channel-setup boundary (documented @throws)
-    throw new AggregateError(
-      bindingErrors.map(({ result }) => result.reason),
-      `Failed to setup bindings: ${names}`,
-    );
-  }
 }

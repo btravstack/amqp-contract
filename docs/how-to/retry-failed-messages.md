@@ -37,7 +37,7 @@ fromPromise(callApi(payload), qualifyRetryable("API unavailable"));
 fromPromise(validateExternally(payload), qualifyNonRetryable("rejected by provider"));
 ```
 
-`retryable(message, cause)` and `nonRetryable(message, cause)` are shorthand for the constructors.
+Outside a `fromPromise` boundary, construct the errors directly: `new RetryableError(message, cause)` / `new NonRetryableError(message, cause)`.
 
 ## Retry immediately
 

@@ -81,32 +81,37 @@ import { ErrAsync } from "unthrown";
 ErrAsync(new NonRetryableError("negative amount"));
 ```
 
-### Factories and guards
+### Qualifiers
 
 ```typescript
-import {
-  isHandlerError,
-  isNonRetryableError,
-  isRetryableError,
-  nonRetryable,
-  qualifyNonRetryable,
-  qualifyRetryable,
-  retryable,
-} from "@amqp-contract/worker";
-
-retryable("API unavailable", cause); // new RetryableError(…)
-nonRetryable("invalid input", cause); // new NonRetryableError(…)
+import { qualifyNonRetryable, qualifyRetryable } from "@amqp-contract/worker";
 
 // Prebuilt `fromPromise` mappers
 fromPromise(callApi(payload), qualifyRetryable("API unavailable"));
 fromPromise(chargeCard(payload), qualifyNonRetryable("card declined"));
-
-isRetryableError(err);
-isNonRetryableError(err);
-isHandlerError(err); // either
 ```
 
-`HandlerError` is a union type, not a class — use `isHandlerError`, not `instanceof`.
+Construct the errors directly where you need one outside a `fromPromise`
+boundary: `new RetryableError(message, cause)` / `new NonRetryableError(message, cause)`.
+
+### Narrowing
+
+Prefer the error matcher, which is exhaustive:
+
+```typescript
+result.match({
+  ok: () => {},
+  errCases: (matcher) =>
+    matcher
+      .with(P.tag("@amqp-contract/RetryableError"), (e) => e)
+      .with(P.tag("@amqp-contract/NonRetryableError"), (e) => e),
+  defect: (cause) => cause,
+});
+```
+
+`HandlerError` is a union type, not a class, so there is no
+`instanceof HandlerError`. For an ad-hoc runtime check use
+`err instanceof RetryableError || err instanceof NonRetryableError`.
 
 ## `MessageValidationError`
 

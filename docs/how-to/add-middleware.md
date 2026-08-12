@@ -20,7 +20,7 @@ A middleware proves something once and passes the result downstream. Handlers re
 import {
   composeMiddleware,
   declareMiddleware,
-  nonRetryable,
+  NonRetryableError,
   TypedAmqpWorker,
   type EmptyContext,
 } from "@amqp-contract/worker";
@@ -30,7 +30,7 @@ const auth = declareMiddleware<EmptyContext, { tenantId: string }>((args, next) 
   const tenantId = args.rawMessage.properties.headers?.["x-tenant-id"];
   if (typeof tenantId !== "string") {
     // Short-circuit: routes like any handler error. The handler never runs.
-    return ErrAsync(nonRetryable("Missing x-tenant-id header"));
+    return ErrAsync(new NonRetryableError("Missing x-tenant-id header"));
   }
   return next({ context: { tenantId } });
 });
@@ -110,12 +110,12 @@ The substituted payload is **re-validated against the consumer's schema** before
 
 Return a result instead of calling `next()`. It routes exactly like a handler result:
 
-| Returned                    | Effect                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `Err(retryable(…))`         | Queue retry mode applies                                                                                |
-| `Err(nonRetryable(…))`      | Dead-lettered                                                                                           |
-| `Err(rpcError(code, data))` | Typed error reply to the caller (RPC with a declared `errors` map)                                      |
-| `Ok(value)`                 | Handler skipped. On an RPC, `value` is validated against the response schema and published as the reply |
+| Returned                        | Effect                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `Err(new RetryableError(…))`    | Queue retry mode applies                                                                                |
+| `Err(new NonRetryableError(…))` | Dead-lettered                                                                                           |
+| `Err(rpcError(code, data))`     | Typed error reply to the caller (RPC with a declared `errors` map)                                      |
+| `Ok(value)`                     | Handler skipped. On an RPC, `value` is validated against the response schema and published as the reply |
 
 That last row is how you build a cache: check the cache in middleware, return `Ok(hit)` to reply without invoking the handler.
 

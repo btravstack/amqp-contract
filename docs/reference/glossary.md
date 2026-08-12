@@ -81,7 +81,7 @@ A function processing one message for one consumer or RPC. Returns `AsyncResult<
 
 ### HandlerError
 
-The union `RetryableError | NonRetryableError`. A union type, not a class — discriminate with `isHandlerError`, not `instanceof`.
+The union `RetryableError | NonRetryableError`. A union type, not a class, so there is no `instanceof HandlerError` — discriminate with the error matcher (`P.tag("@amqp-contract/RetryableError")`), or `instanceof` against the two members.
 
 ### Interceptor
 

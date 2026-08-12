@@ -5,11 +5,12 @@ import type { Channel } from "amqplib";
 import { beforeEach, describe, expect, vi } from "vitest";
 
 import { AmqpClient } from "../amqp-client.js";
+import { _internal_resetConnections } from "../connection-manager.js";
 
 describe("AmqpClient Channel Configuration", () => {
   beforeEach(async () => {
     // Reset connection cache between tests
-    await AmqpClient._resetConnectionCacheForTesting();
+    await _internal_resetConnections();
   });
 
   it("should allow overriding json option to false", async ({ amqpConnectionUrl }) => {

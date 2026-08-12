@@ -234,8 +234,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         callInterceptors ?? [],
       );
 
-      const setup = client
-        .waitForConnectionReady()
+      const setup = client.amqpClient
+        .waitForConnect()
         .flatMap(() => client.setupReplyConsumerIfNeeded());
 
       const inner = (async () => {
@@ -508,29 +508,22 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     // Explicit type arguments: TArgs must be the wire-level interceptor shape
     // (message: unknown), not the narrower type inferred from this literal.
-    return chainInterceptors<
-      PublishInterceptorArgs,
-      { message?: unknown; options?: PublishOptions },
-      void,
-      PublishError
-    >(
-      this.publishInterceptors,
-      { publisherName: String(publisherName), message, options: options ?? {} },
-      terminal,
-    )
-      .tap(() => {
-        const durationMs = Date.now() - startTime;
-        endSpanSuccess(span);
-        recordPublishMetric(this.telemetry, exchange.name, routingKey, true, durationMs);
-      })
-      .tapFailure((failure) => {
-        // Record failure telemetry for both channels: a modeled
-        // MessageValidationError (`Err`) and an infrastructure `Defect`.
-        const durationMs = Date.now() - startTime;
-        const reported = failure.tag === "Err" ? failure.error : failure.cause;
-        endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
-        recordPublishMetric(this.telemetry, exchange.name, routingKey, false, durationMs);
-      });
+    return this.instrumentPublish(
+      chainInterceptors<
+        PublishInterceptorArgs,
+        { message?: unknown; options?: PublishOptions },
+        void,
+        PublishError
+      >(
+        this.publishInterceptors,
+        { publisherName: String(publisherName), message, options: options ?? {} },
+        terminal,
+      ),
+      span,
+      exchange.name,
+      routingKey,
+      startTime,
+    );
   }
 
   /**
@@ -610,20 +603,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       this.executeCall(String(rpcName), rpc, args.request, args.options),
     );
 
-    const instrumented = chained
-      .tap(() => {
-        const durationMs = Date.now() - startTime;
-        endSpanSuccess(span);
-        recordPublishMetric(this.telemetry, "", queueName, true, durationMs);
-      })
-      .tapFailure((failure) => {
-        // Record failure telemetry for both channels: modeled RPC/validation
-        // errors (`Err`) and infrastructure `Defect`s.
-        const durationMs = Date.now() - startTime;
-        const reported = failure.tag === "Err" ? failure.error : failure.cause;
-        endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
-        recordPublishMetric(this.telemetry, "", queueName, false, durationMs);
-      });
+    const instrumented = this.instrumentPublish(chained, span, "", queueName, startTime);
 
     // Safe: executeCall resolves with the schema-validated response, and its
     // wire-level error union is the widened form of CallError.
@@ -771,7 +751,38 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return cancelReply.flatMap(() => this.amqpClient.close());
   }
 
-  private waitForConnectionReady(): AsyncResult<void, never> {
-    return this.amqpClient.waitForConnect();
+  /**
+   * Attach the publish-side span and metrics to a chain, recording success on
+   * `Ok` and failure on both `Err` and `Defect`.
+   *
+   * `publish()` and `call()` instrument identically — same span, same
+   * `recordPublishMetric`, same "unwrap whichever channel failed" — differing
+   * only in the exchange/routing-key pair they report under.
+   */
+  private instrumentPublish<T, E>(
+    chain: AsyncResult<T, E>,
+    span: ReturnType<typeof startPublishSpan>,
+    exchangeName: string,
+    routingKey: string | undefined,
+    startTime: number,
+  ): AsyncResult<T, E> {
+    return chain
+      .tap(() => {
+        endSpanSuccess(span);
+        recordPublishMetric(this.telemetry, exchangeName, routingKey, true, Date.now() - startTime);
+      })
+      .tapFailure((failure) => {
+        // Both channels count as failures for metrics: a modeled `Err` and an
+        // infrastructure `Defect` alike.
+        const reported = failure.tag === "Err" ? failure.error : failure.cause;
+        endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
+        recordPublishMetric(
+          this.telemetry,
+          exchangeName,
+          routingKey,
+          false,
+          Date.now() - startTime,
+        );
+      });
   }
 }

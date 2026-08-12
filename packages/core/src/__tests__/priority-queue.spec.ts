@@ -13,11 +13,12 @@ import { beforeEach, describe, expect } from "vitest";
 import { z } from "zod";
 
 import { AmqpClient } from "../amqp-client.js";
+import { _internal_resetConnections } from "../connection-manager.js";
 
 describe("Priority Queue", () => {
   beforeEach(async () => {
     // Reset connection cache between tests
-    await AmqpClient._resetConnectionCacheForTesting();
+    await _internal_resetConnections();
   });
 
   it("should create a queue with x-max-priority argument", async ({

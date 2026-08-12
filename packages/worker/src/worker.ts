@@ -553,7 +553,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
       // Note: Wait queues are now created by the core package in setupAmqpTopology
       // when the queue's retry mode is "ttl-backoff"
-      const setup = worker.waitForConnectionReady().flatMap(() => worker.consumeAll());
+      const setup = worker.amqpClient.waitForConnect().flatMap(() => worker.consumeAll());
 
       // If setup fails, release the AmqpClient's connection ref-count and cancel
       // any consumers that registered before the failure, so a failed create()
@@ -659,25 +659,6 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     const allNames = [...consumerNames, ...rpcNames] as HandlerName<TContract>[];
 
     return allAsync(allNames.map((name) => this.consume(name))).map(() => undefined);
-  }
-
-  private waitForConnectionReady(): AsyncResult<void, never> {
-    return this.amqpClient.waitForConnect();
-  }
-
-  /**
-   * Start consuming messages for a specific handler — either a `consumers`
-   * entry (regular event/command consumer) or an `rpcs` entry (RPC server).
-   */
-  private consume(name: HandlerName<TContract>): AsyncResult<void, never> {
-    const view = this.resolveConsumerView(name);
-    // Non-null assertion safe: `WorkerInferHandlers<TContract>` requires every
-    // consumers / rpcs key to have a handler, so by the time we reach this
-    // dispatch path the entry exists in `actualHandlers`. Enforced by the type
-    // system at the public API boundary, not by a runtime check.
-    const handler = this.actualHandlers[name]!;
-
-    return this.consumeSingle(name, view, handler);
   }
 
   /**
@@ -1114,7 +1095,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    *
    * The caller-supplied `state` is mutated as the message is ack'd/nack'd so
    * the consume callback's catch-all guard can tell whether a defensive nack
-   * is still needed (see {@link consumeSingle}).
+   * is still needed (see {@link consume}).
    *
    * Success-vs-failure telemetry is data-driven: the chain resolves to
    * `Ok(undefined)` only on handler success (and reply-publish success for
@@ -1139,80 +1120,94 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       "messaging.rabbitmq.message.delivery_tag": msg.fields.deliveryTag,
     });
 
-    return this.parseAndValidateOrNack(msg, consumer, name, state.deliveryEpoch)
-      .tapDefect((parseError) => {
-        this.logger?.error("Failed to parse/validate message; sending to DLQ", {
-          consumerName: String(name),
-          queueName,
-          error: parseError,
-        });
-        // parseAndValidateOrNack already nacked; mark handled so the
-        // catch-all in consumeSingle does not double-act.
-        state.messageHandled = true;
-      })
-      .flatMap<void, never>((validatedMessage) =>
-        this.runHandler(handler, validatedMessage, msg, name, view)
-          .flatMap((handlerResponse) =>
-            this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
-              this.logger?.info("Message consumed successfully", {
-                consumerName: String(name),
-                queueName,
-              });
-              this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
-              state.messageHandled = true;
-            }),
-          )
-          .flatMapErrCases((matcher) =>
-            matcher.with(
-              P.tag("@amqp-contract/RetryableError"),
-              P.tag("@amqp-contract/NonRetryableError"),
-              P.tag("@amqp-contract/RpcError"),
-              (handlerError) => {
-                // A contract-declared RpcError is the RPC's business-failure
-                // channel, not a processing failure: publish it back to the
-                // caller and ack the request. Only if the error reply itself
-                // cannot be produced (undeclared code, schema mismatch, publish
-                // failure) does the failure fall through to retry/DLQ routing.
-                if (isRpcError(handlerError) && view.isRpc) {
-                  return this.publishRpcErrorReply(msg, view, name, handlerError)
-                    .tap(() => {
-                      this.logger?.info("RPC handler replied with a typed error", {
-                        consumerName: String(name),
-                        queueName,
-                        errorCode: handlerError.code,
-                      });
-                      this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
-                      state.messageHandled = true;
-                    })
-                    .flatMapErrCases((replyMatcher) =>
-                      replyMatcher.with(
-                        P.tag("@amqp-contract/RetryableError"),
-                        P.tag("@amqp-contract/NonRetryableError"),
-                        (replyError: HandlerError) =>
-                          this.routeHandlerError(replyError, msg, name, consumer, queueName, state),
-                      ),
-                    );
-                }
-                // An RpcError from a non-RPC consumer is type-impossible but
-                // runtime-reachable through casts; treat it as a permanent
-                // failure rather than crashing the dispatch loop.
-                const routableError: HandlerError = isRpcError(handlerError)
-                  ? new NonRetryableError(
-                      `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
-                      handlerError,
-                    )
-                  : handlerError;
-                return this.routeHandlerError(routableError, msg, name, consumer, queueName, state);
-              },
+    return (
+      this.parseAndValidateOrNack(msg, consumer, name, state.deliveryEpoch)
+        .tapDefect((parseError) => {
+          this.logger?.error("Failed to parse/validate message; sending to DLQ", {
+            consumerName: String(name),
+            queueName,
+            error: parseError,
+          });
+          // parseAndValidateOrNack already nacked; mark handled so the
+          // catch-all in consume does not double-act.
+          state.messageHandled = true;
+        })
+        .flatMap<void, never>((validatedMessage) =>
+          this.runHandler(handler, validatedMessage, msg, name, view)
+            .flatMap((handlerResponse) =>
+              this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
+                this.logger?.info("Message consumed successfully", {
+                  consumerName: String(name),
+                  queueName,
+                });
+                this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
+                state.messageHandled = true;
+              }),
+            )
+            .flatMapErrCases((matcher) =>
+              matcher.with(
+                P.tag("@amqp-contract/RetryableError"),
+                P.tag("@amqp-contract/NonRetryableError"),
+                P.tag("@amqp-contract/RpcError"),
+                (handlerError) => {
+                  // A contract-declared RpcError is the RPC's business-failure
+                  // channel, not a processing failure: publish it back to the
+                  // caller and ack the request. Only if the error reply itself
+                  // cannot be produced (undeclared code, schema mismatch, publish
+                  // failure) does the failure fall through to retry/DLQ routing.
+                  if (isRpcError(handlerError) && view.isRpc) {
+                    return this.publishRpcErrorReply(msg, view, name, handlerError)
+                      .tap(() => {
+                        this.logger?.info("RPC handler replied with a typed error", {
+                          consumerName: String(name),
+                          queueName,
+                          errorCode: handlerError.code,
+                        });
+                        this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
+                        state.messageHandled = true;
+                      })
+                      .flatMapErrCases((replyMatcher) =>
+                        replyMatcher.with(
+                          P.tag("@amqp-contract/RetryableError"),
+                          P.tag("@amqp-contract/NonRetryableError"),
+                          (replyError: HandlerError) =>
+                            this.routeHandlerError(
+                              replyError,
+                              msg,
+                              name,
+                              consumer,
+                              queueName,
+                              state,
+                            ),
+                        ),
+                      );
+                  }
+                  // An RpcError from a non-RPC consumer is type-impossible but
+                  // runtime-reachable through casts; treat it as a permanent
+                  // failure rather than crashing the dispatch loop.
+                  const routableError: HandlerError = isRpcError(handlerError)
+                    ? new NonRetryableError(
+                        `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
+                        handlerError,
+                      )
+                    : handlerError;
+                  return this.routeHandlerError(
+                    routableError,
+                    msg,
+                    name,
+                    consumer,
+                    queueName,
+                    state,
+                  );
+                },
+              ),
             ),
-          ),
-      )
-      .tap(() => {
-        // Telemetry must never throw out of the consume loop — wrap each
-        // call so an instrumentation bug cannot poison the dispatch path
-        // (which would land us in the catch-all in consumeSingle, racing
-        // with the ack we already issued above).
-        try {
+        )
+        // Telemetry never throws into the dispatch path: every helper below
+        // swallows a buggy provider or span internally (see core's
+        // `swallowTelemetryThrow`, guarded by its own "throwing telemetry
+        // providers" suite), so no defensive wrapper is needed here.
+        .tap(() => {
           endSpanSuccess(span);
           recordConsumeMetric(
             this.telemetry,
@@ -1221,26 +1216,17 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             true,
             Date.now() - startTime,
           );
-        } catch (telemetryError: unknown) {
-          this.logger?.warn("Telemetry recording threw; ignoring", {
-            consumerName: String(name),
-            queueName,
-            error: telemetryError,
-          });
-        }
-      })
-      .tapDefect((cause) => {
-        // Every routed failure reaches the terminal as a `Defect` whose cause is
-        // a `TechnicalError` carrying the original failure (a `HandlerError`, a
-        // parse/validation fault, …) via its own `cause`. Surface that original
-        // to the span so the recorded `exception.type` is the discriminating
-        // subclass (`RetryableError` / `NonRetryableError`) rather than the
-        // wrapper.
-        const original =
-          cause instanceof Error && cause.cause instanceof Error ? cause.cause : cause;
-        const reportedError = original instanceof Error ? original : new Error(String(original));
-        try {
-          endSpanError(span, reportedError);
+        })
+        .tapDefect((cause) => {
+          // Every routed failure reaches the terminal as a `Defect` whose cause is
+          // a `TechnicalError` carrying the original failure (a `HandlerError`, a
+          // parse/validation fault, …) via its own `cause`. Surface that original
+          // to the span so the recorded `exception.type` is the discriminating
+          // subclass (`RetryableError` / `NonRetryableError`) rather than the
+          // wrapper.
+          const original =
+            cause instanceof Error && cause.cause instanceof Error ? cause.cause : cause;
+          endSpanError(span, original instanceof Error ? original : new Error(String(original)));
           recordConsumeMetric(
             this.telemetry,
             queueName,
@@ -1248,14 +1234,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
             false,
             Date.now() - startTime,
           );
-        } catch (telemetryError: unknown) {
-          this.logger?.warn("Telemetry recording threw; ignoring", {
-            consumerName: String(name),
-            queueName,
-            error: telemetryError,
-          });
-        }
-      });
+        })
+    );
   }
 
   /**
@@ -1402,13 +1382,16 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
-   * Consume messages one at a time.
+   * Start consuming messages for a specific handler — either a `consumers`
+   * entry (regular event/command consumer) or an `rpcs` entry (RPC server).
    */
-  private consumeSingle(
-    name: HandlerName<TContract>,
-    view: ConsumerView,
-    handler: StoredHandler,
-  ): AsyncResult<void, never> {
+  private consume(name: HandlerName<TContract>): AsyncResult<void, never> {
+    const view = this.resolveConsumerView(name);
+    // Non-null assertion safe: `WorkerInferHandlers<TContract>` requires every
+    // consumers / rpcs key to have a handler, so by the time we reach this
+    // dispatch path the entry exists in `actualHandlers`. Enforced by the type
+    // system at the public API boundary, not by a runtime check.
+    const handler = this.actualHandlers[name]!;
     const queueName = view.consumer.queue.name;
 
     return this.amqpClient

@@ -29,7 +29,6 @@ export { defineContract } from "./contract.js";
 export type {
   BindingPattern,
   MatchingBindingPattern,
-  MatchingRoutingKey,
   RoutableRoutingKey,
   RoutingKey,
 } from "./routing-types.js";
