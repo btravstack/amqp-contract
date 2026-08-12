@@ -1,10 +1,12 @@
 {
   "extends": "@btravstack/tsconfig/base.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "./dist",
+    // No `rootDir`: this workspace is private and never built (`--noEmit`
+    // only), and the shared Vitest config it asserts against lives at the
+    // repo root. Pinning a rootDir here would put that import out of bounds
+    // and leave the root config typechecked by nothing.
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../vitest.shared.ts"],
   "exclude": ["node_modules", "dist"]
 }
