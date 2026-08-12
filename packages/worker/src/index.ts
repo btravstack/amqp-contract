@@ -7,6 +7,7 @@ export {
   RetryableError,
   RpcError,
   // Type guards
+  isHandlerError,
   isRpcError,
   // Factory functions
   qualifyNonRetryable,

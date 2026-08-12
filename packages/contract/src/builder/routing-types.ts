@@ -136,6 +136,52 @@ type MatchesPattern<
         : false;
 
 /**
+ * Validate that a routing key matches a binding pattern.
+ *
+ * This is a utility type for users who want compile-time validation that a
+ * routing key matches a specific pattern. The library enforces the same
+ * matching on `defineEventConsumer`'s topic routing-key overrides via
+ * {@link MatchingBindingPattern} (which surfaces a readable error-message
+ * string type instead of `never`).
+ *
+ * Returns the routing key when both the pattern and the key are valid (see
+ * {@link RoutingKey} and {@link BindingPattern}) and the key matches the
+ * pattern; `never` when either is invalid or the key does not match — so
+ * `MatchingRoutingKey<"order.*", "order.*">` is `never`: the key matches the
+ * pattern textually, but a routing key may not itself contain a wildcard.
+ *
+ * Each side's validity ({@link RoutingKey} for `Key`, {@link BindingPattern}
+ * for `Pattern`) is always enforced, even when the other side is not fully
+ * known — validity is decidable from one side alone. Only the *match* between
+ * the two is skipped when either side is not a fully known compile-time
+ * literal: plain `string`, a template-literal type, or a union containing
+ * either resolves to `Key` unchecked once both sides pass their own validity
+ * check — the match cannot be decided, and guessing would reject a key that
+ * routes at runtime.
+ *
+ * @example
+ * ```typescript
+ * type ValidKey = MatchingRoutingKey<"order.*", "order.created">; // "order.created"
+ * type InvalidKey = MatchingRoutingKey<"order.*", "user.created">; // never
+ * ```
+ *
+ * @template Pattern - The binding pattern (can contain * and # wildcards)
+ * @template Key - The routing key to validate
+ */
+export type MatchingRoutingKey<Pattern extends string, Key extends string> =
+  RoutingKey<Key> extends never
+    ? never // Invalid routing key — decidable from the key alone
+    : BindingPattern<Pattern> extends never
+      ? never // Invalid pattern — decidable from the pattern alone
+      : IsStringLiteral<Pattern> extends false
+        ? Key // The match is undecidable — defer rather than guess
+        : IsStringLiteral<Key> extends false
+          ? Key
+          : MatchesPattern<Key, Pattern> extends true
+            ? Key
+            : never;
+
+/**
  * Binding pattern for a topic consumer, validated against the publisher's
  * concrete routing key.
  *

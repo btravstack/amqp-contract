@@ -28,10 +28,11 @@ export type {
   EventConsumerResult,
   EventPublisherConfig,
   MatchingBindingPattern,
+  MatchingRoutingKey,
   RoutableRoutingKey,
   RoutingKey,
 } from "./builder/index.js";
-export { summarizeIssues } from "./issues.js";
+export { formatIssue, summarizeIssues } from "./issues.js";
 export type {
   AnySchema,
   BaseExchangeDefinition,

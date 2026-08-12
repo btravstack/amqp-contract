@@ -6,7 +6,12 @@
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 
-import type { BindingPattern, MatchingBindingPattern, RoutingKey } from "./builder/index.js";
+import type {
+  BindingPattern,
+  MatchingBindingPattern,
+  MatchingRoutingKey,
+  RoutingKey,
+} from "./builder/index.js";
 import {
   defineCommandConsumer,
   defineCommandPublisher,
@@ -76,6 +81,97 @@ describe("BindingPattern type validation", () => {
   test("should reject empty binding patterns", () => {
     // empty is not allowed
     expectTypeOf<BindingPattern<"">>().toEqualTypeOf<never>();
+  });
+});
+
+describe("MatchingRoutingKey pattern matching", () => {
+  test("should match valid routing keys against patterns with * wildcard", () => {
+    // * matches exactly one word
+    expectTypeOf<MatchingRoutingKey<"order.*", "order.created">>().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      MatchingRoutingKey<"*.created", "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
+
+  test("should match valid routing keys against patterns with # wildcard", () => {
+    // # matches zero or more words
+    expectTypeOf<MatchingRoutingKey<"order.#", "order.created">>().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      MatchingRoutingKey<"order.#", "order.created.urgent">
+    >().toEqualTypeOf<"order.created.urgent">();
+  });
+
+  test("should match exact routing keys", () => {
+    expectTypeOf<
+      MatchingRoutingKey<"order.created", "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
+
+  test("should reject non-matching routing keys", () => {
+    // Wrong prefix
+    expectTypeOf<MatchingRoutingKey<"order.*", "user.created">>().toEqualTypeOf<never>();
+
+    // * matches only one word, not multiple
+    expectTypeOf<MatchingRoutingKey<"order.*", "order.created.urgent">>().toEqualTypeOf<never>();
+
+    // Wrong suffix
+    expectTypeOf<MatchingRoutingKey<"*.created", "order.updated">>().toEqualTypeOf<never>();
+  });
+
+  test("should handle # wildcard in the middle of patterns", () => {
+    // # matches zero segments
+    expectTypeOf<
+      MatchingRoutingKey<"order.#.completed", "order.completed">
+    >().toEqualTypeOf<"order.completed">();
+
+    // # matches one segment
+    expectTypeOf<
+      MatchingRoutingKey<"order.#.completed", "order.created.completed">
+    >().toEqualTypeOf<"order.created.completed">();
+
+    // # matches two segments
+    expectTypeOf<
+      MatchingRoutingKey<"order.#.completed", "order.created.urgent.completed">
+    >().toEqualTypeOf<"order.created.urgent.completed">();
+  });
+
+  test("should reject when # pattern does not match suffix", () => {
+    // Missing .completed suffix
+    expectTypeOf<MatchingRoutingKey<"order.#.completed", "order.created">>().toEqualTypeOf<never>();
+
+    // Wrong prefix
+    expectTypeOf<
+      MatchingRoutingKey<"order.#.completed", "user.completed">
+    >().toEqualTypeOf<never>();
+  });
+
+  test("trailing # matches zero words", () => {
+    // Pattern with a trailing # matches the key even when # consumes nothing
+    expectTypeOf<
+      MatchingRoutingKey<"order.created.#", "order.created">
+    >().toEqualTypeOf<"order.created">();
+    expectTypeOf<
+      MatchingRoutingKey<"order.*.#", "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
+
+  test("skips the check when either side is not a compile-time literal", () => {
+    // Previously asymmetric: a plain-`string` pattern collapsed to `never`
+    // while a plain-`string` key did not. Both now skip.
+    expectTypeOf<MatchingRoutingKey<string, "order.created">>().toEqualTypeOf<"order.created">();
+    expectTypeOf<MatchingRoutingKey<"order.#", string>>().toEqualTypeOf<string>();
+    expectTypeOf<
+      MatchingRoutingKey<`order.${string}`, "order.created">
+    >().toEqualTypeOf<"order.created">();
+  });
+
+  test("still rejects a side that is invalid on its own", () => {
+    // Each side's validity is decidable from that side alone; only the match
+    // between them becomes undecidable. Deferring the match must not defer
+    // these — a wildcard is illegal in a routing key, and "" is not a pattern.
+    expectTypeOf<MatchingRoutingKey<string, "order.*">>().toEqualTypeOf<never>();
+    expectTypeOf<MatchingRoutingKey<`order.${string}`, "order.*">>().toEqualTypeOf<never>();
+    expectTypeOf<MatchingRoutingKey<"", string>>().toEqualTypeOf<never>();
   });
 });
 
@@ -219,13 +315,12 @@ describe("Publisher and Consumer factory types", () => {
     expectTypeOf<BindingPattern<"order.created">>().toEqualTypeOf<"order.created">();
   });
 
-  test("defineCommandPublisher routing keys must be concrete, not patterns", () => {
-    // The publisher side of a topic command is constrained by `RoutingKey`:
-    // any concrete key is accepted (matching against the consumer's pattern is
-    // not decided here), but a wildcard is not a routing key.
-    expectTypeOf<RoutingKey<"order.created">>().toEqualTypeOf<"order.created">();
-    expectTypeOf<RoutingKey<"order.updated">>().toEqualTypeOf<"order.updated">();
-    expectTypeOf<RoutingKey<"order.*">>().toEqualTypeOf<never>();
+  test("defineCommandPublisher should accept routing keys matching the consumer pattern", () => {
+    // When consumer binding is "order.*", publisher can use any key matching that pattern
+    // This is tested via MatchingRoutingKey type
+    expectTypeOf<MatchingRoutingKey<"order.*", "order.created">>().toEqualTypeOf<"order.created">();
+    expectTypeOf<MatchingRoutingKey<"order.*", "order.updated">>().toEqualTypeOf<"order.updated">();
+    expectTypeOf<MatchingRoutingKey<"order.*", "order.deleted">>().toEqualTypeOf<"order.deleted">();
   });
 
   test("defineEventConsumer should accept binding patterns for topic exchanges", () => {

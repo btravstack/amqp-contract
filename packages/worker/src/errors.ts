@@ -55,11 +55,44 @@ export class NonRetryableError extends TaggedError("@amqp-contract/NonRetryableE
  * …)`).
  *
  * Previously an abstract base class; now a tagged union, because unthrown's
- * `TaggedError` mints a distinct base class per tag — so narrow with
- * `error instanceof RetryableError || error instanceof NonRetryableError`
- * rather than `instanceof HandlerError`.
+ * `TaggedError` mints a distinct base class per tag. Use {@link isHandlerError}
+ * for runtime narrowing instead of `instanceof HandlerError`.
  */
 export type HandlerError = RetryableError | NonRetryableError;
+
+// =============================================================================
+// Type Guards
+// =============================================================================
+
+/**
+ * Narrow an unknown value to {@link HandlerError}.
+ *
+ * `HandlerError` is a union type with no runtime counterpart, so there is no
+ * `instanceof HandlerError` to reach for — this guard is the only one-step way
+ * to ask "is this either of the two handler errors?".
+ *
+ * The per-class questions need no helper: `RetryableError` and
+ * `NonRetryableError` are exported classes, so `error instanceof RetryableError`
+ * says it directly.
+ *
+ * @param error - The error to check
+ * @returns True if the error is a RetryableError or a NonRetryableError
+ *
+ * @example
+ * ```typescript
+ * import { isHandlerError } from '@amqp-contract/worker';
+ *
+ * function report(error: unknown) {
+ *   if (isHandlerError(error)) {
+ *     // error is RetryableError | NonRetryableError
+ *     console.log('Handler error:', error.name, error.message);
+ *   }
+ * }
+ * ```
+ */
+export function isHandlerError(error: unknown): error is HandlerError {
+  return error instanceof RetryableError || error instanceof NonRetryableError;
+}
 
 // =============================================================================
 // Qualifier Factories

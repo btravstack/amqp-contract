@@ -256,22 +256,19 @@ Headers are validated on the **consumer** side only — publishing does not chec
 The exported utility types check routing keys and patterns:
 
 ```typescript
-import type { BindingPattern, MatchingBindingPattern, RoutingKey } from "@amqp-contract/contract";
+import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "@amqp-contract/contract";
 
 type ValidKey = RoutingKey<"order.created">; // 'order.created'
 type BadKey = RoutingKey<"order..bad">; // never — empty segment
 
 type ValidPattern = BindingPattern<"order.#">; // 'order.#'
-type Matches = MatchingBindingPattern<"order.*", "order.created">; // 'order.*'
-type NoMatch = MatchingBindingPattern<"user.*", "order.created">;
-// "Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'"
+type Matches = MatchingRoutingKey<"order.*", "order.created">; // 'order.created'
+type NoMatch = MatchingRoutingKey<"order.*", "user.created">; // never
 ```
 
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. The `defineEvent*` and `defineCommand*` functions apply these internally; use them directly when writing your own routing helpers.
 
-`MatchingBindingPattern<P, K>` resolves to a readable error-message string type rather than a bare `never`, so a mismatch names both sides in the compile error instead of collapsing to "not assignable to `never`". It is the same matcher `defineEventConsumer` enforces on its topic routing-key overrides.
-
-The examples above use fully literal types, where the match can be decided. Each side's own validity — `RoutingKey<K>` and `BindingPattern<P>` — is enforced no matter what the other side looks like, since that's decidable from one side alone. Only the _match between_ a valid pattern and a valid key is skipped when either side is not a fully resolved string literal — a plain `string`, a template-literal type such as `` `${string}.created` ``, a union containing either, or a branded string type, among others — in which case the pattern is returned unchecked rather than guessed at.
+The examples above use fully literal types, where `MatchingRoutingKey` can decide the match. Each side's own validity — `RoutingKey<K>` and `BindingPattern<P>` — is enforced no matter what the other side looks like, since that's decidable from one side alone. Only the _match between_ a valid pattern and a valid key is skipped when either side is not a fully resolved string literal — a plain `string`, a template-literal type such as `` `${string}.created` ``, a union containing either, or a branded string type, among others — in which case the key is returned unchecked rather than guessed at.
 
 TypeScript's recursion limit means very long keys fall back to `string`. That affects compile-time checking only, never runtime behaviour.
 
