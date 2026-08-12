@@ -55,14 +55,14 @@ catalogs:
       specifier: 1.1.0
       version: 1.1.0
     '@unthrown/oxlint':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.4.0
+      version: 5.4.0
     '@unthrown/standard-schema':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.4.0
+      version: 5.4.0
     '@unthrown/vitest':
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.4.0
+      version: 5.4.0
     '@vitest/coverage-v8':
       specifier: 4.1.10
       version: 4.1.10
@@ -124,8 +124,8 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     unthrown:
-      specifier: 5.1.0
-      version: 5.1.0
+      specifier: 5.4.0
+      version: 5.4.0
     valibot:
       specifier: 1.4.2
       version: 1.4.2
@@ -180,7 +180,7 @@ importers:
         version: 21.2.1(@types/node@26.1.2)(conventional-commits-parser@7.0.1)(typescript@6.0.3)
       '@unthrown/oxlint':
         specifier: 'catalog:'
-        version: 5.1.0(oxlint@1.77.0)
+        version: 5.4.0(oxlint@1.77.0)
       knip:
         specifier: 'catalog:'
         version: 6.31.0
@@ -253,7 +253,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -330,7 +330,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -437,7 +437,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -456,7 +456,7 @@ importers:
         version: 26.1.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.1.0(unthrown@5.1.0)(vitest@4.1.10)
+        version: 5.4.0(unthrown@5.4.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -483,7 +483,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
@@ -569,7 +569,7 @@ importers:
         version: 26.1.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.1.0(unthrown@5.1.0)(vitest@4.1.10)
+        version: 5.4.0(unthrown@5.4.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -587,7 +587,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
@@ -648,7 +648,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -667,7 +667,7 @@ importers:
         version: 26.1.2
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.1.0(unthrown@5.1.0)(vitest@4.1.10)
+        version: 5.4.0(unthrown@5.4.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -694,7 +694,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
@@ -721,7 +721,7 @@ importers:
         version: link:../packages/worker
       unthrown:
         specifier: 'catalog:'
-        version: 5.1.0
+        version: 5.4.0
     devDependencies:
       '@btravstack/tsconfig':
         specifier: 'catalog:'
@@ -2171,8 +2171,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oxlint/plugins@1.75.0':
-    resolution: {integrity: sha512-dNQBRuvkeecm9nxi1cXRxXA1oAyqJqHof6cdnjY/WDBU1nZ9V07rp9X9gG7+JgShrjJW4VR2dTo7t2EcX4XD8g==}
+  '@oxlint/plugins@1.77.0':
+    resolution: {integrity: sha512-6KtPXskPgpt+0Kyl2nNSxNnYXt7lbkxW1C7vi2L7xwtq/AisZlsmV+hnzOTEyM5tU1TxPv1GpTqpUBbZfPzBLg==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@pinojs/redact@0.4.0':
@@ -2764,21 +2764,21 @@ packages:
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
 
-  '@unthrown/oxlint@5.1.0':
-    resolution: {integrity: sha512-xTbO9Qoz5W0J7Ur+vFiKAw8buxd6gCaOt16dYkVuNHIyiROl/fL5S9hCQkxduLYReiVATMOis4cgh0KnQy4HIQ==}
+  '@unthrown/oxlint@5.4.0':
+    resolution: {integrity: sha512-3gZc3LZVFk92FeZTCzAv8vbh7Qf+QKl/FcvtXJKXJ6PBXL5Lf0OW2avxV2+AamaLX0a5qVAUeZu9WEjAph9qjA==}
     engines: {node: '>=20'}
     peerDependencies:
       oxlint: ^1.69.0
 
-  '@unthrown/standard-schema@5.1.0':
-    resolution: {integrity: sha512-6691LAAZR5uPeQ3btiMwuHmE5hTUezkv9VocZ18DD9laWd2vUljdxH5LWiGmDgUwE3MeVI7zkHkcsainUlGqWw==}
+  '@unthrown/standard-schema@5.4.0':
+    resolution: {integrity: sha512-dcDJhYeTRtQ06VrlNu3QGjnk8ba4ZidZcphCBC17aLtUFXmh/xF4g1thKo/6TQAGx7ENJJ8zJyKY8HtLTkan3A==}
     engines: {node: '>=20'}
 
-  '@unthrown/vitest@5.1.0':
-    resolution: {integrity: sha512-3rTU7HnIFITS3DbGIAueq/+o9VWY+j/ETyg6AYLwzob9KQeRMlqA8NOphWPgIyZixasMSF8xnJLwMBWvK0omqw==}
+  '@unthrown/vitest@5.4.0':
+    resolution: {integrity: sha512-zlENjHF5cjSBSwfNxb/Ah3pY9dpVlbXbewTnx2Ku/fxhO9z7ovtOmGAXytrcfCte64IjtxruYKy4koji8Wgckw==}
     engines: {node: '>=20'}
     peerDependencies:
-      unthrown: ^5.1.0
+      unthrown: ^5.4.0
       vitest: ^4
 
   '@upsetjs/venn.js@2.0.0':
@@ -5400,8 +5400,8 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  unthrown@5.1.0:
-    resolution: {integrity: sha512-Zi/YA8ANmdJKuJMKuYFUI7N078naXCAH9DkaGmOnwqiD5EcLBKHxMEPTuuJ+vEcpFyvm8h5197FOa36MEhOwrw==}
+  unthrown@5.4.0:
+    resolution: {integrity: sha512-sp19EBzTbh2sROjlf69JrvALzMkIHggnF3uad+mG2CXC5inQvtwHG6A47P/O7Vmja2V0biNqM2x2xwf2CaqBTw==}
     engines: {node: '>=20'}
 
   urijs@1.19.11:
@@ -7037,7 +7037,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.77.0':
     optional: true
 
-  '@oxlint/plugins@1.75.0': {}
+  '@oxlint/plugins@1.77.0': {}
 
   '@pinojs/redact@0.4.0': {}
 
@@ -7622,19 +7622,19 @@ snapshots:
 
   '@ungap/structured-clone@1.3.1': {}
 
-  '@unthrown/oxlint@5.1.0(oxlint@1.77.0)':
+  '@unthrown/oxlint@5.4.0(oxlint@1.77.0)':
     dependencies:
-      '@oxlint/plugins': 1.75.0
+      '@oxlint/plugins': 1.77.0
       oxlint: 1.77.0
 
-  '@unthrown/standard-schema@5.1.0':
+  '@unthrown/standard-schema@5.4.0':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      unthrown: 5.1.0
+      unthrown: 5.4.0
 
-  '@unthrown/vitest@5.1.0(unthrown@5.1.0)(vitest@4.1.10)':
+  '@unthrown/vitest@5.4.0(unthrown@5.4.0)(vitest@4.1.10)':
     dependencies:
-      unthrown: 5.1.0
+      unthrown: 5.4.0
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.5)(yaml@2.9.0)
 
   '@upsetjs/venn.js@2.0.0':
@@ -10527,7 +10527,7 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  unthrown@5.1.0: {}
+  unthrown@5.4.0: {}
 
   urijs@1.19.11: {}
 
