@@ -61,9 +61,11 @@ export function sharedVitestConfig({
         include: ["src/**", "!src/**/__tests__/**", "!src/**/*.test-d.ts"],
         ...(thresholds ? { thresholds } : {}),
       },
-      // Without an integration split there is only one run, so type tests are
-      // declared at the top level; with one they belong to the unit project.
+      // Without an integration split there is only one run, so type tests and
+      // setup files are declared at the top level; with one they belong to the
+      // projects, which do not inherit root-level `test` options.
       ...(typecheck && !integration ? { typecheck: TYPECHECK } : {}),
+      ...(!integration ? setupFiles : {}),
       ...(integration
         ? {
             projects: [
