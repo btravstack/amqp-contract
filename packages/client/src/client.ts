@@ -29,7 +29,17 @@ import {
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
-import { Err, fromSafePromise, Ok, OkAsync, P, type AsyncResult, type Result } from "unthrown";
+import {
+  Err,
+  fromExecutor,
+  fromSafePromise,
+  Ok,
+  OkAsync,
+  P,
+  type AsyncResult,
+  type Result,
+  type Settle,
+} from "unthrown";
 
 import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -622,8 +632,6 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     request: unknown,
     options: CallOptions,
   ): AsyncResult<unknown, InterceptorCallError> {
-    type CallResult = Result<unknown, InterceptorCallError>;
-
     // setTimeout truncates fractional ms and clamps anything outside the
     // 32-bit signed integer range (~24.8 days) to 1ms, so reject those up
     // front as user errors rather than producing surprising behavior.
@@ -650,15 +658,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     // Set up the reply future + pending entry up front so a reply that arrives
     // racing the publish round-trip can find a slot. Cleanup on preflight
     // failure happens in the `.tapFailure` below.
-    let resolveCall!: (result: CallResult) => void;
-    const callPromise = new Promise<CallResult>((res) => {
-      resolveCall = res;
+    let resolveCall!: Settle<unknown, InterceptorCallError>;
+    const callResultAsync = fromExecutor<unknown, InterceptorCallError>((settle) => {
+      resolveCall = settle;
     });
-    // `callPromise` resolves to a `Result` (never rejects), so lift it with
-    // `fromSafePromise` and collapse the nested `Result` back into the channel.
-    const callResultAsync: AsyncResult<unknown, InterceptorCallError> = fromSafePromise(
-      callPromise,
-    ).flatMap((result) => result);
 
     const timer = setTimeout(() => {
       // No `has` guard: a reply may have removed the entry already yet still
