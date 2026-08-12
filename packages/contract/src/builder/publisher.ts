@@ -174,22 +174,24 @@ export function definePublisher<TMessage extends MessageDefinition>(
 }
 
 /**
- * Helper to call definePublisher with proper type handling.
- * Type safety is enforced by overloaded public function signatures.
+ * Call {@link definePublisher} with an exchange whose type is only known at
+ * runtime — the shape `defineContract` and the command builders hold.
+ *
+ * The public overloads split on exchange type to require a routing key on
+ * direct/topic; the runtime path does not, because the implementation
+ * re-checks the exchange type itself and only then demands the key. One cast
+ * to the keyed overload therefore covers both branches.
+ *
  * @internal
  */
 export function definePublisherInternal<TMessage extends MessageDefinition>(
   exchange: ExchangeDefinition,
   message: TMessage,
-  options?: {
-    routingKey?: string | undefined;
-    arguments?: Record<string, unknown>;
-    externalConsumers?: boolean | undefined;
-  },
+  options?: { routingKey?: string | undefined; externalConsumers?: boolean | undefined },
 ): PublisherDefinition<TMessage> {
-  // Type assertion is safe because overloaded signatures enforce routingKey requirement
-  if (exchange.type === "fanout" || exchange.type === "headers") {
-    return definePublisher(exchange, message, options);
-  }
-  return definePublisher(exchange, message, options as { routingKey: string });
+  return definePublisher(
+    exchange as DirectExchangeDefinition,
+    message,
+    options as { routingKey: string },
+  );
 }

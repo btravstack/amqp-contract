@@ -16,7 +16,7 @@ import {
   defineQueue,
   defineQueueBinding,
   isBridgedPublisherConfig,
-} from "./builder.js";
+} from "./builder/index.js";
 
 describe("builder", () => {
   describe("defineExchange", () => {

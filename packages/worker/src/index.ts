@@ -7,15 +7,10 @@ export {
   RetryableError,
   RpcError,
   // Type guards
-  isHandlerError,
-  isNonRetryableError,
-  isRetryableError,
   isRpcError,
   // Factory functions
-  nonRetryable,
   qualifyNonRetryable,
   qualifyRetryable,
-  retryable,
   rpcError,
 } from "./errors.js";
 // HandlerError is now a tagged union type (RetryableError | NonRetryableError),

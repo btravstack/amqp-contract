@@ -195,8 +195,11 @@ export class AsyncAPIGenerator {
         for (const [consumerName, { message, channelKey }] of consumerMessages) {
           if (channelKey === queueName) {
             const messageName = `${consumerName}Message`;
-            channelMessages[messageName] = await this.convertMessage(message);
-            convertedMessages[messageName] = await this.convertMessage(message);
+            // Convert once and share: the channel entry and the components
+            // entry are the same document.
+            const converted = await this.convertMessage(message);
+            channelMessages[messageName] = converted;
+            convertedMessages[messageName] = converted;
           }
         }
 
@@ -223,8 +226,9 @@ export class AsyncAPIGenerator {
         for (const [publisherName, { message, channelKey }] of publisherMessages) {
           if (channelKey === exchangeName) {
             const messageName = `${publisherName}Message`;
-            channelMessages[messageName] = await this.convertMessage(message);
-            convertedMessages[messageName] = await this.convertMessage(message);
+            const converted = await this.convertMessage(message);
+            channelMessages[messageName] = converted;
+            convertedMessages[messageName] = converted;
           }
         }
 
@@ -313,7 +317,7 @@ export class AsyncAPIGenerator {
     const payload = message.payload;
 
     // Convert payload schema
-    const payloadJsonSchema = await this.convertSchema(payload, "input");
+    const payloadJsonSchema = await this.convertSchema(payload);
 
     // Build result with required properties
     const result: Record<string, unknown> = {
@@ -323,7 +327,7 @@ export class AsyncAPIGenerator {
 
     // Add optional properties only if they exist
     if (message.headers) {
-      const headersJsonSchema = await this.convertSchema(message.headers, "input");
+      const headersJsonSchema = await this.convertSchema(message.headers);
       if (headersJsonSchema) {
         result["headers"] = headersJsonSchema;
       }
@@ -471,8 +475,11 @@ export class AsyncAPIGenerator {
     exchange: ExchangeDefinition,
     contract: ContractDefinition,
   ): ChannelObject {
-    const sourceBindings = this.getExchangeBindingsBySource(exchange, contract);
-    const destinationBindings = this.getExchangeBindingsByDestination(exchange, contract);
+    const exchangeBindings = this.exchangeBindings(contract);
+    const sourceBindings = exchangeBindings.filter((b) => b.source.name === exchange.name);
+    const destinationBindings = exchangeBindings.filter(
+      (b) => b.destination.name === exchange.name,
+    );
 
     let description = `AMQP Exchange: ${exchange.name} (${exchange.type})`;
     if (sourceBindings.length > 0) {
@@ -543,29 +550,10 @@ export class AsyncAPIGenerator {
     return result as ChannelObject;
   }
 
-  private getExchangeBindingsBySource(
-    exchange: ExchangeDefinition,
-    contract: ContractDefinition,
-  ): ExchangeBindingDefinition[] {
-    return this.exchangeBindings(contract).filter((b) => b.source.name === exchange.name);
-  }
-
-  private getExchangeBindingsByDestination(
-    exchange: ExchangeDefinition,
-    contract: ContractDefinition,
-  ): ExchangeBindingDefinition[] {
-    return this.exchangeBindings(contract).filter((b) => b.destination.name === exchange.name);
-  }
-
   private exchangeBindings(contract: ContractDefinition): ExchangeBindingDefinition[] {
-    if (!contract.bindings) return [];
-    const result: ExchangeBindingDefinition[] = [];
-    for (const binding of Object.values(contract.bindings) as BindingDefinition[]) {
-      if (binding.type === "exchange") {
-        result.push(binding);
-      }
-    }
-    return result;
+    return (Object.values(contract.bindings ?? {}) as BindingDefinition[]).filter(
+      (binding): binding is ExchangeBindingDefinition => binding.type === "exchange",
+    );
   }
 
   /**
@@ -604,26 +592,20 @@ export class AsyncAPIGenerator {
     queue: QueueDefinition,
     contract: ContractDefinition,
   ): QueueBindingDefinition[] {
-    const result: QueueBindingDefinition[] = [];
-
-    if (contract.bindings) {
-      for (const binding of Object.values(contract.bindings)) {
-        if (binding.type === "queue" && binding.queue.name === queue.name) {
-          result.push(binding);
-        }
-      }
-    }
-
-    return result;
+    return Object.values(contract.bindings ?? {}).filter(
+      (binding): binding is QueueBindingDefinition =>
+        binding.type === "queue" && binding.queue.name === queue.name,
+    );
   }
 
   /**
-   * Convert a Standard Schema to JSON Schema using oRPC converters
+   * Convert a Standard Schema to JSON Schema using oRPC converters.
+   *
+   * Always the `"input"` strategy: an AsyncAPI message payload documents what
+   * goes on the wire, which is the schema's input shape.
    */
-  private async convertSchema(
-    schema: StandardSchemaV1,
-    strategy: "input" | "output",
-  ): Promise<JSONSchema> {
+  private async convertSchema(schema: StandardSchemaV1): Promise<JSONSchema> {
+    const strategy = "input" as const;
     // Try each converter until one matches
     for (const converter of this.converters) {
       const matches = await converter.condition(schema, { strategy });

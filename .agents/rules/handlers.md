@@ -126,7 +126,7 @@ const validateOrderHandler = declareHandler(contract, "validateOrder", ({ payloa
 | `RetryableError`    | Transient. Worker requeues per the queue's `retry` mode (immediate or backoff). |
 | `NonRetryableError` | Permanent. Worker `nack`s without requeue, sending to DLQ if configured.        |
 
-Helpers and type guards: `retryable()`, `nonRetryable()` factory functions; `isRetryableError`, `isNonRetryableError`, `isHandlerError` for narrowing.
+Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fromPromise` mappers. Narrow with the error matcher (`P.tag("@amqp-contract/RetryableError")`) or `instanceof` against `RetryableError` / `NonRetryableError`.
 
 ### Raised by the framework around handlers
 
@@ -200,6 +200,6 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 For the authoritative list, read [`packages/worker/src/index.ts`](../../packages/worker/src/index.ts). What's currently re-exported:
 
 - Classes: `TypedAmqpWorker`, `RetryableError`, `NonRetryableError`, `MessageValidationError` (the error classes are unthrown `TaggedError`s). `HandlerError` is a **type** (`RetryableError | NonRetryableError`), not a class.
-- Factories / guards: `retryable`, `nonRetryable`, `isRetryableError`, `isNonRetryableError`, `isHandlerError`
+- Qualifiers: `qualifyRetryable`, `qualifyNonRetryable`
 - Helpers: `declareHandler`, `declareHandlers` (both accept consumer **and** RPC names)
 - Types: `CreateWorkerOptions`, `ConsumerOptions`, `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`

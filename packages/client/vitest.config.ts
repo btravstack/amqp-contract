@@ -1,48 +1,12 @@
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  test: {
-    environment: "node",
-    reporters: ["default"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "json-summary", "html"],
-      // `*.test-d.ts` files are typechecked, never executed — v8 counts every
-      // line as uncovered and skews the denominator. Exclude them alongside
-      // the integration suites.
-      include: ["src/**", "!src/**/__tests__/**", "!src/**/*.test-d.ts"],
-      // Ratchet floors (unit project only — integration coverage runs
-      // separately in CI with Docker). Raise as coverage grows; never lower.
-      thresholds: {
-        statements: 14,
-        branches: 15,
-        functions: 18,
-        lines: 14,
-      },
-    },
-    projects: [
-      {
-        test: {
-          name: "unit",
-          setupFiles: ["./src/vitest.setup.ts"],
-          include: ["src/**/*.spec.ts"],
-          exclude: ["src/**/__tests__/*.spec.ts"],
-          typecheck: {
-            enabled: true,
-            include: ["src/**/*.test-d.ts"],
-          },
-        },
-      },
-      {
-        test: {
-          name: "integration",
-          setupFiles: ["./src/vitest.setup.ts"],
-          globalSetup: "@amqp-contract/testing/global-setup",
-          include: ["src/**/__tests__/*.spec.ts"],
-          testTimeout: 10_000,
-          hookTimeout: 10_000,
-        },
-      },
-    ],
-  },
-});
+import { sharedVitestConfig } from "../../vitest.shared.js";
+
+export default defineConfig(
+  sharedVitestConfig({
+    thresholds: { statements: 14, branches: 15, functions: 18, lines: 14 },
+    typecheck: true,
+    integration: true,
+    setupFile: "./src/vitest.setup.ts",
+  }),
+);

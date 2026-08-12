@@ -360,13 +360,12 @@ export class AmqpClient {
   }
 
   /**
-   * Get the underlying connection manager
+   * The underlying connection manager.
    *
-   * This method exposes the AmqpConnectionManager instance that this client uses.
-   * The connection is automatically shared across all AmqpClient instances that
-   * use the same URLs and connection options.
-   *
-   * @returns The AmqpConnectionManager instance used by this client
+   * The connection is shared across every `AmqpClient` created with the same
+   * URLs and connection options, so two clients that pool together return the
+   * identical instance — which is how the connection-sharing suite asserts
+   * pooling.
    */
   getConnection(): AmqpConnectionManager {
     return this.connection;
@@ -391,24 +390,20 @@ export class AmqpClient {
     const connectPromise = this.channelWrapper.waitForConnect();
     const timeoutMs = this.connectTimeoutMs;
 
+    // `AbortSignal.timeout` rather than a hand-rolled `setTimeout` race: its
+    // timer does not hold the event loop open, so a settled connect needs no
+    // paired `clearTimeout` to avoid keeping the process alive.
     const racedPromise =
       timeoutMs === null
         ? connectPromise
-        : new Promise<void>((resolve, reject) => {
-            const handle = setTimeout(() => {
-              reject(new Error(`Timed out waiting for AMQP connection after ${timeoutMs}ms`));
-            }, timeoutMs);
-            connectPromise.then(
-              () => {
-                clearTimeout(handle);
-                resolve();
-              },
-              (error: unknown) => {
-                clearTimeout(handle);
-                reject(error);
-              },
-            );
-          });
+        : Promise.race([
+            connectPromise,
+            new Promise<never>((_resolve, reject) => {
+              AbortSignal.timeout(timeoutMs).addEventListener("abort", () => {
+                reject(new Error(`Timed out waiting for AMQP connection after ${timeoutMs}ms`));
+              });
+            }),
+          ]);
 
     return fromPromise(racedPromise, (error: unknown, defect) =>
       defect(
@@ -640,17 +635,6 @@ export class AmqpClient {
   }
 
   /**
-   * Add a setup function to be called when the channel is created or reconnected.
-   *
-   * This is useful for setting up channel-level configuration like prefetch.
-   *
-   * @param setup - The setup function to add
-   */
-  addSetup(setup: (channel: Channel) => void | Promise<void>): void {
-    this.channelWrapper.addSetup(setup);
-  }
-
-  /**
    * Register an event listener on the channel wrapper.
    *
    * Available events:
@@ -715,13 +699,5 @@ export class AmqpClient {
     // and collapse the nested `Result` it resolves to back into the channel.
     this.closing = fromSafePromise(inner).flatMap((result) => result);
     return this.closing;
-  }
-
-  /**
-   * Reset connection singleton cache (for testing only)
-   * @internal
-   */
-  static async _resetConnectionCacheForTesting(): Promise<void> {
-    await ConnectionManagerSingleton.getInstance()._resetForTesting();
   }
 }

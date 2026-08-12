@@ -48,7 +48,6 @@ const it = baseIt.extend<{
             await client.close().get();
           } catch (error) {
             // Swallow errors during cleanup to avoid unhandled rejections
-            // eslint-disable-next-line no-console
             console.error("Failed to close AMQP client during fixture cleanup:", error);
           }
         }),

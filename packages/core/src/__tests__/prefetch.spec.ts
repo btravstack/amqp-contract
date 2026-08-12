@@ -4,6 +4,7 @@ import { it } from "@amqp-contract/testing/extension";
 import { beforeEach, describe, expect, vi } from "vitest";
 
 import { AmqpClient } from "../amqp-client.js";
+import { _internal_resetConnections } from "../connection-manager.js";
 
 /**
  * Regression test for the per-consumer prefetch handling in
@@ -19,7 +20,7 @@ import { AmqpClient } from "../amqp-client.js";
  */
 describe("AmqpClient prefetch integration", () => {
   beforeEach(async () => {
-    await AmqpClient._resetConnectionCacheForTesting();
+    await _internal_resetConnections();
   });
 
   it("limits handler invocations to the configured prefetch", async ({

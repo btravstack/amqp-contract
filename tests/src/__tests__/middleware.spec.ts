@@ -14,7 +14,7 @@ import { it as baseIt } from "@amqp-contract/testing/extension";
 import {
   composeMiddleware,
   declareMiddleware,
-  nonRetryable,
+  NonRetryableError,
   rpcError,
   TypedAmqpWorker,
   type CreateWorkerOptions,
@@ -229,7 +229,7 @@ describe("worker middleware", () => {
       contract,
       middleware: declareMiddleware((_args, _next) => {
         resolveBlocked();
-        return ErrAsync(nonRetryable("blocked by middleware"));
+        return ErrAsync(new NonRetryableError("blocked by middleware"));
       }),
       handlers: {
         processOrder: () => {

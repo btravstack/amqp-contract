@@ -130,7 +130,6 @@ function tryLoadOpenTelemetryApi(): typeof import("@opentelemetry/api") | null {
   if (otelApi === undefined) {
     try {
       // Dynamic import using require to avoid bundler issues
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       otelApi = require("@opentelemetry/api") as typeof import("@opentelemetry/api");
     } catch {
       otelApi = null;

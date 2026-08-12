@@ -247,7 +247,6 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
             await amqpChannel.cancel(consumerTag);
           } catch (error) {
             // Swallow cancellation errors during cleanup
-            // eslint-disable-next-line no-console
             console.error("Failed to cancel AMQP consumer during fixture cleanup:", error);
           }
         }),
@@ -256,59 +255,45 @@ export const it = vitestIt.extend<AmqpTestFixtures>({
   },
 });
 
-async function createVhost() {
-  const namespace = randomUUID();
-
+/**
+ * Call the RabbitMQ Management API's vhost endpoint, failing the test on any
+ * status outside `okStatuses`.
+ *
+ * @param verb - Used in the failure message ("create", "delete").
+ * @param okStatuses - Statuses that count as success. Delete accepts 404 too:
+ *   already-gone is the outcome it wanted.
+ */
+async function vhostRequest(
+  method: "PUT" | "DELETE",
+  vhost: string,
+  verb: string,
+  okStatuses: readonly number[],
+): Promise<void> {
   const username = inject("__TESTCONTAINERS_RABBITMQ_USERNAME__");
   const password = inject("__TESTCONTAINERS_RABBITMQ_PASSWORD__");
 
-  const vhostResponse = await fetch(
-    `http://${inject("__TESTCONTAINERS_RABBITMQ_IP__")}:${inject("__TESTCONTAINERS_RABBITMQ_PORT_15672__")}/api/vhosts/${encodeURIComponent(namespace)}`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Basic ${btoa(`${username}:${password}`)}`,
-      },
-    },
+  const response = await fetch(
+    `http://${inject("__TESTCONTAINERS_RABBITMQ_IP__")}:${inject("__TESTCONTAINERS_RABBITMQ_PORT_15672__")}/api/vhosts/${encodeURIComponent(vhost)}`,
+    { method, headers: { Authorization: `Basic ${btoa(`${username}:${password}`)}` } },
   );
 
-  if (vhostResponse.status !== 201) {
-    const responseBody = await vhostResponse.text().catch(() => "");
-    const errorMessage = responseBody
-      ? `Failed to create vhost '${namespace}': ${vhostResponse.status} - ${responseBody}`
-      : `Failed to create vhost '${namespace}': ${vhostResponse.status}`;
-    // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
-    throw new Error(errorMessage, {
-      cause: vhostResponse,
-    });
-  }
+  if (okStatuses.includes(response.status)) return;
 
+  const responseBody = await response.text().catch(() => "");
+  const detail = responseBody ? ` - ${responseBody}` : "";
+  // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
+  throw new Error(`Failed to ${verb} vhost '${vhost}': ${response.status}${detail}`, {
+    cause: response,
+  });
+}
+
+async function createVhost(): Promise<string> {
+  const namespace = randomUUID();
+  await vhostRequest("PUT", namespace, "create", [201]);
   return namespace;
 }
 
-async function deleteVhost(vhost: string) {
-  const username = inject("__TESTCONTAINERS_RABBITMQ_USERNAME__");
-  const password = inject("__TESTCONTAINERS_RABBITMQ_PASSWORD__");
-
-  const vhostResponse = await fetch(
-    `http://${inject("__TESTCONTAINERS_RABBITMQ_IP__")}:${inject("__TESTCONTAINERS_RABBITMQ_PORT_15672__")}/api/vhosts/${encodeURIComponent(vhost)}`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Basic ${btoa(`${username}:${password}`)}`,
-      },
-    },
-  );
-
+async function deleteVhost(vhost: string): Promise<void> {
   // 204 = successfully deleted, 404 = already deleted or doesn't exist
-  if (vhostResponse.status !== 204 && vhostResponse.status !== 404) {
-    const responseBody = await vhostResponse.text().catch(() => "");
-    const errorMessage = responseBody
-      ? `Failed to delete vhost '${vhost}': ${vhostResponse.status} - ${responseBody}`
-      : `Failed to delete vhost '${vhost}': ${vhostResponse.status}`;
-    // oxlint-disable-next-line unthrown/no-throw -- vitest fixture — throwing is how a fixture fails the test
-    throw new Error(errorMessage, {
-      cause: vhostResponse,
-    });
-  }
+  await vhostRequest("DELETE", vhost, "delete", [204, 404]);
 }

@@ -14,6 +14,7 @@ import { beforeEach, describe, expect } from "vitest";
 import { z } from "zod";
 
 import { AmqpClient } from "../amqp-client.js";
+import { _internal_resetConnections } from "../connection-manager.js";
 
 const bridgeDlx = defineExchange("bridge-dlx", { durable: false });
 // `bridge-dlx` is topic and the queue sets no dead-letter routing key, so `#`
@@ -24,7 +25,7 @@ const bridgeDlq = defineQueue("local-processing-dlq", { type: "classic", durable
 describe("AmqpClient Integration", () => {
   beforeEach(async () => {
     // Reset connection cache between tests
-    await AmqpClient._resetConnectionCacheForTesting();
+    await _internal_resetConnections();
   });
 
   it("should setup exchanges from contract", async ({ amqpConnectionUrl, amqpChannel }) => {

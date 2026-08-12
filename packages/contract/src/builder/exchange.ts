@@ -1,116 +1,45 @@
-import type {
-  BaseExchangeDefinition,
-  DirectExchangeDefinition,
-  ExchangeDefinition,
-  FanoutExchangeDefinition,
-  HeadersExchangeDefinition,
-  TopicExchangeDefinition,
-} from "../types.js";
+import type { BaseExchangeDefinition, ExchangeDefinition } from "../types.js";
 import { _internal_assertKnownKeys, _internal_assertNonEmptyName } from "./validate.js";
 
+/** The four AMQP exchange types. */
+type ExchangeType = ExchangeDefinition["type"];
+
 /**
- * Define a topic exchange.
+ * Define an AMQP exchange.
  *
- * A topic exchange routes messages to queues based on routing key patterns.
- * Routing keys can use wildcards: `*` matches one word, `#` matches zero or more words.
- * This exchange type is ideal for flexible message routing based on hierarchical topics.
+ * The `type` selects the routing behaviour, and the return type narrows to
+ * match it — `defineExchange('tasks', { type: 'direct' })` is a
+ * `DirectExchangeDefinition<'tasks'>`, so the builders that require a specific
+ * exchange kind (a direct/topic publisher's routing key, a fanout event's
+ * bridge) accept or reject it at compile time.
+ *
+ * - **topic** (the default) routes on routing-key patterns: `*` matches one
+ *   word, `#` matches zero or more, words separated by dots.
+ * - **direct** routes on an exact routing-key match — point-to-point.
+ * - **fanout** broadcasts to every bound queue, ignoring the routing key.
+ * - **headers** routes on header values rather than the routing key.
  *
  * @param name - The name of the exchange
  * @param options - Optional exchange configuration
- * @param options.type - Exchange type (must be "topic", or omitted for default topic exchange)
+ * @param options.type - Exchange type (defaults to "topic")
  * @param options.durable - If true, the exchange survives broker restarts (default: true)
  * @param options.autoDelete - If true, the exchange is deleted when no queues are bound
  * @param options.internal - If true, the exchange cannot be directly published to
  * @param options.arguments - Additional AMQP arguments for the exchange
- * @returns A topic exchange definition
+ * @returns An exchange definition narrowed to the requested type
  *
  * @example
  * ```typescript
- * const ordersExchange = defineExchange('orders', { type: 'topic' });
- *
- * // Or omit type for default topic exchange
- * const ordersExchange = defineExchange('orders');
- * ```
- */
-export function defineExchange<TName extends string>(
-  name: TName,
-  options?: { type?: "topic" } & Omit<BaseExchangeDefinition, "name" | "type">,
-): TopicExchangeDefinition<TName>;
-
-/**
- * Define a direct exchange.
- *
- * A direct exchange routes messages to queues based on exact routing key matches.
- * This exchange type is ideal for point-to-point messaging.
- *
- * @param name - The name of the exchange
- * @param options - Exchange configuration
- * @param options.type - Exchange type (must be "direct")
- * @param options.durable - If true, the exchange survives broker restarts (default: true)
- * @param options.autoDelete - If true, the exchange is deleted when no queues are bound
- * @param options.internal - If true, the exchange cannot be directly published to
- * @param options.arguments - Additional AMQP arguments for the exchange
- * @returns A direct exchange definition
- *
- * @example
- * ```typescript
+ * const ordersExchange = defineExchange('orders'); // topic — the default
  * const tasksExchange = defineExchange('tasks', { type: 'direct' });
- * ```
- */
-export function defineExchange<TName extends string>(
-  name: TName,
-  options: { type: "direct" } & Omit<BaseExchangeDefinition, "name" | "type">,
-): DirectExchangeDefinition<TName>;
-
-/**
- * Define a fanout exchange.
- *
- * A fanout exchange routes messages to all bound queues without considering routing keys.
- * This exchange type is ideal for broadcasting messages to multiple consumers.
- *
- * @param name - The name of the exchange
- * @param options - Exchange configuration
- * @param options.type - Exchange type (must be "fanout")
- * @param options.durable - If true, the exchange survives broker restarts (default: true)
- * @param options.autoDelete - If true, the exchange is deleted when no queues are bound
- * @param options.internal - If true, the exchange cannot be directly published to
- * @param options.arguments - Additional AMQP arguments for the exchange
- * @returns A fanout exchange definition
- *
- * @example
- * ```typescript
  * const logsExchange = defineExchange('logs', { type: 'fanout' });
- * ```
- */
-export function defineExchange<TName extends string>(
-  name: TName,
-  options: { type: "fanout" } & Omit<BaseExchangeDefinition, "name" | "type">,
-): FanoutExchangeDefinition<TName>;
-
-/**
- * Define a headers exchange.
- *
- * A headers exchange routes messages to all bound queues based on header matching.
- * This exchange type is ideal for complex routing scenarios.
- *
- * @param name - The name of the exchange
- * @param options - Exchange configuration
- * @param options.type - Exchange type (must be "headers")
- * @param options.durable - If true, the exchange survives broker restarts (default: true)
- * @param options.autoDelete - If true, the exchange is deleted when no queues are bound
- * @param options.internal - If true, the exchange cannot be directly published to
- * @param options.arguments - Additional AMQP arguments for the exchange
- * @returns A headers exchange definition
- *
- * @example
- * ```typescript
  * const routesExchange = defineExchange('routes', { type: 'headers' });
  * ```
  */
-export function defineExchange<TName extends string>(
+export function defineExchange<TName extends string, TType extends ExchangeType = "topic">(
   name: TName,
-  options: { type: "headers" } & Omit<BaseExchangeDefinition, "name" | "type">,
-): HeadersExchangeDefinition<TName>;
+  options?: { type?: TType } & Omit<BaseExchangeDefinition, "name" | "type">,
+): Extract<ExchangeDefinition<TName>, { type: TType }>;
 
 /*
  * Implementation signature of defineExchange — not part of the public overload
