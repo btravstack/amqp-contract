@@ -297,19 +297,18 @@ The `middleware` array form composes at runtime like `composeMiddleware(…)` (f
 ## Routing-key validation types
 
 ```typescript
-import type { BindingPattern, MatchingBindingPattern, RoutingKey } from "@amqp-contract/contract";
+import type { BindingPattern, MatchingRoutingKey, RoutingKey } from "@amqp-contract/contract";
 ```
 
-| Type                           | Purpose                                                             |
-| ------------------------------ | ------------------------------------------------------------------- |
-| `RoutingKey<K>`                | `K` if it is a valid key, else `never`                              |
-| `BindingPattern<P>`            | `P` if it is a valid pattern, else `never`                          |
-| `MatchingBindingPattern<P, K>` | `P` if it can match key `K`, else a descriptive error-string type   |
-| `RoutableRoutingKey<K, P>`     | `K` if it matches any declared pattern in `P`, else an error string |
+| Type                       | Purpose                                               |
+| -------------------------- | ----------------------------------------------------- |
+| `RoutingKey<K>`            | `K` if it is a valid key, else `never`                |
+| `BindingPattern<P>`        | `P` if it is a valid pattern, else `never`            |
+| `MatchingRoutingKey<P, K>` | `K` if it matches `P`, `never` if it provably doesn't |
 
 Keys are dot-separated segments of alphanumerics, hyphens and underscores. `*` matches one segment, `#` matches zero or more, and both are valid only in patterns.
 
-`MatchingBindingPattern` is the matcher `defineEventConsumer` enforces on its topic routing-key overrides. It always enforces each side's own validity — `RoutingKey<K>`, `BindingPattern<P>` — since that's decidable from one side alone, regardless of the other side's shape. It can only decide the _match_ between a valid pattern and a valid key when both `P` and `K` are fully resolved string literals at compile time; a plain `string`, a template-literal type, a union containing either, or a branded string type, among others, skips the match and resolves to `P` unchecked rather than guessing.
+`MatchingRoutingKey` always enforces each side's own validity — `RoutingKey<K>`, `BindingPattern<P>` — since that's decidable from one side alone, regardless of the other side's shape. It can only decide the _match_ between a valid pattern and a valid key when both `P` and `K` are fully resolved string literals at compile time; a plain `string`, a template-literal type, a union containing either, or a branded string type, among others, skips the match and resolves to `K` unchecked rather than guessing.
 
 TypeScript's recursion limit means very long keys fall back to `string`. Compile-time checking only; runtime behaviour is unaffected.
 

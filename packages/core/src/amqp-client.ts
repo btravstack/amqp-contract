@@ -635,6 +635,20 @@ export class AmqpClient {
   }
 
   /**
+   * Add a setup function to be called when the channel is created or
+   * reconnected.
+   *
+   * The only way to register channel-level setup *after* construction —
+   * `channelOptions.setup` is fixed at construction time — so it is what a
+   * caller holding an already-built client reaches for.
+   *
+   * @param setup - The setup function to add
+   */
+  addSetup(setup: (channel: Channel) => void | Promise<void>): void {
+    this.channelWrapper.addSetup(setup);
+  }
+
+  /**
    * Register an event listener on the channel wrapper.
    *
    * Available events:
