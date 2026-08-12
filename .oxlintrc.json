@@ -6,13 +6,21 @@
     "unthrown/no-ambiguous-error-type": "error",
     "unthrown/no-catch-all-pattern": "error",
     "unthrown/no-get-or-throw": "error",
+    "unthrown/no-throw": "error",
     "unthrown/no-unhandled-result": "error",
     "unthrown/no-unused-matcher": "error",
     "unthrown/prefer-async-result": "error"
   },
   "overrides": [
     {
-      "files": ["**/*.spec.ts", "**/*.test.ts", "**/__tests__/**", "examples/**"],
+      "files": ["**/*.spec.ts", "**/*.test.ts", "**/__tests__/**"],
+      "rules": {
+        "unthrown/no-get-or-throw": "off",
+        "unthrown/no-throw": "off"
+      }
+    },
+    {
+      "files": ["examples/**"],
       "rules": {
         "unthrown/no-get-or-throw": "off"
       }
