@@ -105,8 +105,8 @@ overrides:
   # GHSA-2v37-7h3g-55p8 (High): nanoid custom generators can loop indefinitely
   # when size is zero. Reaches us only through the docs build —
   # docs > @btravstack/theme > vitepress > postcss > nanoid — never the shipped
-  # package. Pinned to its first patched release.
-  "nanoid@<3.3.17": "3.3.17"
+  # package. The advisory later widened to <3.3.18, so the floor moves with it.
+  "nanoid@<3.3.18": "3.3.18"
   # GHSA-fx2h-pf6j-xcff (High) + GHSA-v6wh-96g9-6wx3 / GHSA-4w7w-66w2-5vf9 /
   # GHSA-67mh-4wv8-2f99 (moderate): vite `server.fs.deny` bypass + esbuild
   # dev-server CORS (dev-server only; the docs ship as static HTML). Reaches us
@@ -116,10 +116,11 @@ overrides:
   # against it.
   "vite@<6.4.3": "6.4.3"
   # GHSA-cmwh-pvxp-8882 (moderate) + GHSA-vxr8-fq34-vvx9 (low) +
-  # GHSA-c2j3-45gr-mqc4 (low, CUSTOM_ELEMENT_HANDLING bypass): dompurify XSS /
-  # mXSS / afterSanitizeElements bypass, via docs > mermaid > dompurify.
-  # 3.4.12 is the first release patched for GHSA-c2j3.
-  dompurify: 3.4.12
+  # GHSA-c2j3-45gr-mqc4 (low, CUSTOM_ELEMENT_HANDLING bypass) +
+  # GHSA-55q2-fjhq-7xh7 (moderate): dompurify XSS / mXSS /
+  # afterSanitizeElements bypass, via docs > mermaid > dompurify.
+  # 3.4.13 is the first release patched for GHSA-55q2.
+  dompurify: 3.4.13
   # GHSA-j3f2-48v5-ccww (moderate): protobufjs prototype pollution, via
   # packages/testing > testcontainers > dockerode > @grpc/proto-loader. 7.6.5 is
   # the first fixed release.
@@ -157,6 +158,11 @@ minimumReleaseAgeExclude:
   # High. Remove this entry once it is 7 days old (i.e. after 2026-08-07).
   # undici 8.9.0 needs no entry — published 2026-07-24, already past the cutoff.
   - fast-uri
+  # Temporary: nanoid 3.3.18 (the widened GHSA-2v37-7h3g-55p8 override above)
+  # was published 2026-08-07, inside the 7-day cutoff. Remove once it is 7 days
+  # old (i.e. after 2026-08-14). dompurify 3.4.13 needs no entry — published
+  # 2026-08-03, past the cutoff.
+  - nanoid
 
 # GHSA-mh99-v99m-4gvg (brace-expansion DoS via unbounded expansion length) has a
 # patched release ONLY on the 5.x line (>=5.0.8); the 1.x/2.x lines resolved
