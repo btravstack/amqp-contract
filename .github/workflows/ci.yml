@@ -17,7 +17,7 @@ env:
 
 jobs:
   ci:
-    uses: btravstack/config/.github/workflows/ci-reusable.yml@workflows-v1
+    uses: btravstack/tools/.github/workflows/ci-reusable.yml@workflows-v1
     with:
       changeset: true
       integration-tests: true
