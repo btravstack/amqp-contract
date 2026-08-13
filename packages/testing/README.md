@@ -1,5 +1,12 @@
 # @amqp-contract/testing
 
+> [!IMPORTANT]
+> **Internal package — no longer published.** These utilities were built for
+> this repository's own test suites and were never designed as a public API.
+> The previously published versions are deprecated on npm; do not depend on
+> them from other repositories.
+
+
 **Testing utilities for AMQP contracts using testcontainers.**
 
 [![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
