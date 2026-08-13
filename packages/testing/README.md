@@ -6,12 +6,9 @@
 > The previously published versions are deprecated on npm; do not depend on
 > them from other repositories.
 
-
 **Testing utilities for AMQP contracts using testcontainers.**
 
 [![CI](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/btravstack/amqp-contract/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@amqp-contract/testing.svg?logo=npm)](https://www.npmjs.com/package/@amqp-contract/testing)
-[![npm downloads](https://img.shields.io/npm/dm/@amqp-contract/testing.svg)](https://www.npmjs.com/package/@amqp-contract/testing)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -26,9 +23,9 @@
 
 ## Installation
 
-```bash
-pnpm add -D @amqp-contract/testing
-```
+None — this package is consumed only inside this workspace, as
+`"@amqp-contract/testing": "workspace:*"` in a sibling package's
+`devDependencies`.
 
 ## Usage
 
