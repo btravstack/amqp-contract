@@ -36,7 +36,7 @@ catalog:
   amqplib: 2.0.1
   arktype: 2.2.3
   fast-check: 4.9.0
-  knip: 6.31.0
+  knip: 6.32.2
   lefthook: 2.1.10
   mermaid: 11.16.1
   oxfmt: 0.62.0
