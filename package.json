@@ -34,7 +34,7 @@
     "turbo": "catalog:"
   },
   "engines": {
-    "node": ">=22.19"
+    "node": ">=22.22"
   },
   "packageManager": "pnpm@11.7.0"
 }
