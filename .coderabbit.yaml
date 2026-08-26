@@ -8,7 +8,10 @@ reviews:
   path_instructions:
     - path: "**/*.ts"
       instructions: |
-        The authoritative spec is the root `AGENTS.md` (`CLAUDE.md` is a symlink to it) — read it first, and treat a suggestion it has already rejected as noise.
+        When the same diff also changes a `CLAUDE.md`, an `AGENTS.md` or a
+        README, check what it now claims against this code. A sentence that
+        counts call sites, names "the one such site" or describes a signature is
+        a claim that goes stale silently, and one already had.
 
         Errors are values here (`unthrown`), not exceptions. Suggestions that
         assume otherwise are wrong rather than debatable:
@@ -36,9 +39,3 @@ reviews:
 
         `type` not `interface`, `unknown` not `any`, and every relative import
         carries `.js` — `moduleResolution: NodeNext`.
-
-    - path: "**/{CLAUDE,AGENTS}.md"
-      instructions: |
-        This is the spec, not commentary. Check its claims against the code in
-        the same diff: a sentence that counts call sites or describes a
-        signature is a claim that can go stale silently.
