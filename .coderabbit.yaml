@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+
+reviews:
+  path_filters:
+    - "!**/src/generated/**"
+    - "!**/docs/.vitepress/dist/**"
+    - "!pnpm-lock.yaml"
+  path_instructions:
+    - path: "**/*.ts"
+      instructions: |
+        The authoritative spec is the root `AGENTS.md` (`CLAUDE.md` is a symlink to it) — read it first, and treat a suggestion it has already rejected as noise.
+
+        Errors are values here (`unthrown`), not exceptions. Suggestions that
+        assume otherwise are wrong rather than debatable:
+
+        - No `try`/`catch` around a `Result` pipeline. Every combinator catches
+          a thrown callback and converts it to a `Defect`; the `defect` arm of
+          the final `match` is the catch. A `try` in the diff is either a
+          boundary around a foreign throwing API — legitimate, and they carry a
+          reason — or a mistake.
+        - There is no `mapErr`. The error combinators are `mapErrCases`,
+          `flatMapErrCases`, `recoverErrCases` and `tapErrCases`, and they are
+          exhaustive by design: `P._` is a lint error outside a helper generic
+          in `E`.
+        - Every async surface returns `AsyncResult`, never a bare `Promise` —
+          the infallible ones included (`AsyncResult<T, never>`).
+        - `Ok(v).toAsync()` is `OkAsync(v)`; `Err(e).toAsync()` is
+          `ErrAsync(e)`. A `flatMap` returning the value it was handed is
+          `ensure`. A nullable lookup is `fromNullable`, not a ternary.
+        - `E` is never `unknown`, `any` or `Error`; a `Defect` never appears
+          in it.
+
+        Comments are sparse by convention: rationale lives in the spec file,
+        not beside the code. Do not ask for more comments, or for TSDoc on a
+        private symbol.
+
+        `type` not `interface`, `unknown` not `any`, and every relative import
+        carries `.js` — `moduleResolution: NodeNext`.
+
+    - path: "**/{CLAUDE,AGENTS}.md"
+      instructions: |
+        This is the spec, not commentary. Check its claims against the code in
+        the same diff: a sentence that counts call sites or describes a
+        signature is a claim that can go stale silently.
