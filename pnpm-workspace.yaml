@@ -51,7 +51,7 @@ catalog:
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.12.0
   typescript: 6.0.3
-  unthrown: 5.5.0
+  unthrown: 5.7.0
   valibot: 1.4.2
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
