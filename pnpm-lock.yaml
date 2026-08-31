@@ -124,8 +124,8 @@ catalogs:
       specifier: 6.0.3
       version: 6.0.3
     unthrown:
-      specifier: 5.5.0
-      version: 5.5.0
+      specifier: 5.7.0
+      version: 5.7.0
     valibot:
       specifier: 1.4.2
       version: 1.4.2
@@ -253,7 +253,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -330,7 +330,7 @@ importers:
         version: 13.1.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -456,7 +456,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.5.0)(vitest@4.1.10)
+        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -483,7 +483,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -569,7 +569,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.5.0)(vitest@4.1.10)
+        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -587,7 +587,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -667,7 +667,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.5.0)(vitest@4.1.10)
+        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -694,7 +694,7 @@ importers:
         version: 6.0.3
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -721,7 +721,7 @@ importers:
         version: link:../packages/worker
       unthrown:
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0
     devDependencies:
       '@btravstack/tsconfig':
         specifier: 'catalog:'
@@ -5235,6 +5235,10 @@ packages:
     resolution: {integrity: sha512-d7YrMTcdquXpo0QQxRxUqB39iiU2KAtwezf/cuJf8HukEfSAUcfPOgzGk2G4lafx3INMlLhj5+lTwvu94eeLVw==}
     engines: {node: '>=20'}
 
+  unthrown@5.7.0:
+    resolution: {integrity: sha512-/MmNlhpqncrfeE+iMbP0SusLR63AOIJNYcwDEAHBaQGL+zSNQpLQdyqBG+2/FQmozHXPrtlROvY6ie7xmCDuLw==}
+    engines: {node: '>=20'}
+
   urijs@1.19.11:
     resolution: {integrity: sha512-HXgFDgDommxn5/bIv0cnQZsPhHDA90NPHD6+c/v21U5+Sx5hoP8+dP9IZXBU1gIfvdRfhG8cel9QNPeionfcCQ==}
 
@@ -7416,9 +7420,9 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       unthrown: 5.5.0
 
-  '@unthrown/vitest@5.5.0(unthrown@5.5.0)(vitest@4.1.10)':
+  '@unthrown/vitest@5.5.0(unthrown@5.7.0)(vitest@4.1.10)':
     dependencies:
-      unthrown: 5.5.0
+      unthrown: 5.7.0
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
   '@upsetjs/venn.js@2.0.0':
@@ -10161,6 +10165,8 @@ snapshots:
       unist-util-visit-parents: 6.0.2
 
   unthrown@5.5.0: {}
+
+  unthrown@5.7.0: {}
 
   urijs@1.19.11: {}
 
