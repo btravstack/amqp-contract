@@ -47,7 +47,7 @@ catalog:
   testcontainers: 12.1.0
   tsdown: 0.22.14
   tsx: 4.23.12
-  turbo: 2.10.10
+  turbo: 2.10.11
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.12.0
   typescript: 6.0.3
