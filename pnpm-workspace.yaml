@@ -38,7 +38,7 @@ catalog:
   fast-check: 4.9.0
   knip: 6.32.2
   lefthook: 2.1.10
-  mermaid: 11.16.1
+  mermaid: 11.17.1
   oxfmt: 0.62.0
   oxlint: 1.78.0
   pino: 10.3.1
