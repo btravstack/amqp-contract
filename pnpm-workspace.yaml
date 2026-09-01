@@ -29,8 +29,8 @@ catalog:
   "@standard-schema/spec": 1.1.0
   "@types/node": 26.2.0
   "@unthrown/oxlint": 5.7.0
-  "@unthrown/standard-schema": 5.5.0
-  "@unthrown/vitest": 5.5.0
+  "@unthrown/standard-schema": 5.7.0
+  "@unthrown/vitest": 5.7.0
   "@vitest/coverage-v8": 4.1.10
   amqp-connection-manager: 5.0.0
   amqplib: 2.0.1

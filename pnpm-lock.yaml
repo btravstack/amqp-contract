@@ -58,11 +58,11 @@ catalogs:
       specifier: 5.7.0
       version: 5.7.0
     '@unthrown/standard-schema':
-      specifier: 5.5.0
-      version: 5.5.0
+      specifier: 5.7.0
+      version: 5.7.0
     '@unthrown/vitest':
-      specifier: 5.5.0
-      version: 5.5.0
+      specifier: 5.7.0
+      version: 5.7.0
     '@vitest/coverage-v8':
       specifier: 4.1.10
       version: 4.1.10
@@ -437,7 +437,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0(unthrown@5.7.0)
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -456,7 +456,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
+        version: 5.7.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -569,7 +569,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
+        version: 5.7.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -648,7 +648,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.5.0
+        version: 5.7.0(unthrown@5.7.0)
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -667,7 +667,7 @@ importers:
         version: 26.2.0
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.5.0(unthrown@5.7.0)(vitest@4.1.10)
+        version: 5.7.0(unthrown@5.7.0)(vitest@4.1.10)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(vitest@4.1.10)
@@ -2772,15 +2772,17 @@ packages:
     peerDependencies:
       oxlint: ^1.69.0
 
-  '@unthrown/standard-schema@5.5.0':
-    resolution: {integrity: sha512-BrPZH4y3PXi0n1Y4dUYVg+a+g5Vxqsxgeyss0Dy6SMUY8nT4ihaOGgNkTc4Mxz/enSfOyu1wbpA+TSxFrwbMnA==}
-    engines: {node: '>=20'}
-
-  '@unthrown/vitest@5.5.0':
-    resolution: {integrity: sha512-ZDGw9fIJsYDieZRC3BidtgsCPYj6ZNdVdfrPro90RDgwmwMn2y6dAJDdpoWjAPQhKryUSbz5HAlx8+aUVFBmPQ==}
+  '@unthrown/standard-schema@5.7.0':
+    resolution: {integrity: sha512-mFCV8X3ggLMbfDJDZqnVg38mYu2E/6GikGguG6H3MpK3/VsT//JYIiaq9UZ/ppT7TgsD2AnUTdT6vw+HETaLbQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      unthrown: ^5.5.0
+      unthrown: ^5.7.0
+
+  '@unthrown/vitest@5.7.0':
+    resolution: {integrity: sha512-3ZftxPnpgVB5qWB9QxrbXWOIQmlDz7gsDub9iwoy0PlEUaywS+hOX0Lref1zKJKSLgw7rIaUnzCvnRyQc25slw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      unthrown: ^5.7.0
       vitest: ^4
 
   '@upsetjs/venn.js@2.0.0':
@@ -5231,10 +5233,6 @@ packages:
   unist-util-visit@5.1.0:
     resolution: {integrity: sha512-m+vIdyeCOpdr/QeQCu2EzxX/ohgS8KbnPDgFni4dQsfSCtpz8UqDyY5GjRru8PDKuYn7Fq19j1CQ+nJSsGKOzg==}
 
-  unthrown@5.5.0:
-    resolution: {integrity: sha512-d7YrMTcdquXpo0QQxRxUqB39iiU2KAtwezf/cuJf8HukEfSAUcfPOgzGk2G4lafx3INMlLhj5+lTwvu94eeLVw==}
-    engines: {node: '>=20'}
-
   unthrown@5.7.0:
     resolution: {integrity: sha512-/MmNlhpqncrfeE+iMbP0SusLR63AOIJNYcwDEAHBaQGL+zSNQpLQdyqBG+2/FQmozHXPrtlROvY6ie7xmCDuLw==}
     engines: {node: '>=20'}
@@ -7415,12 +7413,12 @@ snapshots:
       '@oxlint/plugins': 1.80.0
       oxlint: 1.80.0
 
-  '@unthrown/standard-schema@5.5.0':
+  '@unthrown/standard-schema@5.7.0(unthrown@5.7.0)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      unthrown: 5.5.0
+      unthrown: 5.7.0
 
-  '@unthrown/vitest@5.5.0(unthrown@5.7.0)(vitest@4.1.10)':
+  '@unthrown/vitest@5.7.0(unthrown@5.7.0)(vitest@4.1.10)':
     dependencies:
       unthrown: 5.7.0
       vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.10)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -10163,8 +10161,6 @@ snapshots:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.0.2
-
-  unthrown@5.5.0: {}
 
   unthrown@5.7.0: {}
 
