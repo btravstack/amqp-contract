@@ -1,42 +1,4 @@
 {
   "mode": "pre",
-  "tag": "beta",
-  "initialVersions": {
-    "@amqp-contract/asyncapi": "2.4.0",
-    "@amqp-contract/client": "2.4.0",
-    "@amqp-contract/contract": "2.4.0",
-    "@amqp-contract/core": "2.4.0",
-    "@amqp-contract/testing": "2.4.0",
-    "@amqp-contract/worker": "2.4.0"
-  },
-  "changesets": [
-    "adopt-btravstack-0.2",
-    "adopt-unthrown-v5-beta",
-    "binding-pattern-literal-guard",
-    "bump-unthrown-5-1-0",
-    "bump-unthrown-5-5-0",
-    "bump-unthrown-5-stable",
-    "bump-unthrown-beta-5",
-    "bump-unthrown-beta-6",
-    "bump-unthrown-beta-7",
-    "consume-btravstack-config",
-    "consumed-queue-poison-loss",
-    "core-readme-example-imports",
-    "default-consumer-prefetch",
-    "default-publish-timeout",
-    "enable-all-unthrown-oxlint-rules",
-    "poison-drop-log-level",
-    "ponytail-audit-cuts",
-    "pre-3-0-api-review",
-    "pre-3-0-buffer-full-and-deno-signatures",
-    "pre-3-0-queue-topology",
-    "pre-3-0-robustness-batch-2",
-    "pre-3-0-robustness-fixes",
-    "pre-3-0-routing-and-hygiene",
-    "routable-routing-key-type",
-    "rpc-reply-from-executor",
-    "technical-error-to-defect",
-    "unroutable-dead-letter-exchange",
-    "unroutable-publisher-define-time"
-  ]
+  "tag": "beta"
 }
