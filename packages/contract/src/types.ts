@@ -1352,9 +1352,9 @@ type HasBinding<T extends ConsumerEntry> = T extends EventConsumerResultBase
  * @internal
  */
 type ExtractExchangesFromPublishers<TPublishers extends Record<string, PublisherEntry>> = {
-  [K in keyof TPublishers as ExtractPublisherExchange<
-    TPublishers[K]
-  >["name"]]: ExtractPublisherExchange<TPublishers[K]>;
+  [
+    K in keyof TPublishers as ExtractPublisherExchange<TPublishers[K]>["name"]
+  ]: ExtractPublisherExchange<TPublishers[K]>;
 };
 
 /**
@@ -1362,9 +1362,11 @@ type ExtractExchangesFromPublishers<TPublishers extends Record<string, Publisher
  * @internal
  */
 type ExtractExchangesFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as ExtractConsumerExchange<TConsumers[K]> extends ExchangeDefinition
-    ? ExtractConsumerExchange<TConsumers[K]>["name"]
-    : never]: ExtractConsumerExchange<TConsumers[K]> extends ExchangeDefinition
+  [
+    K in keyof TConsumers as ExtractConsumerExchange<TConsumers[K]> extends ExchangeDefinition
+      ? ExtractConsumerExchange<TConsumers[K]>["name"]
+      : never
+  ]: ExtractConsumerExchange<TConsumers[K]> extends ExchangeDefinition
     ? ExtractConsumerExchange<TConsumers[K]>
     : never;
 };
@@ -1380,9 +1382,11 @@ type ExtractDeadLetterExchange<T extends ConsumerEntry> = ExtractDlxFromEntry<T[
  * @internal
  */
 type ExtractDeadLetterExchangesFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as ExtractDeadLetterExchange<TConsumers[K]> extends never
-    ? never
-    : ExtractDeadLetterExchange<TConsumers[K]>["name"]]: ExtractDeadLetterExchange<TConsumers[K]>;
+  [
+    K in keyof TConsumers as ExtractDeadLetterExchange<TConsumers[K]> extends never
+      ? never
+      : ExtractDeadLetterExchange<TConsumers[K]>["name"]
+  ]: ExtractDeadLetterExchange<TConsumers[K]>;
 };
 
 /**
@@ -1400,9 +1404,9 @@ type ExtractQueuesFromConsumers<TConsumers extends Record<string, ConsumerEntry>
  * @internal
  */
 type ExtractBindingsFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as HasBinding<TConsumers[K]> extends true
-    ? `${K & string}Binding`
-    : never]: ExtractConsumerBinding<TConsumers[K]>;
+  [
+    K in keyof TConsumers as HasBinding<TConsumers[K]> extends true ? `${K & string}Binding` : never
+  ]: ExtractConsumerBinding<TConsumers[K]>;
 };
 
 /**
@@ -1463,11 +1467,11 @@ type ExtractBridgeExchangeFromConsumer<T extends ConsumerEntry> = T extends Even
  * @internal
  */
 type ExtractBridgeExchangesFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as ExtractBridgeExchangeFromConsumer<TConsumers[K]> extends never
-    ? never
-    : ExtractBridgeExchangeFromConsumer<TConsumers[K]>["name"]]: ExtractBridgeExchangeFromConsumer<
-    TConsumers[K]
-  >;
+  [
+    K in keyof TConsumers as ExtractBridgeExchangeFromConsumer<TConsumers[K]> extends never
+      ? never
+      : ExtractBridgeExchangeFromConsumer<TConsumers[K]>["name"]
+  ]: ExtractBridgeExchangeFromConsumer<TConsumers[K]>;
 };
 
 /**
@@ -1482,11 +1486,11 @@ type ExtractTargetExchangeFromPublisher<T extends PublisherEntry> =
  * @internal
  */
 type ExtractTargetExchangesFromPublishers<TPublishers extends Record<string, PublisherEntry>> = {
-  [K in keyof TPublishers as ExtractTargetExchangeFromPublisher<TPublishers[K]> extends never
-    ? never
-    : ExtractTargetExchangeFromPublisher<
-        TPublishers[K]
-      >["name"]]: ExtractTargetExchangeFromPublisher<TPublishers[K]>;
+  [
+    K in keyof TPublishers as ExtractTargetExchangeFromPublisher<TPublishers[K]> extends never
+      ? never
+      : ExtractTargetExchangeFromPublisher<TPublishers[K]>["name"]
+  ]: ExtractTargetExchangeFromPublisher<TPublishers[K]>;
 };
 
 /**
@@ -1514,9 +1518,11 @@ type ExtractConsumerExchangeBinding<T extends ConsumerEntry> = T extends EventCo
  * @internal
  */
 type ExtractExchangeBindingsFromConsumers<TConsumers extends Record<string, ConsumerEntry>> = {
-  [K in keyof TConsumers as HasConsumerExchangeBinding<TConsumers[K]> extends true
-    ? `${K & string}ExchangeBinding`
-    : never]: ExtractConsumerExchangeBinding<TConsumers[K]>;
+  [
+    K in keyof TConsumers as HasConsumerExchangeBinding<TConsumers[K]> extends true
+      ? `${K & string}ExchangeBinding`
+      : never
+  ]: ExtractConsumerExchangeBinding<TConsumers[K]>;
 };
 
 /**
@@ -1539,9 +1545,11 @@ type ExtractPublisherExchangeBinding<T extends PublisherEntry> =
  * @internal
  */
 type ExtractExchangeBindingsFromPublishers<TPublishers extends Record<string, PublisherEntry>> = {
-  [K in keyof TPublishers as HasPublisherExchangeBinding<TPublishers[K]> extends true
-    ? `${K & string}ExchangeBinding`
-    : never]: ExtractPublisherExchangeBinding<TPublishers[K]>;
+  [
+    K in keyof TPublishers as HasPublisherExchangeBinding<TPublishers[K]> extends true
+      ? `${K & string}ExchangeBinding`
+      : never
+  ]: ExtractPublisherExchangeBinding<TPublishers[K]>;
 };
 
 /**
@@ -1557,9 +1565,11 @@ type ExtractQueuesFromRpcs<TRpcs extends Record<string, RpcDefinition>> = {
  * @internal
  */
 type ExtractDeadLetterExchangesFromRpcs<TRpcs extends Record<string, RpcDefinition>> = {
-  [K in keyof TRpcs as ExtractDlxFromEntry<TRpcs[K]["queue"]> extends never
-    ? never
-    : ExtractDlxFromEntry<TRpcs[K]["queue"]>["name"]]: ExtractDlxFromEntry<TRpcs[K]["queue"]>;
+  [
+    K in keyof TRpcs as ExtractDlxFromEntry<TRpcs[K]["queue"]> extends never
+      ? never
+      : ExtractDlxFromEntry<TRpcs[K]["queue"]>["name"]
+  ]: ExtractDlxFromEntry<TRpcs[K]["queue"]>;
 };
 
 /**
@@ -1583,9 +1593,11 @@ type ExtractStandaloneQueues<T extends Record<string, QueueDefinition>> = {
  * @internal
  */
 type ExtractDeadLetterExchangesFromStandaloneQueues<T extends Record<string, QueueDefinition>> = {
-  [K in keyof T as ExtractDlxFromEntry<T[K]> extends never
-    ? never
-    : ExtractDlxFromEntry<T[K]>["name"]]: ExtractDlxFromEntry<T[K]>;
+  [
+    K in keyof T as ExtractDlxFromEntry<T[K]> extends never
+      ? never
+      : ExtractDlxFromEntry<T[K]>["name"]
+  ]: ExtractDlxFromEntry<T[K]>;
 };
 
 /**
