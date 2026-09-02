@@ -43,7 +43,7 @@ import {
 
 import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
-import { MessageValidationError, NonRetryableError } from "./errors.js";
+import { MessageValidationError, NonRetryableError, RetryableError } from "./errors.js";
 import {
   availableHandlerNames,
   invalidHandlerNames,
@@ -74,11 +74,22 @@ type HandlerName<TContract extends ContractDefinition> =
  * with a contract-declared `RpcError`, which the dispatch path publishes back
  * to the caller instead of routing to retry/DLQ.
  */
+/**
+ * The two modeled failures, as factories the handler is handed. Stateless, so
+ * they are built once for the module rather than per delivery.
+ */
+const retryableFactory = (message: string, cause?: unknown): RetryableError =>
+  new RetryableError(message, cause);
+const nonRetryableFactory = (message: string, cause?: unknown): NonRetryableError =>
+  new NonRetryableError(message, cause);
+
 type StoredHandler = (
   helpers: {
     context: Record<string, unknown>;
     errors: Record<string, (data: unknown, message?: string) => RpcError>;
     raw: ConsumeMessage;
+    retryable: (message: string, cause?: unknown) => RetryableError;
+    nonRetryable: (message: string, cause?: unknown) => NonRetryableError;
   },
   message: { payload: unknown; headers: unknown },
 ) => AsyncResult<unknown, HandlerError | RpcError>;
@@ -161,13 +172,13 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  *   contract: myContract,
  *   handlers: {
  *     // Simple handler
- *     processOrder: ({ payload }) => {
+ *     processOrder: (_, { payload }) => {
  *       console.log('Processing order:', payload.orderId);
  *       return OkAsync(undefined);
  *     },
  *     // Handler with prefetch configuration
  *     processPayment: [
- *       ({ payload }) => {
+ *       (_, { payload }) => {
  *         console.log('Processing payment:', payload.paymentId);
  *         return OkAsync(undefined);
  *       },
@@ -205,8 +216,9 @@ export type CreateWorkerOptions<
    *   accepts the declared `RpcError<code, data>` members (otherwise it
    *   stays plain `HandlerError`).
    *
-   * Handlers receive the middleware-produced context as a third argument
-   * (an empty object when no `middleware` is configured).
+   * Handlers receive the helpers record FIRST — `{ context, errors, raw }` —
+   * and the validated message second. `context` is an empty object when no
+   * `createContext` and no `middleware` are configured.
    *
    * Use `declareHandler` / `declareHandlers` to create handlers with full type
    * inference.
@@ -316,7 +328,7 @@ export type CreateWorkerOptions<
  * const worker = await TypedAmqpWorker.create({
  *   contract,
  *   handlers: {
- *     processOrder: ({ payload }) => {
+ *     processOrder: (_, { payload }) => {
  *       console.log('Processing order', payload.orderId);
  *       return OkAsync(undefined);
  *     },
@@ -444,7 +456,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * const result = await TypedAmqpWorker.create({
    *   contract: myContract,
    *   handlers: {
-   *     processOrder: ({ payload }) => OkAsync(undefined),
+   *     processOrder: (_, { payload }) => OkAsync(undefined),
    *   },
    *   urls: ['amqp://localhost'],
    * });
@@ -1036,7 +1048,13 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // already merges internally, so this keeps the bare `middleware: mw`
         // form and the array form observably identical (and is a no-op for
         // the composed chain, whose context already contains the seed).
-        const helpers = { context: { ...seedContext, ...opts?.context }, errors, raw: msg };
+        const helpers = {
+          context: { ...seedContext, ...opts?.context },
+          errors,
+          raw: msg,
+          retryable: retryableFactory,
+          nonRetryable: nonRetryableFactory,
+        };
         if (opts?.payload === undefined) {
           return handler(helpers, validatedMessage);
         }

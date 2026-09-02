@@ -19,7 +19,7 @@ import { ErrAsync, OkAsync, type AsyncResult } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
 
-import type { HandlerError } from "./errors.js";
+import type { HandlerError, NonRetryableError, RetryableError } from "./errors.js";
 import { declareHandler, declareHandlers } from "./handlers.js";
 import type {
   WorkerInferConsumedMessage,
@@ -223,6 +223,18 @@ describe("RPC handler inference", () => {
         expectTypeOf(raw).toEqualTypeOf<ConsumeMessage>();
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
         return OkAsync(undefined);
+      },
+    });
+  });
+
+  test("the retry constructors ride the helpers record", () => {
+    declareHandlers(contract, {
+      processOrder: ({ retryable, nonRetryable }, { payload }) => {
+        expectTypeOf(retryable).toEqualTypeOf<
+          (message: string, cause?: unknown) => RetryableError
+        >();
+        expectTypeOf(nonRetryable("no", payload)).toEqualTypeOf<NonRetryableError>();
+        return ErrAsync(retryable("infrastructure comes back"));
       },
     });
   });

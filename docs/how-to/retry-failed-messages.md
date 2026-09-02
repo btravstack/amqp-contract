@@ -99,7 +99,8 @@ The supporting topology is derived for you at channel-setup time — one wait qu
 
 Per-delay wait queues are what make the schedule hold: RabbitMQ only expires messages at the head of a queue, so a single shared wait queue would let a parked 16s retry block a later 1s retry. With one queue per delay, a message's wait is bounded by its own tier — within a tier the skew is at most the jitter spread (jitter draws the actual delay from `[0.5x, 1.5x]` of the base, and the tier's queue-level TTL backstop is the jitter ceiling), and with `jitter: false` it is zero.
 
-One consequence of the retry hop: retried deliveries re-enter the main queue via the default exchange, so `rawMessage.fields.routingKey` is the queue name from the second attempt on. The routing key of the first delivery is preserved in the `x-original-routing-key` header.
+One consequence of the retry hop: retried deliveries re-enter the main queue via the default exchange, so `raw.fields.routingKey` — `raw` being the delivery on the handler's helpers
+record — is the queue name from the second attempt on. The routing key of the first delivery is preserved in the `x-original-routing-key` header.
 
 ## Turn retries off
 

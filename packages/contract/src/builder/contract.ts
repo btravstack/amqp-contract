@@ -132,7 +132,7 @@ function addResource<T>(
  * // - contract.queues['order-processing']
  * // - contract.bindings.processOrderBinding
  * // - client.publish('orderCreated', { orderId: string, amount: number })
- * // - handler: ({ payload }: { payload: { orderId: string, amount: number } }) => AsyncResult<void, HandlerError>
+ * // - handler: (_, { payload }: { payload: { orderId: string, amount: number } }) => AsyncResult<void, HandlerError>
  * ```
  */
 export function defineContract<TContract extends ContractDefinitionInput>(

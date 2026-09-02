@@ -133,7 +133,7 @@ const buildRpcContract = (suffix: string) => {
 };
 
 describe("worker middleware", () => {
-  it("injects typed context that handlers receive as third argument", async ({
+  it("injects typed context that handlers receive in their helpers record", async ({
     workerFactory,
     clientFactory,
   }) => {

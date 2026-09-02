@@ -64,10 +64,13 @@ describe("Worker Retry Mechanism", () => {
 
       let attemptCount = 0;
       await workerFactory(contract, {
-        testConsumer: () => {
+        // `retryable` off the helpers record rather than the imported class:
+        // the same routing has to follow from the constructor the handler was
+        // HANDED, or handing it over buys nothing.
+        testConsumer: ({ retryable }) => {
           attemptCount++;
           if (attemptCount === 1) {
-            return ErrAsync(new RetryableError("First attempt failed"));
+            return ErrAsync(retryable("First attempt failed"));
           }
           return OkAsync(undefined);
         },
@@ -1045,10 +1048,13 @@ describe("Worker Retry Mechanism", () => {
 
       let attemptCount = 0;
       await workerFactory(contract, {
-        testConsumer: () => {
+        // `retryable` off the helpers record rather than the imported class:
+        // the same routing has to follow from the constructor the handler was
+        // HANDED, or handing it over buys nothing.
+        testConsumer: ({ retryable }) => {
           attemptCount++;
           if (attemptCount === 1) {
-            return ErrAsync(new RetryableError("First attempt failed"));
+            return ErrAsync(retryable("First attempt failed"));
           }
           return OkAsync(undefined);
         },

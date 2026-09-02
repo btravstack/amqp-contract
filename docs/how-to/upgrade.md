@@ -388,6 +388,22 @@ a developer types by hand did not, and it is the one they relearn per transport.
 A handler that needs none of the helpers still names the position:
 `(_, { payload }) => ...`. One that reads neither is just `() => ...`.
 
+**Two additions worth adopting while you are here.** The helpers record also
+carries `retryable` and `nonRetryable`, so the routing decision no longer needs
+an import:
+
+```diff
+- import { RetryableError } from "@amqp-contract/worker";
+-
+- processOrder: ({ payload }) =>
+-   fromPromise(save(payload), (cause) => new RetryableError("database unavailable", cause)),
++ processOrder: ({ retryable }, { payload }) =>
++   fromPromise(save(payload), (cause) => retryable("database unavailable", cause)),
+```
+
+The classes stay exported and `new RetryableError(...)` keeps working — this is
+the same value by a shorter route.
+
 **What the compiler does and does not catch:** a handler that reads its payload
 fails to compile, because the first parameter is the helpers record now. One
 that ignores its message keeps compiling with a parameter whose name lies —
