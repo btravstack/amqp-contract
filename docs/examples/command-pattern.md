@@ -118,7 +118,7 @@ import {
 import { fromPromise } from "unthrown";
 import { contract } from "@org/payment-contract";
 
-const chargeHandler = declareHandler(contract, "chargeCustomer", (_, { payload }) =>
+const chargeHandler = declareHandler(contract, "chargeCustomer", ({ input: { payload } }) =>
   fromPromise(
     chargeProvider({
       customerId: payload.customerId,

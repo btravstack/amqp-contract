@@ -113,7 +113,7 @@ const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 When the worker asks for `handlers.processOrder`, it looks up that key and knows the payload is `{ orderId: string }`. Which is why this fails to compile:
 
 ```typescript
-processOrder: (_, { payload }) => {
+processOrder: ({ input: { payload } }) => {
   console.log(payload.orderNumber); // Property 'orderNumber' does not exist
   return OkAsync(undefined);
 };

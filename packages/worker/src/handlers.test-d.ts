@@ -92,7 +92,7 @@ describe("handler payload inference", () => {
 
   test("should infer the payload inside a handler", () => {
     declareHandlers(contract, {
-      processOrder: (_, { payload }) => {
+      processOrder: ({ input: { payload } }) => {
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
         return OkAsync(undefined);
       },
@@ -101,7 +101,7 @@ describe("handler payload inference", () => {
 
   test("should reject access to properties not in the schema", () => {
     declareHandlers(contract, {
-      processOrder: (_, { payload }) => {
+      processOrder: ({ input: { payload } }) => {
         expectTypeOf(payload).not.toHaveProperty("nonExistent");
         return OkAsync(undefined);
       },
@@ -120,7 +120,7 @@ describe("handler payload inference", () => {
 
   test("infers typed headers (validated OUTPUT: defaults applied)", () => {
     declareHandlers(headersContract, {
-      withHeaders: (_, { headers }) => {
+      withHeaders: ({ input: { headers } }) => {
         expectTypeOf(headers).toEqualTypeOf<{ "x-tenant-id": string; "x-priority": string }>();
         return OkAsync(undefined);
       },
@@ -130,7 +130,7 @@ describe("handler payload inference", () => {
   test("accepts [handler, options] tuple entries but rejects invalid options", () => {
     declareHandlers(contract, {
       processOrder: [
-        (_, { payload }) => {
+        ({ input: { payload } }) => {
           expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
           return OkAsync(undefined);
         },
@@ -169,7 +169,7 @@ describe("RPC handler inference", () => {
   test("RPC handlers get typed payload, helpers.errors, and a checked return type", () => {
     declareHandlers(rpcContract, {
       processOrder: () => OkAsync(undefined),
-      getOrder: ({ errors }, { payload }) => {
+      getOrder: ({ errors, input: { payload } }) => {
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string }>();
         if (payload.orderId === "missing") {
           return ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId }));
@@ -192,7 +192,7 @@ describe("RPC handler inference", () => {
   });
 
   test("declareHandler overloads cover consumer and RPC names, with and without options", () => {
-    const consumerHandler = declareHandler(contract, "processOrder", (_, { payload }) => {
+    const consumerHandler = declareHandler(contract, "processOrder", ({ input: { payload } }) => {
       expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
       return OkAsync(undefined);
     });
@@ -219,7 +219,7 @@ describe("RPC handler inference", () => {
 
   test("the raw delivery rides the helpers record, not a third parameter", () => {
     declareHandlers(contract, {
-      processOrder: ({ raw }, { payload }) => {
+      processOrder: ({ raw, input: { payload } }) => {
         expectTypeOf(raw).toEqualTypeOf<ConsumeMessage>();
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
         return OkAsync(undefined);
@@ -227,10 +227,10 @@ describe("RPC handler inference", () => {
     });
   });
 
-  test("the message is on the helpers record too, so one destructuring is a whole handler", () => {
+  test("the message is on the record as `input`, so one destructuring is a whole handler", () => {
     declareHandlers(contract, {
-      processOrder: ({ message }) => {
-        expectTypeOf(message.payload).toEqualTypeOf<{ orderId: string; amount: number }>();
+      processOrder: ({ input }) => {
+        expectTypeOf(input.payload).toEqualTypeOf<{ orderId: string; amount: number }>();
         return OkAsync(undefined);
       },
     });

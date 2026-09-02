@@ -117,7 +117,7 @@ import { contract } from "./contract.js";
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processOrder: (_, { payload }) => {
+    processOrder: ({ input: { payload } }) => {
       console.log(payload.orderId); // ✅ Fully typed!
       return OkAsync();
     },

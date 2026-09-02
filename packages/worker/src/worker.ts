@@ -85,7 +85,7 @@ const nonRetryableFactory = (message: string, cause?: unknown): NonRetryableErro
 
 type StoredHandler = (
   helpers: {
-    message: { payload: unknown; headers: unknown };
+    input: { payload: unknown; headers: unknown };
     context: Record<string, unknown>;
     errors: Record<string, (data: unknown, message?: string) => RpcError>;
     raw: ConsumeMessage;
@@ -173,13 +173,13 @@ function isHandlerTuple(entry: unknown): entry is [unknown, ConsumerOptions] {
  *   contract: myContract,
  *   handlers: {
  *     // Simple handler
- *     processOrder: (_, { payload }) => {
+ *     processOrder: ({ input: { payload } }) => {
  *       console.log('Processing order:', payload.orderId);
  *       return OkAsync(undefined);
  *     },
  *     // Handler with prefetch configuration
  *     processPayment: [
- *       (_, { payload }) => {
+ *       ({ input: { payload } }) => {
  *         console.log('Processing payment:', payload.paymentId);
  *         return OkAsync(undefined);
  *       },
@@ -329,7 +329,7 @@ export type CreateWorkerOptions<
  * const worker = await TypedAmqpWorker.create({
  *   contract,
  *   handlers: {
- *     processOrder: (_, { payload }) => {
+ *     processOrder: ({ input: { payload } }) => {
  *       console.log('Processing order', payload.orderId);
  *       return OkAsync(undefined);
  *     },
@@ -457,7 +457,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * const result = await TypedAmqpWorker.create({
    *   contract: myContract,
    *   handlers: {
-   *     processOrder: (_, { payload }) => OkAsync(undefined),
+   *     processOrder: ({ input: { payload } }) => OkAsync(undefined),
    *   },
    *   urls: ['amqp://localhost'],
    * });
@@ -1049,10 +1049,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // already merges internally, so this keeps the bare `middleware: mw`
         // form and the array form observably identical (and is a no-op for
         // the composed chain, whose context already contains the seed).
-        // The message is on the record AND in the second parameter, oRPC's own
-        // shape — so it is built per invocation rather than once: a middleware
-        // that substituted the payload must not leave the record showing the
-        // value the handler did not receive.
+        // The message is on the record as `input` AND in the second parameter,
+        // oRPC's own shape — so the record is built per invocation rather than
+        // once: a middleware that substituted the payload must not leave it
+        // showing the value the handler did not receive.
         const ambient = {
           context: { ...seedContext, ...opts?.context },
           errors,
@@ -1061,7 +1061,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           nonRetryable: nonRetryableFactory,
         };
         if (opts?.payload === undefined) {
-          return handler({ ...ambient, message: validatedMessage }, validatedMessage);
+          return handler({ ...ambient, input: validatedMessage }, validatedMessage);
         }
         // A middleware substituted the payload — re-validate against the
         // consumer's schema before the handler sees it, so middleware cannot
@@ -1075,7 +1075,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           String(name),
         ).flatMap((validatedPayload) => {
           const substituted = { ...validatedMessage, payload: validatedPayload };
-          return handler({ ...ambient, message: substituted }, substituted);
+          return handler({ ...ambient, input: substituted }, substituted);
         });
       };
 

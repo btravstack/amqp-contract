@@ -82,7 +82,7 @@ The payload type comes from the contract, so this means the contract disagrees w
 For a wildcard consumer receiving several message types, the payload is a union — narrow it before accessing anything type-specific:
 
 ```typescript
-notifyOrder: (_, { payload }) => {
+notifyOrder: ({ input: { payload } }) => {
   if ("items" in payload) {
     console.log(payload.items); // the full order
   } else {

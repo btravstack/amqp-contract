@@ -151,10 +151,10 @@ export type WorkerInferRpcErrorConstructors<
  *
  * That is oRPC's shape, and the one this family converged on:
  * `ProcedureHandlerOptions` carries `input` and the handler still takes it
- * positionally, so `({ errors, message }) => ...` and
+ * positionally, so `({ errors, input }) => ...` and
  * `({ errors }, message) => ...` are the same call. `raw` rides here rather
  * than in a third parameter for the same reason — one record for everything
- * ambient, and the message where a reader wants it.
+ * the delivery carries.
  */
 export type WorkerHandlerHelpers<
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -163,12 +163,13 @@ export type WorkerHandlerHelpers<
 > = {
   /**
    * The validated message — the SAME value the second parameter carries. It is
-   * on the record so a whole handler can be written from one destructuring,
-   * which is oRPC's own shape: `ProcedureHandlerOptions` carries `input` and
-   * the handler still takes it positionally. Take it whichever way reads better
-   * at the call.
+   * on the record so a whole handler is one destructuring, which is oRPC's own
+   * shape and its own word for it: `ProcedureHandlerOptions` carries `input`,
+   * and the handler still takes it positionally. One name across the three
+   * transports is the point — a developer moving between them destructures
+   * `input` in each.
    */
-  readonly message: TMessage;
+  readonly input: TMessage;
   /** Context produced by `createContext` and the middleware chain. */
   readonly context: TContext;
   /** Typed constructors for the contract-declared errors (empty for consumers). */
@@ -238,18 +239,18 @@ export type WorkerInferRpcResponse<
 /**
  * A consumed message containing parsed payload and headers.
  *
- * This type represents the second argument passed to consumer handlers — the
- * helpers record comes first. It contains the validated payload and (if
- * defined in the message schema) the validated headers.
+ * What a handler receives as `input` on its record, and again as the second
+ * positional argument. It contains the validated payload and (if defined in
+ * the message schema) the validated headers.
  *
  * @template TPayload - The inferred payload type from the message schema
  * @template THeaders - The inferred headers type from the message schema (undefined if not defined)
  *
  * @example
  * ```typescript
- * const handler = declareHandler(contract, 'processOrder', ({ raw }, message) => {
- *   console.log(message.payload.orderId);  // Typed payload
- *   console.log(message.headers?.priority); // Typed headers (if defined)
+ * const handler = declareHandler(contract, 'processOrder', ({ raw, input }) => {
+ *   console.log(input.payload.orderId);  // Typed payload
+ *   console.log(input.headers?.priority); // Typed headers (if defined)
  *   console.log(raw.fields.deliveryTag); // Raw AMQP delivery
  *   return OkAsync(undefined);
  * });
@@ -295,13 +296,14 @@ export type WorkerInferRpcConsumedMessage<
 // Every handler takes the `helpers` record FIRST and the validated message
 // second — oRPC's shape, which this family converged on, down to the message
 // being on the record as well as in the second parameter. `helpers` is
-// `{ message, context, errors, raw, retryable, nonRetryable }`: `context` is
+// `{ input, context, errors, raw, retryable, nonRetryable }`: `context` is
 // produced by `createContext` and the middleware chain (an empty object when
 // neither is configured), `errors` carries typed constructors for the RPC's
 // declared errors (empty for consumers), `raw` is the AMQP delivery, and the
-// two factories are the modeled failures. So `({ errors, message }) => ...`
-// and `({ errors }, message) => ...` are the same call, and a handler that
-// needs none of them is `(_, { payload }) => ...`.
+// two factories are the modeled failures. So `({ errors, input }) => ...` and
+// `({ errors }, message) => ...` are the same call — oRPC offers both — and a
+// handler that wants only its message is `({ input: { payload } }) => ...`,
+// with no placeholder to spell.
 
 /**
  * Handler signature for a regular consumer (event/command). Returns
@@ -379,12 +381,12 @@ export type WorkerInferRpcHandlerEntry<
  * @example
  * ```typescript
  * const handlers: WorkerInferHandlers<typeof contract> = {
- *   processOrder: (_, { payload }) =>
+ *   processOrder: ({ input: { payload } }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
  * };
  * ```
  */

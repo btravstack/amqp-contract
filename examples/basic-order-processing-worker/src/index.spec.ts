@@ -14,7 +14,7 @@ describe("Basic Order Processing Worker Integration", () => {
     const worker = await TypedAmqpWorker.create({
       contract: orderContract,
       handlers: declareHandlers(orderContract, {
-        processOrder: (_, { payload }) => {
+        processOrder: ({ input: { payload } }) => {
           processedOrders.push(payload);
           return OkAsync(undefined);
         },
@@ -68,7 +68,7 @@ describe("Basic Order Processing Worker Integration", () => {
       contract: orderContract,
       handlers: declareHandlers(orderContract, {
         processOrder: () => OkAsync(undefined),
-        notifyOrder: (_, { payload }) => {
+        notifyOrder: ({ input: { payload } }) => {
           notifications.push(payload);
           return OkAsync(undefined);
         },
@@ -135,11 +135,11 @@ describe("Basic Order Processing Worker Integration", () => {
     const workerResult = await TypedAmqpWorker.create({
       contract: orderContract,
       handlers: declareHandlers(orderContract, {
-        processOrder: (_, { payload }) => {
+        processOrder: ({ input: { payload } }) => {
           processedOrders.push(payload);
           return OkAsync(undefined);
         },
-        notifyOrder: (_, { payload }) => {
+        notifyOrder: ({ input: { payload } }) => {
           notifications.push(payload);
           return OkAsync(undefined);
         },
@@ -198,7 +198,7 @@ describe("Basic Order Processing Worker Integration", () => {
         shipOrder: () => OkAsync(undefined),
         handleUrgentOrder: () => OkAsync(undefined),
         handleFailedOrders: () => OkAsync(undefined),
-        fulfillOrder: (_, { payload }) => {
+        fulfillOrder: ({ input: { payload } }) => {
           fulfilled.push(payload);
           return OkAsync(undefined);
         },

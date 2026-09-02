@@ -109,9 +109,9 @@ describe("TypedAmqpClient RPC", () => {
 
     await workerFactory(contract, {
       // The single-record spelling, once, in a test that already proves the
-      // round trip: `message` on the helpers is the same value the second
+      // round trip: `input` on the record is the same value the second
       // parameter carries, or one of the two is lying.
-      calculate: ({ message }) => OkAsync({ sum: message.payload.a + message.payload.b }),
+      calculate: ({ input }) => OkAsync({ sum: input.payload.a + input.payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -266,7 +266,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error");
 
     await workerFactory(contract, {
-      calculate: (_, { payload }) =>
+      calculate: ({ input: { payload } }) =>
         payload.a < 0 || payload.b < 0
           ? ErrAsync(
               rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }, "negatives rejected"),
@@ -295,7 +295,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error-ok");
 
     await workerFactory(contract, {
-      calculate: (_, { payload }) =>
+      calculate: ({ input: { payload } }) =>
         payload.a < 0 || payload.b < 0
           ? ErrAsync(rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }))
           : OkAsync({ sum: payload.a + payload.b }),
@@ -317,7 +317,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error-codes");
 
     await workerFactory(contract, {
-      calculate: (_, { payload }) =>
+      calculate: ({ input: { payload } }) =>
         payload.a + payload.b > 100
           ? ErrAsync(rpcError("LIMIT_EXCEEDED", { limit: 100 }))
           : OkAsync({ sum: payload.a + payload.b }),
@@ -458,7 +458,7 @@ describe("TypedAmqpClient RPC DLQ routing", () => {
 
     let handlerCalls = 0;
     await workerFactory(contract, {
-      calculate: (_, { payload }) => {
+      calculate: ({ input: { payload } }) => {
         handlerCalls++;
         return OkAsync({ sum: payload.a + payload.b });
       },

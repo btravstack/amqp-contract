@@ -263,7 +263,7 @@ describe("worker middleware", () => {
         return next();
       }),
       handlers: {
-        calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+        calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
     const client = await clientFactory({ contract });
@@ -333,7 +333,7 @@ describe("client interceptors", () => {
     await workerFactory({
       contract,
       handlers: {
-        calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+        calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
 
@@ -432,7 +432,7 @@ describe("createContext and handler helpers", () => {
     await workerFactory({
       contract,
       handlers: {
-        calculate: ({ errors }, { payload }) =>
+        calculate: ({ errors, input: { payload } }) =>
           payload.a < 0
             ? ErrAsync(errors.BLOCKED({ reason: "negative" }))
             : OkAsync({ sum: payload.a + payload.b }),
@@ -469,7 +469,7 @@ describe("middleware payload substitution", () => {
         return next({ payload: { orderId: `${payload.orderId}-rewritten` } });
       }),
       handlers: {
-        processOrder: (_, { payload }) => {
+        processOrder: ({ input: { payload } }) => {
           resolveSeen(payload);
           return OkAsync(undefined);
         },

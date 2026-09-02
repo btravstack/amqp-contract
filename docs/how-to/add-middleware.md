@@ -40,7 +40,7 @@ const worker = await TypedAmqpWorker.create({
   middleware: auth,
   handlers: {
     // context is typed { tenantId: string } — proven by the middleware
-    processOrder: ({ context }, { payload }) => processFor(context.tenantId, payload),
+    processOrder: ({ context, input: { payload } }) => processFor(context.tenantId, payload),
   },
   urls: ["amqp://localhost"],
 }).get();
@@ -84,7 +84,7 @@ const worker = await TypedAmqpWorker.create({
   middleware: auth, // seeded with { log, orderRepo }
   handlers: {
     // context: { log, orderRepo } & { tenantId: string }
-    processOrder: ({ context }, { payload }) => context.orderRepo.process(payload),
+    processOrder: ({ context, input: { payload } }) => context.orderRepo.process(payload),
   },
   urls: ["amqp://localhost"],
 }).get();
@@ -125,7 +125,7 @@ RPC handlers with a declared `errors` map get typed constructors in `helpers.err
 
 ```typescript
 handlers: {
-  getOrder: ({ errors }, { payload }) =>
+  getOrder: ({ errors, input: { payload } }) =>
     orders.has(payload.orderId)
       ? OkAsync(orders.get(payload.orderId))
       : ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId })),

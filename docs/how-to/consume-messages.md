@@ -17,7 +17,7 @@ import { contract } from "./contract.js";
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processOrder: (_, { payload }) => {
+    processOrder: ({ input: { payload } }) => {
       console.log(payload.orderId);
       return OkAsync(undefined);
     },
@@ -28,7 +28,7 @@ const worker = await TypedAmqpWorker.create({
 
 Creating the worker declares the contract's topology against the broker and starts consuming every queue in it. There is no separate `start()`.
 
-The message is on the helpers record as well as in the second parameter, so `({ message }) => …` and `(_, { payload }) => …` are the same call — oRPC's own shape, where `ProcedureHandlerOptions` carries `input` and the handler still takes it positionally. Take it whichever way reads better.
+The message is on the record as `input` as well as in the second parameter, so `({ input }) => …` and `({ errors }, message) => …` are the same call — oRPC's own shape, and its own word for it, where `ProcedureHandlerOptions` carries `input` and the handler still takes it positionally. Reach for the record: it is the one that needs no placeholder when a handler wants only its message.
 
 Every consumer in the contract must have a handler. Omit one and the object does not typecheck — and worker creation fails before any connection is acquired, so a missing handler surfaces immediately rather than as a silently unconsumed queue.
 
@@ -39,7 +39,7 @@ Handlers return `AsyncResult`, not `Promise`, so `async`/`await` is not availabl
 ```typescript
 import { fromPromise } from "unthrown";
 
-processOrder: ({ retryable }, { payload }) =>
+processOrder: ({ retryable, input: { payload } }) =>
   fromPromise(
     saveOrder(payload),
     (cause) => retryable("database unavailable", cause),
@@ -64,7 +64,7 @@ Choosing between the two is [the retry model](/explanation/the-retry-model); the
 ## Chain several async steps
 
 ```typescript
-processOrder: (_, { payload }) =>
+processOrder: ({ input: { payload } }) =>
   fromPromise(saveOrder(payload), qualifyRetryable("save failed"))
     .flatMap((order) => fromPromise(notify(order), qualifyRetryable("notify failed")))
     .map(() => undefined),
@@ -73,7 +73,7 @@ processOrder: (_, { payload }) =>
 `flatMap` sequences dependent steps and short-circuits on the first failure. For independent steps, run them together:
 
 ```typescript
-processOrder: (_, { payload }) =>
+processOrder: ({ input: { payload } }) =>
   fromPromise(
     Promise.all([saveOrder(payload), sendConfirmation(payload.customerId)]),
     qualifyRetryable("order processing failed"),
@@ -87,7 +87,7 @@ Return `ErrAsync` directly when you can decide up front:
 ```typescript
 import { ErrAsync } from "unthrown";
 
-processOrder: ({ nonRetryable }, { payload }) => {
+processOrder: ({ nonRetryable, input: { payload } }) => {
   if (payload.amount <= 0) {
     return ErrAsync(nonRetryable("non-positive amount"));
   }
@@ -100,7 +100,7 @@ processOrder: ({ nonRetryable }, { payload }) => {
 Headers declared in the message's headers schema arrive validated and typed alongside the payload:
 
 ```typescript
-processOrder: (_, { payload, headers }) => {
+processOrder: ({ input: { payload, headers } }) => {
   console.log(headers.eventSource, headers.eventVersion);
   return OkAsync(undefined);
 },
@@ -111,7 +111,7 @@ processOrder: (_, { payload, headers }) => {
 `raw`, in the helpers record, is the underlying delivery — delivery tag, raw headers, redelivery flag:
 
 ```typescript
-processOrder: ({ raw }, { payload }) => {
+processOrder: ({ raw, input: { payload } }) => {
   console.log(raw.fields.deliveryTag, raw.fields.redelivered);
   console.log(raw.properties.correlationId);
   return OkAsync(undefined);
@@ -130,7 +130,7 @@ import { declareHandler, qualifyRetryable } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
 import { contract } from "../contract.js";
 
-export const processOrder = declareHandler(contract, "processOrder", (_, { payload }) =>
+export const processOrder = declareHandler(contract, "processOrder", ({ input: { payload } }) =>
   fromPromise(saveOrder(payload), qualifyRetryable("database unavailable")).map(() => undefined),
 );
 ```
@@ -167,7 +167,7 @@ Prefetch caps how many unacknowledged messages a consumer holds. Use the tuple f
 ```typescript
 handlers: {
   processOrder: [
-    (_, { payload }) => fromPromise(save(payload), qualifyRetryable("save failed")).map(() => undefined),
+    ({ input: { payload } }) => fromPromise(save(payload), qualifyRetryable("save failed")).map(() => undefined),
     { prefetch: 10 },
   ],
 },

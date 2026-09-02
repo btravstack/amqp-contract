@@ -376,17 +376,17 @@ a developer types by hand did not, and it is the one they relearn per transport.
     contract,
     handlers: {
 -     processOrder: ({ payload }) => save(payload),
-+     processOrder: (_, { payload }) => save(payload),
++     processOrder: ({ input: { payload } }) => save(payload),
 -     handleFailed: ({ payload }, rawMessage) => log(rawMessage.properties.headers),
-+     handleFailed: ({ raw }, { payload }) => log(raw.properties.headers),
++     handleFailed: ({ raw, input: { payload } }) => log(raw.properties.headers),
 -     getOrder: ({ payload }, _raw, { errors }) => lookup(payload, errors),
-+     getOrder: ({ errors }, { payload }) => lookup(payload, errors),
++     getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
     },
   }).get();
 ```
 
 A handler that needs none of the helpers still names the position:
-`(_, { payload }) => ...`. One that reads neither is just `() => ...`.
+`({ input: { payload } }) => ...`. One that reads neither is just `() => ...`.
 
 The message is on the helpers record too, so a handler can be written from one
 destructuring instead — `({ errors, message }) => ...`. That is oRPC's own
@@ -402,7 +402,7 @@ an import:
 -
 - processOrder: ({ payload }) =>
 -   fromPromise(save(payload), (cause) => new RetryableError("database unavailable", cause)),
-+ processOrder: ({ retryable }, { payload }) =>
++ processOrder: ({ retryable, input: { payload } }) =>
 +   fromPromise(save(payload), (cause) => retryable("database unavailable", cause)),
 ```
 

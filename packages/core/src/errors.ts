@@ -157,7 +157,7 @@ export function isRpcError(error: unknown): error is RpcError {
  * import { rpcError } from '@amqp-contract/worker';
  * import { ErrAsync } from 'unthrown';
  *
- * const handler = (_, { payload }) => {
+ * const handler = ({ input: { payload } }) => {
  *   if (!orders.has(payload.orderId)) {
  *     return ErrAsync(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId }));
  *   }

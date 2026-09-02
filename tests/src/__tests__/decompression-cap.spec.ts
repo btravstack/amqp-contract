@@ -58,7 +58,7 @@ describe("worker decompression cap and poison-message drop logging", () => {
         maxDecompressedBytes: 64,
         logger,
         handlers: {
-          consumeThing: (_, { payload }) => {
+          consumeThing: ({ input: { payload } }) => {
             handlerCalls.push(payload);
             return OkAsync();
           },
