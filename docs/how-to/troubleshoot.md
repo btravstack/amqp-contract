@@ -31,7 +31,7 @@ docker exec rabbitmq rabbitmqctl set_permissions -p / app ".*" ".*" ".*"
 
 A vhost in the URL must exist and be URL-encoded: `amqp://user:pass@host:5672/my-vhost`, and `/` as a vhost is `%2F`.
 
-### `create()` throws with a `ConnectionError`
+### `create()` answers `Err(ConnectionError)`
 
 Expected from `.getOrThrow()` — an unreachable broker is a modeled `Err`, and
 `.getOrThrow()` throws it. To handle it rather than crash, triage the tag:
@@ -66,14 +66,14 @@ const client = await TypedAmqpClient.create({ contract, urls })
 
 To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: null`. That is the only way to disable it — an invalid value (`NaN`, zero, negative, `Infinity`) is itself a defect from `create()` rather than silently turning the timeout off.
 
-### `create()` throws with "AMQP topology setup failed"
+### `create()` answers a defect: "AMQP topology setup failed"
 
 The connection is fine; the broker refused the contract's own declarations. The
 usual cause is a queue that already exists with different arguments — declaring
 `durable: false` over a durable queue is `406 PRECONDITION_FAILED` — followed by
 a missing exchange and permissions the credentials lack.
 
-Read the defect's `cause`: it names the queue or exchange the setup failed on.
+`create()` returns an `AsyncResult`, so this arrives on the defect channel — `.getOrThrow()` is what turns it into a throw, and the message above is what you see when it does. Read the defect's `cause`: it names the queue or exchange the setup failed on.
 Then either fix the contract to match what is on the broker, or delete the
 existing object if it is yours to delete. This surfaces as a defect rather than
 a modeled error on purpose: a topology the broker rejects is a broken contract,
