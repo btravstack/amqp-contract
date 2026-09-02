@@ -44,8 +44,10 @@ export type WorkerMiddlewareArgs<TContextIn extends Record<string, unknown> | Em
  * past the contract boundary.
  *
  * What counts as a substitution is the KEY being present, not its value:
- * `next({ payload: undefined })` substitutes `undefined` and is refused by
- * the schema, where `next({})` and `next()` leave the message alone.
+ * `next({ payload: undefined })` substitutes `undefined` and sends it through
+ * the payload schema like any other substitution — refused by a schema that
+ * demands a shape, accepted by one that admits `undefined` — where `next({})`
+ * and `next()` leave the message alone.
  *
  * The returned AsyncResult carries the handler outcome: `undefined` for a
  * regular consumer, the (not yet validated) response for an RPC. A middleware

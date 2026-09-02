@@ -21,7 +21,7 @@ import {
   type EmptyContext,
 } from "@amqp-contract/worker";
 import { ErrAsync, OkAsync } from "unthrown";
-import { describe, expect } from "vitest";
+import { describe, expect, vi } from "vitest";
 import { z } from "zod";
 
 const it = baseIt.extend<{
@@ -483,6 +483,7 @@ describe("middleware payload substitution", () => {
   });
 
   it("refuses an explicit `undefined` substitution rather than silently keeping the original", async ({
+    amqpChannel,
     workerFactory,
     clientFactory,
   }) => {
@@ -504,13 +505,28 @@ describe("middleware payload substitution", () => {
     });
     const client = await clientFactory({ contract });
 
-    // WHEN a message is published
+    // WHEN a message is published, and the DEAD LETTER is waited for rather
+    // than a clock: a fixed sleep passes just as well when the worker is
+    // merely slow, or when the message went nowhere at all
     await client.publish("createOrder", { orderId: "1" }).getOrThrow();
-    await new Promise((res) => setTimeout(res, 300));
+    const deadLettered = await vi.waitFor(
+      async () => {
+        const delivery = await amqpChannel.get("orders-substitution-undefined-dlq", {
+          noAck: true,
+        });
+        if (delivery === false) throw new Error("not dead-lettered yet");
+        return delivery;
+      },
+      { timeout: 5_000, interval: 50 },
+    );
 
-    // THEN the payload schema refused it, exactly as it refuses any other bad
-    // substitution — the handler never ran
-    expect(handlerRan).toBe(false);
+    // THEN this contract's payload schema — which demands `{ orderId }` —
+    // refused the substitution, so the original message is on the DLQ and the
+    // handler never ran
+    expect({
+      handlerRan,
+      deadLetteredBody: JSON.parse(deadLettered.content.toString()) as unknown,
+    }).toEqual({ handlerRan: false, deadLetteredBody: { orderId: "1" } });
   });
 
   it("blocks handler execution when the substitution fails the schema", async ({

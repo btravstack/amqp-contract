@@ -164,8 +164,7 @@ describe("composeMiddleware", () => {
 
     // THEN the inner middleware saw the substitution, and the terminal was
     // handed `payload` as a PRESENT key — which is what sends it back through
-    // the payload schema, where `undefined` is refused like any other bad
-    // substitution
+    // the payload schema, whose business it then is
     expect({
       seen,
       present: terminalOpts !== undefined && Object.hasOwn(terminalOpts, "payload"),
