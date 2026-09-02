@@ -18,7 +18,7 @@ import {
 } from "@amqp-contract/contract";
 import { TechnicalError } from "@amqp-contract/core";
 import { it as baseIt } from "@amqp-contract/testing/extension";
-import { rpcError, TypedAmqpWorker } from "@amqp-contract/worker";
+import { NonRetryableError, rpcError, TypedAmqpWorker } from "@amqp-contract/worker";
 import { ErrAsync, fromSafePromise, OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
 import { z } from "zod";
@@ -108,10 +108,13 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      // The single-record spelling, once, in a test that already proves the
-      // round trip: `input` on the record is the same value the second
-      // parameter carries, or one of the two is lying.
-      calculate: ({ input }) => OkAsync({ sum: input.payload.a + input.payload.b }),
+      // Both spellings, once, in a test that already proves the round trip:
+      // the record's `input` must BE the positional message — not an equal
+      // copy — or one of the two is lying about what the handler received.
+      calculate: ({ input }, message) =>
+        input === message
+          ? OkAsync({ sum: input.payload.a + input.payload.b })
+          : ErrAsync(new NonRetryableError("helpers.input is not the positional message")),
     });
     const client = await clientFactory(contract);
 

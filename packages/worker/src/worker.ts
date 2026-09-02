@@ -217,9 +217,11 @@ export type CreateWorkerOptions<
    *   accepts the declared `RpcError<code, data>` members (otherwise it
    *   stays plain `HandlerError`).
    *
-   * Handlers receive the helpers record FIRST — `{ context, errors, raw }` —
-   * and the validated message second. `context` is an empty object when no
-   * `createContext` and no `middleware` are configured.
+   * Handlers receive one record FIRST —
+   * `{ input, context, errors, raw, retryable, nonRetryable }`, where `input`
+   * is the validated message — and that message again as the second
+   * parameter. `context` is an empty object when no `createContext` and no
+   * `middleware` are configured.
    *
    * Use `declareHandler` / `declareHandlers` to create handlers with full type
    * inference.
