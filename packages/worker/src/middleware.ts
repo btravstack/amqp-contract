@@ -43,6 +43,10 @@ export type WorkerMiddlewareArgs<TContextIn extends Record<string, unknown> | Em
  * `NonRetryableError` (DLQ), so middleware cannot smuggle unvalidated data
  * past the contract boundary.
  *
+ * What counts as a substitution is the KEY being present, not its value:
+ * `next({ payload: undefined })` substitutes `undefined` and is refused by
+ * the schema, where `next({})` and `next()` leave the message alone.
+ *
  * The returned AsyncResult carries the handler outcome: `undefined` for a
  * regular consumer, the (not yet validated) response for an RPC. A middleware
  * can transform or inspect it before returning.
@@ -240,22 +244,26 @@ export function composeMiddleware(
   ...middlewares: readonly AnyWorkerMiddleware[]
 ): AnyWorkerMiddleware {
   return (args, next) => {
-    // `payload` stays undefined until a middleware substitutes it — the
-    // terminal (the worker dispatcher) re-validates only when set.
+    // A substitution is carried BOXED, not as a bare value: `undefined` is a
+    // payload a middleware may legitimately substitute (the schema then
+    // refuses it, like any other bad substitution), so "nothing substituted"
+    // has to be the absence of the box rather than the absence of a value.
     const run = (
       index: number,
       context: Record<string, unknown>,
-      payload: unknown,
+      substituted: { readonly payload: unknown } | undefined,
     ): ReturnType<AnyWorkerMiddleware> => {
       if (index >= middlewares.length) {
-        return next(payload === undefined ? { context } : { context, payload });
+        return next(substituted ? { context, payload: substituted.payload } : { context });
       }
-      const message = payload === undefined ? args.message : { ...args.message, payload };
+      const message = substituted
+        ? { ...args.message, payload: substituted.payload }
+        : args.message;
       return middlewares[index]!({ ...args, message, context }, (opts) =>
         run(
           index + 1,
           { ...context, ...opts?.context },
-          opts?.payload === undefined ? payload : opts.payload,
+          opts && Object.hasOwn(opts, "payload") ? { payload: opts.payload } : substituted,
         ),
       );
     };

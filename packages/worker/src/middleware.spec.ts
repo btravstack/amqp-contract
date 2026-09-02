@@ -143,6 +143,36 @@ describe("composeMiddleware", () => {
     expect(terminalOpts !== undefined && "payload" in terminalOpts).toBe(false);
   });
 
+  it("carries an explicit `undefined` substitution, which is not the same as substituting nothing", async () => {
+    // GIVEN a middleware that deliberately substitutes `undefined` — the one
+    // value that used to mean "I substituted nothing", so the request was
+    // silently dropped and the handler saw the original payload
+    const seen: unknown[] = [];
+    const blank = declareMiddleware((_args, next) => next({ payload: undefined }));
+    const observer = declareMiddleware((args, next) => {
+      seen.push(args.message.payload);
+      return next();
+    });
+
+    // WHEN the chain runs
+    let terminalOpts: { context?: Record<string, unknown>; payload?: unknown } | undefined;
+    const chain = composeMiddleware(blank, observer);
+    await chain(baseArgs, (opts) => {
+      terminalOpts = opts;
+      return OkAsync(undefined);
+    });
+
+    // THEN the inner middleware saw the substitution, and the terminal was
+    // handed `payload` as a PRESENT key — which is what sends it back through
+    // the payload schema, where `undefined` is refused like any other bad
+    // substitution
+    expect({
+      seen,
+      present: terminalOpts !== undefined && Object.hasOwn(terminalOpts, "payload"),
+      value: terminalOpts?.payload,
+    }).toEqual({ seen: [undefined], present: true, value: undefined });
+  });
+
   it("exposes dispatch metadata to every middleware", async () => {
     // GIVEN
     const seen: Array<{ handlerName: string; isRpc: boolean }> = [];
