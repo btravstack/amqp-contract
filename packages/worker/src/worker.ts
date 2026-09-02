@@ -1062,7 +1062,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           retryable: retryableFactory,
           nonRetryable: nonRetryableFactory,
         };
-        if (opts?.payload === undefined) {
+        // Presence, not value: `next({ payload: undefined })` is a
+        // substitution the schema gets to refuse, where `next({})` is not one.
+        if (!opts || !Object.hasOwn(opts, "payload")) {
           return handler({ ...ambient, input: validatedMessage }, validatedMessage);
         }
         // A middleware substituted the payload — re-validate against the

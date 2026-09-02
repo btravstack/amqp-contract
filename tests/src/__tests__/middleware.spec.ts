@@ -482,6 +482,37 @@ describe("middleware payload substitution", () => {
     await expect(seen).resolves.toEqual({ orderId: "1-rewritten" });
   });
 
+  it("refuses an explicit `undefined` substitution rather than silently keeping the original", async ({
+    workerFactory,
+    clientFactory,
+  }) => {
+    const contract = buildConsumerContract("substitution-undefined");
+
+    // GIVEN a middleware that substitutes `undefined` — which used to be the
+    // one value indistinguishable from substituting nothing, so the handler
+    // ran on the original message and the middleware's decision was lost
+    let handlerRan = false;
+    await workerFactory({
+      contract,
+      middleware: declareMiddleware((_args, next) => next({ payload: undefined })),
+      handlers: {
+        processOrder: () => {
+          handlerRan = true;
+          return OkAsync(undefined);
+        },
+      },
+    });
+    const client = await clientFactory({ contract });
+
+    // WHEN a message is published
+    await client.publish("createOrder", { orderId: "1" }).getOrThrow();
+    await new Promise((res) => setTimeout(res, 300));
+
+    // THEN the payload schema refused it, exactly as it refuses any other bad
+    // substitution — the handler never ran
+    expect(handlerRan).toBe(false);
+  });
+
   it("blocks handler execution when the substitution fails the schema", async ({
     workerFactory,
     clientFactory,
