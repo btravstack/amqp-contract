@@ -946,7 +946,7 @@ describe("Worker Retry Mechanism", () => {
         const firstFailureTimestampHeaders: number[] = [];
 
         await workerFactory(contract, {
-          testConsumer: (_, msg) => {
+          testConsumer: ({ raw: msg }) => {
             attemptCount++;
             const retryCount = (msg.properties.headers?.["x-retry-count"] as number) ?? 0;
             const lastError = msg.properties.headers?.["x-last-error"] as string | undefined;
@@ -1157,7 +1157,7 @@ describe("Worker Retry Mechanism", () => {
       const capturedOriginalRoutingKeys: Array<unknown> = [];
 
       await workerFactory(contract, {
-        testConsumer: (_, msg) => {
+        testConsumer: ({ raw: msg }) => {
           attemptCount++;
           capturedRoutingKeys.push(msg.fields.routingKey);
           capturedOriginalRoutingKeys.push(msg.properties.headers?.["x-original-routing-key"]);

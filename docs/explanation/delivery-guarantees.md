@@ -58,8 +58,8 @@ await client
 A handler reads it from the raw message:
 
 ```typescript
-processOrder: ({ payload }, rawMessage) => {
-  const { messageId } = rawMessage.properties;
+processOrder: ({ raw }, { payload }) => {
+  const { messageId } = raw.properties;
   const id = typeof messageId === "string" ? messageId : undefined;
   return upsertOrder(payload, id).map(() => undefined);
 },

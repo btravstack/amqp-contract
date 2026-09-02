@@ -17,7 +17,7 @@ import { contract } from "./contract.js";
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processOrder: ({ payload }) => {
+    processOrder: (_, { payload }) => {
       console.log(payload.orderId);
       return OkAsync(undefined);
     },
@@ -38,7 +38,7 @@ Handlers return `AsyncResult`, not `Promise`, so `async`/`await` is not availabl
 import { RetryableError } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
 
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(
     saveOrder(payload),
     (cause) => new RetryableError("database unavailable", cause),
@@ -61,7 +61,7 @@ Choosing between the two is [the retry model](/explanation/the-retry-model); the
 ## Chain several async steps
 
 ```typescript
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(saveOrder(payload), qualifyRetryable("save failed"))
     .flatMap((order) => fromPromise(notify(order), qualifyRetryable("notify failed")))
     .map(() => undefined),
@@ -70,7 +70,7 @@ processOrder: ({ payload }) =>
 `flatMap` sequences dependent steps and short-circuits on the first failure. For independent steps, run them together:
 
 ```typescript
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(
     Promise.all([saveOrder(payload), sendConfirmation(payload.customerId)]),
     qualifyRetryable("order processing failed"),
@@ -85,7 +85,7 @@ Return `ErrAsync` directly when you can decide up front:
 import { NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync } from "unthrown";
 
-processOrder: ({ payload }) => {
+processOrder: (_, { payload }) => {
   if (payload.amount <= 0) {
     return ErrAsync(new NonRetryableError("non-positive amount"));
   }
@@ -98,7 +98,7 @@ processOrder: ({ payload }) => {
 Headers declared in the message's headers schema arrive validated and typed alongside the payload:
 
 ```typescript
-processOrder: ({ payload, headers }) => {
+processOrder: (_, { payload, headers }) => {
   console.log(headers.eventSource, headers.eventVersion);
   return OkAsync(undefined);
 },
@@ -106,12 +106,12 @@ processOrder: ({ payload, headers }) => {
 
 ## Reach the raw AMQP message
 
-The second argument is the underlying message — delivery tag, raw headers, redelivery flag:
+`raw`, in the helpers record, is the underlying delivery — delivery tag, raw headers, redelivery flag:
 
 ```typescript
-processOrder: ({ payload }, rawMessage) => {
-  console.log(rawMessage.fields.deliveryTag, rawMessage.fields.redelivered);
-  console.log(rawMessage.properties.correlationId);
+processOrder: ({ raw }, { payload }) => {
+  console.log(raw.fields.deliveryTag, raw.fields.redelivered);
+  console.log(raw.properties.correlationId);
   return OkAsync(undefined);
 },
 ```
@@ -128,7 +128,7 @@ import { declareHandler, qualifyRetryable } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
 import { contract } from "../contract.js";
 
-export const processOrder = declareHandler(contract, "processOrder", ({ payload }) =>
+export const processOrder = declareHandler(contract, "processOrder", (_, { payload }) =>
   fromPromise(saveOrder(payload), qualifyRetryable("database unavailable")).map(() => undefined),
 );
 ```
@@ -165,7 +165,7 @@ Prefetch caps how many unacknowledged messages a consumer holds. Use the tuple f
 ```typescript
 handlers: {
   processOrder: [
-    ({ payload }) => fromPromise(save(payload), qualifyRetryable("save failed")).map(() => undefined),
+    (_, { payload }) => fromPromise(save(payload), qualifyRetryable("save failed")).map(() => undefined),
     { prefetch: 10 },
   ],
 },

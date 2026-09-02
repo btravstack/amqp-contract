@@ -15,7 +15,7 @@ In the handler, map the underlying cause to one of two errors:
 import { NonRetryableError, RetryableError } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
 
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(chargeCard(payload), (cause) => {
     // A declined card will be declined again. Don't spend retries on it.
     if (cause instanceof CardDeclined) {

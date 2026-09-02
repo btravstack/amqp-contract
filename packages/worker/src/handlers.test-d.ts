@@ -14,6 +14,7 @@ import {
   defineRpc,
 } from "@amqp-contract/contract";
 import type { RpcError } from "@amqp-contract/core";
+import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync, type AsyncResult } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
@@ -91,7 +92,7 @@ describe("handler payload inference", () => {
 
   test("should infer the payload inside a handler", () => {
     declareHandlers(contract, {
-      processOrder: ({ payload }) => {
+      processOrder: (_, { payload }) => {
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
         return OkAsync(undefined);
       },
@@ -100,7 +101,7 @@ describe("handler payload inference", () => {
 
   test("should reject access to properties not in the schema", () => {
     declareHandlers(contract, {
-      processOrder: ({ payload }) => {
+      processOrder: (_, { payload }) => {
         expectTypeOf(payload).not.toHaveProperty("nonExistent");
         return OkAsync(undefined);
       },
@@ -119,7 +120,7 @@ describe("handler payload inference", () => {
 
   test("infers typed headers (validated OUTPUT: defaults applied)", () => {
     declareHandlers(headersContract, {
-      withHeaders: ({ headers }) => {
+      withHeaders: (_, { headers }) => {
         expectTypeOf(headers).toEqualTypeOf<{ "x-tenant-id": string; "x-priority": string }>();
         return OkAsync(undefined);
       },
@@ -129,7 +130,7 @@ describe("handler payload inference", () => {
   test("accepts [handler, options] tuple entries but rejects invalid options", () => {
     declareHandlers(contract, {
       processOrder: [
-        ({ payload }) => {
+        (_, { payload }) => {
           expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
           return OkAsync(undefined);
         },
@@ -168,7 +169,7 @@ describe("RPC handler inference", () => {
   test("RPC handlers get typed payload, helpers.errors, and a checked return type", () => {
     declareHandlers(rpcContract, {
       processOrder: () => OkAsync(undefined),
-      getOrder: ({ payload }, _raw, { errors }) => {
+      getOrder: ({ errors }, { payload }) => {
         expectTypeOf(payload).toEqualTypeOf<{ orderId: string }>();
         if (payload.orderId === "missing") {
           return ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId }));
@@ -191,7 +192,7 @@ describe("RPC handler inference", () => {
   });
 
   test("declareHandler overloads cover consumer and RPC names, with and without options", () => {
-    const consumerHandler = declareHandler(contract, "processOrder", ({ payload }) => {
+    const consumerHandler = declareHandler(contract, "processOrder", (_, { payload }) => {
       expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
       return OkAsync(undefined);
     });
@@ -209,10 +210,27 @@ describe("RPC handler inference", () => {
   test("middleware context threads into the handler's helpers", () => {
     type Ctx = { tenantId: string };
     declareHandlers<typeof contract, Ctx>(contract, {
-      processOrder: (_message, _raw, helpers) => {
+      processOrder: (helpers) => {
         expectTypeOf(helpers.context).toEqualTypeOf<Ctx>();
         return OkAsync(undefined);
       },
+    });
+  });
+
+  test("the raw delivery rides the helpers record, not a third parameter", () => {
+    declareHandlers(contract, {
+      processOrder: ({ raw }, { payload }) => {
+        expectTypeOf(raw).toEqualTypeOf<ConsumeMessage>();
+        expectTypeOf(payload).toEqualTypeOf<{ orderId: string; amount: number }>();
+        return OkAsync(undefined);
+      },
+    });
+  });
+
+  test("a handler takes no third parameter", () => {
+    declareHandlers(contract, {
+      // @ts-expect-error — helpers and message are the only two parameters
+      processOrder: (_helpers, _message, _raw: ConsumeMessage) => OkAsync(undefined),
     });
   });
 

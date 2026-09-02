@@ -89,7 +89,7 @@ describe("Worker defensive nack guard", () => {
     const worker = await TypedAmqpWorker.create({
       contract,
       handlers: {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           processed.push(payload.id);
           return OkAsync(undefined);
         },

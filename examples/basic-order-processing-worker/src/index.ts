@@ -27,7 +27,7 @@ async function main() {
     contract: orderContract,
     handlers: declareHandlers(orderContract, {
       // Handler for processing NEW orders (order.created)
-      processOrder: ({ payload, headers }) => {
+      processOrder: (_, { payload, headers }) => {
         logger.info(
           {
             orderId: payload.orderId,
@@ -52,7 +52,7 @@ async function main() {
       },
 
       // Handler for ALL order notifications (order.#)
-      notifyOrder: ({ payload }) => {
+      notifyOrder: (_, { payload }) => {
         // Check if it's a new order or a status update
         if ("items" in payload) {
           // It's a full order
@@ -87,7 +87,7 @@ async function main() {
       },
 
       // Handler for SHIPPED orders (order.shipped)
-      shipOrder: ({ payload }) => {
+      shipOrder: (_, { payload }) => {
         logger.info(
           {
             orderId: payload.orderId,
@@ -106,7 +106,7 @@ async function main() {
       },
 
       // Handler for URGENT orders (order.*.urgent)
-      handleUrgentOrder: ({ payload }) => {
+      handleUrgentOrder: (_, { payload }) => {
         logger.warn(
           {
             orderId: payload.orderId,
@@ -126,7 +126,7 @@ async function main() {
 
       // Command handler (task queue): the fulfillment worker owns this queue.
       // Unlike the event handlers above, this command reaches exactly one worker.
-      fulfillOrder: ({ payload }) => {
+      fulfillOrder: (_, { payload }) => {
         logger.info(
           {
             orderId: payload.orderId,
@@ -145,7 +145,7 @@ async function main() {
       },
 
       // Handler for FAILED orders (from dead letter exchange)
-      handleFailedOrders: ({ payload }) => {
+      handleFailedOrders: (_, { payload }) => {
         logger.error(
           {
             orderId: payload.orderId,

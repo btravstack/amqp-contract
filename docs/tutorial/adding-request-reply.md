@@ -131,7 +131,7 @@ export const contract = defineContract({
 The worker gains one handler. Add it to the `handlers` object in `consumer.ts`:
 
 ```typescript
-    checkAddress: ({ payload }) => {
+    checkAddress: (_, { payload }) => {
       const deliverable = payload.address.endsWith("@example.com");
       return OkAsync({
         deliverable,
@@ -257,7 +257,7 @@ import { ErrAsync, OkAsync } from "unthrown";
 ```
 
 ```typescript
-    checkAddress: ({ payload }) => {
+    checkAddress: (_, { payload }) => {
       if (!payload.address.includes("@")) {
         return ErrAsync(
           rpcError("MALFORMED_ADDRESS", { address: payload.address }, "missing @"),

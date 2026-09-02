@@ -45,7 +45,7 @@ const logger: Logger = {
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processOrder: ({ payload }) => {
+    processOrder: (_, { payload }) => {
       console.log("Processing order:", payload.orderId);
 
       // Your business logic here
@@ -111,7 +111,7 @@ import { fromPromise } from "unthrown";
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processOrder: ({ payload }) =>
+    processOrder: (_, { payload }) =>
       // If this fails with RetryableError, message is automatically retried
       fromPromise(
         processPayment(payload),
@@ -137,7 +137,7 @@ import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync, fromPromise } from "unthrown";
 
 handlers: {
-  processOrder: ({ payload }) => {
+  processOrder: (_, { payload }) => {
     // Validation errors - non-retryable
     if (payload.amount <= 0) {
       return ErrAsync(new NonRetryableError("Invalid amount"));
