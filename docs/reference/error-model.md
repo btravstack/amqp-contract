@@ -251,6 +251,7 @@ The client was closed while the call was in flight. All pending calls fail with 
 `.get()` compiles only when `E = never`. It still **panics on a defect**, rethrowing the cause — `Result<T, never>` does not mean "cannot throw", it means "has no errors you were supposed to handle".
 
 ```typescript
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
 await client.close().get();
 ```
 

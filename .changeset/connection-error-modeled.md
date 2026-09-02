@@ -17,8 +17,9 @@ a publish or a delivery, is still one of those.
 
 What it buys a start-up path is the triage it could not have before. Reaching
 this failure used to mean recovering EVERY defect, which also swallowed genuine
-bugs raised while the graph was being built (`@btravstack/amqp-worker` carried
-exactly that blanket `recoverDefect`, and can now drop it):
+bugs raised while the graph was being built (the `@btravstack/amqp-worker`
+starter, in the btravstack/start repository, carries exactly that blanket
+`recoverDefect` and can now drop it):
 
 ```ts
 const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match({
