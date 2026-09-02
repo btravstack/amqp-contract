@@ -1,5 +1,11 @@
 # @amqp-contract/testing
 
+## 3.0.0-beta.7
+
+### Patch Changes
+
+- a7f8d54: Apply the formatter output required by `oxfmt` 0.65.0, keeping the generated mapped-type layout in sync with the updated toolchain and preventing CI drift.
+
 ## 3.0.0-beta.6
 
 ### Minor Changes

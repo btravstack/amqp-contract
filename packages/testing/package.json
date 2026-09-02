@@ -1,6 +1,6 @@
 {
   "name": "@amqp-contract/testing",
-  "version": "3.0.0-beta.6",
+  "version": "3.0.0-beta.7",
   "description": "Testing utilities for AMQP contracts with testcontainers",
   "keywords": [
     "amqp",
