@@ -66,6 +66,19 @@ const client = await TypedAmqpClient.create({ contract, urls })
 
 To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: null`. That is the only way to disable it — an invalid value (`NaN`, zero, negative, `Infinity`) is itself a defect from `create()` rather than silently turning the timeout off.
 
+### `create()` throws with "AMQP topology setup failed"
+
+The connection is fine; the broker refused the contract's own declarations. The
+usual cause is a queue that already exists with different arguments — declaring
+`durable: false` over a durable queue is `406 PRECONDITION_FAILED` — followed by
+a missing exchange and permissions the credentials lack.
+
+Read the defect's `cause`: it names the queue or exchange the setup failed on.
+Then either fix the contract to match what is on the broker, or delete the
+existing object if it is yours to delete. This surfaces as a defect rather than
+a modeled error on purpose: a topology the broker rejects is a broken contract,
+which is a bug rather than something a running service can route around.
+
 ### Connections drop repeatedly
 
 Usually missed heartbeats caused by a blocked event loop, not a network fault. See [tune performance](/how-to/tune-performance#heartbeats).

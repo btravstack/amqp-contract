@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AmqpClient } from "./amqp-client.js";
 import { ConnectionManagerSingleton } from "./connection-manager.js";
+import { TechnicalError } from "./errors.js";
 
 /**
  * Regression guard for the audit's crash finding: amqp-connection-manager's
@@ -77,6 +78,42 @@ describe("AmqpClient channel error events", () => {
     expect(() => wrapper().emit("error", new Error("boom"), { name: "c" })).not.toThrow();
 
     void client.close();
+  });
+
+  it("INVARIANT: a setup failure before the first connect fails waitForConnect, rather than reporting a ready client", async () => {
+    // GIVEN a client whose topology setup blew up — amqp-connection-manager
+    // catches the rejection, emits it as 'error', and announces the connection
+    // anyway, so the wrapper looks perfectly healthy afterwards
+    const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
+    const cause = new Error("406 PRECONDITION_FAILED - inequivalent arg 'durable'");
+    wrapper().emit("error", cause, { name: "test-channel" });
+
+    // WHEN the caller waits for the connection
+    const connected = await client.waitForConnect();
+
+    // THEN it is a defect carrying the setup failure: a topology the broker
+    // refuses is a broken contract, and a client that cannot declare its own
+    // exchanges and queues is not ready whatever the socket says
+    expect(connected).toBeDefectWith(
+      expect.objectContaining({ constructor: TechnicalError, cause }),
+    );
+
+    await client.close();
+  });
+
+  it("keeps reporting ready when the error arrives AFTER the first connect — a reconnect has no caller left to fail", async () => {
+    // GIVEN a client that connected cleanly
+    const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
+    wrapper().emit("connect");
+
+    // WHEN a later setup failure arrives, as it does on every reconnect
+    wrapper().emit("error", new Error("later reconnect setup failure"), { name: "c" });
+
+    // THEN `waitForConnect` still answers Ok — the caller has its client, and
+    // the manager keeps retrying behind it
+    await expect(client.waitForConnect()).toBeOk();
+
+    await client.close();
   });
 
   it("still delivers the event to user listeners attached via client.on('error')", () => {

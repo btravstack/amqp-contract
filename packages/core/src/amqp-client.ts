@@ -12,11 +12,13 @@ import {
   fromSafePromise,
   fromSafeThrowable,
   Ok,
+  OkAsync,
   type AsyncResult,
   type Result,
 } from "unthrown";
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
+import { technicalDefect } from "./defect.js";
 import { ConnectionError, TechnicalError } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { setupAmqpTopology } from "./setup.js";
@@ -261,6 +263,33 @@ export class AmqpClient {
   private channelEpoch = 0;
 
   /**
+   * The first `error` the ChannelWrapper emitted before it ever announced a
+   * connection — in practice a setup failure, since `setup` is the only thing
+   * that runs before `'connect'`.
+   *
+   * amqp-connection-manager catches a setup rejection, emits it as `'error'`,
+   * and then emits `'connect'` anyway (`ChannelWrapper._onConnect`), so
+   * `waitForConnect()` would otherwise answer `Ok` for a client whose topology
+   * does not exist. Recorded here so the FIRST `waitForConnect()` can fail;
+   * every later one is a reconnect, where the caller is long gone and
+   * log-and-retry is the only thing left to do.
+   */
+  private initialSetupError: unknown;
+
+  /**
+   * Settles with that same error, so `waitForConnect` can lose the race to it
+   * instead of sitting out the connect timeout. A refused topology closes the
+   * channel, and the manager then retries forever behind it — without this,
+   * "the broker refused your queue declaration" reaches the caller thirty
+   * seconds later wearing a connect timeout's clothes.
+   */
+  private readonly initialSetupFailure: Promise<unknown>;
+  private announceInitialSetupFailure!: (error: unknown) => void;
+
+  /** Whether the wrapper has ever announced a connection. */
+  private hasConnected = false;
+
+  /**
    * Create a new AMQP client instance.
    *
    * The client will automatically:
@@ -334,6 +363,10 @@ export class AmqpClient {
       channelOpts.publishTimeout = DEFAULT_PUBLISH_TIMEOUT_MS;
     }
 
+    this.initialSetupFailure = new Promise<unknown>((resolve) => {
+      this.announceInitialSetupFailure = resolve;
+    });
+
     this.channelWrapper = this.connection.createChannel(channelOpts);
 
     // amqp-connection-manager's ChannelWrapper emits plain 'error' events for
@@ -346,11 +379,20 @@ export class AmqpClient {
     // still letting callers attach their own observers via `on('error', …)`.
     this.channelWrapper.on("connect", () => {
       this.channelEpoch += 1;
+      this.hasConnected = true;
     });
 
     const logger = options.logger;
     this.logger = logger;
     this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
+      // Before the first 'connect', the only thing that has run is `setup` —
+      // so this is the topology failing, and somebody is still waiting on
+      // `waitForConnect()`. Keep the first one; after that the caller has its
+      // client and a reconnect can only be logged.
+      if (!this.hasConnected && this.initialSetupError === undefined) {
+        this.initialSetupError = error;
+        this.announceInitialSetupFailure(error);
+      }
       logger?.error("AMQP channel error", {
         error: error instanceof Error ? error.message : String(error),
         cause: error,
@@ -389,17 +431,28 @@ export class AmqpClient {
    * automatically. The typed factories handle this cleanup for you.
    */
   waitForConnect(): AsyncResult<void, ConnectionError> {
-    const connectPromise = this.channelWrapper.waitForConnect();
     const timeoutMs = this.connectTimeoutMs;
+
+    // Three outcomes, and the setup failure has to be one of them rather than
+    // something noticed afterwards: a refused topology closes the channel, so
+    // waiting for `connect` would mean waiting out the whole connect timeout
+    // and reporting the wrong failure at the end of it.
+    const connected = this.channelWrapper
+      .waitForConnect()
+      .then(() => ({ kind: "connected" }) as const);
+    const setupFailed = this.initialSetupFailure.then(
+      (cause) => ({ kind: "setup-failed", cause }) as const,
+    );
 
     // `AbortSignal.timeout` rather than a hand-rolled `setTimeout` race: its
     // timer does not hold the event loop open, so a settled connect needs no
     // paired `clearTimeout` to avoid keeping the process alive.
     const racedPromise =
       timeoutMs === null
-        ? connectPromise
+        ? Promise.race([connected, setupFailed])
         : Promise.race([
-            connectPromise,
+            connected,
+            setupFailed,
             new Promise<never>((_resolve, reject) => {
               AbortSignal.timeout(timeoutMs).addEventListener("abort", () => {
                 reject(new Error(`Timed out waiting for AMQP connection after ${timeoutMs}ms`));
@@ -417,6 +470,21 @@ export class AmqpClient {
           "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
           error,
         ),
+    ).flatMap((outcome) =>
+      // A DEFECT rather than a modeled error: a topology the broker refuses (a
+      // mismatched queue declaration, a missing exchange, a permission the
+      // credentials lack) is a broken contract, which is a bug rather than an
+      // operator's business — unlike the dial above. `initialSetupError` is
+      // checked on the connected arm too, since the manager announces the
+      // connection even when setup failed on the way.
+      outcome.kind === "connected" && this.initialSetupError === undefined
+        ? OkAsync()
+        : technicalDefect(
+            new TechnicalError(
+              "AMQP topology setup failed — the broker refused the contract's exchanges, queues or bindings",
+              this.initialSetupError,
+            ),
+          ).toAsync(),
     );
   }
 
