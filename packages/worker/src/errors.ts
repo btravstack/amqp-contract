@@ -111,7 +111,7 @@ export function isHandlerError(error: unknown): error is HandlerError {
  * import { qualifyRetryable } from '@amqp-contract/worker';
  * import { fromPromise } from 'unthrown';
  *
- * const handler = ({ payload }) =>
+ * const handler = (_, { payload }) =>
  *   fromPromise(processPayment(payload), qualifyRetryable('Payment service unavailable'))
  *     .map(() => undefined);
  *
@@ -133,7 +133,7 @@ export function qualifyRetryable(message: string): (cause: unknown) => Retryable
  * import { qualifyNonRetryable } from '@amqp-contract/worker';
  * import { fromPromise } from 'unthrown';
  *
- * const handler = ({ payload }) =>
+ * const handler = (_, { payload }) =>
  *   fromPromise(chargeCard(payload), qualifyNonRetryable('Card permanently declined'))
  *     .map(() => undefined);
  * ```

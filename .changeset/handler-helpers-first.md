@@ -14,9 +14,22 @@ others. The mint and compose calls already agreed across the three; the leaf a
 developer types by hand did not, and it is the one they relearn per transport.
 `@temporal-contract`'s activity leaf moves with it.
 
-It is also what makes the AMQP triage site the same SHAPE as the other two: a
-handler that wants "infrastructure comes back" reaches for the helpers it was
-handed rather than importing `RetryableError` and constructing it by hand.
+It is also what makes the AMQP triage site the same SHAPE as the other two, and
+that half is not cosmetic: `retryable` and `nonRetryable` ride the helpers
+record beside `errors`, so a handler that wants "infrastructure comes back"
+reaches for the constructor it was handed instead of importing `RetryableError`
+and constructing it by hand.
+
+```ts
+processOrder: ({ retryable }, { payload }) =>
+  fromPromise(save(payload), (cause) => retryable("database unavailable", cause)),
+```
+
+They sit BESIDE `errors` rather than inside it: `errors` is the
+contract-declared error map — `errors.ORDER_NOT_FOUND({ orderId })` — which is
+what it means on the other two transports, and folding the framework's own two
+into that namespace would both break the mirror and collide with a declared code
+called `retryable`.
 
 ```diff
 - processOrder: ({ payload }) => save(payload),

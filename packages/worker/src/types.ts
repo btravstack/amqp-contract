@@ -16,7 +16,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { ConsumeMessage } from "amqplib";
 import type { AsyncResult } from "unthrown";
 
-import type { HandlerError } from "./errors.js";
+import type { HandlerError, NonRetryableError, RetryableError } from "./errors.js";
 import type { EmptyContext } from "./middleware.js";
 import { type ConsumerOptions } from "./worker.js";
 
@@ -164,6 +164,17 @@ export type WorkerHandlerHelpers<
   readonly errors: TErrors;
   /** The raw AMQP delivery — `fields`, `properties`, and the untouched `content`. */
   readonly raw: ConsumeMessage;
+  /**
+   * "Infrastructure comes back" — the failure the retry schedule is for,
+   * handed over rather than imported and constructed. `ErrAsync(retryable(...))`
+   * is `ErrAsync(new RetryableError(...))` without the import.
+   */
+  readonly retryable: (message: string, cause?: unknown) => RetryableError;
+  /**
+   * "This will never work" — straight to the dead-letter queue, no retry
+   * budget spent. The permanent twin of {@link WorkerHandlerHelpers.retryable}.
+   */
+  readonly nonRetryable: (message: string, cause?: unknown) => NonRetryableError;
 };
 
 /**

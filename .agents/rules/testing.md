@@ -68,10 +68,10 @@ const mockHandler = vi.fn().mockReturnValue(OkAsync(undefined));
 
 // Assertion pattern
 expect(mockHandler).toHaveBeenCalledWith(
+  expect.anything(), // helpers: { context, errors, raw }
   expect.objectContaining({
     payload: expect.objectContaining({ orderId: "123" }),
   }),
-  expect.anything(), // rawMessage
 );
 ```
 

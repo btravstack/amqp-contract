@@ -35,17 +35,18 @@ Every consumer in the contract must have a handler. Omit one and the object does
 Handlers return `AsyncResult`, not `Promise`, so `async`/`await` is not available. Lift the promise with `fromPromise` and say what a rejection means:
 
 ```typescript
-import { RetryableError } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
 
-processOrder: (_, { payload }) =>
+processOrder: ({ retryable }, { payload }) =>
   fromPromise(
     saveOrder(payload),
-    (cause) => new RetryableError("database unavailable", cause),
+    (cause) => retryable("database unavailable", cause),
   ).map(() => undefined),
 ```
 
 The `.map(() => undefined)` discards the promise's value: a consumer handler must resolve to `void`.
+
+`retryable` and `nonRetryable` come off the helpers record, so the routing decision needs no import. The `RetryableError` / `NonRetryableError` classes are still exported for a handler that would rather construct them itself.
 
 The mapper is required. For the two common shapes there are prebuilt mappers:
 
@@ -82,12 +83,11 @@ processOrder: (_, { payload }) =>
 Return `ErrAsync` directly when you can decide up front:
 
 ```typescript
-import { NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync } from "unthrown";
 
-processOrder: (_, { payload }) => {
+processOrder: ({ nonRetryable }, { payload }) => {
   if (payload.amount <= 0) {
-    return ErrAsync(new NonRetryableError("non-positive amount"));
+    return ErrAsync(nonRetryable("non-positive amount"));
   }
   return fromPromise(saveOrder(payload), qualifyRetryable("save failed")).map(() => undefined);
 },
@@ -150,10 +150,10 @@ Note that `declareHandler`'s return type is a handler _entry_ — either the fun
 ```typescript
 import type { WorkerInferConsumerHandler } from "@amqp-contract/worker";
 
-export const processOrder: WorkerInferConsumerHandler<typeof contract, "processOrder"> = ({
-  payload,
-}) =>
-  fromPromise(saveOrder(payload), qualifyRetryable("database unavailable")).map(() => undefined);
+export const processOrder: WorkerInferConsumerHandler<typeof contract, "processOrder"> = (
+  _,
+  { payload },
+) => fromPromise(saveOrder(payload), qualifyRetryable("database unavailable")).map(() => undefined);
 ```
 
 This is still fully inferred from the contract, and it can be passed to `handlers` unchanged. Most handler testing is better done against a real broker — see [test with RabbitMQ](/how-to/test-with-rabbitmq).

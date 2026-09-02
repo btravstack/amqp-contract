@@ -25,10 +25,11 @@ const asyncHandler = (_, { payload }) =>
 
 ### Parameters
 
-1. **`helpers`** — `{ context, errors, raw }`
+1. **`helpers`** — `{ context, errors, raw, retryable, nonRetryable }`
    - `context`: seeded by `createContext`, accumulated by the middleware chain
    - `errors`: typed constructors for the RPC's declared errors (empty for consumers)
    - `raw`: the raw amqplib `ConsumeMessage` (e.g. `raw.fields.deliveryTag`, `raw.properties.messageId`)
+   - `retryable` / `nonRetryable`: the two modeled failures as factories — `ErrAsync(retryable("db down", cause))` is `new RetryableError(...)` without the import. They sit beside `errors` rather than inside it: `errors` is the contract's declared map, which is what the name means on the other two transports.
 2. **`message`** — `{ payload, headers }`
    - `payload`: validated against the message's payload schema
    - `headers`: validated against the message's optional headers schema (otherwise `undefined`)

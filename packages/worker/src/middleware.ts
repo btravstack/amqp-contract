@@ -59,7 +59,7 @@ export type WorkerMiddlewareNext<TContextOut extends Record<string, unknown> | E
  *
  * Middleware follow the guard-and-narrow pattern: check something, then call
  * `next({ context })` to run the rest of the chain with typed fields injected
- * into the handler's third argument — or short-circuit by returning without
+ * into the handler's helpers record — or short-circuit by returning without
  * calling `next`:
  *
  * - `Err(new RetryableError(...))` / `Err(new NonRetryableError(...))` routes through the normal
