@@ -153,6 +153,8 @@ const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match
 
 `isConnectionError(error)` is the type guard, exported from `@amqp-contract/core` and re-exported by client and worker. A connection LOST later — mid-publish, mid-consume — is not this: that is a `TechnicalError` defect, since no caller asked for it and none can act on it.
 
+Neither is a **topology the broker refuses**. If the connection succeeds but the contract's exchanges, queues or bindings cannot be declared — `406 PRECONDITION_FAILED` on a mismatched queue, a missing exchange, a permission the credentials lack — `create()` answers a **defect** carrying a `TechnicalError`. The dial is an operator's business; a topology the broker rejects is a broken contract, which is a bug. It fails at once rather than at the connect timeout, and only on the first connect: a reconnect has no caller left to fail, so it is logged and retried as before.
+
 ## `TechnicalError`
 
 Any failure of the transport or framework: connection lost, channel closed, a rejected assert, a publish that never reached the broker, a compression or JSON-parse failure, or a schema validator that threw.
