@@ -274,7 +274,7 @@ export class AmqpClient {
    * every later one is a reconnect, where the caller is long gone and
    * log-and-retry is the only thing left to do.
    */
-  private initialSetupError: unknown;
+  private initialSetupError: unknown = undefined;
 
   /**
    * Settles with that same error, so `waitForConnect` can lose the race to it
