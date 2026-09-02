@@ -2,8 +2,8 @@
 "@amqp-contract/worker": patch
 ---
 
-A middleware's `next({ payload: undefined })` is a substitution now, and the
-payload schema refuses it — where it used to be indistinguishable from
+A middleware's `next({ payload: undefined })` is a substitution now, and reaches
+the payload schema like any other — where it used to be indistinguishable from
 `next({})` and silently dropped, leaving the handler running on the original
 message.
 
@@ -16,9 +16,10 @@ dispatcher, and a boxed `{ payload }` threaded through the chain.
 
 **Behaviour change, in the one case that was already broken.** A middleware
 calling `next({ payload: undefined })` today gets a no-op; after this it
-substitutes `undefined`, the consumer's payload schema rejects it, and the
-message is dead-lettered as a `NonRetryableError` — the same route any other
-invalid substitution takes. `next({})` and `next()` are unaffected: they
-substitute nothing, as before.
+substitutes `undefined` and the consumer's payload schema decides — a schema
+that demands a shape rejects it and the message is dead-lettered as a
+`NonRetryableError`, the same route any other invalid substitution takes, while
+a schema admitting `undefined` hands it to the handler. `next({})` and `next()`
+are unaffected: they substitute nothing, as before.
 
 Closes #672.
