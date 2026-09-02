@@ -52,7 +52,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   defaultPublishOptions: { compression: "gzip" },
-}).get();
+}).getOrThrow();
 ```
 
 Per-call options override it, so `{ compression: undefined }` opts a single publish out.

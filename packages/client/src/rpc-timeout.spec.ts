@@ -122,7 +122,7 @@ describe("RPC timeout vs slow reply validation", () => {
     const client = await TypedAmqpClient.create({
       contract: makeContract(neverSettlingSchema),
       urls: ["amqp://localhost"],
-    }).get();
+    }).getOrThrow();
 
     const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 200 });
 
@@ -144,7 +144,7 @@ describe("RPC timeout vs slow reply validation", () => {
     const client = await TypedAmqpClient.create({
       contract: makeContract(z.object({ sum: z.number() })),
       urls: ["amqp://localhost"],
-    }).get();
+    }).getOrThrow();
 
     const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_000 });
 

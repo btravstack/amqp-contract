@@ -43,7 +43,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: ({ context, input: { payload } }) => processFor(context.tenantId, payload),
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 The two type parameters on `declareMiddleware` are the context going in and the context coming out. Without any middleware or `createContext`, handlers get `EmptyContext`.
@@ -87,7 +87,7 @@ const worker = await TypedAmqpWorker.create({
     processOrder: ({ context, input: { payload } }) => context.orderRepo.process(payload),
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 If `createContext` throws or rejects, the message is dead-lettered as a `NonRetryableError` and the handler never runs.
@@ -159,7 +159,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   publishInterceptors: [stampTrace],
-}).get();
+}).getOrThrow();
 ```
 
 The first interceptor in the array is the outermost.

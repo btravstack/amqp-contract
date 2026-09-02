@@ -42,8 +42,16 @@ async function main() {
     urls: [env.AMQP_URL],
     publishInterceptors: [logPublishes],
   })
-    .tapDefect((cause) => logger.error({ error: cause }, "Failed to create client"))
-    .get();
+    // `tapFailure` rather than `tapDefect`: an unreachable broker is a modeled
+    // `ConnectionError` on the `Err` channel now, and a bug during start-up is
+    // still a defect — this logs whichever arrived.
+    .tapFailure((failure) =>
+      logger.error(
+        { error: failure.tag === "Err" ? failure.error : failure.cause },
+        "Failed to create client",
+      ),
+    )
+    .getOrThrow();
 
   logger.info("Client ready");
   logger.info("=".repeat(60));

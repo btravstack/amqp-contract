@@ -111,7 +111,7 @@ async function consumeInvalid(contract: ContractDefinition) {
     handlers: { processOrder: () => OkAsync(undefined) },
     urls: ["amqp://localhost"],
     logger,
-  } as never).get();
+  } as never).getOrThrow();
 
   const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
     msg: ConsumeMessage | null,

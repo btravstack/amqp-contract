@@ -57,7 +57,7 @@ const worker = await TypedAmqpWorker.create({
   },
   urls: ["amqp://localhost"],
   logger, // Optional: logs message consumption and errors
-}).get();
+}).getOrThrow();
 
 // Worker is already consuming messages
 
@@ -119,7 +119,7 @@ const worker = await TypedAmqpWorker.create({
       ).map(() => undefined),
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 See [Retry Failed Messages](https://btravstack.github.io/amqp-contract/how-to/retry-failed-messages) for complete details.

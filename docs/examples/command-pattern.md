@@ -89,7 +89,7 @@ import { randomUUID } from "node:crypto";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 await client
   .publish("chargeCustomer", {
@@ -143,7 +143,7 @@ const worker = await TypedAmqpWorker.create({
     chargeCustomer: [chargeHandler, { prefetch: 5 }],
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 process.on("SIGINT", async () => {
   await worker.close().get();

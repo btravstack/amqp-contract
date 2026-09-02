@@ -32,7 +32,7 @@ const it = baseIt.extend<{
         const client = await TypedAmqpClient.create({
           contract,
           urls: [amqpConnectionUrl],
-        }).get();
+        }).getOrThrow();
         clients.push(client);
         return client;
       });
@@ -61,7 +61,7 @@ const it = baseIt.extend<{
             contract,
             handlers: declareHandlers(contract, handlers),
             urls: [amqpConnectionUrl],
-          }).get();
+          }).getOrThrow();
           workers.push(worker);
           return worker;
         },

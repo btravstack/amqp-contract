@@ -393,7 +393,7 @@ const client = await TypedAmqpClient.create({
   contract: orderContract,
   urls: ["amqp://localhost"],
   publishInterceptors: [logPublishes],
-}).get();
+}).getOrThrow();
 
 // Publish a new order. publish() returns an AsyncResult; the demo extracts it
 // with getOrThrow() — production code would usually .match() on the Result.
@@ -504,7 +504,7 @@ const worker = await TypedAmqpWorker.create({
     },
   }),
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 // Graceful shutdown: drain in-flight handlers, then close
 process.on("SIGINT", async () => {

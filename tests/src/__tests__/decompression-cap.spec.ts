@@ -64,12 +64,12 @@ describe("worker decompression cap and poison-message drop logging", () => {
           },
         },
         urls: [amqpConnectionUrl],
-      }).get();
+      }).getOrThrow();
 
       const client = await TypedAmqpClient.create({
         contract,
         urls: [amqpConnectionUrl],
-      }).get();
+      }).getOrThrow();
 
       try {
         // A payload that comfortably exceeds 64 bytes once decompressed.

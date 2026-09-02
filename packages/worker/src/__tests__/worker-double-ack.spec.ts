@@ -96,7 +96,7 @@ describe("Worker defensive nack guard", () => {
       },
       urls: [amqpConnectionUrl],
       telemetry: provider,
-    }).get();
+    }).getOrThrow();
 
     try {
       // WHEN we publish two messages back to back. The first triggers the

@@ -63,7 +63,7 @@ describe("order worker", () => {
         },
       }),
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       const order = { orderId: "TEST-001", amount: 59.98 };
@@ -98,7 +98,7 @@ it("publishes a valid order", async ({ amqpConnectionUrl }) => {
   const client = await TypedAmqpClient.create({
     contract,
     urls: [amqpConnectionUrl],
-  }).get();
+  }).getOrThrow();
 
   const result = await client.publish("orderCreated", { orderId: "T-1", amount: 10 });
 
@@ -162,7 +162,7 @@ it("dead-letters a non-retryable failure", async ({
       processOrder: () => ErrAsync(new NonRetryableError("permanent")),
     }),
     urls: [amqpConnectionUrl],
-  }).get();
+  }).getOrThrow();
 
   try {
     publishMessage(

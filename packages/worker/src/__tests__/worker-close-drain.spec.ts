@@ -70,7 +70,7 @@ describe("Worker close drains in-flight handlers", () => {
         },
       },
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     // WHEN a message is mid-handler as close() begins
     publishMessage({ exchange: exchange.name, routingKey: "drain.test" }, { id: "in-flight" });
@@ -92,7 +92,7 @@ describe("Worker close drains in-flight handlers", () => {
       contract,
       handlers: { drainConsumer: redelivered },
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
     try {
       await new Promise((resolve) => setTimeout(resolve, 1_000));
       expect(redelivered).not.toHaveBeenCalled();

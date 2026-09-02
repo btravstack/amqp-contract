@@ -40,21 +40,22 @@ All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatc
 | `RpcTimeoutError`        | `@amqp-contract/RpcTimeoutError`        | `@amqp-contract/client`                                 |
 | `RpcCancelledError`      | `@amqp-contract/RpcCancelledError`      | `@amqp-contract/client`                                 |
 | `TechnicalError`         | `@amqp-contract/TechnicalError`         | `@amqp-contract/core`, re-exported by client and worker |
+| `ConnectionError`        | `@amqp-contract/ConnectionError`        | `@amqp-contract/core`, re-exported by client and worker |
 
 ## Error channel per operation
 
 | Operation                | Returns                                                                                                 |
 | ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `TypedAmqpClient.create` | `AsyncResult<TypedAmqpClient, never>`                                                                   |
+| `TypedAmqpClient.create` | `AsyncResult<TypedAmqpClient, ConnectionError>`                                                         |
 | `client.publish`         | `AsyncResult<void, MessageValidationError>`                                                             |
 | `client.call`            | `AsyncResult<TResponse, MessageValidationError \| RpcTimeoutError \| RpcCancelledError \| RpcError<…>>` |
 | `client.close`           | `AsyncResult<void, never>`                                                                              |
-| `TypedAmqpWorker.create` | `AsyncResult<TypedAmqpWorker, never>`                                                                   |
+| `TypedAmqpWorker.create` | `AsyncResult<TypedAmqpWorker, ConnectionError>`                                                         |
 | `worker.close`           | `AsyncResult<void, never>`                                                                              |
 | Consumer handler         | `AsyncResult<void, HandlerError>`                                                                       |
 | RPC handler              | `AsyncResult<TResponse, HandlerError \| RpcError<…>>`                                                   |
 
-An empty channel (`never`) means every failure is a defect, which is why `.get()` compiles on `create` and `close` but not on `publish`.
+An empty channel (`never`) means every failure is a defect, which is why `.get()` compiles on `close` but not on `publish` — nor on `create`, whose channel carries the broker's own failure.
 
 The client exports the unions by name: `PublishError` (an alias of `MessageValidationError`) and `CallError` (the full `call()` union). For the error union of one specific RPC — declared errors included — use `ClientInferCallError<typeof contract, "getOrder">`.
 
@@ -124,6 +125,33 @@ A Standard Schema validation failed. Carries the source identifier (publisher or
 Validated: publisher payloads, consumer payloads, consumer headers, RPC requests, RPC responses, and RPC error data. **Not** validated: headers on publish.
 
 `isMessageValidationError(err)` is the type guard, exported from `@amqp-contract/core` and re-exported by client and worker.
+
+## `ConnectionError`
+
+The broker could not be reached when `create()` dialed it: refused, unresolvable, unauthorized, or still not ready when `connectTimeoutMs` elapsed. The underlying amqplib rejection is on `cause`.
+
+**Modeled, not a defect.** It is the anticipated failure of dialing a broker — a wrong URL, a rotated credential, a cluster that has not come up — every one an operator's business rather than a bug, and the one thing a start-up path most wants to branch on:
+
+```typescript
+import { P } from "unthrown";
+
+const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match({
+  ok: (worker) => worker,
+  errCases: (matcher) =>
+    matcher.with(P.tag("@amqp-contract/ConnectionError"), (error) => {
+      logger.error({ error }, "broker unreachable");
+      process.exitCode = 1;
+      return undefined;
+    }),
+  defect: (cause) => {
+    logger.error({ cause }, "bug while starting up");
+    process.exitCode = 70;
+    return undefined;
+  },
+});
+```
+
+`isConnectionError(error)` is the type guard, exported from `@amqp-contract/core` and re-exported by client and worker. A connection LOST later — mid-publish, mid-consume — is not this: that is a `TechnicalError` defect, since no caller asked for it and none can act on it.
 
 ## `TechnicalError`
 
@@ -223,10 +251,14 @@ The client was closed while the call was in flight. All pending calls fail with 
 `.get()` compiles only when `E = never`. It still **panics on a defect**, rethrowing the cause — `Result<T, never>` does not mean "cannot throw", it means "has no errors you were supposed to handle".
 
 ```typescript
-const client = await TypedAmqpClient.create({ contract, urls }).get();
+await client.close().get();
 ```
 
-`.getOrThrow()` is the escape hatch on a fallible result: returns the value on `Ok`, throws the `Err` value, rethrows a defect's cause. Intended for scripts, tests and examples.
+`.getOrThrow()` is the escape hatch on a fallible result: returns the value on `Ok`, throws the `Err` value, rethrows a defect's cause. Intended for scripts, tests and examples — `create` is the common one, since its `ConnectionError` is a real error channel.
+
+```typescript
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
+```
 
 ```typescript
 await client.publish("orderCreated", order).getOrThrow();

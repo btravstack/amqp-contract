@@ -157,7 +157,7 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 const result = await client.call(
   "checkAddress",

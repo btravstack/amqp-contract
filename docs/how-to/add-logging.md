@@ -14,14 +14,14 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   logger,
-}).get();
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"],
   logger,
-}).get();
+}).getOrThrow();
 ```
 
 The interface is four methods, each taking a message and an optional structured context:
@@ -108,7 +108,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 See [add middleware](/how-to/add-middleware#inject-dependencies-per-message).

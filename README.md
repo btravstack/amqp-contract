@@ -100,18 +100,19 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 // 6. Type-safe publishing with validation
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 // publish() returns an AsyncResult instead of throwing — awaiting it yields a
-// Result. create()/close() have an empty error channel (E = never), so .get()
-// is correct there; publish() still has a modeled error, so extract it with
-// .getOrThrow() (or handle it with .match()). See the error model guide.
+// Result. close() has an empty error channel (E = never), so .get() is correct
+// there; create() carries ConnectionError and publish() a validation error, so
+// extract those with .getOrThrow() (or handle them with .match()). See the
+// error model guide.
 await client
   .publish("orderCreated", {
     orderId: "ORD-123", // ✅ TypeScript knows!

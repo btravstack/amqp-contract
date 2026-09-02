@@ -16,10 +16,10 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
-`create` returns `AsyncResult<TypedAmqpClient, never>`. The `.get()` is required to reach the client — awaiting alone leaves you with a `Result`. The modeled error channel is empty because connection failures are defects, so `.get()` compiles; it rethrows the underlying `TechnicalError` if connecting fails.
+`create` returns `AsyncResult<TypedAmqpClient, ConnectionError>`. The `.getOrThrow()` is required to reach the client — awaiting alone leaves you with a `Result`. An unreachable broker is modeled rather than a defect, so a start-up path can triage it by tag instead of recovering every defect to get at it; `.getOrThrow()` says you would rather throw.
 
 To log that failure before it propagates:
 
@@ -78,7 +78,7 @@ const client = await TypedAmqpClient.create({
     priority: 5,
     headers: { "x-app-version": "1.0.0" },
   },
-}).get();
+}).getOrThrow();
 ```
 
 Per-call options override these. Messages are `persistent` by default; set `persistent: false` here or per call to opt out.

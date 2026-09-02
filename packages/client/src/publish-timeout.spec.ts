@@ -59,7 +59,7 @@ describe("publishTimeoutMs threading", () => {
       contract,
       urls: ["amqp://localhost"],
       publishTimeoutMs: 1_500,
-    }).get();
+    }).getOrThrow();
 
     expect(createChannelMock()).toHaveBeenCalledTimes(1);
     expect(createChannelMock()).toHaveBeenCalledWith(
@@ -73,7 +73,7 @@ describe("publishTimeoutMs threading", () => {
     const client = await TypedAmqpClient.create({
       contract,
       urls: ["amqp://localhost"],
-    }).get();
+    }).getOrThrow();
 
     expect(createChannelMock()).toHaveBeenCalledTimes(1);
     expect(createChannelMock()).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe("publishTimeoutMs threading", () => {
       contract,
       urls: ["amqp://localhost"],
       publishTimeoutMs: null,
-    }).get();
+    }).getOrThrow();
 
     expect(createChannelMock()).toHaveBeenCalledTimes(1);
     const opts = createChannelMock().mock.calls[0]?.[0] as Record<string, unknown>;

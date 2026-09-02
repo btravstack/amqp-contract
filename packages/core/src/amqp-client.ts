@@ -17,7 +17,7 @@ import {
 } from "unthrown";
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
-import { TechnicalError } from "./errors.js";
+import { ConnectionError, TechnicalError } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { setupAmqpTopology } from "./setup.js";
 
@@ -386,7 +386,7 @@ export class AmqpClient {
    * path to release the connection — `waitForConnect` does not do this
    * automatically. The typed factories handle this cleanup for you.
    */
-  waitForConnect(): AsyncResult<void, never> {
+  waitForConnect(): AsyncResult<void, ConnectionError> {
     const connectPromise = this.channelWrapper.waitForConnect();
     const timeoutMs = this.connectTimeoutMs;
 
@@ -405,13 +405,16 @@ export class AmqpClient {
             }),
           ]);
 
-    return fromPromise(racedPromise, (error: unknown, defect) =>
-      defect(
-        new TechnicalError(
+    // MODELED, not a defect: an unreachable broker is what a wrong URL, a
+    // rotated credential or a cluster still coming up look like — an
+    // operator's business, and the anticipated failure of dialing one.
+    return fromPromise(
+      racedPromise,
+      (error: unknown) =>
+        new ConnectionError(
           "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
           error,
         ),
-      ),
     );
   }
 

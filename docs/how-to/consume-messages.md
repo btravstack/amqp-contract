@@ -23,7 +23,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 Creating the worker declares the contract's topology against the broker and starts consuming every queue in it. There is no separate `start()`.
@@ -142,7 +142,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 `declareHandlers(contract, { … })` does the same for a whole batch at once, which is what you want when handlers stay in one module.
@@ -181,7 +181,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: { … },
   urls: ["amqp://localhost"],
   defaultConsumerOptions: { prefetch: 10 },
-}).get();
+}).getOrThrow();
 ```
 
 Per-handler options override the default. Picking a number is covered in [tune performance](/how-to/tune-performance#prefetch).

@@ -38,7 +38,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Check that the queue was created with dead letter configuration
     const queueInfo = await amqpChannel.checkQueue("test-queue-with-dlx");
@@ -83,7 +83,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Check that the queue was created
     const queueInfo = await amqpChannel.checkQueue("test-queue-dlx-no-key");
@@ -120,7 +120,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Check that the queue was created normally
     const queueInfo = await amqpChannel.checkQueue("test-queue-no-dlx");
@@ -168,7 +168,7 @@ describe("Dead Letter Exchange Support", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - All resources should be created with correct structure
     const mainQueueInfo = await amqpChannel.checkQueue("test-main-queue");

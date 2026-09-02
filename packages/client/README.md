@@ -27,7 +27,7 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 // Publish message with explicit error handling
 const result = await client.publish("orderCreated", {
