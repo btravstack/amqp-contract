@@ -85,6 +85,7 @@ const nonRetryableFactory = (message: string, cause?: unknown): NonRetryableErro
 
 type StoredHandler = (
   helpers: {
+    message: { payload: unknown; headers: unknown };
     context: Record<string, unknown>;
     errors: Record<string, (data: unknown, message?: string) => RpcError>;
     raw: ConsumeMessage;
@@ -1048,7 +1049,11 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // already merges internally, so this keeps the bare `middleware: mw`
         // form and the array form observably identical (and is a no-op for
         // the composed chain, whose context already contains the seed).
-        const helpers = {
+        // The message is on the record AND in the second parameter, oRPC's own
+        // shape — so it is built per invocation rather than once: a middleware
+        // that substituted the payload must not leave the record showing the
+        // value the handler did not receive.
+        const ambient = {
           context: { ...seedContext, ...opts?.context },
           errors,
           raw: msg,
@@ -1056,7 +1061,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           nonRetryable: nonRetryableFactory,
         };
         if (opts?.payload === undefined) {
-          return handler(helpers, validatedMessage);
+          return handler({ ...ambient, message: validatedMessage }, validatedMessage);
         }
         // A middleware substituted the payload — re-validate against the
         // consumer's schema before the handler sees it, so middleware cannot
@@ -1068,9 +1073,10 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           opts.payload,
           "Middleware-substituted payload",
           String(name),
-        ).flatMap((validatedPayload) =>
-          handler(helpers, { ...validatedMessage, payload: validatedPayload }),
-        );
+        ).flatMap((validatedPayload) => {
+          const substituted = { ...validatedMessage, payload: validatedPayload };
+          return handler({ ...ambient, message: substituted }, substituted);
+        });
       };
 
       if (!this.middleware) {

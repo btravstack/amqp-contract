@@ -108,7 +108,10 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+      // The single-record spelling, once, in a test that already proves the
+      // round trip: `message` on the helpers is the same value the second
+      // parameter carries, or one of the two is lying.
+      calculate: ({ message }) => OkAsync({ sum: message.payload.a + message.payload.b }),
     });
     const client = await clientFactory(contract);
 

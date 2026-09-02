@@ -227,6 +227,15 @@ describe("RPC handler inference", () => {
     });
   });
 
+  test("the message is on the helpers record too, so one destructuring is a whole handler", () => {
+    declareHandlers(contract, {
+      processOrder: ({ message }) => {
+        expectTypeOf(message.payload).toEqualTypeOf<{ orderId: string; amount: number }>();
+        return OkAsync(undefined);
+      },
+    });
+  });
+
   test("the retry constructors ride the helpers record", () => {
     declareHandlers(contract, {
       processOrder: ({ retryable, nonRetryable }, { payload }) => {

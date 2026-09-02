@@ -146,18 +146,29 @@ export type WorkerInferRpcErrorConstructors<
 
 /**
  * The helpers record every handler receives as its FIRST argument —
- * everything ambient to the delivery, with the validated message second.
+ * everything the delivery carries, the validated message included, with that
+ * message repeated as the second parameter.
  *
- * That is oRPC's shape (`({ errors, context }, input)`) and the one this
- * family converged on, so a use case moving between transports finds its
- * triage site in the same position. `raw` rides here rather than in a third
- * parameter for the same reason: the leaf takes what the delivery carries,
- * then the message.
+ * That is oRPC's shape, and the one this family converged on:
+ * `ProcedureHandlerOptions` carries `input` and the handler still takes it
+ * positionally, so `({ errors, message }) => ...` and
+ * `({ errors }, message) => ...` are the same call. `raw` rides here rather
+ * than in a third parameter for the same reason — one record for everything
+ * ambient, and the message where a reader wants it.
  */
 export type WorkerHandlerHelpers<
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
   TErrors = EmptyContext,
+  TMessage = unknown,
 > = {
+  /**
+   * The validated message — the SAME value the second parameter carries. It is
+   * on the record so a whole handler can be written from one destructuring,
+   * which is oRPC's own shape: `ProcedureHandlerOptions` carries `input` and
+   * the handler still takes it positionally. Take it whichever way reads better
+   * at the call.
+   */
+  readonly message: TMessage;
   /** Context produced by `createContext` and the middleware chain. */
   readonly context: TContext;
   /** Typed constructors for the contract-declared errors (empty for consumers). */
@@ -282,12 +293,15 @@ export type WorkerInferRpcConsumedMessage<
 // response payload. RetryableError → exponential backoff retry; NonRetryableError → DLQ.
 //
 // Every handler takes the `helpers` record FIRST and the validated message
-// second — oRPC's shape, which this family converged on. `helpers` is
-// `{ context, errors, raw }`: `context` is produced by `createContext` and the
-// middleware chain (an empty object when neither is configured), `errors`
-// carries typed constructors for the RPC's declared errors (empty for
-// consumers), and `raw` is the AMQP delivery. A handler that needs none of
-// them still names the position: `(_, { payload }) => ...`.
+// second — oRPC's shape, which this family converged on, down to the message
+// being on the record as well as in the second parameter. `helpers` is
+// `{ message, context, errors, raw, retryable, nonRetryable }`: `context` is
+// produced by `createContext` and the middleware chain (an empty object when
+// neither is configured), `errors` carries typed constructors for the RPC's
+// declared errors (empty for consumers), `raw` is the AMQP delivery, and the
+// two factories are the modeled failures. So `({ errors, message }) => ...`
+// and `({ errors }, message) => ...` are the same call, and a handler that
+// needs none of them is `(_, { payload }) => ...`.
 
 /**
  * Handler signature for a regular consumer (event/command). Returns
@@ -298,7 +312,11 @@ export type WorkerInferConsumerHandler<
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
-  helpers: WorkerHandlerHelpers<TContext>,
+  helpers: WorkerHandlerHelpers<
+    TContext,
+    EmptyContext,
+    WorkerInferConsumedMessage<TContract, TName>
+  >,
   message: WorkerInferConsumedMessage<TContract, TName>,
 ) => AsyncResult<void, HandlerError>;
 
@@ -317,7 +335,11 @@ export type WorkerInferRpcHandler<
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
-  helpers: WorkerHandlerHelpers<TContext, WorkerInferRpcErrorConstructors<TContract, TName>>,
+  helpers: WorkerHandlerHelpers<
+    TContext,
+    WorkerInferRpcErrorConstructors<TContract, TName>,
+    WorkerInferRpcConsumedMessage<TContract, TName>
+  >,
   message: WorkerInferRpcConsumedMessage<TContract, TName>,
 ) => AsyncResult<
   WorkerInferRpcResponse<TContract, TName>,
