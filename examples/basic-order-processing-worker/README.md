@@ -30,11 +30,11 @@ Handlers are defined directly in the worker creation. This approach is suitable 
 const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: {
-    processOrder: ({ payload }) => {
+    processOrder: (_, { payload }) => {
       // Handler logic here
       return OkAsync(undefined);
     },
-    notifyOrder: ({ payload }) => {
+    notifyOrder: (_, { payload }) => {
       // Handler logic here
       return OkAsync(undefined);
     },
@@ -54,10 +54,14 @@ Handlers can be organized in separate files using `declareHandler` or `declareHa
 
 ```typescript
 // handlers.ts
-export const processOrderHandler = declareHandler(orderContract, "processOrder", ({ payload }) => {
-  // Handler logic here
-  return OkAsync(undefined);
-});
+export const processOrderHandler = declareHandler(
+  orderContract,
+  "processOrder",
+  (_, { payload }) => {
+    // Handler logic here
+    return OkAsync(undefined);
+  },
+);
 
 // index.ts - to use external handlers, import them:
 import { processOrderHandler /* other handlers */ } from "./handlers.js";

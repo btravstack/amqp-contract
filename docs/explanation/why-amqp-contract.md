@@ -101,7 +101,7 @@ An exception is a poor way to carry that decision. It has type `unknown`, it can
 So handlers return their outcome instead:
 
 ```typescript
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(chargeCard(payload), (cause) =>
     cause instanceof CardDeclined
       ? new NonRetryableError("declined", cause) // → dead letter

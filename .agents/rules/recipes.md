@@ -8,7 +8,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 2. **Queue** — `defineQueue(...)` with a `deadLetter` and a `retry` mode (immediate-requeue or ttl-backoff). Quorum by default; classic only if you need priority/exclusive/auto-delete.
 3. **Consumer entry** — `defineEventConsumer(eventPublisher, queue, { routingKey: ... })`. The queue↔exchange binding is auto-generated.
 4. **Add to `defineContract`** under `consumers: { ... }`. Don't add the queue or binding yourself — they're auto-extracted.
-5. **Handler** — implement with `declareHandler(contract, "yourConsumerName", ({ payload, headers }) => …)` returning `AsyncResult<void, HandlerError>`. See [handlers.md](./handlers.md).
+5. **Handler** — implement with `declareHandler(contract, "yourConsumerName", (_, { payload, headers }) => …)` returning `AsyncResult<void, HandlerError>`. See [handlers.md](./handlers.md).
 6. **Tests** — integration test in `src/__tests__/<consumer>.spec.ts` using `it` from `@amqp-contract/testing/extension`. Mock the handler with `vi.fn().mockReturnValue(OkAsync(undefined))`.
 7. **Changeset** — `pnpm changeset` with a minor bump. Public API surface grew.
 
@@ -18,7 +18,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 2. **Queue** — `defineQueue(...)` for the RPC. Quorum by default. **Configure a `deadLetter`** even though replies, not the queue, drive most failure modes: missing `replyTo` / `correlationId` and response-schema mismatches are surfaced as `NonRetryableError` and the worker `nack`s them without requeue, so without a DLX they're dropped silently.
 3. **RPC entry** — `defineRpc(queue, { request, response })`. Typed business errors go in an optional `errors` map whose entries are `{ data: schema, message?: string }` (the raw Standard Schema, NOT `defineMessage`); the optional `message` is the default human message when the handler constructs the error without one.
 4. **Add to `defineContract`** under `rpcs: { ... }`.
-5. **Server-side handler** — define it with `declareHandler(contract, "yourRpcName", ({ payload }) => OkAsync({ /* response */ }))`, via `declareHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `declareHandler` / `declareHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
+5. **Server-side handler** — define it with `declareHandler(contract, "yourRpcName", (_, { payload }) => OkAsync({ /* response */ }))`, via `declareHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `declareHandler` / `declareHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
 6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required.
 7. **Tests** — round-trip integration test (worker + client both wired up). For "no server" scenarios, just create the client without a worker; for "request validation fails", pass a deliberately wrong payload through `as unknown as ...`.
 8. **Changeset** — minor bump.
@@ -51,7 +51,7 @@ If you're spinning up a new `@amqp-contract/*` package:
 Old shape (now banned):
 
 ```typescript
-processOrder: async ({ payload }) => {
+processOrder: async (_, { payload }) => {
   await processPayment(payload);
 };
 ```
@@ -59,7 +59,7 @@ processOrder: async ({ payload }) => {
 New shape:
 
 ```typescript
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(processPayment(payload), (error) => new RetryableError("Payment failed", error)).map(
     () => undefined,
   );

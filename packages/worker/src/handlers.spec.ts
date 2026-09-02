@@ -7,45 +7,12 @@ import {
   defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
-import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
 import { declareHandler, declareHandlers } from "./handlers.js";
-
-/**
- * Creates a mock ConsumeMessage for testing purposes.
- */
-function createMockConsumeMessage(): ConsumeMessage {
-  return {
-    content: Buffer.from("{}"),
-    fields: {
-      consumerTag: "test-consumer-tag",
-      deliveryTag: 1,
-      redelivered: false,
-      exchange: "test-exchange",
-      routingKey: "test.key",
-    },
-    properties: {
-      contentType: undefined,
-      contentEncoding: undefined,
-      headers: {},
-      deliveryMode: undefined,
-      priority: undefined,
-      correlationId: undefined,
-      replyTo: undefined,
-      expiration: undefined,
-      messageId: undefined,
-      timestamp: undefined,
-      type: undefined,
-      userId: undefined,
-      appId: undefined,
-      clusterId: undefined,
-    },
-  };
-}
 
 describe("handlers", () => {
   // Setup test contract
@@ -81,7 +48,7 @@ describe("handlers", () => {
   describe("declareHandler (safe handlers)", () => {
     it("should create a simple safe handler without options", () => {
       // GIVEN
-      const handler = ({ payload }: { payload: { id: string; data: string } }) => {
+      const handler = (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
         return OkAsync(undefined);
       };
@@ -95,7 +62,7 @@ describe("handlers", () => {
 
     it("should create a safe handler with prefetch option", () => {
       // GIVEN
-      const handler = ({ payload }: { payload: { id: string; data: string } }) => {
+      const handler = (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
         return OkAsync(undefined);
       };
@@ -109,7 +76,7 @@ describe("handlers", () => {
 
     it("should create an RPC handler returning a typed response", () => {
       // GIVEN
-      const handler = ({ payload }: { payload: { a: number; b: number } }) =>
+      const handler = (_: unknown, { payload }: { payload: { a: number; b: number } }) =>
         OkAsync({ sum: payload.a + payload.b });
 
       // WHEN
@@ -121,7 +88,7 @@ describe("handlers", () => {
 
     it("should create an RPC handler with options", () => {
       // GIVEN
-      const handler = ({ payload }: { payload: { a: number; b: number } }) =>
+      const handler = (_: unknown, { payload }: { payload: { a: number; b: number } }) =>
         OkAsync({ sum: payload.a + payload.b });
 
       // WHEN
@@ -133,7 +100,7 @@ describe("handlers", () => {
 
     it("should throw error if name is not in contract (mentioning both consumers and RPCs)", () => {
       // GIVEN
-      const handler = ({ payload }: { payload: { id: string; data: string } }) => {
+      const handler = (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
         console.log(payload.id);
         return OkAsync(undefined);
       };
@@ -152,15 +119,15 @@ describe("handlers", () => {
     it("should create multiple safe handlers spanning consumers and RPCs", () => {
       // GIVEN
       const handlers = {
-        testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+        testConsumer: (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.id);
           return OkAsync(undefined);
         },
-        anotherConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+        anotherConsumer: (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
           return OkAsync(undefined);
         },
-        calculate: ({ payload }: { payload: { a: number; b: number } }) =>
+        calculate: (_: unknown, { payload }: { payload: { a: number; b: number } }) =>
           OkAsync({ sum: payload.a + payload.b }),
       };
 
@@ -174,15 +141,15 @@ describe("handlers", () => {
     it("should throw error if a handler key is not in contract (consumers ∪ rpcs)", () => {
       // GIVEN
       const handlers = {
-        testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+        testConsumer: (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.id);
           return OkAsync(undefined);
         },
-        anotherConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+        anotherConsumer: (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
           return OkAsync(undefined);
         },
-        calculate: ({ payload }: { payload: { a: number; b: number } }) =>
+        calculate: (_: unknown, { payload }: { payload: { a: number; b: number } }) =>
           OkAsync({ sum: payload.a + payload.b }),
         nonExistent: ({ payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.data);
@@ -201,7 +168,7 @@ describe("handlers", () => {
     it("should throw error if a contract entry has no handler (reverse completeness)", () => {
       // GIVEN — only one of the three contract entries has a handler
       const handlers = {
-        testConsumer: ({ payload }: { payload: { id: string; data: string } }) => {
+        testConsumer: (_: unknown, { payload }: { payload: { id: string; data: string } }) => {
           console.log(payload.id);
           return OkAsync(undefined);
         },
@@ -254,10 +221,7 @@ describe("handlers", () => {
   describe("safe handlers error handling", () => {
     it("should allow returning RetryableError from safe handler", () => {
       // GIVEN
-      const handler = (
-        _message: { payload: { id: string; data: string } },
-        _rawMessage: ConsumeMessage,
-      ) => {
+      const handler = () => {
         return ErrAsync(new RetryableError("Transient failure"));
       };
 
@@ -268,19 +232,13 @@ describe("handlers", () => {
       expect(result).toBe(handler);
 
       // Verify the handler returns the expected error
-      const handlerResult = (result as typeof handler)(
-        { payload: { id: "1", data: "test" } },
-        createMockConsumeMessage(),
-      );
+      const handlerResult = (result as typeof handler)();
       expect(handlerResult).toBeDefined();
     });
 
     it("should allow returning NonRetryableError from safe handler", () => {
       // GIVEN
-      const handler = (
-        _message: { payload: { id: string; data: string } },
-        _rawMessage: ConsumeMessage,
-      ) => {
+      const handler = () => {
         return ErrAsync(new NonRetryableError("Invalid message"));
       };
 
@@ -291,10 +249,7 @@ describe("handlers", () => {
       expect(result).toBe(handler);
 
       // Verify the handler returns the expected error
-      const handlerResult = (result as typeof handler)(
-        { payload: { id: "1", data: "test" } },
-        createMockConsumeMessage(),
-      );
+      const handlerResult = (result as typeof handler)();
       expect(handlerResult).toBeDefined();
     });
   });

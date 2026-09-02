@@ -92,7 +92,7 @@ import { trace } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("orders");
 
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(
     tracer.startActiveSpan("process-order", async (span) => {
       span.setAttribute("order.id", payload.orderId);

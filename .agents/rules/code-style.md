@@ -84,14 +84,14 @@ const contract = defineContract({
 
 ```typescript
 // Bad — using async handlers
-processOrder: async ({ payload }) => {
+processOrder: async (_, { payload }) => {
   await process(payload);
 };
 
 // Good — use the AsyncResult pattern from unthrown.
 // fromPromise REQUIRES the error mapper as the second argument; chaining
 // .mapErr afterwards is a type error since fromPromise has no `unknown` overload.
-processOrder: ({ payload }) =>
+processOrder: (_, { payload }) =>
   fromPromise(
     process(payload),
     (e) => new RetryableError("Failed", e),
@@ -103,7 +103,7 @@ processOrder: (message) => {
 };
 
 // Good — destructure payload
-processOrder: ({ payload }) => {
+processOrder: (_, { payload }) => {
   console.log(payload.orderId);
 };
 

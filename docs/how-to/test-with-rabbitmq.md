@@ -57,7 +57,7 @@ describe("order worker", () => {
     const worker = await TypedAmqpWorker.create({
       contract,
       handlers: declareHandlers(contract, {
-        processOrder: ({ payload }) => {
+        processOrder: (_, { payload }) => {
           processed.push(payload);
           return OkAsync();
         },

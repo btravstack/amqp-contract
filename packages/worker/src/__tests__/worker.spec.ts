@@ -58,7 +58,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -117,7 +117,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -181,7 +181,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload, headers }) => {
+        testConsumer: (_, { payload, headers }) => {
           messages.push(payload);
           messageHeaders.push(headers);
           return OkAsync(undefined);
@@ -253,7 +253,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -313,11 +313,11 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        consumer1: ({ payload }) => {
+        consumer1: (_, { payload }) => {
           messages1.push(payload);
           return OkAsync(undefined);
         },
-        consumer2: ({ payload }) => {
+        consumer2: (_, { payload }) => {
           messages2.push(payload);
           return OkAsync(undefined);
         },
@@ -372,7 +372,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -423,7 +423,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           attemptCount++;
           if (payload.shouldFail && attemptCount === 1) {
             return ErrAsync(new RetryableError("Handler error on first attempt"));
@@ -483,7 +483,7 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        destConsumer: ({ payload }) => {
+        destConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -536,7 +536,7 @@ describe("AmqpWorker Integration", () => {
     const worker = await workerFactory(
       contract,
       declareHandlers(contract, {
-        testConsumer: ({ payload }) => {
+        testConsumer: (_, { payload }) => {
           messages.push(payload);
           return OkAsync(undefined);
         },
@@ -612,11 +612,11 @@ describe("AmqpWorker Integration", () => {
     await workerFactory(
       contract,
       declareHandlers(contract, {
-        orderConsumer: ({ payload }) => {
+        orderConsumer: (_, { payload }) => {
           orders.push(payload);
           return OkAsync(undefined);
         },
-        notificationConsumer: ({ payload }) => {
+        notificationConsumer: (_, { payload }) => {
           notifications.push(payload);
           return OkAsync(undefined);
         },

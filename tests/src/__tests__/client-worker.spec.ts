@@ -179,6 +179,7 @@ describe("Client and Worker Integration", () => {
           expect(mockHandler).toHaveBeenCalledTimes(1);
           expect(mockHandler).toHaveBeenNthCalledWith(
             1,
+            expect.anything(), // helpers: { context, errors, raw }
             {
               payload: {
                 orderId: "ORD-123",
@@ -191,8 +192,6 @@ describe("Client and Worker Integration", () => {
                 "x-default-header": "default-header-value", // Default value applied
               },
             },
-            expect.anything(), // rawMessage
-            expect.anything(), // middleware context
           );
         },
         { timeout: 5000 },
@@ -237,7 +236,7 @@ describe("Client and Worker Integration", () => {
 
       // GIVEN
       const receivedMessages: unknown[] = [];
-      const mockHandler = vi.fn().mockImplementation((message: unknown) => {
+      const mockHandler = vi.fn().mockImplementation((_helpers: unknown, message: unknown) => {
         receivedMessages.push(message);
         return OkAsync(undefined);
       });
@@ -435,26 +434,24 @@ describe("Client and Worker Integration", () => {
           expect(emailHandler).toHaveBeenCalledTimes(1);
           expect(emailHandler).toHaveBeenNthCalledWith(
             1,
+            expect.anything(), // helpers: { context, errors, raw }
             {
               payload: {
                 recipient: "user@example.com",
                 message: "Test email",
               },
             },
-            expect.anything(), // rawMessage
-            expect.anything(), // middleware context
           );
           expect(smsHandler).toHaveBeenCalledTimes(1);
           expect(smsHandler).toHaveBeenNthCalledWith(
             1,
+            expect.anything(), // helpers: { context, errors, raw }
             {
               payload: {
                 recipient: "+1234567890",
                 message: "Test SMS",
               },
             },
-            expect.anything(), // rawMessage
-            expect.anything(), // middleware context
           );
         },
         { timeout: 5000 },

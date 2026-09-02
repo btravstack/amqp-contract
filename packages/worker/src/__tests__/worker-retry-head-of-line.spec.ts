@@ -66,7 +66,7 @@ describe("TTL-backoff head-of-line blocking", () => {
     let bAttempts = 0;
 
     await workerFactory(contract, {
-      testConsumer: ({ payload }) => {
+      testConsumer: (_, { payload }) => {
         deliveries.push({ id: payload.id, at: Date.now() });
         if (payload.id === "A") {
           aAttempts++;

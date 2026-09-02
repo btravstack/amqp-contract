@@ -75,12 +75,12 @@ type HandlerName<TContract extends ContractDefinition> =
  * to the caller instead of routing to retry/DLQ.
  */
 type StoredHandler = (
-  message: { payload: unknown; headers: unknown },
-  rawMessage: ConsumeMessage,
   helpers: {
     context: Record<string, unknown>;
     errors: Record<string, (data: unknown, message?: string) => RpcError>;
+    raw: ConsumeMessage;
   },
+  message: { payload: unknown; headers: unknown },
 ) => AsyncResult<unknown, HandlerError | RpcError>;
 
 /**
@@ -1036,9 +1036,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         // already merges internally, so this keeps the bare `middleware: mw`
         // form and the array form observably identical (and is a no-op for
         // the composed chain, whose context already contains the seed).
-        const helpers = { context: { ...seedContext, ...opts?.context }, errors };
+        const helpers = { context: { ...seedContext, ...opts?.context }, errors, raw: msg };
         if (opts?.payload === undefined) {
-          return handler(validatedMessage, msg, helpers);
+          return handler(helpers, validatedMessage);
         }
         // A middleware substituted the payload — re-validate against the
         // consumer's schema before the handler sees it, so middleware cannot
@@ -1051,7 +1051,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           "Middleware-substituted payload",
           String(name),
         ).flatMap((validatedPayload) =>
-          handler({ ...validatedMessage, payload: validatedPayload }, msg, helpers),
+          handler(helpers, { ...validatedMessage, payload: validatedPayload }),
         );
       };
 

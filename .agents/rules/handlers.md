@@ -4,20 +4,20 @@ This project uses [unthrown](https://github.com/btravstack/unthrown) for explici
 
 ## Regular consumer handler
 
-A consumer handler receives `({ payload, headers }, rawMessage)` and returns `AsyncResult<void, HandlerError>`:
+A consumer handler receives `({ context, errors, raw }, { payload, headers })` — helpers first, the validated message second — and returns `AsyncResult<void, HandlerError>`:
 
 ```typescript
 import { fromPromise, OkAsync } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
 // Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
-const handler = ({ payload }, rawMessage) => {
-  console.log(payload.orderId);
+const handler = ({ raw }, { payload }) => {
+  console.log(payload.orderId, raw.fields.deliveryTag);
   return OkAsync(undefined);
 };
 
 // Async case — fromPromise REQUIRES the qualify mapper as the second arg
-const asyncHandler = ({ payload }) =>
+const asyncHandler = (_, { payload }) =>
   fromPromise(processPayment(payload), (error) => new RetryableError("Payment failed", error)).map(
     () => undefined,
   );
@@ -25,16 +25,23 @@ const asyncHandler = ({ payload }) =>
 
 ### Parameters
 
-1. **`message`** — `{ payload, headers }`
+1. **`helpers`** — `{ context, errors, raw }`
+   - `context`: seeded by `createContext`, accumulated by the middleware chain
+   - `errors`: typed constructors for the RPC's declared errors (empty for consumers)
+   - `raw`: the raw amqplib `ConsumeMessage` (e.g. `raw.fields.deliveryTag`, `raw.properties.messageId`)
+2. **`message`** — `{ payload, headers }`
    - `payload`: validated against the message's payload schema
    - `headers`: validated against the message's optional headers schema (otherwise `undefined`)
-2. **`rawMessage`** — the raw amqplib `ConsumeMessage` (e.g. `msg.fields.deliveryTag`, `msg.properties.messageId`)
+
+Helpers first is oRPC's parameter order, which this family converged on
+(temporal-contract's activity leaf moved with it). A handler that needs none of
+them still names the position: `(_, { payload }) => ...`.
 
 ## RPC handler
 
 `defineRpc` creates a request-reply slot. RPC handlers return `AsyncResult<TResponse, HandlerError | WorkerInferRpcErrors<...>>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
-All handlers (consumer and RPC) receive a third `helpers` argument — `{ context, errors }`. `context` is seeded by `createContext` and accumulated by the middleware chain (`TypedAmqpWorker.create({ createContext, middleware: composeMiddleware(...) })`); `errors` carries typed constructors for the RPC's declared errors (`ErrAsync(errors.CODE({ ... }))`), empty for consumers. Middleware `next({ payload })` substitutes the payload with re-validation before the handler. See `packages/worker/src/middleware.ts`, `packages/worker/src/worker.ts` (`runHandler`), and [docs/guide/middleware-and-interceptors.md](../../docs/guide/middleware-and-interceptors.md).
+All handlers (consumer and RPC) receive the `helpers` record first — `{ context, errors, raw }`. `context` is seeded by `createContext` and accumulated by the middleware chain (`TypedAmqpWorker.create({ createContext, middleware: composeMiddleware(...) })`); `errors` carries typed constructors for the RPC's declared errors (`ErrAsync(errors.CODE({ ... }))`), empty for consumers. Middleware `next({ payload })` substitutes the payload with re-validation before the handler. See `packages/worker/src/middleware.ts`, `packages/worker/src/worker.ts` (`runHandler`), and [docs/guide/middleware-and-interceptors.md](../../docs/guide/middleware-and-interceptors.md).
 
 When the RPC declares an `errors` map (`defineRpc(queue, { request, response, errors })`), the handler may also return `Err(rpcError(code, data))` for a declared code — the worker validates `data` against the declared schema, publishes an error reply (marked by the `RPC_ERROR_CODE_HEADER` header), and **acks the request**; typed business errors never enter the retry/DLQ pipeline. Undeclared codes or invalid error data are contract violations routed to the DLQ. See `packages/worker/src/worker.ts` (`publishRpcErrorReply`) and [docs/guide/error-model.md](../../docs/guide/error-model.md#typed-rpc-errors-rpcerror).
 
@@ -48,13 +55,13 @@ const result = await TypedAmqpWorker.create({
   contract,
   handlers: {
     // Regular consumer — `payload` typed from the consumer's message schema
-    processOrder: ({ payload }) => OkAsync(undefined),
+    processOrder: (_, { payload }) => OkAsync(undefined),
 
     // RPC handler — must return the typed response payload
-    calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+    calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
 
     // RPC with async work
-    lookupUser: ({ payload }) =>
+    lookupUser: (_, { payload }) =>
       fromPromise(
         db.users.findById(payload.userId),
         (error) => new RetryableError("DB unavailable", error),
@@ -99,7 +106,7 @@ Use `declareHandler` (single) or `declareHandlers` (object) for full type infere
 import { declareHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync, fromPromise, OkAsync } from "unthrown";
 
-const processOrderHandler = declareHandler(contract, "processOrder", ({ payload }) =>
+const processOrderHandler = declareHandler(contract, "processOrder", (_, { payload }) =>
   fromPromise(
     processPayment(payload.orderId),
     (error) => new RetryableError("Payment service unavailable", error),
@@ -107,7 +114,7 @@ const processOrderHandler = declareHandler(contract, "processOrder", ({ payload 
 );
 
 // Permanent failures use NonRetryableError → DLQ, never retried
-const validateOrderHandler = declareHandler(contract, "validateOrder", ({ payload }) => {
+const validateOrderHandler = declareHandler(contract, "validateOrder", (_, { payload }) => {
   if (payload.amount < 1) {
     return ErrAsync(new NonRetryableError("Invalid amount"));
   }
@@ -149,7 +156,7 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 
 ```typescript
 // Conditional error mapping inside fromPromise's qualify
-({ payload }) =>
+(_, { payload }) =>
   fromPromise(process(payload), (error) => {
     if (error instanceof ValidationError) return new NonRetryableError("Invalid data");
     return new RetryableError("Temporary failure", error);

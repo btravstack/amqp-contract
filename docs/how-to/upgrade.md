@@ -9,7 +9,7 @@ All six `@amqp-contract/*` packages version together, so upgrade them in lockste
 
 ## 2.4.x → 3.0
 
-Two independent breaking changes land together — `unthrown` v5 and the defect-channel move — plus three **safe defaults** that change runtime behaviour. Expect to touch every site that inspects a result.
+Two independent breaking changes land together — `unthrown` v5 and the defect-channel move — plus a handler-signature swap and three **safe defaults** that change runtime behaviour. Expect to touch every site that inspects a result, and every handler leaf.
 
 ::: danger Read this first: prefetch changed and nothing will tell you
 Of everything on this page, [consumers prefetch 10 by default](#consumers-prefetch-10-by-default) is the only change with **no compile error and no startup failure**. Your build stays green, your tests stay green, and your throughput profile changes. If you read one section, read that one.
@@ -355,6 +355,45 @@ Exported functions across the btravstack family now take at most two positional 
 
 `AmqpClient.publish` / `sendToQueue` also now return `AsyncResult<void, never>` instead of `AsyncResult<boolean, never>`: a full channel write buffer is triaged once, inside core, as a defect — downstream code no longer checks a boolean.
 
+### Handlers take helpers first, message second
+
+**What breaks:** every handler that reads its payload. The leaf's parameters
+swapped — the `{ context, errors, raw }` helpers record is the **first**
+argument now, the validated `{ payload, headers }` message the second, and the
+raw amqplib delivery moved from a third parameter into `raw` on the helpers.
+
+**Why:** oRPC is the reference shape for this family, being the most widely used
+of the three transports a `@btravstack/*` application composes — a developer
+arriving here has more likely seen `({ errors, context }, input)` than either of
+the others. The mint and compose calls already agreed across the three; the leaf
+a developer types by hand did not, and it is the one they relearn per transport.
+`@temporal-contract`'s activity leaf moved with it.
+
+**The exact edit:**
+
+```diff
+  const worker = await TypedAmqpWorker.create({
+    contract,
+    handlers: {
+-     processOrder: ({ payload }) => save(payload),
++     processOrder: (_, { payload }) => save(payload),
+-     handleFailed: ({ payload }, rawMessage) => log(rawMessage.properties.headers),
++     handleFailed: ({ raw }, { payload }) => log(raw.properties.headers),
+-     getOrder: ({ payload }, _raw, { errors }) => lookup(payload, errors),
++     getOrder: ({ errors }, { payload }) => lookup(payload, errors),
+    },
+  }).get();
+```
+
+A handler that needs none of the helpers still names the position:
+`(_, { payload }) => ...`. One that reads neither is just `() => ...`.
+
+**What the compiler does and does not catch:** a handler that reads its payload
+fails to compile, because the first parameter is the helpers record now. One
+that ignores its message keeps compiling with a parameter whose name lies —
+grep the handlers object for a leaf whose first parameter is not `_` or a
+helpers destructuring.
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
@@ -362,8 +401,10 @@ Exported functions across the btravstack family now take at most two positional 
 3. Fix `create()` / `close()` extraction first; it is mechanical.
 4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
 5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange and nothing on a direct one.
-6. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
-7. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
+6. Swap every handler leaf to `(helpers, message)` — the compiler names the
+   ones that read their payload; grep for the rest.
+7. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
+8. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 
 ## 2.3.x → 2.4.x
 

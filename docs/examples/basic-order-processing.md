@@ -447,7 +447,7 @@ const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: declareHandlers(orderContract, {
     // Event handler for NEW orders (order.created) — headers are typed
-    processOrder: ({ payload, headers }) => {
+    processOrder: (_, { payload, headers }) => {
       console.log(`[PROCESSING] Order ${payload.orderId}`, {
         customer: payload.customerId,
         total: payload.totalAmount,
@@ -460,7 +460,7 @@ const worker = await TypedAmqpWorker.create({
     },
 
     // Event handler for ALL order events (order.#) — payload is the union type
-    notifyOrder: ({ payload }) => {
+    notifyOrder: (_, { payload }) => {
       if ("items" in payload) {
         console.log(`[NOTIFICATIONS] New order ${payload.orderId}`);
       } else {
@@ -472,7 +472,7 @@ const worker = await TypedAmqpWorker.create({
     },
 
     // Event handler for SHIPPED orders (order.shipped)
-    shipOrder: ({ payload }) => {
+    shipOrder: (_, { payload }) => {
       console.log(`[SHIPPING] Order ${payload.orderId} - ${payload.status}`);
       return fromPromise(prepareShipping(payload), qualifyRetryable("Shipping failed")).map(
         () => undefined,
@@ -480,7 +480,7 @@ const worker = await TypedAmqpWorker.create({
     },
 
     // Event handler for URGENT orders (order.*.urgent)
-    handleUrgentOrder: ({ payload }) => {
+    handleUrgentOrder: (_, { payload }) => {
       console.warn(`[URGENT] Order ${payload.orderId} - ${payload.status}`);
       return fromPromise(escalate(payload), qualifyRetryable("Urgent handling failed")).map(
         () => undefined,
@@ -488,7 +488,7 @@ const worker = await TypedAmqpWorker.create({
     },
 
     // Command handler (task queue): reaches exactly one worker
-    fulfillOrder: ({ payload }) => {
+    fulfillOrder: (_, { payload }) => {
       console.log(`[FULFILLMENT] Order ${payload.orderId} → ${payload.warehouseId}`);
       return fromPromise(fulfill(payload), qualifyRetryable("Fulfillment failed")).map(
         () => undefined,
@@ -496,7 +496,7 @@ const worker = await TypedAmqpWorker.create({
     },
 
     // Dead-letter handler: messages that failed in order-processing
-    handleFailedOrders: ({ payload }) => {
+    handleFailedOrders: (_, { payload }) => {
       console.error(`[DLX] Failed order ${payload.orderId}`);
       return fromPromise(recordFailure(payload), qualifyRetryable("DLX handling failed")).map(
         () => undefined,

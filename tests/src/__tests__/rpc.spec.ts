@@ -108,7 +108,7 @@ describe("TypedAmqpClient RPC", () => {
     const contract = buildContract("rpc.calculate.success");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+      calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
     });
     const client = await clientFactory(contract);
 
@@ -263,7 +263,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) =>
+      calculate: (_, { payload }) =>
         payload.a < 0 || payload.b < 0
           ? ErrAsync(
               rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }, "negatives rejected"),
@@ -292,7 +292,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error-ok");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) =>
+      calculate: (_, { payload }) =>
         payload.a < 0 || payload.b < 0
           ? ErrAsync(rpcError("NEGATIVE_NUMBERS", { a: payload.a, b: payload.b }))
           : OkAsync({ sum: payload.a + payload.b }),
@@ -314,7 +314,7 @@ describe("TypedAmqpClient RPC typed errors", () => {
     const contract = buildErrorContract("rpc.calculate.typed-error-codes");
 
     await workerFactory(contract, {
-      calculate: ({ payload }) =>
+      calculate: (_, { payload }) =>
         payload.a + payload.b > 100
           ? ErrAsync(rpcError("LIMIT_EXCEEDED", { limit: 100 }))
           : OkAsync({ sum: payload.a + payload.b }),
@@ -455,7 +455,7 @@ describe("TypedAmqpClient RPC DLQ routing", () => {
 
     let handlerCalls = 0;
     await workerFactory(contract, {
-      calculate: ({ payload }) => {
+      calculate: (_, { payload }) => {
         handlerCalls++;
         return OkAsync({ sum: payload.a + payload.b });
       },

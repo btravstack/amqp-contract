@@ -145,9 +145,14 @@ export type WorkerInferRpcErrorConstructors<
     : EmptyContext;
 
 /**
- * The helpers object every handler receives as its third argument: the
- * middleware-produced `context` and (for RPC handlers with a declared
- * `errors` map) the typed error `constructors`.
+ * The helpers record every handler receives as its FIRST argument —
+ * everything ambient to the delivery, with the validated message second.
+ *
+ * That is oRPC's shape (`({ errors, context }, input)`) and the one this
+ * family converged on, so a use case moving between transports finds its
+ * triage site in the same position. `raw` rides here rather than in a third
+ * parameter for the same reason: the leaf takes what the delivery carries,
+ * then the message.
  */
 export type WorkerHandlerHelpers<
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
@@ -157,6 +162,8 @@ export type WorkerHandlerHelpers<
   readonly context: TContext;
   /** Typed constructors for the contract-declared errors (empty for consumers). */
   readonly errors: TErrors;
+  /** The raw AMQP delivery — `fields`, `properties`, and the untouched `content`. */
+  readonly raw: ConsumeMessage;
 };
 
 /**
@@ -209,18 +216,19 @@ export type WorkerInferRpcResponse<
 /**
  * A consumed message containing parsed payload and headers.
  *
- * This type represents the first argument passed to consumer handlers.
- * It contains the validated payload and (if defined in the message schema) the validated headers.
+ * This type represents the second argument passed to consumer handlers — the
+ * helpers record comes first. It contains the validated payload and (if
+ * defined in the message schema) the validated headers.
  *
  * @template TPayload - The inferred payload type from the message schema
  * @template THeaders - The inferred headers type from the message schema (undefined if not defined)
  *
  * @example
  * ```typescript
- * const handler = declareHandler(contract, 'processOrder', (message, rawMessage) => {
+ * const handler = declareHandler(contract, 'processOrder', ({ raw }, message) => {
  *   console.log(message.payload.orderId);  // Typed payload
  *   console.log(message.headers?.priority); // Typed headers (if defined)
- *   console.log(rawMessage.fields.deliveryTag); // Raw AMQP message
+ *   console.log(raw.fields.deliveryTag); // Raw AMQP delivery
  *   return OkAsync(undefined);
  * });
  * ```
@@ -262,12 +270,13 @@ export type WorkerInferRpcConsumedMessage<
 // error handling. Regular consumers return `void`; RPC handlers return the
 // response payload. RetryableError → exponential backoff retry; NonRetryableError → DLQ.
 //
-// Every handler additionally receives a third `helpers` argument —
-// `{ context, errors }`: `context` is produced by `createContext` and the
-// middleware chain (an empty object when neither is configured); `errors`
+// Every handler takes the `helpers` record FIRST and the validated message
+// second — oRPC's shape, which this family converged on. `helpers` is
+// `{ context, errors, raw }`: `context` is produced by `createContext` and the
+// middleware chain (an empty object when neither is configured), `errors`
 // carries typed constructors for the RPC's declared errors (empty for
-// consumers). `TContext` defaults to `EmptyContext` so handlers that ignore
-// the argument keep their existing two-parameter shape.
+// consumers), and `raw` is the AMQP delivery. A handler that needs none of
+// them still names the position: `(_, { payload }) => ...`.
 
 /**
  * Handler signature for a regular consumer (event/command). Returns
@@ -278,9 +287,8 @@ export type WorkerInferConsumerHandler<
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
-  message: WorkerInferConsumedMessage<TContract, TName>,
-  rawMessage: ConsumeMessage,
   helpers: WorkerHandlerHelpers<TContext>,
+  message: WorkerInferConsumedMessage<TContract, TName>,
 ) => AsyncResult<void, HandlerError>;
 
 /**
@@ -298,9 +306,8 @@ export type WorkerInferRpcHandler<
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
 > = (
-  message: WorkerInferRpcConsumedMessage<TContract, TName>,
-  rawMessage: ConsumeMessage,
   helpers: WorkerHandlerHelpers<TContext, WorkerInferRpcErrorConstructors<TContract, TName>>,
+  message: WorkerInferRpcConsumedMessage<TContract, TName>,
 ) => AsyncResult<
   WorkerInferRpcResponse<TContract, TName>,
   HandlerError | WorkerInferRpcErrors<TContract, TName>
@@ -339,12 +346,12 @@ export type WorkerInferRpcHandlerEntry<
  * @example
  * ```typescript
  * const handlers: WorkerInferHandlers<typeof contract> = {
- *   processOrder: ({ payload }) =>
+ *   processOrder: (_, { payload }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
  * };
  * ```
  */

@@ -186,7 +186,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const processOrderHandler = declareHandler(
  *   orderContract,
  *   'processOrder',
- *   ({ payload }) =>
+ *   (_, { payload }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
@@ -199,7 +199,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const calculateHandler = declareHandler(
  *   rpcContract,
  *   'calculate',
- *   ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
  * );
  * ```
  */
@@ -275,12 +275,12 @@ export function declareHandler<
  * import { fromPromise, OkAsync } from 'unthrown';
  *
  * const handlers = declareHandlers(orderContract, {
- *   processOrder: ({ payload }) =>
+ *   processOrder: (_, { payload }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
  * });
  * ```
  */

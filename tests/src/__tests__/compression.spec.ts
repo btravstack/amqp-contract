@@ -149,9 +149,8 @@ describe("Compression end-to-end", () => {
         { timeout: 5_000 },
       );
       expect(received).toHaveBeenCalledWith(
+        expect.anything(),
         expect.objectContaining({ payload }),
-        expect.anything(),
-        expect.anything(),
       );
     },
   );
@@ -181,10 +180,6 @@ describe("Compression end-to-end", () => {
       },
       { timeout: 5_000 },
     );
-    expect(received).toHaveBeenCalledWith(
-      expect.objectContaining({ payload }),
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(received).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ payload }));
   });
 });

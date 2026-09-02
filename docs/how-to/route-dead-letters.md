@@ -70,9 +70,9 @@ export const contract = defineContract({
 `failedOrder` exists to give the dead-letter consumer a payload type and a binding. Nothing publishes through it directly — the broker does the routing.
 
 ```typescript
-handleFailedOrders: ({ payload }, rawMessage) => {
+handleFailedOrders: ({ raw }, { payload }) => {
   logger.error(
-    { orderId: payload.orderId, death: rawMessage.properties.headers?.["x-death"] },
+    { orderId: payload.orderId, death: raw.properties.headers?.["x-death"] },
     "order dead-lettered",
   );
   return OkAsync(undefined);
@@ -178,7 +178,7 @@ There is no built-in replay. Consume from the dead-letter queue and publish back
 import { NonRetryableError } from "@amqp-contract/worker";
 import { Err, OkAsync, P } from "unthrown";
 
-handleFailedOrders: ({ payload }) =>
+handleFailedOrders: (_, { payload }) =>
   shouldReplay(payload)
     ? client
         .publish("orderCreated", payload)

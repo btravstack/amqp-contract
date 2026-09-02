@@ -73,7 +73,7 @@ describe("Worker middleware context merge", () => {
       createContext: () => ({ fromSeed: "seed" }),
       middleware: injectingMiddleware,
       handlers: {
-        testConsumer: (_message, _raw, { context }) => {
+        testConsumer: ({ context }) => {
           seen.push(context);
           return OkAsync();
         },
@@ -111,7 +111,7 @@ describe("Worker middleware context merge", () => {
       // so a typed middleware needs the AnyWorkerMiddleware cast here.
       middleware: [injectingMiddleware as AnyWorkerMiddleware],
       handlers: {
-        testConsumer: (_message, _raw, { context }) => {
+        testConsumer: ({ context }) => {
           seen.push(context);
           return OkAsync();
         },

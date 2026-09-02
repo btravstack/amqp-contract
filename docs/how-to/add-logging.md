@@ -102,7 +102,7 @@ const worker = await TypedAmqpWorker.create({
     }),
   }),
   handlers: {
-    processOrder: ({ payload }, _raw, { context }) => {
+    processOrder: ({ context }, { payload }) => {
       context.log.info({ orderId: payload.orderId }, "processing");
       return OkAsync(undefined);
     },

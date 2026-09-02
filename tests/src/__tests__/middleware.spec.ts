@@ -159,7 +159,7 @@ describe("worker middleware", () => {
       contract,
       middleware,
       handlers: {
-        processOrder: (_message, _raw, { context }) => {
+        processOrder: ({ context }) => {
           resolveSeen(context);
           return OkAsync(undefined);
         },
@@ -199,7 +199,7 @@ describe("worker middleware", () => {
       contract,
       middleware: [outer, inner],
       handlers: {
-        processOrder: (_message, _raw, { context }) => {
+        processOrder: ({ context }) => {
           resolveSeen(context as Record<string, unknown>);
           return OkAsync(undefined);
         },
@@ -263,7 +263,7 @@ describe("worker middleware", () => {
         return next();
       }),
       handlers: {
-        calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+        calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
     const client = await clientFactory({ contract });
@@ -302,7 +302,7 @@ describe("client interceptors", () => {
     await workerFactory({
       contract,
       handlers: {
-        processOrder: (_message, raw) => {
+        processOrder: ({ raw }) => {
           resolveHeaders(raw.properties.headers);
           return OkAsync(undefined);
         },
@@ -333,7 +333,7 @@ describe("client interceptors", () => {
     await workerFactory({
       contract,
       handlers: {
-        calculate: ({ payload }) => OkAsync({ sum: payload.a + payload.b }),
+        calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
       },
     });
 
@@ -383,7 +383,7 @@ describe("createContext and handler helpers", () => {
         (args, next) => next({ context: { ...args.context, stamped: true } }),
       ),
       handlers: {
-        processOrder: (_message, _raw, { context }) => {
+        processOrder: ({ context }) => {
           resolveSeen(context);
           return OkAsync(undefined);
         },
@@ -432,7 +432,7 @@ describe("createContext and handler helpers", () => {
     await workerFactory({
       contract,
       handlers: {
-        calculate: ({ payload }, _raw, { errors }) =>
+        calculate: ({ errors }, { payload }) =>
           payload.a < 0
             ? ErrAsync(errors.BLOCKED({ reason: "negative" }))
             : OkAsync({ sum: payload.a + payload.b }),
@@ -469,7 +469,7 @@ describe("middleware payload substitution", () => {
         return next({ payload: { orderId: `${payload.orderId}-rewritten` } });
       }),
       handlers: {
-        processOrder: ({ payload }) => {
+        processOrder: (_, { payload }) => {
           resolveSeen(payload);
           return OkAsync(undefined);
         },

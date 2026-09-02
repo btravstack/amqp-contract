@@ -14,7 +14,7 @@ Both take `(args, next)` and call `next()` to continue. Everything stays inside 
 
 ## Inject typed context into handlers
 
-A middleware proves something once and passes the result downstream. Handlers receive it as `helpers.context`, their third argument.
+A middleware proves something once and passes the result downstream. Handlers receive it as `helpers.context`, in their first argument.
 
 ```typescript
 import {
@@ -40,7 +40,7 @@ const worker = await TypedAmqpWorker.create({
   middleware: auth,
   handlers: {
     // context is typed { tenantId: string } — proven by the middleware
-    processOrder: ({ payload }, _raw, { context }) => processFor(context.tenantId, payload),
+    processOrder: ({ context }, { payload }) => processFor(context.tenantId, payload),
   },
   urls: ["amqp://localhost"],
 }).get();
@@ -84,7 +84,7 @@ const worker = await TypedAmqpWorker.create({
   middleware: auth, // seeded with { log, orderRepo }
   handlers: {
     // context: { log, orderRepo } & { tenantId: string }
-    processOrder: ({ payload }, _raw, { context }) => context.orderRepo.process(payload),
+    processOrder: ({ context }, { payload }) => context.orderRepo.process(payload),
   },
   urls: ["amqp://localhost"],
 }).get();
@@ -125,7 +125,7 @@ RPC handlers with a declared `errors` map get typed constructors in `helpers.err
 
 ```typescript
 handlers: {
-  getOrder: ({ payload }, _raw, { errors }) =>
+  getOrder: ({ errors }, { payload }) =>
     orders.has(payload.orderId)
       ? OkAsync(orders.get(payload.orderId))
       : ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId })),

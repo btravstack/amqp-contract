@@ -185,7 +185,7 @@ import { contract } from "./contract.js";
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
-    processEmail: ({ payload }) => {
+    processEmail: (_, { payload }) => {
       console.log("Received an email to send:");
       console.log(`  To:      ${payload.to}`);
       console.log(`  Subject: ${payload.subject}`);
