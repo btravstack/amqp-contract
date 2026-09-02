@@ -114,7 +114,7 @@ export function extractConsumer(entry: ConsumerEntry): ConsumerDefinition {
  * //     },
  * //   },
  * //   urls: ['amqp://localhost'],
- * // }).get();
+ * // }).getOrThrow();
  * ```
  *
  * @see defineCommandConsumer - For task queue patterns with automatic schema consistency

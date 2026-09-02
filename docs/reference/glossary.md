@@ -144,14 +144,14 @@ await publisher.publish(exchange, routingKey, message);
 const consumer = await createConsumer(queue, handler);
 
 // Here
-const client = await TypedAmqpClient.create({ contract, urls }).get();
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
 await client.publish("orderCreated", message).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: { processOrder: handler },
   urls,
-}).get();
+}).getOrThrow();
 ```
 
 The exchange and routing key are absent from the publish call because they live in the contract, keyed by publisher name.

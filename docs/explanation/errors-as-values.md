@@ -87,10 +87,10 @@ You do not have to enumerate when you genuinely do not care: `.with(P._, handler
 `.get()` extracts the success value, and it only compiles when the modeled error channel is empty (`E = never`). This is why you can write:
 
 ```typescript
-const client = await TypedAmqpClient.create({ contract, urls }).get();
+await client.close().get();
 ```
 
-`create` returns `AsyncResult<TypedAmqpClient, never>` — an empty error channel, because everything that can go wrong while connecting is infrastructure, and infrastructure failures are defects. There is nothing to handle, so `.get()` is allowed.
+`close` returns `AsyncResult<void, never>` — an empty error channel, because everything that can go wrong while tearing a connection down is infrastructure, and infrastructure failures are defects. There is nothing to handle, so `.get()` is allowed.
 
 On a still-fallible result it will not compile:
 
@@ -98,9 +98,9 @@ On a still-fallible result it will not compile:
 await client.publish("orderCreated", order).get(); // compile error
 ```
 
-That is the gate doing its job — `publish` has a modeled error, so you must address it. When throwing is genuinely acceptable (a script, a test, an example) `.getOrThrow()` says so explicitly.
+That is the gate doing its job — `publish` has a modeled error, so you must address it. When throwing is genuinely acceptable (a script, a test, an example) `.getOrThrow()` says so explicitly. `create` is in that camp too: an unreachable broker is a modeled `ConnectionError`, so `.get()` does not compile there either.
 
-Note that `E = never` empties the _modeled_ channel only. `.get()` still rethrows a defect's cause — a failed `create()` throws the underlying `TechnicalError`. `Result<T, never>` does not mean "cannot throw"; it means "has no errors you were supposed to handle".
+Note that `E = never` empties the _modeled_ channel only. `.get()` still rethrows a defect's cause — `Result<T, never>` does not mean "cannot throw"; it means "has no errors you were supposed to handle".
 
 ## Why handlers are not `async`
 

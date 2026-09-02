@@ -15,13 +15,13 @@ Pass the same `urls`:
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"], // same URLs → same connection
-}).get();
+}).getOrThrow();
 ```
 
 The result is one connection with two channels. There is nothing to opt into.
@@ -76,7 +76,7 @@ const client = await TypedAmqpClient.create({
     heartbeatIntervalInSeconds: 30,
     reconnectTimeInSeconds: 5,
   },
-}).get();
+}).getOrThrow();
 ```
 
 Heartbeats detect a dead peer that never sent a FIN — a hard-killed broker, a silently dropped NAT mapping. Too long and failures take minutes to notice; too short and a busy event loop can miss one and drop a healthy connection. 30 seconds is a reasonable default; go lower only with evidence.
@@ -90,7 +90,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   connectTimeoutMs: 10_000,
-}).get();
+}).getOrThrow();
 ```
 
 `create` resolves to a defect if the connection is not ready in time; the default is 30 seconds. Pass `null` to wait indefinitely and let amqp-connection-manager keep retrying — appropriate for a worker that should tolerate the broker starting after it does.

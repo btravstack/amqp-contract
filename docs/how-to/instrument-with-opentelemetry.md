@@ -119,7 +119,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   telemetry: myProvider,
-}).get();
+}).getOrThrow();
 ```
 
 Omitting it uses the default provider, which attempts to load OpenTelemetry and no-ops if it is absent.

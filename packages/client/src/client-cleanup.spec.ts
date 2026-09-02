@@ -23,9 +23,10 @@ describe("TypedAmqpClient.create cleanup", () => {
       connectTimeoutMs: 200,
     });
 
-    // A connect timeout is an infrastructure failure — it surfaces as a Defect
-    // (with a TechnicalError cause), not a modeled Err.
-    expect(result).toBeDefect();
+    // A connect timeout is the MODELED failure of dialing a broker — an
+    // operator's business, not a bug — so it lands on the `Err` channel, and
+    // the pooled connection is released either way.
+    expect(result).toBeErrTagged("@amqp-contract/ConnectionError");
     expect(_internal_getConnectionCount()).toBe(0);
   });
 });

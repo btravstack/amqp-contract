@@ -26,8 +26,8 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    await client1.waitForConnect().get();
-    await client2.waitForConnect().get();
+    await client1.waitForConnect().getOrThrow();
+    await client2.waitForConnect().getOrThrow();
 
     // THEN - Both clients should share the same connection instance
     expect(client1.getConnection()).toBe(client2.getConnection());
@@ -50,7 +50,7 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
     const client2 = new AmqpClient(contract, { urls: [`${amqpConnectionUrl}-different`] });
 
-    await client1.waitForConnect().get();
+    await client1.waitForConnect().getOrThrow();
     // client2 will fail to connect due to invalid URL, but that's okay for this test
 
     // THEN - Connections should be different instances
@@ -75,8 +75,8 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    await client1.waitForConnect().get();
-    await client2.waitForConnect().get();
+    await client1.waitForConnect().getOrThrow();
+    await client2.waitForConnect().getOrThrow();
 
     const sharedConnection = client1.getConnection();
 
@@ -102,8 +102,8 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1 = new AmqpClient(contract, { urls });
     const client2 = new AmqpClient(contract, { urls });
 
-    await client1.waitForConnect().get();
-    await client2.waitForConnect().get();
+    await client1.waitForConnect().getOrThrow();
+    await client2.waitForConnect().getOrThrow();
 
     const sharedConnection = client1.getConnection();
 
@@ -134,8 +134,8 @@ describe("AmqpClient Connection Sharing Integration", () => {
     const client1b = new AmqpClient(contract, { urls: urls1 });
     const client2a = new AmqpClient(contract, { urls: urls2 });
 
-    await client1a.waitForConnect().get();
-    await client1b.waitForConnect().get();
+    await client1a.waitForConnect().getOrThrow();
+    await client1b.waitForConnect().getOrThrow();
     // client2a will fail to connect but that's okay
 
     // THEN - Clients with same URLs should share connection
@@ -161,13 +161,13 @@ describe("AmqpClient Connection Sharing Integration", () => {
     // WHEN - Rapidly create and close clients
     for (let i = 0; i < 5; i++) {
       const client = new AmqpClient(contract, { urls });
-      await client.waitForConnect().get();
+      await client.waitForConnect().getOrThrow();
       await client.close().get();
     }
 
     // THEN - Should not throw errors and last close should clean up connection
     const finalClient = new AmqpClient(contract, { urls });
-    await finalClient.waitForConnect().get();
+    await finalClient.waitForConnect().getOrThrow();
     expect(finalClient.getConnection()).toBeDefined();
 
     // CLEANUP

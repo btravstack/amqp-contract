@@ -34,7 +34,7 @@ const it = baseIt.extend<{
             contract,
             urls: [amqpConnectionUrl],
             ...options,
-          }).get();
+          }).getOrThrow();
 
           clients.push(client);
           return client;

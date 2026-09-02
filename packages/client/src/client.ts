@@ -10,6 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import {
   AmqpClient,
+  type ConnectionError,
   type AmqpPublishOptions,
   type Logger,
   MessagingSemanticConventions,
@@ -223,7 +224,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     publishTimeoutMs,
     publishInterceptors,
     callInterceptors,
-  }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, never> {
+  }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, ConnectionError> {
     // Enter through the safety net so a synchronous constructor throw (an
     // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
     // instead of escaping create() as a raw throw.

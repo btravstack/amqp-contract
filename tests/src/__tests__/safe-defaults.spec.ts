@@ -73,7 +73,10 @@ describe("default prefetch", () => {
       release = resolve;
     });
 
-    const client = await TypedAmqpClient.create({ contract, urls: [amqpConnectionUrl] }).get();
+    const client = await TypedAmqpClient.create({
+      contract,
+      urls: [amqpConnectionUrl],
+    }).getOrThrow();
     const worker = await TypedAmqpWorker.create({
       contract,
       urls: [amqpConnectionUrl],
@@ -90,7 +93,7 @@ describe("default prefetch", () => {
             (cause, defect) => defect(cause),
           ),
       },
-    }).get();
+    }).getOrThrow();
 
     try {
       for (let i = 0; i < MESSAGE_COUNT; i += 1) {

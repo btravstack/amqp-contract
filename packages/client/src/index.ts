@@ -11,6 +11,8 @@ export {
 // (`TechnicalError`) never forces a direct dependency on @amqp-contract/core.
 export {
   isMessageValidationError,
+  ConnectionError,
+  isConnectionError,
   isTechnicalError,
   TechnicalError,
   type Logger,

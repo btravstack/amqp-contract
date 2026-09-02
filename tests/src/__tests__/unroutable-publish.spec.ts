@@ -55,7 +55,7 @@ describe("unroutable publish", () => {
     const client = await TypedAmqpClient.create({
       contract,
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       // WHEN the unroutable message is published, and then the sentinel.

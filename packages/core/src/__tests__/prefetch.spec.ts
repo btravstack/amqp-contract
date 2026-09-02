@@ -39,7 +39,7 @@ describe("AmqpClient prefetch integration", () => {
     };
 
     const client = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Hold every delivery: never ack, so the broker is forced to honour the
     // per-consumer prefetch cap (it cannot deliver more than `prefetch`

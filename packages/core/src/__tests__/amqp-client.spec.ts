@@ -43,7 +43,7 @@ describe("AmqpClient Integration", () => {
     });
 
     // Wait for setup to complete
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Verify exchanges exist by checking them
     await expect(amqpChannel.checkExchange("orders")).resolves.toBeDefined();
@@ -67,7 +67,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Verify queues exist by checking them
     await expect(amqpChannel.checkQueue("order-processing")).resolves.toBeDefined();
@@ -103,7 +103,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Setup consumer before publishing
     const waitForMessages = await initConsumer("orders", "order.created");
@@ -146,7 +146,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Setup consumer on destination exchange
     const waitForMessages = await initConsumer("destination", "test.important");
@@ -203,7 +203,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Setup consumers
     const waitForOrderMessages = await initConsumer("orders", "order.created");
@@ -238,7 +238,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Should not throw and client should be usable
     expect(client.getConnection()).toBeDefined();
@@ -271,7 +271,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Setup consumer
     const waitForMessages = await initConsumer("fanout", "");
@@ -306,7 +306,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Exchange should exist (arguments would have been passed to RabbitMQ)
     await expect(amqpChannel.checkExchange("orders")).resolves.toBeDefined();
@@ -332,7 +332,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Queue should exist with custom arguments
     await expect(amqpChannel.checkQueue("orders")).resolves.toBeDefined();
@@ -374,7 +374,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Setup consumer on the local queue via bridge exchange
     const waitForMessages = await initConsumer(bridgeExchange.name, "order.created");
@@ -408,7 +408,7 @@ describe("AmqpClient Integration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // WHEN
     await client.close().get();

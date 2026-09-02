@@ -26,7 +26,7 @@ export const it = baseIt.extend<{
             handlers,
             urls: [amqpConnectionUrl],
             logger: console,
-          }).get();
+          }).getOrThrow();
 
           workers.push(worker);
           return worker;

@@ -41,7 +41,10 @@ describe("TypedAmqpWorker.create cleanup", () => {
       connectTimeoutMs: 200,
     });
 
-    expect(result).toBeDefect();
+    // MODELED, not a defect: an unreachable broker is the anticipated failure
+    // of dialing one, so a start-up path can triage it by tag rather than
+    // recovering every defect to get at it.
+    expect(result).toBeErrTagged("@amqp-contract/ConnectionError");
     expect(_internal_getConnectionCount()).toBe(0);
   });
 

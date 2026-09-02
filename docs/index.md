@@ -99,7 +99,7 @@ import { contract } from "./contract.js";
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 
 await client
   .publish("orderCreated", {
@@ -123,7 +123,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: ["amqp://localhost"],
-}).get();
+}).getOrThrow();
 ```
 
 :::

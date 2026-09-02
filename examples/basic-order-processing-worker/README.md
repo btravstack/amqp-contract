@@ -40,7 +40,7 @@ const worker = await TypedAmqpWorker.create({
     },
   },
   urls: [env.AMQP_URL],
-}).get();
+}).getOrThrow();
 ```
 
 ### External Handlers (src/handlers.ts)
@@ -73,7 +73,7 @@ const worker = await TypedAmqpWorker.create({
     // ... other handlers
   },
   urls: [env.AMQP_URL],
-}).get();
+}).getOrThrow();
 ```
 
 The main `src/index.ts` file uses inline handlers for simplicity, while `src/handlers.ts` provides an example of how to organize handlers externally for better maintainability.

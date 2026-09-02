@@ -127,7 +127,7 @@ describe("RPC reply publish failure routing", () => {
       handlers: { calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }) },
       urls: ["amqp://localhost"],
       logger,
-    }).get();
+    }).getOrThrow();
 
     const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
       msg: ConsumeMessage | null,
@@ -164,7 +164,7 @@ describe("RPC reply publish failure routing", () => {
       contract,
       handlers: { calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }) },
       urls: ["amqp://localhost"],
-    }).get();
+    }).getOrThrow();
 
     const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
       msg: ConsumeMessage | null,

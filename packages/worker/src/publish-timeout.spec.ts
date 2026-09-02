@@ -89,7 +89,7 @@ describe("publishTimeoutMs threading (worker)", () => {
       handlers: { processOrder: () => OkAsync(undefined) },
       urls: ["amqp://localhost"],
       publishTimeoutMs: 2_000,
-    }).get();
+    }).getOrThrow();
 
     expect(createChannelMock()).toHaveBeenCalledTimes(1);
     expect(createChannelMock()).toHaveBeenCalledWith(
@@ -104,7 +104,7 @@ describe("publishTimeoutMs threading (worker)", () => {
       contract,
       handlers: { processOrder: () => OkAsync(undefined) },
       urls: ["amqp://localhost"],
-    }).get();
+    }).getOrThrow();
 
     expect(createChannelMock()).toHaveBeenCalledWith(
       expect.objectContaining({ publishTimeout: DEFAULT_PUBLISH_TIMEOUT_MS }),
@@ -119,7 +119,7 @@ describe("publishTimeoutMs threading (worker)", () => {
       handlers: { processOrder: () => OkAsync(undefined) },
       urls: ["amqp://localhost"],
       publishTimeoutMs: null,
-    }).get();
+    }).getOrThrow();
 
     const opts = createChannelMock().mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts).not.toHaveProperty("publishTimeout");

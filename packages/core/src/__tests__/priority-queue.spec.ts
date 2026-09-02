@@ -44,7 +44,7 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Verify queue was created with x-max-priority
     const queueInfo = await amqpChannel.checkQueue("test-priority-queue");
@@ -99,7 +99,7 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Publish messages with different priorities
     // Publishing in this order: low (1), medium (5), high (10)
@@ -218,7 +218,7 @@ describe("Priority Queue", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // Publish message without priority (defaults to 0)
     await client

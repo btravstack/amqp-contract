@@ -30,7 +30,7 @@ Of everything on this page, [consumers prefetch 10 by default](#consumers-prefet
     handlers,
 +   // fast handlers, throughput-bound: raise it
 +   defaultConsumerOptions: { prefetch: 100 },
-  }).get();
+  }).getOrThrow();
 ```
 
 ```diff
@@ -40,7 +40,7 @@ Of everything on this page, [consumers prefetch 10 by default](#consumers-prefet
     handlers,
 +   // the pre-3.0 behaviour, stated out loud
 +   defaultConsumerOptions: { prefetch: "unbounded" },
-  }).get();
+  }).getOrThrow();
 ```
 
 Per-handler tuples still override the default: `processOrder: [handler, { prefetch: 1 }]`. `"unbounded"` rather than `0` — AMQP's `0` means _unlimited_, which reads at a call site as its opposite.
@@ -196,7 +196,7 @@ result.match({
     contract,
     urls,
 +   publishTimeoutMs: 10_000,
-  }).get();
+  }).getOrThrow();
 ```
 
 ```diff
@@ -205,7 +205,7 @@ result.match({
     urls,
 +   // restore the pre-3.0 unbounded buffering
 +   publishTimeoutMs: null,
-  }).get();
+  }).getOrThrow();
 ```
 
 `TypedAmqpWorker` takes the same option for its retry republishes and RPC replies. `publishTimeoutMs` wins over `channelOptions.publishTimeout` if you set both.
@@ -278,16 +278,16 @@ Matching `P.tag("@amqp-contract/TechnicalError")` in an error matcher no longer 
 
 Error channels narrow accordingly. `client.publish(...)` is now `AsyncResult<void, MessageValidationError>`, and `client.call(...)` drops `TechnicalError` from its union.
 
-### `create()` and `close()` need `.get()`
+### `close()` needs `.get()`, and `create()` keeps `.getOrThrow()`
 
-Their modeled channel is now empty (`E = never`), and `.getOrThrow()` is gated to a _non-empty_ error channel, so it no longer compiles on them:
+`close()`'s modeled channel is now empty (`E = never`), and `.getOrThrow()` is gated to a _non-empty_ error channel, so it no longer compiles there:
 
 ```diff
-- const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
-+ const client = await TypedAmqpClient.create({ contract, urls }).get();
+- await client.close().getOrThrow();
++ await client.close().get();
 ```
 
-A failed `create()` still throws — `.get()` panics on a defect, rethrowing the underlying `TechnicalError`. `.getOrThrow()` on `publish(...)` / `call(...)` is unaffected; those still carry a modeled `E`.
+`create()` goes the other way: it carries a modeled `ConnectionError` (see [the broker is a modeled failure](#the-broker-is-a-modeled-failure) below), so `.getOrThrow()` is what it takes — or triage the error, which is the point of modeling it. `.getOrThrow()` on `publish(...)` / `call(...)` is unaffected; those still carry a modeled `E`.
 
 ### Implementation-side builders are `declare*`
 
@@ -382,7 +382,7 @@ a developer types by hand did not, and it is the one they relearn per transport.
 -     getOrder: ({ payload }, _raw, { errors }) => lookup(payload, errors),
 +     getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
     },
-  }).get();
+  }).getOrThrow();
 ```
 
 A handler that needs none of the helpers still names the position:
@@ -415,6 +415,47 @@ that ignores its message keeps compiling with a parameter whose name lies —
 grep the handlers object for a leaf whose first parameter is not `_` or a
 helpers destructuring.
 
+### The broker is a modeled failure
+
+`TypedAmqpWorker.create` and `TypedAmqpClient.create` report an unreachable
+broker as a typed `Err` — `ConnectionError`, exported from all three packages —
+where it used to arrive as a `Defect` carrying a `TechnicalError`.
+
+**Why:** a refused connection, a rotated credential, a cluster that has not come
+up yet — every one of them is an operator's business and the anticipated
+failure of dialing a broker, which is the definition of the `Err` channel here.
+The defect channel keeps its meaning: the failures nobody anticipated. Before
+this, a start-up path that wanted to turn "broker down" into an exit code had to
+recover EVERY defect to reach it, which also swallowed genuine bugs raised
+during start-up.
+
+**The exact edit** — handle the channel, or unwrap it:
+
+```diff
+- const worker = await TypedAmqpWorker.create({ contract, handlers, urls }).get();
++ const worker = await TypedAmqpWorker.create({ contract, handlers, urls }).getOrThrow();
+```
+
+```diff
++ const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match({
++   ok: (worker) => worker,
++   errCases: (matcher) =>
++     matcher.with(P.tag("@amqp-contract/ConnectionError"), (error) => {
++       logger.error({ error }, "broker unreachable");
++       process.exitCode = 1;
++       return undefined;
++     }),
++   defect: (cause) => {
++     logger.error({ error: cause }, "bug during start-up");
++     process.exitCode = 70;
++     return undefined;
++   },
++ });
+```
+
+A blanket `.recoverDefect(...)` that existed only to move this failure onto the
+`Err` channel can go — that is what this change is for.
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
@@ -422,10 +463,12 @@ helpers destructuring.
 3. Fix `create()` / `close()` extraction first; it is mechanical.
 4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
 5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange and nothing on a direct one.
-6. Swap every handler leaf to `(helpers, message)` — the compiler names the
+6. Unwrap `create()` with `.getOrThrow()`, or triage its `ConnectionError` —
+   and delete any blanket defect-recovery that existed to reach it.
+7. Swap every handler leaf to `(helpers, message)` — the compiler names the
    ones that read their payload; grep for the rest.
-7. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
-8. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
+8. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
+9. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 
 ## 2.3.x → 2.4.x
 

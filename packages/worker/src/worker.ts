@@ -10,6 +10,7 @@ import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/in
 import {
   AmqpClient,
   type AmqpConsumeOptions,
+  type ConnectionError,
   type Logger,
   RPC_ERROR_CODE_HEADER,
   RpcError,
@@ -337,7 +338,7 @@ export type CreateWorkerOptions<
  *     },
  *   },
  *   urls: ['amqp://localhost'],
- * }).get();
+ * }).getOrThrow();
  *
  * // Close when done (drains in-flight handlers first)
  * await worker.close().get();
@@ -484,7 +485,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     maxDecompressedBytes,
   }: CreateWorkerOptions<TContract, TCreated, TContext>): AsyncResult<
     TypedAmqpWorker<TContract>,
-    never
+    ConnectionError
   > {
     // Fail fast on missing or incomplete handlers — the type system enforces
     // this at the public API boundary, but a JavaScript caller or a cast can

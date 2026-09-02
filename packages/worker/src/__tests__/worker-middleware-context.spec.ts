@@ -79,7 +79,7 @@ describe("Worker middleware context merge", () => {
         },
       },
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "bare" });
@@ -117,7 +117,7 @@ describe("Worker middleware context merge", () => {
         },
       },
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       publishMessage({ exchange: exchange.name, routingKey: "test.message" }, { id: "array" });

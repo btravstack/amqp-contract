@@ -26,7 +26,7 @@ describe("Basic Order Processing Worker Integration", () => {
         fulfillOrder: () => OkAsync(undefined),
       }),
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       const newOrder = {
@@ -80,7 +80,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.get();
+    const worker = workerResult.getOrThrow();
 
     try {
       // WHEN
@@ -151,7 +151,7 @@ describe("Basic Order Processing Worker Integration", () => {
       }),
       urls: [amqpConnectionUrl],
     });
-    const worker = workerResult.get();
+    const worker = workerResult.getOrThrow();
 
     try {
       const newOrder = {
@@ -204,7 +204,7 @@ describe("Basic Order Processing Worker Integration", () => {
         },
       }),
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     try {
       const command = {

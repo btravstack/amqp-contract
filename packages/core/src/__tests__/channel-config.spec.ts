@@ -29,7 +29,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Channel should be created with json: false
     // We can't directly test the internal json setting, but we can verify the client was created
@@ -52,7 +52,7 @@ describe("AmqpClient Channel Configuration", () => {
       urls: [amqpConnectionUrl],
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Default json: true should be used
     expect(client.getConnection()).toBeDefined();
@@ -85,7 +85,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Custom setup should have been called
     expect(customSetupMock).toHaveBeenCalledTimes(1);
@@ -126,7 +126,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Callback setup should have been called
     expect(callbackSetupMock).toHaveBeenCalledTimes(1);
@@ -157,7 +157,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Channel should be created
     expect(client.getConnection()).toBeDefined();
@@ -182,7 +182,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - Regular channel should be created
     expect(client.getConnection()).toBeDefined();
@@ -208,7 +208,7 @@ describe("AmqpClient Channel Configuration", () => {
       },
     });
 
-    await client.waitForConnect().get();
+    await client.waitForConnect().getOrThrow();
 
     // THEN - All options should be applied
     expect(client.getConnection()).toBeDefined();

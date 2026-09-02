@@ -11,6 +11,8 @@ export {
 export { type ConnectionLease } from "./connection-manager.js";
 export { technicalDefect } from "./defect.js";
 export {
+  ConnectionError,
+  isConnectionError,
   isMessageValidationError,
   isRpcError,
   isTechnicalError,

@@ -77,7 +77,7 @@ Choose by whether you need to _replay_. If the ability to re-read last month's e
 
 ## Within the btravstack family
 
-amqp-contract shares its foundations with [unthrown](https://btravstack.github.io/unthrown/) (errors as values) and [temporal-contract](https://btravstack.github.io/temporal-contract/) (typed contracts for Temporal). The shared conventions are deliberate and stable: Standard Schema v1 validation, `define*` for contract authoring vs `declare*` for implementations, static `Typed*.create(...)` factories returning `AsyncResult<Instance, never>` (infrastructure failures are defects, unwrapped once with `.get()`), namespaced `TaggedError` tags (`@amqp-contract/X`, `@temporal-contract/X`), and [Deno-style exported signatures](https://docs.deno.com/runtime/contributing/style_guide/) (at most two positional arguments, a trailing options object, no positional booleans).
+amqp-contract shares its foundations with [unthrown](https://btravstack.github.io/unthrown/) (errors as values) and [temporal-contract](https://btravstack.github.io/temporal-contract/) (typed contracts for Temporal). The shared conventions are deliberate and stable: Standard Schema v1 validation, `define*` for contract authoring vs `declare*` for implementations, static `Typed*.create(...)` factories returning an `AsyncResult` (an unreachable broker is a modeled `ConnectionError`; a bug during start-up is a defect), namespaced `TaggedError` tags (`@amqp-contract/X`, `@temporal-contract/X`), and [Deno-style exported signatures](https://docs.deno.com/runtime/contributing/style_guide/) (at most two positional arguments, a trailing options object, no positional booleans).
 
 The divergences are equally deliberate — do not expect a future release to "align" them:
 

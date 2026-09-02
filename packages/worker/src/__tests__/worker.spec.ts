@@ -739,7 +739,7 @@ describe("AmqpWorker Integration", () => {
       },
       urls: [amqpConnectionUrl],
       logger: mockLogger,
-    }).get();
+    }).getOrThrow();
 
     // Wait for worker setup
     const WORKER_SETUP_WAIT_MS = 500;

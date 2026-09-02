@@ -4,9 +4,10 @@ import { TaggedError } from "unthrown";
 /**
  * Error for technical/runtime failures that cannot be prevented by TypeScript.
  *
- * This includes AMQP connection failures, channel issues, compression/parse
- * faults, and other unexpected runtime errors. Shared across core, worker, and
- * client packages.
+ * This includes channel issues, compression/parse faults, and other unexpected
+ * runtime errors. Shared across core, worker, and client packages. Dialing the
+ * broker is NOT one of them any more — that failure is anticipated, and it is
+ * modeled as {@link ConnectionError}.
  *
  * These failures are **unexpected**, so `@amqp-contract` surfaces them through
  * unthrown's **defect** channel, not the modeled `E` channel: a `TechnicalError`
@@ -23,6 +24,34 @@ import { TaggedError } from "unthrown";
  */
 export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError", {
   name: "TechnicalError",
+})<{
+  cause?: unknown;
+}> {
+  constructor(message: string, cause?: unknown) {
+    super({ cause });
+    this.message = message;
+  }
+}
+
+/**
+ * The broker could not be reached: refused, unresolvable, unauthorized, or
+ * still not ready when `connectTimeoutMs` elapsed.
+ *
+ * **Modeled, not a defect** — unlike {@link TechnicalError}. An unreachable
+ * broker is the anticipated failure of dialing one: it is what a wrong URL, a
+ * rotated credential or a cluster that has not come up yet look like, every
+ * one of them an operator's business rather than a bug in the caller. So
+ * `TypedAmqpWorker.create` and `TypedAmqpClient.create` report it on the `E`
+ * channel, where a start-up path can triage it by tag and turn it into an exit
+ * code, a retry, or a health probe — and the defect channel keeps its meaning:
+ * the failures nobody anticipated.
+ *
+ * Carries a `_tag` of `"@amqp-contract/ConnectionError"`; the human-facing
+ * `Error.name` is kept bare (`"ConnectionError"`). The underlying amqplib
+ * rejection is on `cause`.
+ */
+export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError", {
+  name: "ConnectionError",
 })<{
   cause?: unknown;
 }> {
@@ -75,6 +104,14 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
  */
 export function isTechnicalError(error: unknown): error is TechnicalError {
   return error instanceof TechnicalError;
+}
+
+/**
+ * Type guard to check if an error is a {@link ConnectionError} — the modeled
+ * failure of dialing the broker.
+ */
+export function isConnectionError(error: unknown): error is ConnectionError {
+  return error instanceof ConnectionError;
 }
 
 /**

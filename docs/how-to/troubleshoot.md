@@ -31,14 +31,37 @@ docker exec rabbitmq rabbitmqctl set_permissions -p / app ".*" ".*" ".*"
 
 A vhost in the URL must exist and be URL-encoded: `amqp://user:pass@host:5672/my-vhost`, and `/` as a vhost is `%2F`.
 
-### `create()` throws with a `TechnicalError`
+### `create()` throws with a `ConnectionError`
 
-Expected — connection failures are defects, and `.get()` rethrows the cause. To log rather than crash:
+Expected from `.getOrThrow()` — an unreachable broker is a modeled `Err`, and
+`.getOrThrow()` throws it. To handle it rather than crash, triage the tag:
+
+```typescript
+const started = await TypedAmqpClient.create({ contract, urls }).match({
+  ok: (client) => client,
+  errCases: (matcher) =>
+    matcher.with(P.tag("@amqp-contract/ConnectionError"), (error) => {
+      logger.error({ error }, "connect failed");
+      return undefined;
+    }),
+  defect: (cause) => {
+    logger.error({ cause }, "bug while starting up");
+    return undefined;
+  },
+});
+```
+
+Or log both channels and keep throwing:
 
 ```typescript
 const client = await TypedAmqpClient.create({ contract, urls })
-  .tapDefect((cause) => logger.error({ cause }, "connect failed"))
-  .get();
+  .tapFailure((failure) =>
+    logger.error(
+      { error: failure.tag === "Err" ? failure.error : failure.cause },
+      "connect failed",
+    ),
+  )
+  .getOrThrow();
 ```
 
 To wait indefinitely instead of timing out after 30s, pass `connectTimeoutMs: null`. That is the only way to disable it — an invalid value (`NaN`, zero, negative, `Infinity`) is itself a defect from `create()` rather than silently turning the timeout off.
@@ -60,7 +83,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   publishTimeoutMs: 10_000,
-}).get();
+}).getOrThrow();
 ```
 
 Or disable it entirely, restoring the previous unbounded buffering:
@@ -70,7 +93,7 @@ const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
   publishTimeoutMs: null,
-}).get();
+}).getOrThrow();
 ```
 
 ## Type errors
@@ -545,7 +568,7 @@ const worker = await TypedAmqpWorker.create({
   urls: ["amqp://localhost"],
   handlers,
   defaultConsumerOptions: { prefetch: 100 },
-}).get();
+}).getOrThrow();
 ```
 
 Or restore the old behavior explicitly:

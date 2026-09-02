@@ -10,7 +10,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     const newOrder = {
       orderId: "TEST-001",
@@ -38,7 +38,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     const orderUpdate = {
       orderId: "TEST-001",
@@ -61,7 +61,7 @@ describe("Basic Order Processing Client Integration", () => {
     const client = await TypedAmqpClient.create({
       contract: orderContract,
       urls: [amqpConnectionUrl],
-    }).get();
+    }).getOrThrow();
 
     const invalidOrder = {
       orderId: "TEST-001",
