@@ -251,9 +251,9 @@ The matcher and its patterns are built into `unthrown` — `match`, `P` and `P.t
 
 ### `TechnicalError` moved to the defect channel
 
-Infrastructure and transport failures — connection, publish, consume, cancel, close, compression, JSON parse, and thrown or rejected schema validators — are unexpected, so they now surface as a **defect** whose `cause` is a `TechnicalError`, never as a modeled `Err`.
+Infrastructure and transport failures — publish, consume, cancel, close, compression, JSON parse, and thrown or rejected schema validators — are unexpected, so they now surface as a **defect** whose `cause` is a `TechnicalError`, never as a modeled `Err`.
 
-Only anticipated domain failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, and the worker's `RetryableError` / `NonRetryableError`.
+Only anticipated domain failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, the worker's `RetryableError` / `NonRetryableError` — and `ConnectionError`, the one connection failure that IS anticipated, covered in [the broker is a modeled failure](#the-broker-is-a-modeled-failure) below. A connection **lost** after start-up is still a defect; a broker that never answered `create()` is not.
 
 Matching `P.tag("@amqp-contract/TechnicalError")` in an error matcher no longer typechecks. Move it to the `defect` arm:
 
@@ -461,7 +461,7 @@ A blanket `.recoverDefect(...)` that existed only to move this failure onto the
 1. Bump `unthrown` and the six packages together.
 2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, signature changes).
 3. Fix `create()` / `close()` extraction first; it is mechanical.
-4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go.
+4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go — except at `create()`, where the connection failure moved the other way, into `errCases` as `ConnectionError`.
 5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange and nothing on a direct one.
 6. Unwrap `create()` with `.getOrThrow()`, or triage its `ConnectionError` —
    and delete any blanket defect-recovery that existed to reach it.

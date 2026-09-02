@@ -166,7 +166,7 @@ console.log("Closed.");
 
 Three things in this file are worth slowing down for.
 
-`TypedAmqpClient.create(...)` does not return a client. It returns an `AsyncResult`, and `.getOrThrow()` unwraps it. Awaiting without unwrapping would leave you holding a `Result`, not something you can call `.publish()` on. The error it can carry is `ConnectionError` — an unreachable broker, which a real service would triage rather than throw.
+`TypedAmqpClient.create(...)` does not return a client. It returns an `AsyncResult`, and `.getOrThrow()` unwraps it. Awaiting without unwrapping would leave you holding a `Result`, not something you can call `.publish()` on. The error it can carry is `ConnectionError` — an unreachable broker. This tutorial fails fast on it deliberately: `.getOrThrow()` throws, which is what you want from a script. A service branches on it instead — see [the error model](/reference/error-model#connectionerror).
 
 `client.publish(...)` does not throw when the message is invalid. It returns a result you inspect. `.match` has three branches, and the compiler makes you handle all of them: `ok`, the modeled errors in `errCases`, and `defect` for the genuinely unexpected. A broken TCP connection is a defect, not a modeled error — you did not ask for it and cannot meaningfully branch on it, so here it is rethrown.
 

@@ -375,8 +375,9 @@ export class AmqpClient {
    * Wait for the channel to be connected and ready.
    *
    * If `connectTimeoutMs` was provided in the constructor options, the returned
-   * AsyncResult resolves to a `Defect` (a {@link TechnicalError} cause) once the
-   * timeout elapses. Without a timeout, this waits forever —
+   * AsyncResult resolves to `Err({@link ConnectionError})` once the timeout
+   * elapses — modeled, because a broker that will not answer is an operator's
+   * business rather than a bug. Without a timeout, this waits forever —
    * amqp-connection-manager retries connections indefinitely and never errors on
    * its own.
    *

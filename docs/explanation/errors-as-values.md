@@ -87,6 +87,7 @@ You do not have to enumerate when you genuinely do not care: `.with(P._, handler
 `.get()` extracts the success value, and it only compiles when the modeled error channel is empty (`E = never`). This is why you can write:
 
 ```typescript
+const client = await TypedAmqpClient.create({ contract, urls }).getOrThrow();
 await client.close().get();
 ```
 

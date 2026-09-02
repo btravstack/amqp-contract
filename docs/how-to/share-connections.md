@@ -93,7 +93,7 @@ const client = await TypedAmqpClient.create({
 }).getOrThrow();
 ```
 
-`create` resolves to a defect if the connection is not ready in time; the default is 30 seconds. Pass `null` to wait indefinitely and let amqp-connection-manager keep retrying — appropriate for a worker that should tolerate the broker starting after it does.
+`create` answers `Err(ConnectionError)` if the connection is not ready in time; the default is 30 seconds. Pass `null` to wait indefinitely and let amqp-connection-manager keep retrying — appropriate for a worker that should tolerate the broker starting after it does.
 
 ## Use separate connections deliberately
 

@@ -25,11 +25,16 @@ To log that failure before it propagates:
 
 ```typescript
 const client = await TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] })
-  .tapDefect((cause) => logger.error({ cause }, "could not connect to the broker"))
-  .get();
+  .tapFailure((failure) =>
+    logger.error(
+      { error: failure.tag === "Err" ? failure.error : failure.cause },
+      "could not connect to the broker",
+    ),
+  )
+  .getOrThrow();
 ```
 
-`tapDefect` observes without consuming, so `.get()` still throws afterwards. To recover instead of throwing, use `.recoverDefect(...)`.
+`tapFailure` observes both channels without consuming — the modeled `ConnectionError` and a defect from an outright bug — so `.getOrThrow()` still throws afterwards. To handle instead of throwing, `.match(...)` on the tag.
 
 Pass several URLs for failover — the client tries them in order:
 

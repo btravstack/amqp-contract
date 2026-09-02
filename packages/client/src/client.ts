@@ -127,7 +127,7 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
   defaultPublishOptions?: PublishOptions | undefined;
   /**
    * Maximum time in ms to wait for the AMQP connection to become ready before
-   * `create()` resolves to a `Defect` (a `TechnicalError` cause). Defaults
+   * `create()` answers `Err(ConnectionError)`. Defaults
    * to 30s (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null`
    * to disable the timeout and let amqp-connection-manager retry indefinitely.
    */

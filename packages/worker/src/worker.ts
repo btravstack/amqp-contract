@@ -278,7 +278,7 @@ export type CreateWorkerOptions<
   defaultConsumerOptions?: ConsumerOptions | undefined;
   /**
    * Maximum time in ms to wait for the AMQP connection to become ready before
-   * `create()` resolves to a `Defect` (a `TechnicalError` cause). Defaults to 30s
+   * `create()` answers `Err(ConnectionError)`. Defaults to 30s
    * (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null` to
    * disable the timeout and let amqp-connection-manager retry indefinitely.
    */
@@ -451,9 +451,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
    * Connections are automatically shared across clients and workers with the same
    * URLs and connection options, following RabbitMQ best practices.
    *
-   * @returns An AsyncResult that resolves to the worker. A setup/connection
-   *   failure surfaces through the `Defect` channel (a `TechnicalError` cause),
-   *   never a modeled `Err`.
+   * @returns An AsyncResult that resolves to the worker. An unreachable broker
+   *   is a modeled `Err({@link ConnectionError})` — the anticipated failure of
+   *   dialing one, and the case a start-up path wants to branch on. Everything
+   *   else that can go wrong here (a bad option, a topology assert the broker
+   *   refuses, a bug in a provider) stays on the `Defect` channel with a
+   *   `TechnicalError` cause.
    *
    * @example
    * ```typescript
