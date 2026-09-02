@@ -168,6 +168,11 @@ function validateHandlers<TContract extends ContractDefinition>(
  * 1. Simple handler: just the function
  * 2. Handler with options: `[handler, { prefetch: 10 }]`
  *
+ * The leaf takes the helpers record first and the validated message second,
+ * with that message on the record as well — oRPC's shape — so
+ * `({ errors, message }) => ...` and `({ errors }, message) => ...` are the
+ * same call, and a handler needing neither is `(_, { payload }) => ...`.
+ *
  * @template TContract - The contract definition type
  * @template TName - The consumer or RPC name from the contract
  * @param contract - The contract definition containing the consumer or RPC

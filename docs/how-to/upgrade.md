@@ -388,6 +388,11 @@ a developer types by hand did not, and it is the one they relearn per transport.
 A handler that needs none of the helpers still names the position:
 `(_, { payload }) => ...`. One that reads neither is just `() => ...`.
 
+The message is on the helpers record too, so a handler can be written from one
+destructuring instead — `({ errors, message }) => ...`. That is oRPC's own
+shape: `ProcedureHandlerOptions` carries `input` and the handler still takes it
+positionally, and both spellings are the same call.
+
 **Two additions worth adopting while you are here.** The helpers record also
 carries `retryable` and `nonRetryable`, so the routing decision no longer needs
 an import:

@@ -28,6 +28,8 @@ const worker = await TypedAmqpWorker.create({
 
 Creating the worker declares the contract's topology against the broker and starts consuming every queue in it. There is no separate `start()`.
 
+The message is on the helpers record as well as in the second parameter, so `({ message }) => …` and `(_, { payload }) => …` are the same call — oRPC's own shape, where `ProcedureHandlerOptions` carries `input` and the handler still takes it positionally. Take it whichever way reads better.
+
 Every consumer in the contract must have a handler. Omit one and the object does not typecheck — and worker creation fails before any connection is acquired, so a missing handler surfaces immediately rather than as a silently unconsumed queue.
 
 ## Do async work in a handler

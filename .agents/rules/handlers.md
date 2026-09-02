@@ -25,7 +25,8 @@ const asyncHandler = (_, { payload }) =>
 
 ### Parameters
 
-1. **`helpers`** — `{ context, errors, raw, retryable, nonRetryable }`
+1. **`helpers`** — `{ message, context, errors, raw, retryable, nonRetryable }`
+   - `message`: the validated `{ payload, headers }`, the same value the second parameter carries — oRPC's shape, so `({ errors, message }) => ...` and `({ errors }, message) => ...` are the same call
    - `context`: seeded by `createContext`, accumulated by the middleware chain
    - `errors`: typed constructors for the RPC's declared errors (empty for consumers)
    - `raw`: the raw amqplib `ConsumeMessage` (e.g. `raw.fields.deliveryTag`, `raw.properties.messageId`)

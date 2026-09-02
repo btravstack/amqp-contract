@@ -40,6 +40,15 @@ called `retryable`.
 + getOrder: ({ errors }, { payload }) => lookup(payload, errors),
 ```
 
+The message is on the helpers record as well as in the second parameter, which
+is oRPC's own shape — `ProcedureHandlerOptions` carries `input` and the handler
+still takes it positionally — so both spellings are the same call:
+
+```ts
+getOrder: ({ errors, message }) => lookup(message.payload, errors),
+getOrder: ({ errors }, { payload }) => lookup(payload, errors),
+```
+
 A handler that reads its payload fails to compile until it is swapped, since
 the first parameter is the helpers record now; one that ignores its message
 keeps compiling with a parameter whose name lies — grep the handlers object for
