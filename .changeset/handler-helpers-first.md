@@ -49,7 +49,7 @@ is oRPC's own shape — `ProcedureHandlerOptions` carries `input` and the handle
 still takes it positionally — so both spellings are the same call:
 
 ```ts
-getOrder: ({ errors, message }) => lookup(message.payload, errors),
+getOrder: ({ errors, input }) => lookup(input.payload, errors),
 getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
 ```
 
