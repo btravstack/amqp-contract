@@ -1,5 +1,143 @@
 # @amqp-contract/worker
 
+## 3.0.0-beta.7
+
+### Major Changes
+
+- 2667b75: `TypedAmqpWorker.create` and `TypedAmqpClient.create` report an unreachable
+  broker as a typed `Err` — the new `ConnectionError` — where it used to arrive as
+  a `Defect` carrying a `TechnicalError`.
+
+  An unreachable broker is the **anticipated** failure of dialing one: a wrong
+  URL, a rotated credential, a cluster that has not come up yet. Every one of
+  those is an operator's business rather than a bug in the caller, which is the
+  definition of this library's `Err` channel. The defect channel keeps its
+  meaning — the failures nobody anticipated — and a connection LOST later, during
+  a publish or a delivery, is still one of those.
+
+  What it buys a start-up path is the triage it could not have before. Reaching
+  this failure used to mean recovering EVERY defect, which also swallowed genuine
+  bugs raised while the graph was being built (the `@btravstack/amqp-worker`
+  starter, in the btravstack/start repository, carries exactly that blanket
+  `recoverDefect` and can now drop it):
+
+  ```ts
+  const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match({
+    ok: (worker) => worker,
+    errCases: (matcher) =>
+      matcher.with(P.tag("@amqp-contract/ConnectionError"), (error) => {
+        logger.error({ error }, "broker unreachable");
+        process.exitCode = 1;
+        return undefined;
+      }),
+    defect: (cause) => {
+      logger.error({ cause }, "bug while starting up");
+      process.exitCode = 70;
+      return undefined;
+    },
+  });
+  ```
+
+  **The compiler catches every call site**: `create(...)` no longer has an empty
+  error channel, so `.get()` stops compiling on it — `.getOrThrow()` is the
+  mechanical migration, and a `match` is the point. `close()` is unchanged and
+  keeps `.get()`.
+
+  `ConnectionError` and `isConnectionError` are exported from
+  `@amqp-contract/core` and re-exported by both the client and the worker.
+
+  Closes #645.
+
+- ea015ac: Handlers take **one record** — `{ input, context, errors, raw, retryable,
+nonRetryable }`, where `input` is the validated `{ payload, headers }` — with
+  that message repeated as a second positional parameter. It was
+  `({ payload, headers }, rawMessage, { context, errors })`: the raw amqplib
+  delivery moved onto the record as `raw`, and the message is reachable from
+  either place.
+
+  oRPC is the reference shape for this family, being the most widely used of the
+  three transports a `@btravstack/*` application composes: a developer arriving
+  here has more likely seen `({ errors, input })` than either of the others —
+  down to the word, since oRPC's `ProcedureHandlerOptions` carries `input` and
+  its handler still takes it positionally, which is exactly the pair of spellings
+  offered here. The mint and compose calls already agreed across the three; the leaf a
+  developer types by hand did not, and it is the one they relearn per transport.
+  `@temporal-contract`'s activity leaf moves with it.
+
+  It is also what makes the AMQP triage site the same SHAPE as the other two, and
+  that half is not cosmetic: `retryable` and `nonRetryable` ride the helpers
+  record beside `errors`, so a handler that wants "infrastructure comes back"
+  reaches for the constructor it was handed instead of importing `RetryableError`
+  and constructing it by hand.
+
+  ```ts
+  processOrder: ({ retryable, input: { payload } }) =>
+    fromPromise(save(payload), (cause) => retryable("database unavailable", cause)),
+  ```
+
+  They sit BESIDE `errors` rather than inside it: `errors` is the
+  contract-declared error map — `errors.ORDER_NOT_FOUND({ orderId })` — which is
+  what it means on the other two transports, and folding the framework's own two
+  into that namespace would both break the mirror and collide with a declared code
+  called `retryable`.
+
+  ```diff
+  - processOrder: ({ payload }) => save(payload),
+  + processOrder: ({ input: { payload } }) => save(payload),
+  - handleFailed: ({ payload }, rawMessage) => log(rawMessage.properties.headers),
+  + handleFailed: ({ raw, input: { payload } }) => log(raw.properties.headers),
+  - getOrder: ({ payload }, _raw, { errors }) => lookup(payload, errors),
+  + getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
+  ```
+
+  The message is on the helpers record as well as in the second parameter, which
+  is oRPC's own shape — `ProcedureHandlerOptions` carries `input` and the handler
+  still takes it positionally — so both spellings are the same call:
+
+  ```ts
+  getOrder: ({ errors, input }) => lookup(input.payload, errors),
+  getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
+  ```
+
+  A handler that reads its payload fails to compile until it is swapped, since
+  the first parameter is the helpers record now; one that ignores its message
+  keeps compiling with a parameter whose name lies — grep the handlers object for
+  a leaf whose first parameter is neither `_` nor a helpers destructuring. A
+  handler that wants only its message is `({ input: { payload } }) => ...`, with no placeholder to spell.
+
+  Closes #670.
+
+### Patch Changes
+
+- a7f8d54: Apply the formatter output required by `oxfmt` 0.65.0, keeping the generated mapped-type layout in sync with the updated toolchain and preventing CI drift.
+- 61c1220: A middleware's `next({ payload: undefined })` is a substitution now, and reaches
+  the payload schema like any other — where it used to be indistinguishable from
+  `next({})` and silently dropped, leaving the handler running on the original
+  message.
+
+  Both the dispatcher and `composeMiddleware` used the VALUE as the sentinel
+  (`opts?.payload === undefined` meaning "nothing substituted"), so the one
+  payload a middleware could not substitute was `undefined` — and it failed
+  quietly, in the direction that keeps processing rather than the direction that
+  stops. Presence is the sentinel now: `Object.hasOwn(opts, "payload")` in the
+  dispatcher, and a boxed `{ payload }` threaded through the chain.
+
+  **Behaviour change, in the one case that was already broken.** A middleware
+  calling `next({ payload: undefined })` today gets a no-op; after this it
+  substitutes `undefined` and the consumer's payload schema decides — a schema
+  that demands a shape rejects it and the message is dead-lettered as a
+  `NonRetryableError`, the same route any other invalid substitution takes, while
+  a schema admitting `undefined` hands it to the handler. `next({})` and `next()`
+  are unaffected: they substitute nothing, as before.
+
+  Closes #672.
+
+- Updated dependencies [2667b75]
+- Updated dependencies [a7f8d54]
+- Updated dependencies [5e4e234]
+  - @amqp-contract/core@3.0.0-beta.7
+  - @amqp-contract/contract@3.0.0-beta.7
+
 ## 3.0.0-beta.6
 
 ### Minor Changes

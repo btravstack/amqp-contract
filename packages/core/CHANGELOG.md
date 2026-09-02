@@ -1,5 +1,86 @@
 # @amqp-contract/core
 
+## 3.0.0-beta.7
+
+### Major Changes
+
+- 2667b75: `TypedAmqpWorker.create` and `TypedAmqpClient.create` report an unreachable
+  broker as a typed `Err` — the new `ConnectionError` — where it used to arrive as
+  a `Defect` carrying a `TechnicalError`.
+
+  An unreachable broker is the **anticipated** failure of dialing one: a wrong
+  URL, a rotated credential, a cluster that has not come up yet. Every one of
+  those is an operator's business rather than a bug in the caller, which is the
+  definition of this library's `Err` channel. The defect channel keeps its
+  meaning — the failures nobody anticipated — and a connection LOST later, during
+  a publish or a delivery, is still one of those.
+
+  What it buys a start-up path is the triage it could not have before. Reaching
+  this failure used to mean recovering EVERY defect, which also swallowed genuine
+  bugs raised while the graph was being built (the `@btravstack/amqp-worker`
+  starter, in the btravstack/start repository, carries exactly that blanket
+  `recoverDefect` and can now drop it):
+
+  ```ts
+  const started = await TypedAmqpWorker.create({ contract, handlers, urls }).match({
+    ok: (worker) => worker,
+    errCases: (matcher) =>
+      matcher.with(P.tag("@amqp-contract/ConnectionError"), (error) => {
+        logger.error({ error }, "broker unreachable");
+        process.exitCode = 1;
+        return undefined;
+      }),
+    defect: (cause) => {
+      logger.error({ cause }, "bug while starting up");
+      process.exitCode = 70;
+      return undefined;
+    },
+  });
+  ```
+
+  **The compiler catches every call site**: `create(...)` no longer has an empty
+  error channel, so `.get()` stops compiling on it — `.getOrThrow()` is the
+  mechanical migration, and a `match` is the point. `close()` is unchanged and
+  keeps `.get()`.
+
+  `ConnectionError` and `isConnectionError` are exported from
+  `@amqp-contract/core` and re-exported by both the client and the worker.
+
+  Closes #645.
+
+### Patch Changes
+
+- a7f8d54: Apply the formatter output required by `oxfmt` 0.65.0, keeping the generated mapped-type layout in sync with the updated toolchain and preventing CI drift.
+- 5e4e234: `create()` fails when the broker refuses the contract's topology, instead of
+  handing back a ready-looking client whose exchanges and queues do not exist.
+
+  `amqp-connection-manager` catches a `setup` rejection, emits it as an `error`
+  event, and announces the connection anyway (`ChannelWrapper._onConnect`), so
+  `waitForConnect()` answered `Ok` for a client that had just been told
+  `406 PRECONDITION_FAILED` — a mismatched queue declaration, a missing exchange,
+  a permission the credentials lack. The only trace was a log line.
+
+  `AmqpClient` now records the first `error` that arrives **before** the wrapper
+  ever announces a connection — the window in which `setup` is the only thing
+  that has run — and fails that first `waitForConnect()` with a `Defect` carrying
+  a `TechnicalError`. A defect rather than a modeled error, unlike the
+  `ConnectionError` beside it: a topology the broker refuses is a broken
+  contract, which is a bug rather than an operator's business.
+
+  **Only the first connect.** On a reconnect the caller is long gone and the
+  manager keeps retrying, so the existing log-and-continue is untouched.
+
+  It also fails **fast**: the failure is raced against the connect, rather than
+  noticed after it. A refused topology closes the channel, so waiting for
+  `connect` meant sitting out the whole 30s connect timeout and then reporting an
+  unreachable broker — the wrong failure, half a minute late. Measured on the new
+  integration test: 132 ms.
+
+  Closes #675.
+
+- Updated dependencies [a7f8d54]
+  - @amqp-contract/contract@3.0.0-beta.7
+
 ## 3.0.0-beta.6
 
 ### Minor Changes
