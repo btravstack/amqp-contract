@@ -44,14 +44,14 @@ An RPC owns its queue and goes in `rpcs`, not in `publishers` or `consumers` —
 
 ```typescript
 handlers: {
-  calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+  calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
 },
 ```
 
 The returned value is the reply, typed by the response schema. Async work looks the same as in a consumer:
 
 ```typescript
-calculate: (_, { payload }) =>
+calculate: ({ input: { payload } }) =>
   fromPromise(lookupRate(payload), qualifyRetryable("rate service down")).map((rate) => ({
     sum: payload.a * rate,
   })),
@@ -100,7 +100,7 @@ Return one from the handler:
 ```typescript
 import { rpcError } from "@amqp-contract/worker";
 
-getOrder: (_, { payload }) => {
+getOrder: ({ input: { payload } }) => {
   const order = orders.get(payload.orderId);
   return order
     ? OkAsync({ orderId: order.id, status: order.status })
@@ -111,7 +111,7 @@ getOrder: (_, { payload }) => {
 Or, with autocomplete over the declared codes, via `helpers.errors`:
 
 ```typescript
-getOrder: ({ errors }, { payload }) =>
+getOrder: ({ errors, input: { payload } }) =>
   ErrAsync(errors.ORDER_NOT_FOUND({ orderId: payload.orderId })),
 ```
 

@@ -4,20 +4,20 @@ This project uses [unthrown](https://github.com/btravstack/unthrown) for explici
 
 ## Regular consumer handler
 
-A consumer handler receives `({ context, errors, raw }, { payload, headers })` — helpers first, the validated message second — and returns `AsyncResult<void, HandlerError>`:
+A consumer handler receives one record — `{ input, context, errors, raw, retryable, nonRetryable }`, where `input` is the validated `{ payload, headers }` — and returns `AsyncResult<void, HandlerError>`. The message is repeated as a second positional parameter, oRPC's shape, for a caller who prefers it:
 
 ```typescript
 import { fromPromise, OkAsync } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
 // Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
-const handler = ({ raw }, { payload }) => {
+const handler = ({ raw, input: { payload } }) => {
   console.log(payload.orderId, raw.fields.deliveryTag);
   return OkAsync(undefined);
 };
 
 // Async case — fromPromise REQUIRES the qualify mapper as the second arg
-const asyncHandler = (_, { payload }) =>
+const asyncHandler = ({ input: { payload } }) =>
   fromPromise(processPayment(payload), (error) => new RetryableError("Payment failed", error)).map(
     () => undefined,
   );
@@ -26,7 +26,7 @@ const asyncHandler = (_, { payload }) =>
 ### Parameters
 
 1. **`helpers`** — `{ message, context, errors, raw, retryable, nonRetryable }`
-   - `message`: the validated `{ payload, headers }`, the same value the second parameter carries — oRPC's shape, so `({ errors, message }) => ...` and `({ errors }, message) => ...` are the same call
+   - `input`: the validated `{ payload, headers }`, the same value the second parameter carries — oRPC's shape and its word for it, so `({ errors, input }) => ...` and `({ errors }, message) => ...` are the same call, and the same name is destructured on all three transports
    - `context`: seeded by `createContext`, accumulated by the middleware chain
    - `errors`: typed constructors for the RPC's declared errors (empty for consumers)
    - `raw`: the raw amqplib `ConsumeMessage` (e.g. `raw.fields.deliveryTag`, `raw.properties.messageId`)
@@ -37,7 +37,7 @@ const asyncHandler = (_, { payload }) =>
 
 Helpers first is oRPC's parameter order, which this family converged on
 (temporal-contract's activity leaf moved with it). A handler that needs none of
-them still names the position: `(_, { payload }) => ...`.
+them still names the position: `({ input: { payload } }) => ...`.
 
 ## RPC handler
 
@@ -57,13 +57,13 @@ const result = await TypedAmqpWorker.create({
   contract,
   handlers: {
     // Regular consumer — `payload` typed from the consumer's message schema
-    processOrder: (_, { payload }) => OkAsync(undefined),
+    processOrder: ({ input: { payload } }) => OkAsync(undefined),
 
     // RPC handler — must return the typed response payload
-    calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+    calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
 
     // RPC with async work
-    lookupUser: (_, { payload }) =>
+    lookupUser: ({ input: { payload } }) =>
       fromPromise(
         db.users.findById(payload.userId),
         (error) => new RetryableError("DB unavailable", error),
@@ -108,7 +108,7 @@ Use `declareHandler` (single) or `declareHandlers` (object) for full type infere
 import { declareHandler, RetryableError, NonRetryableError } from "@amqp-contract/worker";
 import { ErrAsync, fromPromise, OkAsync } from "unthrown";
 
-const processOrderHandler = declareHandler(contract, "processOrder", (_, { payload }) =>
+const processOrderHandler = declareHandler(contract, "processOrder", ({ input: { payload } }) =>
   fromPromise(
     processPayment(payload.orderId),
     (error) => new RetryableError("Payment service unavailable", error),
@@ -116,7 +116,7 @@ const processOrderHandler = declareHandler(contract, "processOrder", (_, { paylo
 );
 
 // Permanent failures use NonRetryableError → DLQ, never retried
-const validateOrderHandler = declareHandler(contract, "validateOrder", (_, { payload }) => {
+const validateOrderHandler = declareHandler(contract, "validateOrder", ({ input: { payload } }) => {
   if (payload.amount < 1) {
     return ErrAsync(new NonRetryableError("Invalid amount"));
   }
@@ -158,7 +158,7 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 
 ```typescript
 // Conditional error mapping inside fromPromise's qualify
-(_, { payload }) =>
+({ input: { payload } }) =>
   fromPromise(process(payload), (error) => {
     if (error instanceof ValidationError) return new NonRetryableError("Invalid data");
     return new RetryableError("Temporary failure", error);

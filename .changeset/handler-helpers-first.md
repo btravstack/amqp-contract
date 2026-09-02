@@ -2,15 +2,19 @@
 "@amqp-contract/worker": major
 ---
 
-Handlers take the **helpers record first and the validated message second** —
-`({ context, errors, raw }, { payload, headers })` where it was
-`({ payload, headers }, rawMessage, { context, errors })`. The raw amqplib
-delivery moved from a third parameter into `raw` on the helpers.
+Handlers take **one record** — `{ input, context, errors, raw, retryable,
+nonRetryable }`, where `input` is the validated `{ payload, headers }` — with
+that message repeated as a second positional parameter. It was
+`({ payload, headers }, rawMessage, { context, errors })`: the raw amqplib
+delivery moved onto the record as `raw`, and the message is reachable from
+either place.
 
 oRPC is the reference shape for this family, being the most widely used of the
 three transports a `@btravstack/*` application composes: a developer arriving
-here has more likely seen `({ errors, context }, input)` than either of the
-others. The mint and compose calls already agreed across the three; the leaf a
+here has more likely seen `({ errors, input })` than either of the others —
+down to the word, since oRPC's `ProcedureHandlerOptions` carries `input` and
+its handler still takes it positionally, which is exactly the pair of spellings
+offered here. The mint and compose calls already agreed across the three; the leaf a
 developer types by hand did not, and it is the one they relearn per transport.
 `@temporal-contract`'s activity leaf moves with it.
 
@@ -21,7 +25,7 @@ reaches for the constructor it was handed instead of importing `RetryableError`
 and constructing it by hand.
 
 ```ts
-processOrder: ({ retryable }, { payload }) =>
+processOrder: ({ retryable, input: { payload } }) =>
   fromPromise(save(payload), (cause) => retryable("database unavailable", cause)),
 ```
 
@@ -33,11 +37,11 @@ called `retryable`.
 
 ```diff
 - processOrder: ({ payload }) => save(payload),
-+ processOrder: (_, { payload }) => save(payload),
++ processOrder: ({ input: { payload } }) => save(payload),
 - handleFailed: ({ payload }, rawMessage) => log(rawMessage.properties.headers),
-+ handleFailed: ({ raw }, { payload }) => log(raw.properties.headers),
++ handleFailed: ({ raw, input: { payload } }) => log(raw.properties.headers),
 - getOrder: ({ payload }, _raw, { errors }) => lookup(payload, errors),
-+ getOrder: ({ errors }, { payload }) => lookup(payload, errors),
++ getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
 ```
 
 The message is on the helpers record as well as in the second parameter, which
@@ -46,13 +50,13 @@ still takes it positionally — so both spellings are the same call:
 
 ```ts
 getOrder: ({ errors, message }) => lookup(message.payload, errors),
-getOrder: ({ errors }, { payload }) => lookup(payload, errors),
+getOrder: ({ errors, input: { payload } }) => lookup(payload, errors),
 ```
 
 A handler that reads its payload fails to compile until it is swapped, since
 the first parameter is the helpers record now; one that ignores its message
 keeps compiling with a parameter whose name lies — grep the handlers object for
 a leaf whose first parameter is neither `_` nor a helpers destructuring. A
-handler that needs neither still names the position: `(_, { payload }) => ...`.
+handler that wants only its message is `({ input: { payload } }) => ...`, with no placeholder to spell.
 
 Closes #670.

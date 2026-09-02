@@ -22,7 +22,7 @@ Conflating them is the usual design, and it goes wrong in a familiar way: retry 
 So they are separated. The handler classifies:
 
 ```typescript
-processOrder: (_, { payload }) =>
+processOrder: ({ input: { payload } }) =>
   fromPromise(chargeCard(payload), (cause) =>
     cause instanceof CardDeclined
       ? new NonRetryableError("card declined", cause)

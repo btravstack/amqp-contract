@@ -36,7 +36,7 @@ The usual reason to want sharing. The subtlety is not the connection; it is that
 import { RetryableError } from "@amqp-contract/worker";
 import { Err, P } from "unthrown";
 
-processOrder: (_, { payload }) =>
+processOrder: ({ input: { payload } }) =>
   client
     .publish("orderProcessed", { orderId: payload.orderId, status: "completed" })
     .map(() => undefined)

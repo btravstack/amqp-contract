@@ -44,7 +44,7 @@ import { _internal_assertKnownKeys, _internal_assertStandardSchema } from "./val
  *
  * // Server (worker): return the response, or a declared typed error
  * //   handlers: {
- * //     getOrder: (_, { payload }) =>
+ * //     getOrder: ({ input: { payload } }) =>
  * //       orders.has(payload.orderId)
  * //         ? OkAsync(orders.get(payload.orderId))
  * //         : ErrAsync(rpcError('ORDER_NOT_FOUND', { orderId: payload.orderId })),

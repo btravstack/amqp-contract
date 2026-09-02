@@ -30,11 +30,11 @@ Handlers are defined directly in the worker creation. This approach is suitable 
 const worker = await TypedAmqpWorker.create({
   contract: orderContract,
   handlers: {
-    processOrder: (_, { payload }) => {
+    processOrder: ({ input: { payload } }) => {
       // Handler logic here
       return OkAsync(undefined);
     },
-    notifyOrder: (_, { payload }) => {
+    notifyOrder: ({ input: { payload } }) => {
       // Handler logic here
       return OkAsync(undefined);
     },
@@ -57,7 +57,7 @@ Handlers can be organized in separate files using `declareHandler` or `declareHa
 export const processOrderHandler = declareHandler(
   orderContract,
   "processOrder",
-  (_, { payload }) => {
+  ({ input: { payload } }) => {
     // Handler logic here
     return OkAsync(undefined);
   },

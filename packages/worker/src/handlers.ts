@@ -170,8 +170,9 @@ function validateHandlers<TContract extends ContractDefinition>(
  *
  * The leaf takes the helpers record first and the validated message second,
  * with that message on the record as well — oRPC's shape — so
- * `({ errors, message }) => ...` and `({ errors }, message) => ...` are the
- * same call, and a handler needing neither is `(_, { payload }) => ...`.
+ * `({ errors, input }) => ...` and `({ errors }, message) => ...` are the same
+ * call — oRPC offers both — and a handler that wants only its message is
+ * `({ input: { payload } }) => ...`, with no placeholder to spell.
  *
  * @template TContract - The contract definition type
  * @template TName - The consumer or RPC name from the contract
@@ -191,7 +192,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const processOrderHandler = declareHandler(
  *   orderContract,
  *   'processOrder',
- *   (_, { payload }) =>
+ *   ({ input: { payload } }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
@@ -204,7 +205,7 @@ function validateHandlers<TContract extends ContractDefinition>(
  * const calculateHandler = declareHandler(
  *   rpcContract,
  *   'calculate',
- *   (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
  * );
  * ```
  */
@@ -280,12 +281,12 @@ export function declareHandler<
  * import { fromPromise, OkAsync } from 'unthrown';
  *
  * const handlers = declareHandlers(orderContract, {
- *   processOrder: (_, { payload }) =>
+ *   processOrder: ({ input: { payload } }) =>
  *     fromPromise(
  *       processPayment(payload),
  *       (error) => new RetryableError('Payment failed', error),
  *     ).map(() => undefined),
- *   calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }),
+ *   calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
  * });
  * ```
  */

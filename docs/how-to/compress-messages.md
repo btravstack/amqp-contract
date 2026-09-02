@@ -20,7 +20,7 @@ await client.publish("orderCreated", order, { compression: "gzip" });
 Nothing to do. The worker reads `contentEncoding`, decompresses, then validates and dispatches as usual:
 
 ```typescript
-processOrder: (_, { payload }) => {
+processOrder: ({ input: { payload } }) => {
   console.log(payload.items); // already decompressed
   return OkAsync(undefined);
 },

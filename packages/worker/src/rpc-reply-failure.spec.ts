@@ -124,7 +124,7 @@ describe("RPC reply publish failure routing", () => {
 
     const worker = await TypedAmqpWorker.create({
       contract,
-      handlers: { calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }) },
+      handlers: { calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }) },
       urls: ["amqp://localhost"],
       logger,
     }).get();
@@ -162,7 +162,7 @@ describe("RPC reply publish failure routing", () => {
 
     const worker = await TypedAmqpWorker.create({
       contract,
-      handlers: { calculate: (_, { payload }) => OkAsync({ sum: payload.a + payload.b }) },
+      handlers: { calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }) },
       urls: ["amqp://localhost"],
     }).get();
 

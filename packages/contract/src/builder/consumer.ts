@@ -107,7 +107,7 @@ export function extractConsumer(entry: ConsumerEntry): ConsumerDefinition {
  * // const worker = await TypedAmqpWorker.create({
  * //   contract,
  * //   handlers: {
- * //     processOrder: (_, { payload }) => {
+ * //     processOrder: ({ input: { payload } }) => {
  * //       // payload is automatically typed based on the schema
  * //       console.log(payload.orderId); // string
  * //       return OkAsync();
