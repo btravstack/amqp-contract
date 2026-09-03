@@ -7,7 +7,9 @@ description: Run integration tests against a real broker with the Vitest extensi
 
 `@amqp-contract/testing` runs your tests against a real RabbitMQ in a container, one isolated virtual host per test. Testing messaging against a mock mostly tests the mock; this tests routing, bindings, acknowledgement and dead-lettering as the broker actually implements them.
 
-Requires Docker and Vitest 4+.
+Requires Docker and Vitest 4+. For the tests that are about your contract and
+your handlers rather than the broker, there is a container-free path:
+[test without a broker](/how-to/test-without-a-broker).
 
 ## Set it up
 

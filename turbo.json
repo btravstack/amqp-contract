@@ -47,6 +47,12 @@
     "check:package": {
       "dependsOn": ["build"],
       "outputs": []
+    },
+    "@amqp-contract/core#typecheck": {
+      "dependsOn": ["^build", "@amqp-contract/testing#build"]
+    },
+    "@amqp-contract/core#test:integration": {
+      "dependsOn": ["^build", "@amqp-contract/testing#build"]
     }
   }
 }
