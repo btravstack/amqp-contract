@@ -9,3 +9,4 @@
 
 export { default as globalSetup } from "./global-setup.js";
 export { it } from "./extension.js";
+export { InMemoryAmqpBroker } from "./in-memory.js";

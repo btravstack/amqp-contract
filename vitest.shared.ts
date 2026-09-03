@@ -35,6 +35,19 @@ export type SharedConfigOptions = {
   integration?: boolean;
   /** Setup file applied to every project, relative to the package root. */
   setupFile?: string;
+  /**
+   * Module aliases, for a workspace that must reach a sibling it cannot
+   * declare a dependency on. `packages/core` is the one: it consumes
+   * `@amqp-contract/testing`'s fixtures, and that package depends on core, so
+   * the edge back would be a cycle.
+   */
+  alias?: Record<string, string> | undefined;
+  /**
+   * Where the integration project's global setup lives. `resolve.alias` does
+   * not reach this — vitest resolves it as a path of its own — so a workspace
+   * that cannot declare the dependency has to name the file.
+   */
+  globalSetup?: string | undefined;
 };
 
 /** Type tests are typechecked, never executed — see the `include` note below. */
@@ -45,10 +58,14 @@ export function sharedVitestConfig({
   typecheck = false,
   integration = false,
   setupFile,
+  alias,
+  globalSetup = "@amqp-contract/testing/global-setup",
 }: SharedConfigOptions = {}) {
   const setupFiles = setupFile ? { setupFiles: [setupFile] } : {};
+  const resolve = alias ? { resolve: { alias } } : {};
 
   return {
+    ...resolve,
     test: {
       environment: "node",
       reporters: ["default"],
@@ -70,6 +87,7 @@ export function sharedVitestConfig({
         ? {
             projects: [
               {
+                ...resolve,
                 test: {
                   // Runs in the main gate. No broker: nothing here may need one.
                   name: "unit",
@@ -81,11 +99,12 @@ export function sharedVitestConfig({
                 },
               },
               {
+                ...resolve,
                 test: {
                   name: "integration",
                   environment: "node",
                   ...setupFiles,
-                  globalSetup: "@amqp-contract/testing/global-setup",
+                  globalSetup,
                   include: ["src/**/__tests__/*.spec.ts"],
                   testTimeout: 10_000,
                   hookTimeout: 10_000,

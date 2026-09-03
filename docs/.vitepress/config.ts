@@ -88,6 +88,7 @@ const GUIDE_SIDEBAR = [
       { text: "Instrument with OpenTelemetry", link: "/how-to/instrument-with-opentelemetry" },
       { text: "Generate AsyncAPI", link: "/how-to/generate-asyncapi" },
       { text: "Test with RabbitMQ", link: "/how-to/test-with-rabbitmq" },
+      { text: "Test without a broker", link: "/how-to/test-without-a-broker" },
       { text: "Tune performance", link: "/how-to/tune-performance" },
       { text: "Upgrade", link: "/how-to/upgrade" },
       { text: "Troubleshoot", link: "/how-to/troubleshoot" },

@@ -8,7 +8,7 @@ import {
 } from "@amqp-contract/contract";
 import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
 import {
-  AmqpClient,
+  type AmqpTransport,
   type AmqpConsumeOptions,
   type ConnectionError,
   type Logger,
@@ -21,6 +21,7 @@ import {
   endSpanSuccess,
   isRpcError,
   recordConsumeMetric,
+  resolveTransport,
   safeJsonParse,
   startConsumeSpan,
   technicalDefect,
@@ -259,8 +260,23 @@ export type CreateWorkerOptions<
    * substitutes the message payload, re-validated before the handler runs.
    */
   middleware?: WorkerMiddleware<TCreated, TContext> | readonly AnyWorkerMiddleware[] | undefined;
-  /** AMQP broker URL(s). Multiple URLs provide failover support */
-  urls: ConnectionUrl[];
+  /**
+   * AMQP broker URL(s). Multiple URLs provide failover support.
+   *
+   * Exactly one connection source is required: `urls` **or** {@link transport}.
+   */
+  urls?: ConnectionUrl[] | undefined;
+  /**
+   * A transport to consume through instead of dialling a broker — an
+   * {@link AmqpTransport}, which the real `AmqpClient` satisfies.
+   *
+   * `@amqp-contract/testing`'s `InMemoryAmqpBroker` hands one back, so a spec
+   * can exercise the whole worker pipeline — validation, middleware, retry
+   * routing, dead-lettering — with no Docker. Supplying one makes `urls`,
+   * `connectionOptions` and `connectTimeoutMs` meaningless; passing both is
+   * refused rather than silently preferring one.
+   */
+  transport?: AmqpTransport | undefined;
   /** Optional connection configuration (heartbeat, reconnect settings, etc.) */
   connectionOptions?: AmqpConnectionManagerOptions | undefined;
   /** Optional logger for logging message consumption and errors */
@@ -365,7 +381,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
   private constructor(
     private readonly contract: TContract,
-    private readonly amqpClient: AmqpClient,
+    private readonly amqpClient: AmqpTransport,
     handlers: WorkerInferHandlers<TContract>,
     private readonly defaultConsumerOptions: ConsumerOptions,
     private readonly logger?: Logger,
@@ -479,6 +495,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     createContext,
     middleware,
     urls,
+    transport,
     connectionOptions,
     defaultConsumerOptions,
     logger,
@@ -538,8 +555,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     return OkAsync(undefined).flatMap(() => {
       const worker = new TypedAmqpWorker(
         contract,
-        new AmqpClient(contract, {
+        resolveTransport(contract, {
           urls,
+          transport,
           connectionOptions,
           connectTimeoutMs,
           publishTimeoutMs,

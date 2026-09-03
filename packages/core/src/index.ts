@@ -9,6 +9,7 @@ export {
   DEFAULT_PUBLISH_TIMEOUT_MS,
 } from "./amqp-client.js";
 export { type ConnectionLease } from "./connection-manager.js";
+export { type AmqpTransport, resolveTransport, type TransportSource } from "./transport.js";
 export { technicalDefect } from "./defect.js";
 export {
   ConnectionError,
