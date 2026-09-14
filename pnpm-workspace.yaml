@@ -75,7 +75,11 @@ overrides:
   # vulnerable line is present (transitive, via ajv under commitlint/prisma
   # tooling); 3.1.5 is the first release patched against both. Reaches us only
   # through dev/build tooling.
-  "fast-uri@<3.1.5": "3.1.5"
+  #
+  # Floor raised to 3.1.6 for GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc,
+  # GHSA-fph4-wmhf-6fwf and GHSA-jqff-g426-hqxp (all High), which widened the
+  # range past 3.1.5. The floor moves rather than a second entry being added.
+  "fast-uri@<3.1.6": "3.1.6"
   # GHSA-4cwx-7wf7-3272 (High): undici cross-user information disclosure.
   # Reaches us only through packages/testing > testcontainers, i.e. the
   # integration-test harness, never a published package's runtime. 8.9.0 is the
@@ -100,8 +104,11 @@ overrides:
   #
   # Raised to 3.15.1 / 4.3.1 for GHSA-5p4m-2wfm-xmqj (High), a later advisory on
   # the same package that 3.15.0 / 4.3.0 predate.
+  #
+  # 4.x raised to 4.3.2 for GHSA-2883-xcg3-v3hh (High): maxTotalMergeKeys does
+  # not limit CPU use for empty merge sources. The 3.x line is not affected.
   "js-yaml@3": "3.15.1"
-  "js-yaml@4": "4.3.1"
+  "js-yaml@4": "4.3.2"
   # GHSA-2v37-7h3g-55p8 (High): nanoid custom generators can loop indefinitely
   # when size is zero. Reaches us only through the docs build —
   # docs > @btravstack/theme > vitepress > postcss > nanoid — never the shipped
