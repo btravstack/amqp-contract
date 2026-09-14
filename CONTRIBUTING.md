@@ -7,7 +7,7 @@ Thank you for your interest in contributing to amqp-contract!
 ### Prerequisites
 
 - **Node.js >= 22.19** (enforced via `engines`; `.node-version` pins the version used in CI)
-- **pnpm 11.7.0** — the repo pins it via the `packageManager` field, so `corepack enable` gives you the right version automatically
+- **pnpm 12.4.1** — the repo pins it via the `packageManager` field, so `corepack enable` gives you the right version automatically
 - **Docker running** (not just installed) — required only for `pnpm test:integration`, which spins up RabbitMQ via testcontainers
 
 ### Setup
