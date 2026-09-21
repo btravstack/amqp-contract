@@ -234,8 +234,8 @@ catalogs:
       specifier: 2.2.3
       version: 2.2.3
     fast-check:
-      specifier: 4.9.0
-      version: 4.9.0
+      specifier: 4.10.0
+      version: 4.10.0
     knip:
       specifier: 6.32.2
       version: 6.32.2
@@ -672,7 +672,7 @@ importers:
         version: 4.1.10(vitest@4.1.10)
       fast-check:
         specifier: 'catalog:'
-        version: 4.9.0
+        version: 4.10.0
       publint:
         specifier: 'catalog:'
         version: 0.3.24
@@ -3972,8 +3972,8 @@ packages:
     resolution: {integrity: sha512-BhC+hbc5lIVjygr840n5DEkW3MQq7H9o+mc1/N7Z5uIiCFVyESLL5DIE7LNq4CYUNxy+XjA+3jRrL/h0Kt2xcg==}
     engines: {node: '>=16.9.0'}
 
-  fast-check@4.9.0:
-    resolution: {integrity: sha512-7ms6T7SybUev/PQITciI0yLM2pOSFy5zpG8Ty7tQofcVaQUvrMXp6CBwqF6fThLCLOrfBtuHAtwq6Yu4XPCllg==}
+  fast-check@4.10.0:
+    resolution: {integrity: sha512-hhqQL+IJllZi3aM4TKvmCj3bywLEcycNTTLZeLhA9ttMxBrCqM07q7Di4kl+j9EWSTXvJH1+EpIgsDbF/+8H5Q==}
     engines: {node: '>=12.17.0'}
 
   fast-copy@4.0.3:
@@ -8702,7 +8702,7 @@ snapshots:
 
   expr-eval-fork@3.0.3: {}
 
-  fast-check@4.9.0:
+  fast-check@4.10.0:
     dependencies:
       pure-rand: 8.4.2
 
