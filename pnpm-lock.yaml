@@ -297,8 +297,8 @@ catalogs:
       specifier: 4.1.10
       version: 4.1.10
     yaml:
-      specifier: 2.9.0
-      version: 2.9.0
+      specifier: 2.9.1
+      version: 2.9.1
     zod:
       specifier: 4.4.3
       version: 4.4.3
@@ -470,7 +470,7 @@ importers:
         version: 6.0.3
       yaml:
         specifier: 'catalog:'
-        version: 2.9.0
+        version: 2.9.1
 
   examples/basic-order-processing-worker:
     dependencies:
@@ -5608,6 +5608,11 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yargs-parser@20.2.9:
     resolution: {integrity: sha512-y11nGElTIV+CT3Zv9t7VKl+Q3hTQoT9a1Qzezhhl6Rp21gJ/IVTW7Z3y9EWXhuUBC2Shnf+DX0antecpAwSP8w==}
     engines: {node: '>=10'}
@@ -10574,6 +10579,8 @@ snapshots:
   y18n@5.0.8: {}
 
   yaml@2.9.0: {}
+
+  yaml@2.9.1: {}
 
   yargs-parser@20.2.9: {}
 
