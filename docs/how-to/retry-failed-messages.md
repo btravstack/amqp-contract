@@ -60,17 +60,10 @@ declaration; every `deadLetter` on this page assumes it is in place.
 
 On quorum queues the count comes from RabbitMQ's native `x-delivery-count`; on classic queues the worker maintains `x-retry-count` by republishing.
 
-::: warning Quorum delivery limit
-Quorum queues enforce their own delivery limit — 20 by default in RabbitMQ 4 — independently of `maxRetries`. If you set `maxRetries` above it, the broker dead-letters the message first. Raise it explicitly when needed:
+::: info Quorum delivery limit
+Quorum queues also cap redeliveries on the broker side with `x-delivery-limit` — 20 by default in RabbitMQ 4 — and dead-letter past it on their own. `defineQueue` sets it to `maxRetries + 1` on every quorum queue with `immediate-requeue` retry, so the worker's retry budget is always the one that runs out first, and you need not set it.
 
-```typescript
-defineQueue("order-processing", {
-  deadLetter: { exchange: dlx },
-  retry: { mode: "immediate-requeue", maxRetries: 3 },
-  arguments: { "x-delivery-limit": 20 },
-});
-```
-
+An explicit `x-delivery-limit` in `arguments` is kept as long as it leaves room for `maxRetries` (at least `maxRetries + 1`, or `-1` for unlimited); a lower one is rejected at define time. A delivery limit applied through a broker **policy** is invisible to the contract — check it does not undercut `maxRetries`.
 :::
 
 ## Retry with exponential backoff
@@ -142,17 +135,23 @@ const slowQueue = defineQueue("orders-slow", {
 
 Diagnostic headers are stamped **only on paths that republish the message** — classic queues under `immediate-requeue`, and any queue under `ttl-backoff`.
 
-| Header                      | Meaning                              | Set on                     |
-| --------------------------- | ------------------------------------ | -------------------------- |
-| `x-delivery-count`          | Broker-native attempt count          | Quorum queues, by RabbitMQ |
-| `x-retry-count`             | Worker-managed attempt count         | Republish paths only       |
-| `x-last-error`              | Message from the most recent failure | Republish paths only       |
-| `x-first-failure-timestamp` | Epoch ms of the first failure        | Republish paths only       |
-| `x-original-routing-key`    | Routing key of the first delivery    | Republish paths only       |
+| Header                      | Meaning                                             | Set on                     |
+| --------------------------- | --------------------------------------------------- | -------------------------- |
+| `x-delivery-count`          | Broker-native attempt count                         | Quorum queues, by RabbitMQ |
+| `x-retry-count`             | Worker-managed attempt count                        | Republish paths only       |
+| `x-last-error`              | Most recent failure message (first 1024 characters) | Republish paths only       |
+| `x-first-failure-timestamp` | Epoch ms of the first failure                       | Republish paths only       |
+| `x-original-routing-key`    | Routing key of the first delivery                   | Republish paths only       |
 
 Direct-nack paths — a `NonRetryableError`, a validation failure, a quorum queue exhausting `immediate-requeue` — do **not** republish, so the dead-lettered message arrives byte-identical to what the broker delivered, with no failure context. Error details are in the worker's logs instead.
 
 If you need context on the message itself, use `ttl-backoff` (which always republishes), or set `maxRetries: 1` so a single republish stamps the headers before the message is dead-lettered.
+
+## Know the edges of the retry path
+
+- **A retry the broker will not take requeues the original.** When the retry copy's publish fails with `PublishError` (timeout, nack, closed channel), the worker `nack`s the original with `requeue: true` instead of acking it. Its retry headers are unchanged, so the budget is intact, and nothing is dead-lettered for a broker hiccup. The log line is `Publish for retry failed; requeueing the original for redelivery`.
+- **RPC requests never retry.** A `RetryableError` from an RPC handler dead-letters the request even when its queue has a `retry` config: the caller waits on a `timeoutMs` far shorter than most backoffs, so a retry would re-run the handler for nobody.
+- **Malformed retry headers count as zero.** `x-retry-count` and `x-delivery-count` are read as non-negative integers; anything else — a string, a negative, a fraction — counts as 0 rather than bypassing the budget. A malformed `x-first-failure-timestamp` or `x-original-routing-key` is replaced, and a retry is only ever published to a wait queue the topology declares; anything else is dead-lettered with the reason logged.
 
 ## Avoid the common traps
 

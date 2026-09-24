@@ -49,7 +49,7 @@ export const contract = defineContract({
 });
 ```
 
-There is no separate topology setup step and no separate type declaration. When a worker starts, it walks the contract and asserts every exchange, queue and binding it finds. When you call `client.publish("orderCreated", …)`, the payload type comes from the same object.
+There is no separate topology setup step and no separate type declaration. When a worker starts, it walks the contract and asserts the exchanges, queues and bindings its consumers need — their dead-letter and retry infrastructure included — and a client asserts everything its publishes route to. When you call `client.publish("orderCreated", …)`, the payload type comes from the same object.
 
 This is also why the composition pattern matters: every resource above is a named constant, defined first and then referenced. Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.
 
@@ -125,7 +125,7 @@ The same flow supplies header types, RPC response types, and the set of valid pu
 
 Two defaults are worth knowing because they differ from what raw AMQP gives you.
 
-**Queues are quorum queues.** Quorum queues replicate through Raft consensus and survive broker failure in ways classic queues do not. They cannot be exclusive, auto-deleting, or priority queues — if you need one of those, ask for `type: "classic"` explicitly. The default is the safe choice; the exception is opt-in.
+**Queues are quorum queues.** Quorum queues replicate through Raft consensus and survive broker failure in ways classic queues do not. They cannot be exclusive or auto-deleting — if you need one of those, ask for `type: "classic"` explicitly. Message priority is not a reason to leave quorum: they prioritise natively on RabbitMQ 4.0+ from each message's `priority` property, with no queue argument (normal vs high above 4 up to 4.2; 32 strict levels from 4.3). Only classic `maxPriority` levels (`x-max-priority`) need a classic queue. The default is the safe choice; the exception is opt-in.
 
 **Exchanges are durable topic exchanges.** Topic routing subsumes direct routing (a topic key with no wildcards behaves like a direct key) and leaves room to add wildcard consumers later without redeclaring the exchange.
 

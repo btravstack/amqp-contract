@@ -33,7 +33,7 @@ features:
 
   - icon: { src: /icons/spec.svg }
     title: AsyncAPI Compatible
-    details: Generate AsyncAPI 3.1 specs for documentation, visualization, and breaking change detection.
+    details: Generate AsyncAPI 3.1 specs for documentation and visualization, and diff them in CI to surface every contract change.
 ---
 
 ## Quick Example
@@ -119,7 +119,7 @@ const worker = await TypedAmqpWorker.create({
   handlers: {
     processOrder: ({ input: { payload } }) => {
       console.log(payload.orderId); // ✅ Fully typed!
-      return OkAsync();
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],

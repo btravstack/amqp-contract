@@ -16,7 +16,7 @@ import { z } from "zod";
 
 /**
  * End-to-end guard for two robustness items:
- *  - the `maxDecompressedBytes` cap threads from CreateWorkerOptions all the
+ *  - the `maxMessageBytes` cap threads from CreateWorkerOptions all the
  *    way to the decompress call (a compressed payload exceeding the cap must
  *    not reach the handler), and
  *  - a poison message on a queue declared `onPoison: "drop"` is still recorded
@@ -55,7 +55,7 @@ describe("worker decompression cap and poison-message drop logging", () => {
       const worker = await TypedAmqpWorker.create({
         contract,
         // 64 bytes: any real JSON payload decompresses past this.
-        maxDecompressedBytes: 64,
+        maxMessageBytes: 64,
         logger,
         handlers: {
           consumeThing: ({ input: { payload } }) => {

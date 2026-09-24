@@ -5,7 +5,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 ## Add a new event consumer
 
 1. **Schema** — define (or reuse) a `defineMessage(...)` for the payload, in the contract that owns the publisher.
-2. **Queue** — `defineQueue(...)` with a `deadLetter` and a `retry` mode (immediate-requeue or ttl-backoff). Quorum by default; classic only if you need priority/exclusive/auto-delete.
+2. **Queue** — `defineQueue(...)` with a `deadLetter` and a `retry` mode (immediate-requeue or ttl-backoff). Quorum by default; classic only if you need exclusive/auto-delete or classic `maxPriority` levels (quorum honours per-message `priority` natively on RabbitMQ 4.0+).
 3. **Consumer entry** — `defineEventConsumer(eventPublisher, queue, { routingKey: ... })`. The queue↔exchange binding is auto-generated.
 4. **Add to `defineContract`** under `consumers: { ... }`. Don't add the queue or binding yourself — they're auto-extracted.
 5. **Handler** — implement with `declareHandler(contract, "yourConsumerName", ({ input: { payload, headers } }) => …)` returning `AsyncResult<void, HandlerError>`. See [handlers.md](./handlers.md).
@@ -19,7 +19,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 3. **RPC entry** — `defineRpc(queue, { request, response })`. Typed business errors go in an optional `errors` map whose entries are `{ data: schema, message?: string }` (the raw Standard Schema, NOT `defineMessage`); the optional `message` is the default human message when the handler constructs the error without one.
 4. **Add to `defineContract`** under `rpcs: { ... }`.
 5. **Server-side handler** — define it with `declareHandler(contract, "yourRpcName", ({ input: { payload } }) => OkAsync({ /* response */ }))`, via `declareHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `declareHandler` / `declareHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
-6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required.
+6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required (the request also expires on the broker at it). Returns `AsyncResult<TResponse, MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError | <declared RpcErrors>>`.
 7. **Tests** — round-trip integration test (worker + client both wired up). For "no server" scenarios, just create the client without a worker; for "request validation fails", pass a deliberately wrong payload through `as unknown as ...`.
 8. **Changeset** — minor bump.
 
@@ -28,14 +28,14 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 1. **Event publisher**: `defineEventPublisher(exchange, message, { routingKey })`. One publisher, many consumers.
 2. **Command publisher**: derived from `defineCommandConsumer(...)` via `defineCommandPublisher(consumer)`. Many publishers, one consumer.
 3. **Add to `defineContract`** under `publishers: { ... }`.
-4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, MessageValidationError>` (a transport failure surfaces as a `Defect`, not in `E`).
+4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, MessageValidationError | PublishError>` (`PublishError`: the broker side failed — `timeout` / `nacked` / `channel-closed`; only an unclassifiable failure is a `Defect`).
 5. **Changeset** — minor bump if it's part of the public contract surface.
 
 ## Add a new publishable package
 
 If you're spinning up a new `@amqp-contract/*` package:
 
-1. Create `packages/<name>/` with at minimum: `package.json`, `tsconfig.json` (extends `@amqp-contract/tsconfig`), and `src/index.ts`. Add `vitest.config.ts` only if the package has tests; add `tsdown.config.ts` only if you need config beyond what the CLI flags can express (see existing packages — `contract` and `testing` skip the config file, the others use one).
+1. Create `packages/<name>/` with at minimum: `package.json`, `tsconfig.json` (extends `@btravstack/tsconfig/base.json`), and `src/index.ts`. Add `vitest.config.ts` only if the package has tests; add `tsdown.config.ts` only if you need config beyond what the CLI flags can express — in practice, marking a dep `external` (see existing packages — `contract` and `testing` skip the config file, the others use one).
 2. Mirror the metadata fields from `packages/contract/package.json`: `homepage`, `bugs`, `license`, `author`, `repository` (with the correct `directory`), `files`, `type: "module"`, plus the appropriate `exports` map (single entry like `contract` or multi-entry like `testing`). **All of these are required** — npm Trusted Publishing rejects on missing or empty `repository.url` (we hit that during the migration).
 3. Pick the build shape that matches your package's exports:
    - **Single-entry, dual ESM+CJS** (most packages): `tsdown src/index.ts --format cjs,esm --dts --clean`, with a `tsdown.config.ts` if you need to mark deps external (see [Build & Release](./build-and-release.md)).

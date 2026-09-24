@@ -23,7 +23,12 @@ vi.mock("amqp-connection-manager", async () => {
   fakes.createChannel = cc;
   return {
     default: {
-      connect: vi.fn(() => ({ createChannel: cc, close: vi.fn(() => Promise.resolve()) })),
+      connect: vi.fn(() => ({
+        createChannel: cc,
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        close: vi.fn(() => Promise.resolve()),
+      })),
     },
   };
 });

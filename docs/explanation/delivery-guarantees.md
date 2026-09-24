@@ -22,7 +22,7 @@ A message can arrive a second time with no retry configuration at all.
 Two more appear once you do configure retries:
 
 - **`immediate-requeue`** returns the message to its own queue for another attempt.
-- **`ttl-backoff`** republishes it through a wait queue.
+- **`ttl-backoff`** republishes it through a wait queue. If that republish fails (`PublishError`), the worker requeues the original with its retry headers unchanged rather than dead-letter it — and a timed-out copy may still have reached the broker, so both can arrive.
 
 The first three are properties of running a consumer against a broker, and you did not choose them. Two of the three you cannot switch off. The third you can: pass `drainTimeoutMs: null` to `worker.close()` and it waits for every in-flight handler instead of cutting them off at a deadline ([consume messages](/how-to/consume-messages#shut-down-without-dropping-messages)). The last two are choices. All five produce the same thing at your handler: a message it has seen before.
 
@@ -30,11 +30,11 @@ The first three are properties of running a consumer against a broker, and you d
 
 `publish()` waits for a publisher confirm, bounded by `publishTimeoutMs` (30 000 ms by default). When that deadline passes, the call settles as a failure.
 
-That failure means the client stopped waiting. It does not mean the broker failed to receive the message. And it does not arrive as an `Err` your `errCases` matcher can see: `client.publish` widens the error channel only to `MessageValidationError`, so a publish timeout — like every other transport failure — surfaces as a `Defect` instead. Code written to catch "publish failed" with `.recoverErrCases(...)` or `.flatMapErrCases(...)` will never run for it; the `defect` arm of `.match(...)` is where it lands. [Upgrade guide](/how-to/upgrade#channels-set-a-30s-publish-timeout) walks through the pattern.
+That failure means the client stopped waiting. It does not mean the broker failed to receive the message. It arrives as the modeled `PublishError` with `reason: "timeout"` in your `errCases` matcher — see [publish messages](/how-to/publish-messages).
 
-So a publish error is not proof of non-delivery, and the natural response — send it again — can produce a duplicate.
+So a publish error is not proof of non-delivery, and the natural response — send it again — can produce a duplicate. Only `reason: "nacked"` is definitive: the broker refused the message. The reverse holds too: a confirmed publish is `Ok` even when amqp-connection-manager reports a full write buffer, since the confirm already happened — treating that as a failure would republish a delivered message.
 
-A connection drop mid-confirm does not quietly dodge this either: when the channel under a pending publish closes, amqplib rejects every unconfirmed publish on that channel immediately, and the client surfaces that rejection the same way as a timeout — as a `Defect`, not a silent retry. Nothing here republishes the message on your behalf. If a duplicate happens, it is because you saw that failure and sent the message again — which is exactly why the ambiguity above is the one to design around.
+A connection drop mid-confirm does not quietly dodge this either: when the channel under a pending publish closes, amqplib rejects every unconfirmed publish on that channel immediately, and the client surfaces that rejection as `PublishError` with `reason: "channel-closed"`, not a silent retry. Nothing here republishes the message on your behalf. If a duplicate happens, it is because you saw that failure and sent the message again — which is exactly why the ambiguity above is the one to design around.
 
 Nothing closes this gap within core AMQP 0-9-1: an acknowledgement can always be lost after the work it acknowledges is done, and no message in the protocol lets the broker recognise a repeat on its own. Deduplication does exist outside core AMQP — RabbitMQ's `rabbitmq-message-deduplication` plugin keys off a header you supply, RabbitMQ Streams do it natively, Kafka ships an idempotent producer — but amqp-contract ships none of it.
 

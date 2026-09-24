@@ -10,7 +10,7 @@ import type {
   RpcDefinition,
   RpcErrorMap,
 } from "@amqp-contract/contract";
-import type { MessageValidationError, RpcError } from "@amqp-contract/core";
+import type { MessageValidationError, PublishError, RpcError } from "@amqp-contract/core";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
@@ -102,7 +102,7 @@ export type ClientInferRpcErrors<
 
 /**
  * The complete error union of `client.call(name, ...)` for a given RPC:
- * `MessageValidationError | RpcTimeoutError | RpcCancelledError` plus the
+ * `MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError` plus the
  * RPC's declared typed errors ({@link ClientInferRpcErrors}). Use it to name
  * a call's result in wrappers and helper signatures:
  *
@@ -117,6 +117,7 @@ export type ClientInferCallError<
   TName extends InferRpcNames<TContract>,
 > =
   | MessageValidationError
+  | PublishError
   | RpcTimeoutError
   | RpcCancelledError
   | ClientInferRpcErrors<TContract, TName>;

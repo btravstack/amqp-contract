@@ -9,7 +9,7 @@ In this tutorial you will build a small email-notification service: one program 
 
 This is a lesson, not a reference. Follow it exactly — every choice here (Zod, npm, a direct exchange) has alternatives, but picking them now would only get in the way. Once it works, the [how-to guides](/how-to/define-a-contract) cover the variations.
 
-You need about fifteen minutes, [Node.js 22.19+](https://nodejs.org/), and Docker.
+You need about fifteen minutes, [Node.js 22.22+](https://nodejs.org/), and Docker.
 
 ## Step 1: Start RabbitMQ
 
@@ -30,7 +30,7 @@ mkdir amqp-demo && cd amqp-demo
 npm init -y
 npm pkg set type=module
 npm install @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
-npm install -D typescript tsx
+npm install -D typescript tsx @types/node
 ```
 
 Create `tsconfig.json`:
@@ -41,7 +41,9 @@ Create `tsconfig.json`:
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "strict": true
+    "strict": true,
+    "types": ["node"],
+    "skipLibCheck": true
   }
 }
 ```
@@ -124,7 +126,7 @@ Notice the order: resources first, then references to them. Defining a queue or 
 
 Notice too that `defineEventConsumer` takes `sendEmailEvent` — the publisher itself. That is what ties the consumer's payload type to the publisher's schema. You cannot accidentally consume a different shape than you publish.
 
-And notice that the dead-letter side is three declarations, not one. `deadLetter` only points the queue at an exchange; RabbitMQ still drops anything that exchange cannot route. `defineContract` requires the pointer but cannot check the route, so declaring the DLQ and its binding is on you. A dead-letter exchange with no bound queue loses messages exactly as thoroughly as no dead-lettering at all — and more quietly, because the worker will log that it sent them to the DLQ.
+And notice that the dead-letter side is three declarations, not one. `deadLetter` only points the queue at an exchange; RabbitMQ still drops anything that exchange cannot route. A dead-letter exchange with no bound queue loses messages exactly as thoroughly as no dead-lettering at all — and more quietly, because the worker would log that it sent them to the DLQ. So `defineContract` checks both: remove the `emailDlq` binding and it throws when the module loads, naming the queue whose dead letters have nowhere to go.
 
 ## Step 4: Publish a message
 
@@ -152,9 +154,13 @@ const result = await client.publish("sendEmail", {
 result.match({
   ok: () => console.log("Published."),
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-      console.error("The message did not match the schema:", error.message),
-    ),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("The message did not match the schema:", error.message),
+      )
+      .with(P.tag("@amqp-contract/PublishError"), (error) =>
+        console.error("The broker did not take the message:", error.message),
+      ),
   defect: (cause) => {
     throw cause;
   },
@@ -168,7 +174,7 @@ Three things in this file are worth slowing down for.
 
 `TypedAmqpClient.create(...)` does not return a client. It returns an `AsyncResult`, and `.getOrThrow()` unwraps it. Awaiting without unwrapping would leave you holding a `Result`, not something you can call `.publish()` on. The error it can carry is `ConnectionError` — an unreachable broker. This tutorial fails fast on it deliberately: `.getOrThrow()` throws, which is what you want from a script. A service branches on it instead — see [the error model](/reference/error-model#connectionerror).
 
-`client.publish(...)` does not throw when the message is invalid. It returns a result you inspect. `.match` has three branches, and the compiler makes you handle all of them: `ok`, the modeled errors in `errCases`, and `defect` for the genuinely unexpected. A broken TCP connection is a defect, not a modeled error — you did not ask for it and cannot meaningfully branch on it, so here it is rethrown.
+`client.publish(...)` does not throw when the message is invalid. It returns a result you inspect. `.match` has three branches, and the compiler makes you handle all of them: `ok`, the modeled errors in `errCases`, and `defect` for the genuinely unexpected. There are two modeled errors: the payload failed its schema, or the broker did not take the message (`PublishError` — it stayed unreachable past the publish timeout, refused the message, or the channel closed). A defect is a bug, such as a payload that cannot be encoded at all; you cannot meaningfully branch on it, so here it is rethrown.
 
 `await client.close().get()` closes the connection. The `.get()` is not decoration: without it the close result is discarded silently.
 
@@ -260,13 +266,13 @@ The message did not match the schema: ...
 
 The publish returned a `MessageValidationError` and the message was never sent. This is the case the `errCases` branch exists for, and why compile-time types alone are not enough: validation catches at runtime what the type system cannot express.
 
-**Stop the broker.** Run `docker stop rabbitmq` and then the publisher. The program throws, because you told it to — that is your `defect` branch rethrowing. Restart it with `docker start rabbitmq`.
+**Stop the broker.** Run `docker stop rabbitmq` and then the publisher. It waits — the client keeps retrying the connection — and after 30 seconds it throws a `ConnectionError`. That is `TypedAmqpClient.create(...).getOrThrow()` failing on the modeled error, as you told it to in step 4; the publish never runs. Restart the broker with `docker start rabbitmq`.
 
 ## What you learned
 
 - A **contract** is one definition that produces both the TypeScript types and the AMQP topology.
 - Types are checked when you compile; **schemas are checked at runtime**, on publish and again on consume. The two catch different mistakes.
-- Nothing in the public API throws. Operations return results with three channels — `ok`, a modeled error, or a **defect** — and the compiler makes you address each one.
+- Runtime operations do not throw. They return results with three channels — `ok`, a modeled error, or a **defect** — and the compiler makes you address each one. The `define*` builders are the exception: a contract that would lose messages throws when it is declared, before any of it reaches a broker.
 
 ## Where next
 

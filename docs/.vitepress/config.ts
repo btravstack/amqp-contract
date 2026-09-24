@@ -89,6 +89,8 @@ const GUIDE_SIDEBAR = [
       { text: "Generate AsyncAPI", link: "/how-to/generate-asyncapi" },
       { text: "Test with RabbitMQ", link: "/how-to/test-with-rabbitmq" },
       { text: "Tune performance", link: "/how-to/tune-performance" },
+      { text: "Run in production", link: "/how-to/run-in-production" },
+      { text: "Evolve a contract", link: "/how-to/evolve-a-contract" },
       { text: "Upgrade", link: "/how-to/upgrade" },
       { text: "Troubleshoot", link: "/how-to/troubleshoot" },
     ],

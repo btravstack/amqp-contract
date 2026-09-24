@@ -4,7 +4,8 @@
 
 ```bash
 pnpm install              # Install dependencies
-pnpm build                # Build all packages
+pnpm build                # Build all packages (not the docs site)
+pnpm build:docs           # Build the docs site: TypeDoc API pages + VitePress
 pnpm dev                  # Watch mode for development
 ```
 
@@ -34,9 +35,9 @@ pnpm --filter @amqp-contract/worker test:integration
 
 ```bash
 pnpm changeset            # Create changeset entry for version bumps
-pnpm version              # Version packages
-pnpm release              # Publish packages
 ```
+
+`pnpm version` (`changeset version`) and `pnpm release` (`pnpm build && changeset publish`) exist for the CI release workflow. **Never run `pnpm release` locally** — publishing goes through the changesets release PR and CI's Trusted Publishing (see [Build & Release](./build-and-release.md)).
 
 ## Pre-Commit Checklist
 

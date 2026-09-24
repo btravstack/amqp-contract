@@ -16,6 +16,12 @@ import { defineConsumer } from "./consumer.js";
 import type { MatchingBindingPattern, RoutingKey } from "./routing-types.js";
 import { _internal_assertRoutingKeyPresent } from "./validate.js";
 
+/** Exchange types that ignore the routing key. */
+type KeylessExchange = FanoutExchangeDefinition | HeadersExchangeDefinition;
+
+/** Exchange types that route on the routing key. */
+type KeyedExchange = DirectExchangeDefinition | TopicExchangeDefinition;
+
 /**
  * Configuration for an event publisher.
  *
@@ -95,17 +101,53 @@ export type EventConsumerResult<
 };
 
 /**
- * Define an event publisher for broadcasting messages via a keyless exchange
- * (fanout or headers).
+ * Options for an event publisher on a keyless exchange (fanout or headers).
+ */
+type KeylessEventPublisherOptions = {
+  bindingArguments?: Record<string, unknown>;
+  externalConsumers?: boolean;
+};
+
+/**
+ * Options for an event publisher on a direct or topic exchange: the routing
+ * key is required and must be concrete (no `*` / `#` wildcards).
+ */
+type KeyedEventPublisherOptions<TRoutingKey extends string> = KeylessEventPublisherOptions & {
+  routingKey: RoutingKey<TRoutingKey>;
+};
+
+/**
+ * The trailing options argument of {@link defineEventPublisher}, chosen by the
+ * exchange type. One signature with a conditional options argument, rather
+ * than one overload per exchange type, so a mistake is reported against the
+ * options — "Property 'routingKey' is missing" — instead of against whichever
+ * overload happened to match the argument count ("DirectExchangeDefinition is
+ * not assignable to FanoutExchangeDefinition | HeadersExchangeDefinition").
+ */
+type EventPublisherOptionsArgs<TExchange extends ExchangeDefinition, TRoutingKey extends string> = [
+  TExchange,
+] extends [KeylessExchange]
+  ? [options?: KeylessEventPublisherOptions]
+  : [options: KeyedEventPublisherOptions<TRoutingKey>];
+
+/**
+ * Define an event publisher.
  *
  * Events are published without knowing who consumes them. Multiple consumers
- * can subscribe to the same event using `defineEventConsumer`. Neither
- * exchange type routes on the routing key — fanout broadcasts to every bound
- * queue, headers routes on header values — so no routing key is accepted.
+ * can subscribe to the same event using `defineEventConsumer`.
  *
- * @param exchange - The fanout or headers exchange to publish to
+ * The exchange type decides the options:
+ * - **fanout / headers**: no routing key — fanout broadcasts to every bound
+ *   queue, headers routes on header values. `options` is optional.
+ * - **direct**: `routingKey` is required; consumers receive messages whose key
+ *   matches it exactly.
+ * - **topic**: `routingKey` is required and concrete (no wildcards);
+ *   consumers can subscribe with `*` / `#` patterns via `defineEventConsumer`.
+ *
+ * @param exchange - The exchange to publish to
  * @param message - The message definition (schema and metadata)
- * @param options - Optional configuration
+ * @param options - Publisher configuration (required for direct and topic exchanges)
+ * @param options.routingKey - The concrete routing key (direct and topic exchanges only)
  * @param options.bindingArguments - Default AMQP binding arguments applied to
  *   this event's consumers' queue bindings (a consumer's own `arguments`
  *   option takes precedence)
@@ -116,108 +158,30 @@ export type EventConsumerResult<
  *
  * @example
  * ```typescript
+ * // Keyless exchange: no routing key
  * const logsExchange = defineExchange('logs', { type: 'fanout' });
  * const logMessage = defineMessage(z.object({
  *   level: z.enum(['info', 'warn', 'error']),
  *   message: z.string(),
  * }));
- *
- * // Create event publisher
  * const logEvent = defineEventPublisher(logsExchange, logMessage);
  *
- * // Multiple consumers can subscribe
- * const { consumer: fileConsumer, binding: fileBinding } =
- *   defineEventConsumer(logEvent, fileLogsQueue);
- * const { consumer: alertConsumer, binding: alertBinding } =
- *   defineEventConsumer(logEvent, alertsQueue);
- * ```
- */
-export function defineEventPublisher<
-  TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
->(
-  exchange: TExchange,
-  message: TMessage,
-  options?: {
-    bindingArguments?: Record<string, unknown>;
-    externalConsumers?: boolean;
-  },
-): EventPublisherConfig<TMessage, TExchange, undefined>;
-
-/**
- * Define an event publisher for broadcasting messages via direct exchange.
- *
- * Events are published with a specific routing key. Consumers will receive
- * messages that match the routing key exactly.
- *
- * @param exchange - The direct exchange to publish to
- * @param message - The message definition (schema and metadata)
- * @param options - Configuration with required routing key
- * @param options.routingKey - The routing key for message routing
- * @param options.bindingArguments - Default AMQP binding arguments applied to
- *   this event's consumers' queue bindings (a consumer's own `arguments`
- *   option takes precedence)
- * @param options.externalConsumers - Declare that this event's consumers are
- *   owned by another service, opting the event out of `defineContract`'s
- *   define-time routability check
- * @returns An event publisher configuration
- *
- * @example
- * ```typescript
+ * // Direct exchange: exact routing key
  * const tasksExchange = defineExchange('tasks', { type: 'direct' });
  * const taskMessage = defineMessage(z.object({ taskId: z.string() }));
- *
  * const taskEvent = defineEventPublisher(tasksExchange, taskMessage, {
  *   routingKey: 'task.execute',
  * });
- * ```
- */
-export function defineEventPublisher<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends DirectExchangeDefinition,
->(
-  exchange: TExchange,
-  message: TMessage,
-  options: {
-    routingKey: RoutingKey<TRoutingKey>;
-    bindingArguments?: Record<string, unknown>;
-    externalConsumers?: boolean;
-  },
-): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
-
-/**
- * Define an event publisher for broadcasting messages via topic exchange.
  *
- * Events are published with a concrete routing key. Consumers can subscribe
- * using patterns (with * and # wildcards) to receive matching messages.
- *
- * @param exchange - The topic exchange to publish to
- * @param message - The message definition (schema and metadata)
- * @param options - Configuration with required routing key
- * @param options.routingKey - The concrete routing key (no wildcards)
- * @param options.bindingArguments - Default AMQP binding arguments applied to
- *   this event's consumers' queue bindings (a consumer's own `arguments`
- *   option takes precedence)
- * @param options.externalConsumers - Declare that this event's consumers are
- *   owned by another service, opting the event out of `defineContract`'s
- *   define-time routability check
- * @returns An event publisher configuration
- *
- * @example
- * ```typescript
+ * // Topic exchange: concrete key; consumers may bind with patterns
  * const ordersExchange = defineExchange('orders', { type: 'topic' });
  * const orderMessage = defineMessage(z.object({
  *   orderId: z.string(),
  *   amount: z.number(),
  * }));
- *
- * // Publisher uses concrete routing key
  * const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
  *   routingKey: 'order.created',
  * });
- *
- * // Consumer can use pattern
  * const { consumer, binding } = defineEventConsumer(
  *   orderCreatedEvent,
  *   allOrdersQueue,
@@ -227,17 +191,17 @@ export function defineEventPublisher<
  */
 export function defineEventPublisher<
   TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends TopicExchangeDefinition,
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string = never,
 >(
   exchange: TExchange,
   message: TMessage,
-  options: {
-    routingKey: RoutingKey<TRoutingKey>;
-    bindingArguments?: Record<string, unknown>;
-    externalConsumers?: boolean;
-  },
-): EventPublisherConfig<TMessage, TExchange, TRoutingKey>;
+  ...options: EventPublisherOptionsArgs<TExchange, TRoutingKey>
+): EventPublisherConfig<
+  TMessage,
+  TExchange,
+  [TExchange] extends [KeylessExchange] ? undefined : TRoutingKey
+>;
 
 /*
  * Implementation signature of defineEventPublisher. (Deliberately a plain
@@ -280,177 +244,68 @@ export function defineEventPublisher<TMessage extends MessageDefinition>(
 }
 
 /**
- * Create a consumer that subscribes to an event from a keyless exchange
- * (fanout or headers) via a bridge exchange.
- *
- * When `bridgeExchange` is provided, the queue binds to the bridge exchange instead of the
- * source exchange, and an exchange-to-exchange binding is created from the source to the bridge.
- *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Binding configuration with required bridgeExchange
- * @param options.bridgeExchange - The bridge exchange. Its type must match the
- *   source exchange's: a fanout source needs a fanout bridge, a headers source
- *   a headers bridge, so the routing semantics survive the hop.
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition, queue binding, and exchange binding
+ * The bridge exchanges an event on `TExchange` may be routed through: the
+ * bridge must preserve the source's routing semantics, so a fanout source
+ * needs a fanout bridge, a headers source a headers bridge, and a direct or
+ * topic source a direct or topic bridge (which keeps the routing key).
  */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
-  TBridgeExchange extends Extract<
-    FanoutExchangeDefinition | HeadersExchangeDefinition,
-    { type: TExchange["type"] }
-  >,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueDefinition,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<
-  TMessage,
-  TExchange,
-  TQueueDefinition,
-  ExchangeBindingDefinition,
-  TBridgeExchange
->;
+type EventBridgeExchange<TExchange extends ExchangeDefinition> = TExchange["type"] extends "fanout"
+  ? FanoutExchangeDefinition
+  : TExchange["type"] extends "headers"
+    ? HeadersExchangeDefinition
+    : KeyedExchange;
 
 /**
- * Create a consumer that subscribes to an event from a direct exchange via a bridge exchange.
- *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Binding configuration with required bridgeExchange
- * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition, queue binding, and exchange binding
+ * Options for {@link defineEventConsumer}, chosen by the source exchange type.
+ * Only a topic source accepts a `routingKey` override: a direct exchange
+ * matches its key exactly, and fanout / headers exchanges ignore it.
  */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends DirectExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
-  TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueDefinition,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<
-  TMessage,
-  TExchange,
-  TQueueDefinition,
-  ExchangeBindingDefinition,
-  TBridgeExchange
->;
+type EventConsumerOptions<
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string | undefined,
+  TBridgeExchange extends ExchangeDefinition,
+  TConsumerRoutingKey extends string,
+> =
+  // One conditional around the whole object, not `base & (cond ? {routingKey} : unknown)`:
+  // inference through that intersection widens TConsumerRoutingKey to `string`,
+  // which silently disables the can-never-match check.
+  [TExchange] extends [TopicExchangeDefinition]
+    ? {
+        bridgeExchange?: TBridgeExchange;
+        routingKey?: MatchingBindingPattern<TConsumerRoutingKey, TRoutingKey & string>;
+        arguments?: Record<string, unknown>;
+      }
+    : { bridgeExchange?: TBridgeExchange; arguments?: Record<string, unknown> };
 
 /**
- * Create a consumer that subscribes to an event from a topic exchange via a bridge exchange.
+ * Create a consumer that subscribes to an event.
  *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Binding configuration with required bridgeExchange
- * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
- * @param options.routingKey - Override routing key with a pattern that can
- *   match the publisher's routing key (defaults to the publisher's key). A
- *   pattern that can never match is a compile-time error.
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition, queue binding, and exchange binding
- */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends TopicExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
-  TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
-  TConsumerRoutingKey extends string = TRoutingKey,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueDefinition,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    routingKey?: MatchingBindingPattern<TConsumerRoutingKey, TRoutingKey>;
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<
-  TMessage,
-  TExchange,
-  TQueueDefinition,
-  ExchangeBindingDefinition,
-  TBridgeExchange
->;
-
-/**
- * Create a consumer that subscribes to an event from a keyless exchange
- * (fanout or headers).
+ * The consumer's queue is bound to the event's exchange with the publisher's
+ * routing key. The source exchange type decides the options:
+ * - **fanout / headers**: no routing key.
+ * - **direct**: the publisher's key, which cannot be overridden.
+ * - **topic**: `routingKey` may override the publisher's key with a pattern
+ *   (`*` one word, `#` zero or more). A pattern that can never match the
+ *   publisher's concrete key — e.g. `user.*` against `order.created` — is a
+ *   compile-time error, because the binding would silently receive nothing.
  *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Optional binding configuration
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition and binding
- *
- * @example
- * ```typescript
- * const logEvent = defineEventPublisher(logsExchange, logMessage);
- * const { consumer, binding } = defineEventConsumer(logEvent, logsQueue);
- * ```
- */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, undefined>,
-  queue: TQueueDefinition,
-  options?: {
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
-
-/**
- * Create a consumer that subscribes to an event from a direct exchange.
- *
- * @param eventPublisher - The event publisher configuration
- * @param queue - The queue that will receive messages
- * @param options - Optional binding configuration
- * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition and binding
- */
-export function defineEventConsumer<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends DirectExchangeDefinition,
-  TQueueDefinition extends QueueDefinition,
->(
-  eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
-  queue: TQueueDefinition,
-  options?: {
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
-
-/**
- * Create a consumer that subscribes to an event from a topic exchange.
- *
- * For topic exchanges, the consumer can optionally override the routing key
- * with a pattern to subscribe to multiple events.
+ * When `bridgeExchange` is provided, the queue binds to the bridge exchange
+ * instead of the source exchange, and an exchange-to-exchange binding is
+ * created from the source to the bridge. The bridge must preserve the
+ * source's routing semantics: fanout↔fanout, headers↔headers, and
+ * direct/topic↔direct/topic.
  *
  * @param eventPublisher - The event publisher configuration
  * @param queue - The queue that will receive messages
  * @param options - Optional binding configuration
  * @param options.routingKey - Override routing key with a pattern that can
- *   match the publisher's routing key (defaults to the publisher's key). A
- *   pattern that can never match the publisher's concrete routing key — e.g.
- *   `user.*` against `order.created` — is a compile-time error, because the
- *   binding would silently receive nothing at runtime.
+ *   match the publisher's routing key (topic exchanges only; defaults to the
+ *   publisher's key)
+ * @param options.bridgeExchange - Route through this local exchange instead of
+ *   binding the queue to the source exchange directly
  * @param options.arguments - Additional AMQP arguments
- * @returns An object with the consumer definition and binding
+ * @returns An object with the consumer definition and binding (plus the
+ *   exchange-to-exchange binding and bridge exchange when bridging)
  *
  * @example
  * ```typescript
@@ -469,22 +324,35 @@ export function defineEventConsumer<
  * // A pattern that can never match the publisher's key fails to compile:
  * // defineEventConsumer(orderCreatedEvent, allQueue, { routingKey: 'user.*' });
  * // Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'
+ *
+ * // Keyless exchange
+ * const logEvent = defineEventPublisher(logsExchange, logMessage);
+ * const { consumer, binding } = defineEventConsumer(logEvent, logsQueue);
  * ```
  */
 export function defineEventConsumer<
   TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends TopicExchangeDefinition,
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string | undefined,
   TQueueDefinition extends QueueDefinition,
-  TConsumerRoutingKey extends string = TRoutingKey,
+  TBridgeExchange extends EventBridgeExchange<TExchange> = never,
+  TConsumerRoutingKey extends string = TRoutingKey & string,
 >(
   eventPublisher: EventPublisherConfig<TMessage, TExchange, TRoutingKey>,
   queue: TQueueDefinition,
-  options?: {
-    routingKey?: MatchingBindingPattern<TConsumerRoutingKey, TRoutingKey>;
-    arguments?: Record<string, unknown>;
-  },
-): EventConsumerResult<TMessage, TExchange, TQueueDefinition>;
+  options?: EventConsumerOptions<TExchange, TRoutingKey, TBridgeExchange, TConsumerRoutingKey>,
+  // NoInfer: inside `defineContract({ consumers: { … } })` the call has a
+  // contextual type, and TypeScript would otherwise infer TBridgeExchange from
+  // it (its `bridgeExchange` slot), typing an unbridged consumer as bridged.
+): [NoInfer<TBridgeExchange>] extends [never]
+  ? EventConsumerResult<TMessage, TExchange, TQueueDefinition>
+  : EventConsumerResult<
+      TMessage,
+      TExchange,
+      TQueueDefinition,
+      ExchangeBindingDefinition,
+      NoInfer<TBridgeExchange>
+    >;
 
 /*
  * Implementation signature of defineEventConsumer. (Deliberately a plain

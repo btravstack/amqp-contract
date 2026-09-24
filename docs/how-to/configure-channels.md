@@ -9,7 +9,7 @@ Channel options live on the low-level `AmqpClient` from `@amqp-contract/core`. `
 
 ## Know the defaults
 
-`AmqpClient` creates channels with JSON serialization and publisher confirms both enabled:
+`AmqpClient` creates confirm channels and encodes payloads itself — JSON for values, Buffers passed through untouched. amqp-connection-manager's own `json` mode is always forced off, because it would stringify a Buffer and corrupt compressed messages:
 
 ```typescript
 import { AmqpClient } from "@amqp-contract/core";
@@ -21,6 +21,8 @@ const client = new AmqpClient(contract, {
 
 Publisher confirms are on because without them `publish` cannot tell you whether the broker accepted the message — it would report success as soon as the bytes were written to the socket.
 
+A raw `AmqpClient` declares every resource of the contract it is given, on every (re)connect, according to its `topology` option: `"assert"` (default) declares, `"passive"` only checks existence, `"none"` touches nothing. `TypedAmqpClient` and `TypedAmqpWorker` hand it only their role's slice of the contract. It connects through exactly one of `urls` (a pooled connection, partitioned by `connectionPool` — `"default"` unless set; the typed client uses `"client"`, the worker `"worker"`) or `connection` (an `AmqpConnectionManager` you own, never closed by the client). `isConnected()` reports whether that connection is up.
+
 ## Customize a channel
 
 ```typescript
@@ -29,7 +31,6 @@ import type { Channel } from "amqplib";
 const client = new AmqpClient(contract, {
   urls: ["amqp://localhost"],
   channelOptions: {
-    json: true,
     confirm: true,
     name: "orders-publisher",
     setup: async (channel: Channel) => {
@@ -43,7 +44,7 @@ const client = new AmqpClient(contract, {
 
 ## Add resources the contract does not describe
 
-The `setup` function runs after the contract's topology is established, so everything in the contract already exists when it fires:
+The `setup` function runs after the contract's topology is established — the client's or worker's slice of it, or all of it on a raw `AmqpClient` — so those resources already exist when it fires:
 
 ```typescript
 channelOptions: {
@@ -88,7 +89,7 @@ Prefer the promise form.
 
 ## Understand what you cannot do
 
-**You cannot suppress contract topology.** `setup` runs after it, so contract exchanges, queues and bindings are already declared. There is no hook to skip them — that is what makes the contract authoritative.
+**`setup` cannot suppress contract topology.** It runs after the client's or worker's slice of the contract is declared, so those exchanges, queues and bindings already exist. To skip declaring them — topology owned by IaC, or credentials without configure permission — pass `topology: "none"` (or `"passive"`, to only check they exist) to `create()` instead.
 
 **Channel options are per channel.** Connection-level settings are separate:
 

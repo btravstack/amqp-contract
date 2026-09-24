@@ -89,6 +89,14 @@ export type TelemetryProvider = {
    * OpenTelemetry is not available.
    */
   getLateRpcReplyCounter: () => Counter | undefined;
+
+  /**
+   * Get a histogram for RPC round-trip duration (request publish → validated
+   * reply), kept apart from the publish histogram so a slow handler does not
+   * read as a slow broker. Optional so an existing custom provider keeps
+   * compiling; omitted means "not recorded".
+   */
+  getRpcCallLatencyHistogram?: () => Histogram | undefined;
 };
 
 /**
@@ -121,6 +129,7 @@ let cachedConsumeCounter: Counter | undefined;
 let cachedPublishLatencyHistogram: Histogram | undefined;
 let cachedConsumeLatencyHistogram: Histogram | undefined;
 let cachedLateRpcReplyCounter: Counter | undefined;
+let cachedRpcCallLatencyHistogram: Histogram | undefined;
 
 /**
  * Try to load the OpenTelemetry API module.
@@ -164,6 +173,7 @@ function getMeterInstruments(): {
   publishLatencyHistogram: Histogram | undefined;
   consumeLatencyHistogram: Histogram | undefined;
   lateRpcReplyCounter: Counter | undefined;
+  rpcCallLatencyHistogram: Histogram | undefined;
 } {
   if (cachedPublishCounter !== undefined) {
     return {
@@ -172,6 +182,7 @@ function getMeterInstruments(): {
       publishLatencyHistogram: cachedPublishLatencyHistogram,
       consumeLatencyHistogram: cachedConsumeLatencyHistogram,
       lateRpcReplyCounter: cachedLateRpcReplyCounter,
+      rpcCallLatencyHistogram: cachedRpcCallLatencyHistogram,
     };
   }
 
@@ -183,6 +194,7 @@ function getMeterInstruments(): {
       publishLatencyHistogram: undefined,
       consumeLatencyHistogram: undefined,
       lateRpcReplyCounter: undefined,
+      rpcCallLatencyHistogram: undefined,
     };
   }
 
@@ -214,12 +226,18 @@ function getMeterInstruments(): {
     unit: "{message}",
   });
 
+  cachedRpcCallLatencyHistogram = meter.createHistogram("amqp.client.rpc.duration", {
+    description: "Duration of RPC calls, from request publish to validated reply (or failure)",
+    unit: "ms",
+  });
+
   return {
     publishCounter: cachedPublishCounter,
     consumeCounter: cachedConsumeCounter,
     publishLatencyHistogram: cachedPublishLatencyHistogram,
     consumeLatencyHistogram: cachedConsumeLatencyHistogram,
     lateRpcReplyCounter: cachedLateRpcReplyCounter,
+    rpcCallLatencyHistogram: cachedRpcCallLatencyHistogram,
   };
 }
 
@@ -233,6 +251,7 @@ export const defaultTelemetryProvider: TelemetryProvider = {
   getPublishLatencyHistogram: () => getMeterInstruments().publishLatencyHistogram,
   getConsumeLatencyHistogram: () => getMeterInstruments().consumeLatencyHistogram,
   getLateRpcReplyCounter: () => getMeterInstruments().lateRpcReplyCounter,
+  getRpcCallLatencyHistogram: () => getMeterInstruments().rpcCallLatencyHistogram,
 };
 
 /**
@@ -247,6 +266,69 @@ function swallowTelemetryThrow<T>(operation: () => T): T | undefined {
     return operation();
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Write the active trace context (W3C `traceparent`/`tracestate`, or whatever
+ * propagator the application registered) into a message's headers, so the
+ * consumer's span continues the publisher's trace.
+ *
+ * Returns the headers to publish with — a new object when something was
+ * injected, the input untouched otherwise (no `@opentelemetry/api`, no SDK, no
+ * active span). Never throws.
+ */
+export function injectTraceContext(
+  headers: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  return (
+    swallowTelemetryThrow(() => {
+      const api = tryLoadOpenTelemetryApi();
+      if (!api) return headers;
+      const carrier: Record<string, unknown> = {};
+      api.propagation.inject(api.context.active(), carrier);
+      return Object.keys(carrier).length === 0 ? headers : { ...headers, ...carrier };
+    }) ?? headers
+  );
+}
+
+/**
+ * Run `fn` inside the trace context a message carries: the context extracted
+ * from `headers` (or the active one when there are none), with `span` set as
+ * the active span when given. The publish side runs with its producer span
+ * active so {@link injectTraceContext} propagates it; the consume side runs
+ * the handler under its consumer span, parented on the publisher's context.
+ *
+ * Degrades to a plain `fn()` without `@opentelemetry/api` or a registered
+ * context manager. A throwing propagator or context manager is swallowed —
+ * telemetry never throws into the data path — but a throw from `fn` itself is
+ * rethrown untouched.
+ */
+export function runWithTraceContext<T>(
+  headers: Record<string, unknown> | undefined,
+  span: Span | undefined,
+  fn: () => T,
+): T {
+  const api = tryLoadOpenTelemetryApi();
+  const ctx = swallowTelemetryThrow(() => {
+    if (!api) return undefined;
+    const parent = headers
+      ? api.propagation.extract(api.context.active(), headers)
+      : api.context.active();
+    return span ? api.trace.setSpan(parent, span) : parent;
+  });
+  if (!api || ctx === undefined) return fn();
+
+  let entered = false;
+  try {
+    return api.context.with(ctx, () => {
+      entered = true;
+      return fn();
+    });
+  } catch (error) {
+    // oxlint-disable-next-line unthrown/no-throw -- transparent helper: a throw from `fn` must surface exactly as it would without telemetry
+    if (entered) throw error;
+    return fn();
   }
 }
 
@@ -435,6 +517,28 @@ export function recordConsumeMetric(
 }
 
 /**
+ * Record an RPC round trip on its own histogram (`amqp.client.rpc.duration`).
+ * Never throws.
+ */
+export function recordRpcCallMetric(
+  provider: TelemetryProvider,
+  queueName: string,
+  rpcName: string,
+  success: boolean,
+  durationMs: number,
+): void {
+  swallowTelemetryThrow(() => {
+    provider.getRpcCallLatencyHistogram?.()?.record(durationMs, {
+      [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+        MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+      [MessagingSemanticConventions.MESSAGING_DESTINATION]: queueName,
+      [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: rpcName,
+      success,
+    });
+  });
+}
+
+/**
  * Record an RPC reply that arrived after the caller stopped waiting.
  *
  * @param reason - Why the reply was orphaned. `"unknown-correlation-id"` is
@@ -472,4 +576,5 @@ export function _internal_resetTelemetryCache(): void {
   cachedPublishLatencyHistogram = undefined;
   cachedConsumeLatencyHistogram = undefined;
   cachedLateRpcReplyCounter = undefined;
+  cachedRpcCallLatencyHistogram = undefined;
 }

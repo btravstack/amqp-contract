@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
 }).getOrThrow();
 ```
 
-Creating the worker declares the contract's topology against the broker and starts consuming every queue in it. There is no separate `start()`.
+Creating the worker declares what its consumers need against the broker — the consumed queues with their bindings, retry wait queues, dead-letter exchanges and DLQs — and starts consuming every consumer and RPC queue. There is no separate `start()`.
 
 The message is on the record as `input` as well as in the second parameter, so `({ input }) => …` and `({ errors }, message) => …` are the same call — oRPC's own shape, and its own word for it, where `ProcedureHandlerOptions` carries `input` and the handler still takes it positionally. Reach for the record: it is the one that needs no placeholder when a handler wants only its message.
 
@@ -190,6 +190,23 @@ Per-handler options override the default. Picking a number is covered in [tune p
 The tuple form does not carry middleware context types through to the handler — `helpers.context` widens and reading a field the middleware injected fails to compile. If you need both, set concurrency with `defaultConsumerOptions` and keep the handler in its plain function form.
 :::
 
+## Set the worker's options
+
+The options beside `contract`, `handlers` and `urls` that change how a worker meets the broker:
+
+| Option             | Default              | What it does                                                                                                                                                                                              |
+| ------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `topology`         | `"assert"`           | What the worker does with its slice of the contract on every (re)connect: `"assert"` declares it, `"passive"` only checks it exists (`create()` fails if something is missing), `"none"` touches nothing. |
+| `connection`       | —                    | An `AmqpConnectionManager` you own, instead of `urls`. Pass exactly one of the two. The worker only opens a channel on it and never closes it.                                                            |
+| `maxMessageBytes`  | 16 MiB               | Cap on an inbound body — plain, or after decompression. Over the cap, the message is dead-lettered unparsed. `maxDecompressedBytes` is its deprecated former name.                                        |
+| `rpc.allowReplyTo` | direct reply-to only | Which `replyTo` addresses an RPC handler may answer. A request with a refused address is dead-lettered. See [use request/reply](/how-to/use-request-reply#know-the-runtime-guarantees).                   |
+| `publishTimeoutMs` | 30 000 ms            | How long a retry republish or RPC reply may wait for the broker before failing with `PublishError`: a failed retry publish requeues the original, a failed reply dead-letters the request.                |
+| `connectTimeoutMs` | 30 000 ms            | How long `create()` waits for the broker before answering `Err(ConnectionError)`. `null` waits forever.                                                                                                   |
+
+With `urls`, a worker draws from a connection pool of its own: it never shares a TCP connection with a `TypedAmqpClient` unless you hand both the same `connection` (see [share connections](/how-to/share-connections)).
+
+`worker.isConnected()` reports whether the broker connection is up right now — `false` while reconnecting — for a readiness probe ([run in production](/how-to/run-in-production#wire-health-checks)).
+
 ## Shut down without dropping messages
 
 ```typescript
@@ -213,12 +230,12 @@ await worker.close({ drainTimeoutMs: null }).get(); // wait for every in-flight 
 
 ## Know how a return value routes the message
 
-| Handler returns               | Message                                             |
-| ----------------------------- | --------------------------------------------------- |
-| `OkAsync(undefined)`          | Acknowledged                                        |
-| `ErrAsync(RetryableError)`    | Handed to the queue's retry mode                    |
-| `ErrAsync(NonRetryableError)` | Dead-lettered, bypassing retries                    |
-| Throws                        | Logged and dead-lettered by the worker's safety net |
+| Handler returns               | Message                                               |
+| ----------------------------- | ----------------------------------------------------- |
+| `OkAsync(undefined)`          | Acknowledged                                          |
+| `ErrAsync(RetryableError)`    | Handed to the queue's retry mode (RPC: dead-lettered) |
+| `ErrAsync(NonRetryableError)` | Dead-lettered, bypassing retries                      |
+| Throws                        | Logged and dead-lettered by the worker's safety net   |
 
 Do not rely on that last row. A thrown error has already lost the classification that would have let it be retried, so the worker can only assume the worst. Wrapping a handler body in `try`/`catch` to convert exceptions yourself is unnecessary — `fromPromise`'s mapper is the supported place to make that decision.
 

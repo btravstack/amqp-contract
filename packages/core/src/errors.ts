@@ -2,6 +2,20 @@ import { summarizeIssues } from "@amqp-contract/contract";
 import { TaggedError } from "unthrown";
 
 /**
+ * Re-capture an error's stack once its `name` and `message` are final.
+ *
+ * unthrown's `TaggedError` calls `super()` with no message, so V8 renders the
+ * stack header before `name`/`message` exist — every amqp-contract error used
+ * to print as a bare `Error` at the top of its stack. Called last in each
+ * error constructor; `this.constructor` trims the constructor frames.
+ *
+ * @internal
+ */
+export function recaptureStack(error: Error): void {
+  Error.captureStackTrace?.(error, error.constructor);
+}
+
+/**
  * Error for technical/runtime failures that cannot be prevented by TypeScript.
  *
  * This includes channel issues, compression/parse faults, and other unexpected
@@ -27,9 +41,13 @@ export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError",
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(TechnicalError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/TechnicalError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
   }
 }
 
@@ -55,9 +73,64 @@ export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(ConnectionError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/ConnectionError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
+  }
+}
+
+/**
+ * Why the broker side of a publish failed — each one something core can
+ * actually observe on amqp-connection-manager's confirm channel:
+ *
+ * - `"timeout"` — the message sat buffered past `publishTimeoutMs` (the broker
+ *   was unreachable for that long).
+ * - `"nacked"` — the broker refused the message (`basic.nack`).
+ * - `"channel-closed"` — the channel closed before the message was confirmed.
+ */
+export type PublishFailureReason = "timeout" | "nacked" | "channel-closed";
+
+const PUBLISH_FAILURE_DESCRIPTIONS: Record<PublishFailureReason, string> = {
+  timeout: "timed out waiting for the broker (publishTimeoutMs)",
+  nacked: "the broker rejected (nacked) the message",
+  "channel-closed": "the channel closed before the message was confirmed",
+};
+
+/**
+ * The broker side of a publish failed: timed out, nacked, or the channel
+ * closed under it. (A full write buffer is NOT one: on the confirm channel the
+ * wrapper only reports it after the broker confirmed the message.)
+ *
+ * **Modeled, not a defect** — a broker that is down, overloaded or refusing a
+ * message is an operational condition a publisher is expected to handle
+ * (buffer, retry, shed load, surface a 503), not a bug. Returned on the `E`
+ * channel of `AmqpClient.publish`, `TypedAmqpClient.publish` and
+ * `TypedAmqpClient.call`; switch on {@link PublishError.reason}. A failure
+ * core cannot classify (an unencodable payload, an unknown rejection) stays a
+ * `Defect` with a {@link TechnicalError} cause.
+ *
+ * Carries a `_tag` of `"@amqp-contract/PublishError"`; the `Error.name` is kept
+ * bare (`"PublishError"`). The underlying rejection, if any, is on `cause`.
+ */
+export class PublishError extends TaggedError("@amqp-contract/PublishError", {
+  name: "PublishError",
+})<{
+  reason: PublishFailureReason;
+  /** Where the message was going, e.g. `exchange "orders" (routing key "order.created")`. */
+  target: string;
+  cause?: unknown;
+}> {
+  /** The `_tag`, for `P.tag(PublishError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/PublishError";
+
+  constructor(props: { reason: PublishFailureReason; target: string; cause?: unknown }) {
+    super(props);
+    this.message = `Failed to publish message to ${props.target}: ${PUBLISH_FAILURE_DESCRIPTIONS[props.reason]}`;
+    recaptureStack(this);
   }
 }
 
@@ -78,6 +151,9 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
   source: string;
   issues: unknown;
 }> {
+  /** The `_tag`, for `P.tag(MessageValidationError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/MessageValidationError";
+
   constructor(source: string, issues: unknown) {
     super({ source, issues });
     // Render the issues into the message via the shared formatter when they
@@ -95,6 +171,7 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
     this.message = summary
       ? `Message validation failed for "${source}": ${summary}`
       : `Message validation failed for "${source}"`;
+    recaptureStack(this);
   }
 }
 
@@ -157,12 +234,16 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
   code: string;
   data: unknown;
 }> {
+  /** The `_tag`, for `P.tag(RpcError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/RpcError";
+
   declare readonly code: TCode;
   declare readonly data: TData;
 
   constructor(code: TCode, data: TData, message?: string) {
     super({ code, data });
     this.message = message ?? `RPC failed with error "${code}"`;
+    recaptureStack(this);
   }
 }
 

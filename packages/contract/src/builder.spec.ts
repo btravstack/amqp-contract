@@ -247,14 +247,48 @@ describe("builder", () => {
     it("should throw error for maxPriority less than 1", () => {
       // WHEN/THEN
       expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 0 })).toThrow(
-        "Invalid maxPriority: 0. Must be between 1 and 255. Recommended range: 1-10.",
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 0). Use 1-10',
+      );
+    });
+
+    it("should throw error for a non-integer maxPriority", () => {
+      expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 2.5 })).toThrow(
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 2.5)',
+      );
+    });
+
+    it.each([
+      ["durable: false", { durable: false }],
+      ["exclusive", { exclusive: true }],
+      ["autoDelete", { autoDelete: true }],
+      ["maxPriority", { maxPriority: 10 }],
+    ])(
+      "should name the queue and the classic-type remedy when %s is set on the default quorum type",
+      (option, options) => {
+        // Cast: the types already reject these on a quorum queue; this is the
+        // JavaScript-caller path, where the runtime message is all there is.
+        expect(() => defineQueue("orders", options as never)).toThrow(
+          `Queue "orders": ${option} is not supported on quorum queues (the default type)`,
+        );
+        expect(() => defineQueue("orders", options as never)).toThrow(
+          '`type: "classic"` on this queue',
+        );
+      },
+    );
+
+    it("should point a quorum maxPriority at native per-message priority, not only at classic", () => {
+      // Quorum queues prioritise natively on RabbitMQ 4.0+ with no queue
+      // argument; `x-max-priority` is ignored there. Telling the author that
+      // quorum "does not support priority" would push them off quorum for nothing.
+      expect(() => defineQueue("orders", { maxPriority: 10 } as never)).toThrow(
+        /quorum queues ignore.*honor the per-message `priority` property natively.*remove maxPriority/,
       );
     });
 
     it("should throw error for maxPriority greater than 255", () => {
       // WHEN/THEN
       expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 256 })).toThrow(
-        "Invalid maxPriority: 256. Must be between 1 and 255. Recommended range: 1-10.",
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 256). Use 1-10',
       );
     });
 
@@ -300,6 +334,7 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 4 },
         retry: { mode: "immediate-requeue", maxRetries: 3 },
       });
     });
@@ -315,6 +350,7 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 6 },
         retry: {
           mode: "immediate-requeue",
           maxRetries: 5,
@@ -345,6 +381,7 @@ describe("builder", () => {
           exchange: dlx,
           routingKey: "failed",
         },
+        arguments: { "x-delivery-limit": 4 },
         retry: { mode: "immediate-requeue", maxRetries: 3 },
       });
     });
@@ -356,7 +393,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 0 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 0. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 0. Must be a positive integer',
       );
     });
 
@@ -367,7 +404,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
@@ -382,7 +419,58 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 2 },
         retry: { mode: "immediate-requeue", maxRetries: 1 },
+      });
+    });
+
+    describe("x-delivery-limit alignment", () => {
+      // RabbitMQ 4.x caps quorum redeliveries at x-delivery-limit (default 20)
+      // and dead-letters past it. Without alignment a worker with maxRetries
+      // >= 20 never reaches its own budget; the broker decides instead.
+      it("should raise the limit above the broker default for maxRetries >= 20", () => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 25 },
+        });
+
+        expect(queue.arguments).toEqual({ "x-delivery-limit": 26 });
+      });
+
+      it("should merge with the author's other arguments", () => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 3 },
+          arguments: { "x-message-ttl": 1000 },
+        });
+
+        expect(queue.arguments).toEqual({ "x-message-ttl": 1000, "x-delivery-limit": 4 });
+      });
+
+      it.each([4, 50, -1])("should keep an explicit x-delivery-limit of %s", (limit) => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 3 },
+          arguments: { "x-delivery-limit": limit },
+        });
+
+        expect(queue.arguments).toEqual({ "x-delivery-limit": limit });
+      });
+
+      it("should reject an explicit x-delivery-limit the worker's budget cannot fit in", () => {
+        expect(() =>
+          defineQueue("retry-queue", {
+            retry: { mode: "immediate-requeue", maxRetries: 25 },
+            arguments: { "x-delivery-limit": 20 },
+          }),
+        ).toThrow(
+          /Queue "retry-queue": arguments\["x-delivery-limit"\] is 20, but its immediate-requeue retry needs at least 26/,
+        );
+      });
+
+      it.each([
+        ["a classic queue", { type: "classic", retry: { mode: "immediate-requeue" } }],
+        ["ttl-backoff retry", { retry: { mode: "ttl-backoff" } }],
+        ["no retry", { retry: { mode: "none" } }],
+      ] as const)("should not touch the arguments for %s", (_label, options) => {
+        expect(defineQueue("retry-queue", options).arguments).toBeUndefined();
       });
     });
   });
@@ -467,7 +555,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
@@ -479,7 +567,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: -1 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: -1. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: -1. Must be a positive integer',
       );
     });
   });
@@ -571,7 +659,7 @@ describe("builder", () => {
           retry: { mode: "ttl-backoff", maxRetries: 0 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 0. Must be a positive integer.',
+        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 0. Must be a positive integer',
       );
     });
 
@@ -582,7 +670,7 @@ describe("builder", () => {
           retry: { mode: "ttl-backoff", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
@@ -634,6 +722,50 @@ describe("builder", () => {
         queue,
         exchange,
       });
+    });
+
+    it.each(["#", "*", "order.*", "order.#", "*.created"])(
+      "should reject the wildcard key %s on a direct exchange — it is matched literally",
+      (routingKey) => {
+        const queue = defineQueue("orders-dlq");
+        const dlx = defineExchange("orders-dlx", { type: "direct" });
+
+        expect(() => defineQueueBinding(queue, dlx, { routingKey })).toThrow(
+          new RegExp(
+            `Queue binding of "orders-dlq" uses routing key "${routingKey.replace(/[.*#]/g, "\\$&")}" on direct exchange "orders-dlx".*Bind the exact routing key`,
+          ),
+        );
+      },
+    );
+
+    it("should accept wildcard-looking characters that are not whole segments on a direct exchange", () => {
+      // Only a segment that IS `*` or `#` is a topic wildcard; `a#b` is literal on both types.
+      const queue = defineQueue("orders-dlq");
+      const dlx = defineExchange("orders-dlx", { type: "direct" });
+
+      expect(() => defineQueueBinding(queue, dlx, { routingKey: "order#1.x*" })).not.toThrow();
+    });
+
+    it("should accept the same wildcard on a topic exchange", () => {
+      const queue = defineQueue("orders-dlq");
+      const dlx = defineExchange("orders-dlx", { type: "topic" });
+
+      expect(() => defineQueueBinding(queue, dlx, { routingKey: "#" })).not.toThrow();
+    });
+
+    it("should reject a wildcard consumer override on a direct exchange", () => {
+      // The types only offer the override on topic exchanges; a JavaScript
+      // caller (modelled by the cast) reaches the same binding builder and is
+      // rejected there.
+      const exchange = defineExchange("tasks", { type: "direct" });
+      const message = defineMessage(z.object({ id: z.string() }));
+      const queue = defineQueue("tasks-queue", { onPoison: "drop" });
+      const event = defineEventPublisher(exchange, message, { routingKey: "task.run" });
+      const untypedDefineEventConsumer = defineEventConsumer as (...args: unknown[]) => unknown;
+
+      expect(() => untypedDefineEventConsumer(event, queue, { routingKey: "task.*" })).toThrow(
+        /direct exchange "tasks"/,
+      );
     });
   });
 
@@ -692,6 +824,15 @@ describe("builder", () => {
         routingKey: "order.*",
         arguments: { "x-match": "any" },
       });
+    });
+
+    it("should reject a wildcard key on a direct source exchange", () => {
+      const destination = defineExchange("archive", { type: "fanout" });
+      const source = defineExchange("orders-direct", { type: "direct" });
+
+      expect(() => defineExchangeBinding(destination, source, { routingKey: "#" })).toThrow(
+        /Exchange binding to "archive" uses routing key "#" on direct exchange "orders-direct"/,
+      );
     });
   });
 

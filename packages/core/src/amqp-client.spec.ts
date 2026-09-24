@@ -1,6 +1,7 @@
 import type { EventEmitter } from "node:events";
 
 import type { ContractDefinition } from "@amqp-contract/contract";
+import type { AmqpConnectionManager } from "amqp-connection-manager";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AmqpClient, DEFAULT_PREFETCH } from "./amqp-client.js";
@@ -25,6 +26,8 @@ vi.mock("amqp-connection-manager", async () => {
     default: {
       connect: vi.fn(() => ({
         createChannel: vi.fn(() => w),
+        on: vi.fn(),
+        removeListener: vi.fn(),
         close: vi.fn(() => Promise.resolve()),
       })),
     },
@@ -96,5 +99,60 @@ describe("AmqpClient.consume prefetch default", () => {
     expect(result).toBeDefect();
 
     void client.close();
+  });
+});
+
+describe("AmqpClient connection source", () => {
+  beforeEach(async () => {
+    await ConnectionManagerSingleton.getInstance()._resetForTesting();
+  });
+
+  it("borrows an explicit connection: no pooled connection is acquired, and close() leaves it open", async () => {
+    const close = vi.fn(() => Promise.resolve());
+    const connection = {
+      createChannel: vi.fn(() => wrapper()),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      close,
+    };
+
+    const client = new AmqpClient(contract, {
+      connection: connection as unknown as AmqpConnectionManager,
+    });
+    await client.close();
+
+    expect([
+      client.getConnection() === (connection as unknown),
+      ConnectionManagerSingleton.getInstance()._getConnectionCountForTesting(),
+      close.mock.calls.length,
+    ]).toEqual([true, 0, 0]);
+  });
+
+  it("isConnected reflects the connection, and is false once the client is closed", async () => {
+    let up = false;
+    const connection = {
+      createChannel: vi.fn(() => wrapper()),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      isConnected: () => up,
+      close: vi.fn(() => Promise.resolve()),
+    } as unknown as AmqpConnectionManager;
+    const client = new AmqpClient(contract, { connection });
+
+    const before = client.isConnected();
+    up = true;
+    const connected = client.isConnected();
+    await client.close();
+
+    expect([before, connected, client.isConnected()]).toEqual([false, true, false]);
+  });
+
+  it("refuses both or neither of urls / connection", () => {
+    const connection = {} as AmqpConnectionManager;
+
+    expect(() => new AmqpClient(contract, {})).toThrow(/exactly one of `urls`/);
+    expect(() => new AmqpClient(contract, { urls: ["amqp://localhost"], connection })).toThrow(
+      /exactly one of `urls`/,
+    );
   });
 });

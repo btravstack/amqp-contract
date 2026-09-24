@@ -34,6 +34,21 @@ describe("ConnectionManagerSingleton pooling invariants", () => {
     expect(b.connection.close).toHaveBeenCalledTimes(1);
   });
 
+  it("never shares a connection across pools, even for identical URLs and options", async () => {
+    const pool = ConnectionManagerSingleton.getInstance();
+    const client = pool.acquire(["amqp://localhost"], { pool: "client" });
+    const worker = pool.acquire(["amqp://localhost"], { pool: "worker" });
+    const client2 = pool.acquire(["amqp://localhost"], { pool: "client" });
+
+    expect([
+      client.connection === worker.connection,
+      client.connection === client2.connection,
+    ]).toEqual([false, true]);
+
+    await Promise.all([client.release(), worker.release(), client2.release()]);
+    expect(pool._getConnectionCountForTesting()).toBe(0);
+  });
+
   it("a double release is a no-op and cannot close the connection under another live lease", async () => {
     const pool = ConnectionManagerSingleton.getInstance();
     const doubleCloser = pool.acquire(["amqp://localhost"]);
@@ -107,8 +122,12 @@ describe("connection key: function-valued options", () => {
     // collapsed onto one pooled connection — pinning the second caller to
     // the first caller's behavior.
     const pool = ConnectionManagerSingleton.getInstance();
-    const a = pool.acquire(["amqp://localhost"], { findServers: () => "amqp://a" });
-    const b = pool.acquire(["amqp://localhost"], { findServers: () => "amqp://b" });
+    const a = pool.acquire(["amqp://localhost"], {
+      connectionOptions: { findServers: () => "amqp://a" },
+    });
+    const b = pool.acquire(["amqp://localhost"], {
+      connectionOptions: { findServers: () => "amqp://b" },
+    });
 
     expect(a.connection).not.toBe(b.connection);
     expect(pool._getConnectionCountForTesting()).toBe(2);
@@ -117,8 +136,8 @@ describe("connection key: function-valued options", () => {
   it("the same function reference still shares the pooled connection", () => {
     const pool = ConnectionManagerSingleton.getInstance();
     const findServers = () => "amqp://a";
-    const a = pool.acquire(["amqp://localhost"], { findServers });
-    const b = pool.acquire(["amqp://localhost"], { findServers });
+    const a = pool.acquire(["amqp://localhost"], { connectionOptions: { findServers } });
+    const b = pool.acquire(["amqp://localhost"], { connectionOptions: { findServers } });
 
     expect(a.connection).toBe(b.connection);
     expect(pool._getConnectionCountForTesting()).toBe(1);

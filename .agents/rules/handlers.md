@@ -10,7 +10,7 @@ A consumer handler receives one record — `{ input, context, errors, raw, retry
 import { fromPromise, OkAsync } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
 
-// Sync OK case — lift a sync Result into an AsyncResult with .toAsync()
+// Sync OK case — OkAsync(value) builds an already-settled AsyncResult
 const handler = ({ raw, input: { payload } }) => {
   console.log(payload.orderId, raw.fields.deliveryTag);
   return OkAsync(undefined);
@@ -43,7 +43,7 @@ them still names the position: `({ input: { payload } }) => ...`.
 
 `defineRpc` creates a request-reply slot. RPC handlers return `AsyncResult<TResponse, HandlerError | WorkerInferRpcErrors<...>>` — the worker validates the response against the RPC's response schema and publishes it back to the caller's `replyTo` with the same `correlationId`.
 
-All handlers (consumer and RPC) receive the `helpers` record first — `{ context, errors, raw }`. `context` is seeded by `createContext` and accumulated by the middleware chain (`TypedAmqpWorker.create({ createContext, middleware: composeMiddleware(...) })`); `errors` carries typed constructors for the RPC's declared errors (`ErrAsync(errors.CODE({ ... }))`), empty for consumers. Middleware `next({ payload })` substitutes the payload with re-validation before the handler. See `packages/worker/src/middleware.ts`, `packages/worker/src/worker.ts` (`runHandler`), and [docs/guide/middleware-and-interceptors.md](../../docs/guide/middleware-and-interceptors.md).
+All handlers (consumer and RPC) receive the `helpers` record first — `{ input, context, errors, raw, retryable, nonRetryable }` (see `WorkerHandlerHelpers` in `packages/worker/src/types.ts`). `context` is seeded by `createContext` and accumulated by the middleware chain (`TypedAmqpWorker.create({ createContext, middleware: composeMiddleware(...) })`); `errors` carries typed constructors for the RPC's declared errors (`ErrAsync(errors.CODE({ ... }))`), empty for consumers. Middleware `next({ payload })` substitutes the payload with re-validation before the handler. See `packages/worker/src/middleware.ts`, `packages/worker/src/worker.ts` (`runHandler`), and [docs/guide/middleware-and-interceptors.md](../../docs/guide/middleware-and-interceptors.md).
 
 When the RPC declares an `errors` map (`defineRpc(queue, { request, response, errors })`), the handler may also return `Err(rpcError(code, data))` for a declared code — the worker validates `data` against the declared schema, publishes an error reply (marked by the `RPC_ERROR_CODE_HEADER` header), and **acks the request**; typed business errors never enter the retry/DLQ pipeline. Undeclared codes or invalid error data are contract violations routed to the DLQ. See `packages/worker/src/worker.ts` (`publishRpcErrorReply`) and [docs/guide/error-model.md](../../docs/guide/error-model.md#typed-rpc-errors-rpcerror).
 
@@ -84,11 +84,12 @@ result.match({
   errCases: (matcher) =>
     matcher.with(
       P.tag("@amqp-contract/MessageValidationError"),
+      P.tag("@amqp-contract/PublishError"),
       P.tag("@amqp-contract/RpcTimeoutError"),
       P.tag("@amqp-contract/RpcCancelledError"),
       (error) => console.error(error),
     ),
-  // transport failures (TechnicalError) surface here as defects, not modeled errors
+  // only unclassifiable failures (TechnicalError cause) are defects; a refused publish is PublishError
   defect: (cause) => console.error(cause),
 });
 ```
@@ -96,7 +97,9 @@ result.match({
 RPC error semantics worth knowing:
 
 - **Missing `replyTo` / `correlationId`** on the inbound message → `NonRetryableError`. The request is `nack`ed without requeue, so it routes to the queue's DLQ if configured (poison messages stay visible for inspection rather than being silently ack'd).
+- **`replyTo` not on the allowlist** → `NonRetryableError`, dead-lettered with the reason logged, never replied to. The default allows only direct reply-to (`amq.rabbitmq.reply-to[.*]`, what `client.call()` uses); `TypedAmqpWorker.create({ rpc: { allowReplyTo } })` widens it. See `packages/worker/src/rpc-reply.ts`.
 - **Response fails the response schema** → `NonRetryableError` (handler returned the wrong shape; retrying won't help).
+- **RPC requests are never retried** — a `RetryableError` from an RPC handler dead-letters the request even on a retry-configured queue: the caller's `timeoutMs` is shorter than most backoffs, so a retry would re-run the handler for nobody. See `handleError` in `packages/worker/src/retry.ts`.
 - **Client-side timeout** → call resolves to `Err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
 - **Client closed mid-call** → call resolves to `Err(RpcCancelledError)`.
 
@@ -141,7 +144,7 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 
 | Error                    | When                                                                                                                                                                                                                                |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried. A modeled `Err` in `E`.                                                                                                 |
+| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried. Modeled (a `dead-lettered` outcome, recorded as the span's exception), not a defect.                                    |
 | `TechnicalError`         | Transport-level failure (connection, channel, broker). Surfaced as a **`Defect`** (its `cause`), **not** a modeled `Err` — handle it in the `defect` arm of `match` (or `recoverDefect` / `tapDefect`), never in the error matcher. |
 
 ### Client-side (returned from `client.publish` / `client.call`)
@@ -149,12 +152,13 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 | Error                    | When                                                                                                                                                                                     |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MessageValidationError` | Outbound payload failed the request/publisher schema before the message hit the broker. A modeled `Err`.                                                                                 |
-| `TechnicalError`         | Publish/transport failed at the broker (channel buffer full, connection lost, etc.). Surfaced as a **`Defect`** (its `cause`), never a modeled `Err` — handle it in the `defect` arm.    |
+| `PublishError`           | The broker side of the publish failed (`reason`: `timeout` / `nacked` / `channel-closed`). A modeled `Err`. A confirmed publish that leaves the write buffer full is **not** one.        |
+| `TechnicalError`         | An unclassifiable publish failure (unencodable payload, unknown rejection). Surfaced as a **`Defect`** (its `cause`), never a modeled `Err` — handle it in the `defect` arm.             |
 | `RpcTimeoutError`        | RPC call's `timeoutMs` elapsed before a reply arrived. Pending state is cleared. A reply that arrives later is logged at `warn` and counted via `recordLateRpcReply` (it isn't retried). |
 | `RpcCancelledError`      | RPC was in flight when `client.close()` was called. All pending calls fail with this so callers don't hang.                                                                              |
 
-`publish()` returns `AsyncResult<void, MessageValidationError>` (a transport failure is a `Defect`, not in `E`).
-`call()` returns `AsyncResult<TResponse, MessageValidationError | RpcTimeoutError | RpcCancelledError>` (plus any declared `RpcError`s; a transport failure is a `Defect`, not in `E`).
+`publish()` returns `AsyncResult<void, MessageValidationError | PublishError>`.
+`call()` returns `AsyncResult<TResponse, MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError>` (plus any declared `RpcError`s; an unclassifiable failure is a `Defect`, not in `E`).
 
 ```typescript
 // Conditional error mapping inside fromPromise's qualify
@@ -183,8 +187,8 @@ For the authoritative API read unthrown's type definitions; the subset this proj
 
 | Method                          | Description                                                                                                                                                                                                                                                                                                    |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OkAsync(value)`                | Lift a successful sync `Result` into an `AsyncResult`                                                                                                                                                                                                                                                          |
-| `ErrAsync(error)`               | Lift a failed sync `Result` into an `AsyncResult`                                                                                                                                                                                                                                                              |
+| `OkAsync(value)`                | Build a successful `AsyncResult` (shorthand for `Ok(value).toAsync()`)                                                                                                                                                                                                                                         |
+| `ErrAsync(error)`               | Build a failed `AsyncResult` (shorthand for `Err(error).toAsync()`)                                                                                                                                                                                                                                            |
 | `fromPromise(promise, qualify)` | Wrap a `Promise`; `qualify(cause, defect)` maps the rejection to `E \| defect(cause)` (call the `defect` callback for unexpected failures). Required.                                                                                                                                                          |
 | `fromSafePromise(promise)`      | Wrap a `Promise` asserted not to fail in a modeled way (rejection → `Defect`).                                                                                                                                                                                                                                 |
 | `.map(f)` / `.mapErrCases(m)`   | Transform the OK value / the error. `mapErrCases` takes an exhaustive matcher callback listing every modeled error case: `.mapErrCases((matcher) => matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => …))` (a `TechnicalError` is a defect — recover it with `.recoverDefect`, not here) |
@@ -211,4 +215,4 @@ For the authoritative list, read [`packages/worker/src/index.ts`](../../packages
 - Classes: `TypedAmqpWorker`, `RetryableError`, `NonRetryableError`, `MessageValidationError` (the error classes are unthrown `TaggedError`s). `HandlerError` is a **type** (`RetryableError | NonRetryableError`), not a class.
 - Qualifiers: `qualifyRetryable`, `qualifyNonRetryable`
 - Helpers: `declareHandler`, `declareHandlers` (both accept consumer **and** RPC names)
-- Types: `CreateWorkerOptions`, `ConsumerOptions`, `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`
+- Types: `CreateWorkerOptions`, `ConsumerOptions`, `ConsumerHandler` / `ConsumerHandlerEntry` / `RpcHandler` / `RpcHandlerEntry` (short aliases over the resolved payload — what a handler is checked against, so type errors stay readable; the contract-driven `WorkerInfer*Handler*` types resolve to them, guarded by `packages/worker/src/handler-diagnostics.spec.ts`), `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`

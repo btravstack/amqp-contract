@@ -124,6 +124,16 @@ const worker = await TypedAmqpWorker.create({
 
 See [Retry Failed Messages](https://btravstack.github.io/amqp-contract/how-to/retry-failed-messages) for complete details.
 
+RPC handlers never retry: a `RetryableError` from one dead-letters the request, since the caller has stopped waiting long before a backoff ends.
+
+#### Connection and topology options
+
+- `topology: "assert" | "passive" | "none"` — declare the worker's slice of the contract (its consumed queues with their bindings, retry wait queues, dead-letter exchanges and DLQs), only check it exists, or touch nothing. Default `"assert"`.
+- `connection` — an `AmqpConnectionManager` you own, instead of `urls`; borrowed, never closed. With `urls`, the worker uses its own connection pool and never shares a TCP connection with a client.
+- `maxMessageBytes` — cap on an inbound body, plain or decompressed (default 16 MiB); over-cap messages are dead-lettered. Replaces the deprecated `maxDecompressedBytes`.
+- `rpc.allowReplyTo` — predicate for the `replyTo` addresses an RPC handler may answer (default: direct reply-to only); a refused request is dead-lettered.
+- `worker.isConnected()` — whether the broker connection is up, for readiness probes.
+
 ## Defining Handlers Externally
 
 You can define handlers outside of the worker creation using `declareHandler` and `declareHandlers` for better code organization. See the [Worker API documentation](https://btravstack.github.io/amqp-contract/api/worker) for details.

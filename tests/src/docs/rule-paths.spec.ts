@@ -51,6 +51,38 @@ function isDirectoryLike(token: string): boolean {
  */
 const repoRootEntries = new Set(readdirSync(repoRoot));
 
+/**
+ * First segments that are legitimately not repo-rooted, even on a token that
+ * unmistakably names a file: `src/` and `dist/` are a package's own layout
+ * ("add `src/index.ts`"), and `path/to/` is the conventional placeholder.
+ */
+const RELATIVE_ROOTS = new Set(["src", "dist", "path"]);
+
+/**
+ * Unmistakably a path: names a file with a known extension, or a directory
+ * with an explicit trailing slash. A bare `a/b` is too ambiguous to flag when
+ * `a` is not a root entry — it reads just as well as a package sub-path
+ * (`vitest/config`).
+ */
+function isUnmistakablePath(token: string): boolean {
+  return FILE_PATH_LIKE.test(token) || (PATH_CHARS.test(token) && token.endsWith("/"));
+}
+
+/**
+ * Keep a token when it cites the repo: rooted at an existing top-level entry,
+ * or unmistakably a path whose first segment is not a top-level entry at all.
+ * The second case is what catches a removed top-level directory (a `tools/`
+ * that no longer exists) — filtering on existing root entries alone drops
+ * exactly those tokens. Package specifiers (`@scope/pkg/file.json`) and site
+ * URLs (`/beta/`) are not repo paths.
+ */
+function citesRepo(token: string): boolean {
+  const first = token.split("/")[0] ?? "";
+  if (repoRootEntries.has(first)) return true;
+  if (token.startsWith("@") || token.startsWith("/") || RELATIVE_ROOTS.has(first)) return false;
+  return isUnmistakablePath(token);
+}
+
 function pathsIn(markdown: string): readonly string[] {
   return [...markdown.matchAll(/`([^`\n]+)`/g)]
     .map((match) => match[1] ?? "")
@@ -58,12 +90,13 @@ function pathsIn(markdown: string): readonly string[] {
     .filter(
       (token) => FILE_PATH_LIKE.test(token) || (PATH_CHARS.test(token) && isDirectoryLike(token)),
     )
-    .filter((token) => repoRootEntries.has(token.split("/")[0] ?? ""))
+    .filter(citesRepo)
     .map((token) => token.replace(/:\d+$/, ""));
 }
 
 const sources: readonly string[] = [
   "AGENTS.md",
+  "CONTRIBUTING.md",
   ...readdirSync(join(repoRoot, ".agents", "rules"))
     .filter((name) => name.endsWith(".md"))
     .map((name) => join(".agents", "rules", name)),
@@ -89,6 +122,15 @@ describe("agent rule docs", () => {
   // on correct documentation.
   it("extracts path references across the corpus", () => {
     expect(extracted.reduce((total, entry) => total + entry.paths.length, 0)).toBeGreaterThan(20);
+  });
+
+  it("keeps a path under a top-level directory that does not exist", () => {
+    // `tools/` once sat in the rule docs long after the directory was gone.
+    expect(
+      pathsIn(
+        "`tools/` `tools/tsconfig.json` — not `vitest/config`, `src/index.ts`, `@scope/pkg/base.json`, `/beta/`",
+      ),
+    ).toEqual(["tools/", "tools/tsconfig.json"]);
   });
 
   it("extracts path references from AGENTS.md", () => {

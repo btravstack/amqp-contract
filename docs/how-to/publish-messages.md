@@ -42,6 +42,10 @@ Pass several URLs for failover — the client tries them in order:
 urls: ["amqp://primary:5672", "amqp://secondary:5672"];
 ```
 
+The client declares what its publishes need to be routed and retained: its publishers' exchanges, the queues they route to (with their bindings) and the RPC request queues — so a message published before the worker starts waits in its queue. It leaves the consumer's own infrastructure (dead-letter exchanges, retry wait queues) to the worker. Set `topology: "passive"` to only check that they exist (for credentials that may not configure the broker), or `topology: "none"` when topology is provisioned elsewhere.
+
+For a readiness probe, `client.isConnected()` reports whether the broker connection is up; it reads `false` while the client is reconnecting.
+
 ## Publish a message
 
 ```typescript
@@ -62,16 +66,20 @@ import { P } from "unthrown";
 result.match({
   ok: () => console.log("published"),
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-      console.error("invalid payload:", error.issues),
-    ),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("invalid payload:", error.issues),
+      )
+      .with(P.tag("@amqp-contract/PublishError"), (error) =>
+        console.error(`broker side failed (${error.reason}):`, error.message),
+      ),
   defect: (cause) => {
-    throw cause; // transport failure
+    throw cause; // a bug, not an operational condition
   },
 });
 ```
 
-`publish` returns `AsyncResult<void, MessageValidationError>`. Validation failure is the only modeled error; anything about the connection arrives as a defect.
+`publish` returns `AsyncResult<void, MessageValidationError | PublishError>`. `PublishError` is the broker side failing, with a `reason`: `"timeout"` (buffered past `publishTimeoutMs` while the broker was unreachable), `"nacked"` (the broker refused the message) or `"channel-closed"`. A full write buffer is not a failure: the message was confirmed before the backpressure was reported, so `publish` answers `Ok`. Buffer, retry, shed load or surface a 503 — it is yours to handle. Anything else (an unencodable payload, a rejection nobody anticipated) arrives as a defect. Each error class exposes its tag as a static, so `P.tag(PublishError.tag)` works too.
 
 ## Set default options for every publish
 
@@ -152,7 +160,7 @@ In a script or a job where a failed publish should stop everything:
 await client.publish("orderCreated", order).getOrThrow();
 ```
 
-`getOrThrow` throws the `MessageValidationError` on `Err` and rethrows a defect's cause. Prefer `.match` in long-running services, where you usually want to log and continue rather than take the process down.
+`getOrThrow` throws the `MessageValidationError` or `PublishError` on `Err` and rethrows a defect's cause. Prefer `.match` in long-running services, where you usually want to log and continue rather than take the process down.
 
 ## Log failures without handling them
 

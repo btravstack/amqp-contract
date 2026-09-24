@@ -1,6 +1,6 @@
 ---
 title: Comparison - amqp-contract
-description: How amqp-contract relates to amqplib, tRPC and oRPC, BullMQ, SQS/SNS and Kafka — what each is for, and when to prefer it.
+description: How amqp-contract relates to other RabbitMQ libraries for Node.js, spec-first AsyncAPI tooling, tRPC and oRPC, BullMQ, SQS/SNS and Kafka — what each is for, and when to prefer it.
 ---
 
 # Comparison
@@ -26,6 +26,32 @@ The second line is checked against a schema at compile time and validated at run
 **Prefer amqplib directly** when you need protocol-level control the abstraction does not expose, when you are writing a throwaway script and a contract is overhead, or when you are building your own abstraction and want the primitives. It is also the smaller dependency, which matters for a library.
 
 **Prefer amqp-contract** once more than one service or more than one person is involved, because that is when the cost of an unenforced schema starts compounding.
+
+## Other RabbitMQ libraries for Node.js
+
+These are the libraries a team shortlists when RabbitMQ is already decided. All of them sit at roughly the same layer as amqp-contract, and several are better choices in the right setting.
+
+| Library                                                                                         | What it is                                                                                                                                                                                                                                                                                          | Choose it when                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [amqp-connection-manager](https://github.com/jwalton/node-amqp-connection-manager)              | amqplib plus automatic reconnection, round-robin failover across brokers, setup functions re-run on every reconnect, and buffering of publishes while disconnected. amqp-contract is built on it.                                                                                                   | You want amqplib with reconnection and nothing else — no contract, no validation, your own topology code.                                                     |
+| [Rascal](https://github.com/onebeyond/rascal)                                                   | A config-driven client: vhosts, exchanges, queues, bindings, publications and subscriptions are declared in configuration and asserted at startup, with redelivery handling (republish with attempt limits, forwarding, dead-lettering), publication confirms and timeouts, and message encryption. | Operations owns the topology as configuration, you need its redelivery strategies or multi-vhost setup, and compile-time message types are not a requirement. |
+| [@golevelup/nestjs-rabbitmq](https://github.com/golevelup/nestjs/tree/master/packages/rabbitmq) | NestJS decorators (`@RabbitSubscribe`, `@RabbitRPC`) for pub/sub and RPC over direct reply-to, built on amqp-connection-manager, with Nest guards, interceptors and pipes applied to handlers.                                                                                                      | Your services are NestJS and you want handlers wired through Nest's dependency injection and decorators.                                                      |
+| [NestJS microservices RabbitMQ transport](https://docs.nestjs.com/microservices/rabbitmq)       | Nest's built-in transport: `@MessagePattern` (request/reply) and `@EventPattern` handlers over a queue per service.                                                                                                                                                                                 | Both ends are Nest microservices and you want Nest's messaging model rather than your own AMQP topology.                                                      |
+| [Moleculer](https://moleculer.services/docs/0.14/networking.html) AMQP transporter              | A transport for the Moleculer microservices framework: it carries Moleculer's own protocol over RabbitMQ. You program against Moleculer services, actions and events, not exchanges and queues.                                                                                                     | You are adopting Moleculer as the framework, and RabbitMQ is just the wire.                                                                                   |
+| [rabbitmq-client](https://github.com/cody-greene/node-rabbitmq-client)                          | A zero-dependency AMQP 0.9.1 client written from scratch in TypeScript, with automatic reconnection and re-subscription, higher-level `Consumer` / `Publisher` objects that declare their queues and exchanges, publisher confirms and an RPC client.                                               | You want a modern, typed low-level client with recovery built in, and will define message shapes yourself.                                                    |
+| [@cloudamqp/amqp-client](https://github.com/cloudamqp/amqp-client.js)                           | A zero-dependency TypeScript AMQP 0.9.1 client for Node.js **and browsers** (over WebSocket), with RPC over direct reply-to and publisher confirms.                                                                                                                                                 | You need to speak AMQP from a browser, or want the smallest possible dependency footprint.                                                                    |
+
+The difference in kind is what the contract does. Several of these can validate a payload on the consumer side (a Nest `ValidationPipe`, for example), and some type the message body. None of them derives the publisher's types, the consumer's types, runtime validation on both ends, the broker topology and an AsyncAPI document from one shared definition — which is the whole of what amqp-contract is for. If a single service owns both ends and the topology is trivial, that buys you little, and the table above is the better answer.
+
+## Spec-first AsyncAPI code generation
+
+The other way to get a shared contract is to write it as an [AsyncAPI](https://www.asyncapi.com/) document first and generate code from it. [Modelina](https://github.com/asyncapi/modelina) generates typed data models (TypeScript among many languages) from a spec, and the [AsyncAPI generator](https://github.com/asyncapi/generator) renders documentation and code from templates. What the ecosystem does not currently offer is a maintained generator for a full Node.js AMQP client — the Node.js template is archived — so you generate the types and hand-write the messaging code around them.
+
+amqp-contract is code-first in the opposite direction: the TypeScript contract is the source of truth, and the AsyncAPI document is [generated from it](/how-to/generate-asyncapi).
+
+**Prefer spec-first** when the spec itself is the product — services in several languages sharing one contract, or a governance process that reviews AsyncAPI documents before any code exists.
+
+**Prefer amqp-contract** when the services are TypeScript: the contract is code you import, so a change that breaks a consumer fails to compile instead of drifting from a generated copy.
 
 ## tRPC and oRPC
 
@@ -75,22 +101,15 @@ RabbitMQ deletes a message once acknowledged. In exchange it gives you per-messa
 
 Choose by whether you need to _replay_. If the ability to re-read last month's events matters, Kafka. If messages are work to be done once, RabbitMQ.
 
-## Within the btravstack family
-
-amqp-contract shares its foundations with [unthrown](https://btravstack.github.io/unthrown/) (errors as values) and [temporal-contract](https://btravstack.github.io/temporal-contract/) (typed contracts for Temporal). The shared conventions are deliberate and stable: Standard Schema v1 validation, `define*` for contract authoring vs `declare*` for implementations, static `Typed*.create(...)` factories returning an `AsyncResult` (an unreachable broker is a modeled `ConnectionError`; a bug during start-up is a defect), namespaced `TaggedError` tags (`@amqp-contract/X`, `@temporal-contract/X`), and [Deno-style exported signatures](https://docs.deno.com/runtime/contributing/style_guide/) (at most two positional arguments, a trailing options object, no positional booleans).
-
-The divergences are equally deliberate — do not expect a future release to "align" them:
-
-- **Vocabulary.** amqp-contract speaks choreography (events, commands — see the [glossary](/reference/glossary#choreography)); temporal-contract speaks orchestration (workflows, activities). Different coordination models earn different words.
-- **Retry configuration.** amqp-contract uses unit-suffixed retry-count semantics; temporal-contract exposes Temporal's native `RetryPolicy`. The mapping: `maxRetries` ≈ `maximumAttempts − 1`, `initialDelayMs` ≈ `initialInterval`, `maxDelayMs` ≈ `maximumInterval`, `backoffMultiplier` ≈ `backoffCoefficient`.
-- **Validation errors.** amqp-contract has a single `MessageValidationError` (one wire, one boundary); temporal-contract has per-surface errors because Temporal has five distinct invocation surfaces.
-- **Module format.** amqp-contract ships dual CJS + ESM; this is a compatibility stance, not an accident.
-
 ## Summary
 
 | If you need                                                       | Use                                                  |
 | ----------------------------------------------------------------- | ---------------------------------------------------- |
 | Protocol-level AMQP control, or a one-off script                  | [amqplib](https://github.com/amqp-node/amqplib)      |
+| Reconnection on top of amqplib, nothing more                      | amqp-connection-manager                              |
+| Topology as operations-owned configuration                        | Rascal                                               |
+| RabbitMQ handlers wired through NestJS                            | @golevelup/nestjs-rabbitmq / Nest RMQ transport      |
+| A polyglot contract, spec written first                           | AsyncAPI + code generation                           |
 | Typed browser-to-server calls                                     | [tRPC](https://trpc.io/) / [oRPC](https://orpc.dev/) |
 | Real-time push to UI clients                                      | GraphQL subscriptions                                |
 | Scheduled/repeatable jobs, a job dashboard, Redis already running | [BullMQ](https://docs.bullmq.io/)                    |

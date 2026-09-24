@@ -10,6 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { AmqpConnectionManager } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -49,6 +50,8 @@ vi.mock("amqp-connection-manager", async () => {
     default: {
       connect: vi.fn(() => ({
         createChannel: vi.fn(() => w),
+        on: vi.fn(),
+        removeListener: vi.fn(),
         close: vi.fn(() => Promise.resolve()),
       })),
     },
@@ -153,6 +156,108 @@ describe("RPC timeout vs slow reply validation", () => {
 
     const result = await pending;
     expect(result).toBeOkWith({ sum: 3 });
+
+    await client.close().get();
+  });
+});
+
+describe("health", () => {
+  beforeEach(async () => {
+    await _internal_resetConnections();
+  });
+
+  it("isConnected() reports the connection state of an explicit, caller-owned connection", async () => {
+    let up = true;
+    const connection = {
+      createChannel: () => wrapper(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      isConnected: () => up,
+      close: vi.fn(() => Promise.resolve()),
+    } as unknown as AmqpConnectionManager;
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      connection,
+    }).getOrThrow();
+
+    const whileUp = client.isConnected();
+    up = false;
+
+    expect([whileUp, client.isConnected()]).toEqual([true, false]);
+    await client.close().get();
+    expect(connection.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("RPC request publish failures", () => {
+  beforeEach(async () => {
+    wrapper().removeAllListeners();
+    wrapper().consume.mockClear();
+    wrapper().publish.mockClear();
+    await _internal_resetConnections();
+  });
+
+  it("INVARIANT: a request the broker side refuses resolves Err(PublishError) at once, not a timeout", async () => {
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+    }).getOrThrow();
+    wrapper().publish.mockRejectedValueOnce(new Error("message nacked"));
+
+    const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 60_000 });
+
+    expect(result).toBeErrWith(
+      expect.objectContaining({ _tag: "@amqp-contract/PublishError", reason: "nacked" }),
+    );
+
+    await client.close().get();
+  });
+
+  it("INVARIANT: the request expires at the caller's timeoutMs, so an unconsumed request is dropped by the broker", async () => {
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+    }).getOrThrow();
+
+    const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_234 });
+    await vi.waitFor(() => expect(wrapper().publish).toHaveBeenCalledTimes(1));
+
+    const options = (wrapper().publish.mock.calls[0] as unknown[])[3];
+    expect(options).toMatchObject({ expiration: "1234" });
+
+    await client.close().get();
+    await pending;
+  });
+
+  it("records the round trip on the RPC histogram, not the publish histogram", async () => {
+    const publishHistogram = { record: vi.fn() };
+    const rpcHistogram = { record: vi.fn() };
+    const telemetry = {
+      getTracer: () => undefined,
+      getPublishCounter: () => undefined,
+      getConsumeCounter: () => undefined,
+      getPublishLatencyHistogram: () => publishHistogram as never,
+      getConsumeLatencyHistogram: () => undefined,
+      getLateRpcReplyCounter: () => undefined,
+      getRpcCallLatencyHistogram: () => rpcHistogram as never,
+    };
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+      telemetry,
+    }).getOrThrow();
+
+    const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_000 });
+    await vi.waitFor(() => expect(wrapper().publish).toHaveBeenCalledTimes(1));
+    replyCallback()(replyMessage(publishedCorrelationId(), { sum: 3 }));
+    await pending;
+
+    expect(rpcHistogram.record).toHaveBeenCalledTimes(1);
+    expect(rpcHistogram.record).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.objectContaining({ success: true, "messaging.destination.name": "rpc.calculate" }),
+    );
+    expect(publishHistogram.record).not.toHaveBeenCalled();
 
     await client.close().get();
   });

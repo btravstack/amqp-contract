@@ -109,7 +109,7 @@ describe("Priority Queue", () => {
         { id: "msg-low", priority: 1 },
         { priority: 1 },
       )
-      .get();
+      .getOrThrow();
 
     await client
       .publish(
@@ -117,7 +117,7 @@ describe("Priority Queue", () => {
         { id: "msg-medium", priority: 5 },
         { priority: 5 },
       )
-      .get();
+      .getOrThrow();
 
     await client
       .publish(
@@ -125,7 +125,7 @@ describe("Priority Queue", () => {
         { id: "msg-high", priority: 10 },
         { priority: 10 },
       )
-      .get();
+      .getOrThrow();
 
     // Give RabbitMQ time to order the messages
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -223,7 +223,7 @@ describe("Priority Queue", () => {
     // Publish message without priority (defaults to 0)
     await client
       .publish({ exchange: exchange.name, routingKey: "test" }, { id: "msg-default" })
-      .get();
+      .getOrThrow();
 
     // Publish message with priority 5
     await client
@@ -232,7 +232,7 @@ describe("Priority Queue", () => {
         { id: "msg-priority" },
         { priority: 5 },
       )
-      .get();
+      .getOrThrow();
 
     // Give RabbitMQ time to order the messages
     await new Promise((resolve) => setTimeout(resolve, 100));

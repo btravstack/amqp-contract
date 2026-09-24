@@ -4,14 +4,14 @@ import {
   defineQueue,
   type ResolvedTtlBackoffRetryOptions,
 } from "@amqp-contract/contract";
-import { TechnicalError, type AmqpClient } from "@amqp-contract/core";
+import { PublishError, TechnicalError, type AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { fromSafeThrowable, OkAsync } from "unthrown";
+import { ErrAsync, fromSafeThrowable, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
-import { _internalForTesting, handleError } from "./retry.js";
+import { _internalForTesting, decideRetry, handleError } from "./retry.js";
 
 const { calculateRetryDelay, publishForRetry } = _internalForTesting;
 
@@ -48,65 +48,92 @@ describe("calculateRetryDelay", () => {
     };
 
     it("multiplies the base delay by 0.5 at the lower jitter bound", () => {
-      // Math.random() === 0  →  multiplier = 0.5 + 0 = 0.5
-      vi.spyOn(Math, "random").mockReturnValue(0);
-      // Use a base delay well below maxDelayMs so the clamp doesn't engage.
-      expect(calculateRetryDelay(0, jitterConfig)).toBe(500);
+      expect(calculateRetryDelay(0, jitterConfig, () => 0)).toBe(500);
     });
 
     it("multiplies the base delay by ~1.5 at the upper jitter bound", () => {
-      // Math.random() returns [0, 1) — the supremum is just under 1, so the
-      // multiplier approaches 1.5 but never quite reaches it. Use a value
-      // very close to 1 to assert the upper end of the jitter range. The
-      // previous (buggy) formula `0.5 + Math.random() * 0.5` would have
-      // produced ~1.0 here — never above 1.0 — so this assertion fails on
-      // the old code.
-      vi.spyOn(Math, "random").mockReturnValue(0.999_999);
-      // initialDelayMs * (0.5 + 0.999_999) ≈ 1000 * 1.499_999 ≈ 1499 (floored)
-      const delay = calculateRetryDelay(0, jitterConfig);
-      expect(delay).toBeGreaterThan(1400);
-      expect(delay).toBeLessThan(1500);
+      // The random source is [0, 1): the multiplier approaches 1.5 but never
+      // reaches it. The previous (buggy) formula `0.5 + rand * 0.5` would
+      // have produced ~1.0 here.
+      const delay = calculateRetryDelay(0, jitterConfig, () => 0.999_999);
+      expect([delay > 1400, delay < 1500]).toEqual([true, true]);
     });
 
     it("never overshoots maxDelayMs even at the upper jitter bound", () => {
       // Base delay 1000 * 2^6 = 64_000, jitter would multiply to ~96_000,
       // but clamp must hold the result at maxDelayMs (60_000).
-      vi.spyOn(Math, "random").mockReturnValue(0.999_999);
-      expect(calculateRetryDelay(6, jitterConfig)).toBeLessThanOrEqual(jitterConfig.maxDelayMs);
+      expect(calculateRetryDelay(6, jitterConfig, () => 0.999_999)).toBe(jitterConfig.maxDelayMs);
     });
 
-    it("produces a symmetric distribution centred near 1.0x over many samples", () => {
-      // Real, unmocked Math.random — sample enough to assert the empirical
-      // mean is near 1.0x of the base delay (within a few percent), which
-      // would not hold for the previous one-sided 0.75x-mean formula.
-      const samples = 5000;
-      let sum = 0;
-      for (let i = 0; i < samples; i++) {
-        sum += calculateRetryDelay(0, jitterConfig);
-      }
-      const mean = sum / samples;
-      // initialDelayMs of jitterConfig is 1000 — assert mean is near 1.0x.
-      expect(mean).toBeGreaterThan(900);
-      expect(mean).toBeLessThan(1100);
-    });
+    it("spreads symmetrically over [0.5x, 1.5x), centred near 1.0x (seeded samples)", () => {
+      const rand = seededRandom(42);
+      const samples = Array.from({ length: 5000 }, () =>
+        calculateRetryDelay(0, jitterConfig, rand),
+      );
+      const mean = samples.reduce((sum, value) => sum + value, 0) / samples.length;
 
-    it("produces values in the [0.5x, 1.5x] range over many samples", () => {
-      const samples = 1000;
-      const base = 1000; // initialDelayMs of jitterConfig
-      let min = Infinity;
-      let max = -Infinity;
-      for (let i = 0; i < samples; i++) {
-        const value = calculateRetryDelay(0, jitterConfig);
-        if (value < min) min = value;
-        if (value > max) max = value;
-      }
-      // Lower bound is exactly 0.5x (when Math.random() === 0).
-      expect(min).toBeGreaterThanOrEqual(base * 0.5);
-      // Upper bound approaches 1.5x but stays strictly below it.
-      expect(max).toBeLessThan(base * 1.5);
-      // The previous (broken) formula capped at 1.0x; assert we exceed that.
-      expect(max).toBeGreaterThan(base * 1.0);
+      // initialDelayMs is 1000; the previous one-sided formula had a 0.75x
+      // mean and never exceeded 1.0x.
+      expect({
+        min: Math.min(...samples) >= 500,
+        max: Math.max(...samples) < 1500,
+        overshoots: Math.max(...samples) > 1000,
+        centred: mean > 950 && mean < 1050,
+      }).toEqual({ min: true, max: true, overshoots: true, centred: true });
     });
+  });
+});
+
+/** mulberry32 — a tiny seeded PRNG, so jitter samples are reproducible. */
+function seededRandom(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+describe("decideRetry (pure)", () => {
+  const ttl = defineQueue("orders", {
+    retry: { mode: "ttl-backoff", maxRetries: 3, initialDelayMs: 1000, jitter: true },
+  });
+
+  it("is deterministic for a given random source", () => {
+    const decide = () =>
+      decideRetry(new RetryableError("x"), ttl, { "x-retry-count": 1 }, seededRandom(7));
+    expect(decide()).toEqual(decide());
+  });
+
+  it("picks the wait-queue tier from the BASE delay and puts the jittered delay on the copy", () => {
+    expect(decideRetry(new RetryableError("x"), ttl, { "x-retry-count": 1 }, () => 0)).toEqual({
+      kind: "republish",
+      routingKey: "orders-wait-2000ms",
+      retryCount: 2,
+      delayMs: 1000,
+    });
+  });
+
+  it.for([
+    ["a NonRetryableError", new NonRetryableError("x"), ttl, {}],
+    ["no retry config", new RetryableError("x"), defineQueue("orders"), {}],
+    ["a spent budget", new RetryableError("x"), ttl, { "x-retry-count": 3 }],
+  ] as const)("dead-letters on %s", ([, error, queue, headers]) => {
+    expect(decideRetry(error, queue, headers).kind).toBe("dead-letter");
+  });
+
+  it("requeues on a quorum immediate-requeue queue and republishes to itself on a classic one", () => {
+    const retry = { mode: "immediate-requeue", maxRetries: 3 } as const;
+    expect([
+      decideRetry(new RetryableError("x"), defineQueue("q", { retry }), { "x-delivery-count": 1 }),
+      decideRetry(new RetryableError("x"), defineQueue("c", { type: "classic", retry }), {
+        "x-retry-count": 1,
+      }),
+    ]).toEqual([
+      { kind: "requeue", retryCount: 1 },
+      { kind: "republish", routingKey: "c", retryCount: 2 },
+    ]);
   });
 });
 
@@ -162,99 +189,52 @@ function createMockClient(publishImpl: () => ReturnType<AmqpClient["publish"]>):
 }
 
 describe("publishForRetry", () => {
-  it("acks the original message only AFTER a successful retry publish", async () => {
-    const { client, ack, publish } = createMockClient(() => OkAsync(undefined));
-    const callOrder: string[] = [];
-    (client.ack as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push("ack"));
-    (client.publish as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      callOrder.push("publish");
-      return OkAsync(undefined);
-    });
+  const target = { exchange: "", routingKey: "test-queue", queueName: "test-queue" };
 
-    const msg = createMockConsumeMessage();
+  it("answers `retried` only once the retry publish is confirmed — and never settles the delivery itself", async () => {
+    const { client, ack, nack, publish } = createMockClient(() => OkAsync(undefined));
+    const error = new Error("boom");
 
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, delayMs: 500, error },
     );
 
-    expect(result).toBeOk();
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(ack).toHaveBeenCalledTimes(1);
-    // Critical ordering: publish must complete before ack runs.
-    expect(callOrder).toEqual(["publish", "ack"]);
+    // Settling from the outcome is the dispatcher's job (outcome.ts `settle`);
+    // the publish-before-ack ordering is guarded through the consume path in
+    // retry-publish-dispatch.spec.ts.
+    expect(result).toBeOkWith({ kind: "retried", error, delayMs: 500 });
+    expect([publish.mock.calls.length, ack.mock.calls.length, nack.mock.calls.length]).toEqual([
+      1, 0, 0,
+    ]);
   });
 
-  it("does NOT ack the original when publish surfaces a full write buffer (core-level Defect)", async () => {
-    // Since the buffer-full unification, AmqpClient.publish absorbs the
-    // channel wrapper's boolean and surfaces a full write buffer as a Defect
-    // with a TechnicalError cause — mirror exactly that shape here.
-    const { client, ack, nack, publish } = createMockClient(() =>
-      fromSafeThrowable((): void => {
-        throw new TechnicalError(
-          'Failed to publish message to queue "test-queue": channel write buffer full',
-        );
-      })().toAsync(),
+  it("answers `requeued` when the retry publish fails with a PublishError", async () => {
+    const { client } = createMockClient(() =>
+      ErrAsync(new PublishError({ reason: "timeout", target: 'queue "test-queue"' })),
     );
-
-    const msg = createMockConsumeMessage();
 
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
     );
 
-    // A full write buffer is an unexpected publish failure — it surfaces as a
-    // Defect (with a TechnicalError cause) from the core layer, not a
-    // modeled Err.
-    expect(result).toBeDefect();
-    expect(publish).toHaveBeenCalledTimes(1);
-    // The whole point of the fix: the original message must remain un-ack'd
-    // so amqp-connection-manager / the broker can redeliver it instead of
-    // losing it forever.
-    expect(ack).not.toHaveBeenCalled();
-    expect(nack).not.toHaveBeenCalled();
+    expect(result).toBeOkWith(expect.objectContaining({ kind: "requeued" }));
   });
 
-  it("does NOT ack the original when publish itself rejects", async () => {
-    // `amqpClient.publish` routes every rejection to the defect channel (with a
-    // `TechnicalError` cause), so the retry publish surfaces a Defect here.
-    const { client, ack, nack, publish } = createMockClient(() =>
+  it("keeps an unclassifiable publish failure on the defect channel", async () => {
+    const { client } = createMockClient(() =>
       fromSafeThrowable((): void => {
         throw new TechnicalError("publish exploded");
       })().toAsync(),
     );
 
-    const msg = createMockConsumeMessage();
-
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        delayMs: 500,
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
     );
 
     expect(result).toBeDefect();
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(ack).not.toHaveBeenCalled();
-    expect(nack).not.toHaveBeenCalled();
   });
 
   it("propagates retry headers and increments x-retry-count on publish", async () => {
@@ -408,70 +388,5 @@ describe("terminal-nack logging", () => {
       expect.stringContaining("onPoison"),
       expect.anything(),
     );
-  });
-});
-
-describe("delivery-epoch stamping (reconnect-safe settles)", () => {
-  // Delivery tags are per-channel: an ack/nack that lands after a reconnect
-  // must carry the epoch captured at delivery time so AmqpClient can refuse
-  // to settle a foreign tag on the new channel (guarded core-side by
-  // packages/core/src/channel-epoch.spec.ts). These tests pin the worker's
-  // half of the contract: every settle in the retry pipeline is stamped.
-  it("INVARIANT: the post-retry-publish ack carries the delivery epoch", async () => {
-    const { client, ack } = createMockClient(() => OkAsync(undefined));
-    const msg = createMockConsumeMessage();
-
-    await publishForRetry(
-      { amqpClient: client as unknown as AmqpClient, deliveryEpoch: 7 },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
-    );
-
-    expect(ack).toHaveBeenCalledWith(msg, { deliveryEpoch: 7 });
-  });
-
-  it("INVARIANT: DLQ and requeue nacks carry the delivery epoch", async () => {
-    const consumer = {
-      queue: defineQueue("orders"),
-      message: defineMessage(z.object({ id: z.string() })),
-    };
-
-    // No retry config → DLQ nack.
-    const dlq = createMockClient(() => OkAsync(undefined));
-    await handleError(
-      { amqpClient: dlq.client as unknown as AmqpClient, deliveryEpoch: 3 },
-      new NonRetryableError("permanent"),
-      createMockConsumeMessage(),
-      "processOrder",
-      consumer,
-    );
-    expect(dlq.nack).toHaveBeenCalledWith(expect.anything(), { requeue: false, deliveryEpoch: 3 });
-
-    // Immediate-requeue below budget → requeue nack.
-    const requeue = createMockClient(() => OkAsync(undefined));
-    await handleError(
-      { amqpClient: requeue.client as unknown as AmqpClient, deliveryEpoch: 4 },
-      new RetryableError("transient"),
-      createMockConsumeMessage({
-        properties: {
-          headers: { "x-delivery-count": 0 },
-          contentType: "application/json",
-        } as never,
-      }),
-      "processOrder",
-      {
-        ...consumer,
-        queue: defineQueue("orders", { retry: { mode: "immediate-requeue", maxRetries: 2 } }),
-      },
-    );
-    expect(requeue.nack).toHaveBeenCalledWith(expect.anything(), {
-      requeue: true,
-      deliveryEpoch: 4,
-    });
   });
 });

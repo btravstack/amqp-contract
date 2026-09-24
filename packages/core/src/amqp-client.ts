@@ -14,14 +14,20 @@ import {
   Ok,
   OkAsync,
   type AsyncResult,
-  type Result,
 } from "unthrown";
 
+import { encodeBody } from "./codec.js";
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { technicalDefect } from "./defect.js";
-import { ConnectionError, TechnicalError } from "./errors.js";
+import {
+  ConnectionError,
+  PublishError,
+  type PublishFailureReason,
+  TechnicalError,
+} from "./errors.js";
 import type { Logger } from "./logger.js";
-import { setupAmqpTopology } from "./setup.js";
+import { setupAmqpTopology, type TopologyMode } from "./setup.js";
+import { injectTraceContext, runWithTraceContext } from "./telemetry.js";
 
 /**
  * Invoke a SetupFunc, handling both callback-based and promise-based signatures.
@@ -47,19 +53,19 @@ function callSetupFunc(
 }
 
 /**
- * Collapse the channel wrapper's boolean send confirmation into the void
- * result channel. `false` means the channel's write buffer is full — an
- * infrastructure condition callers cannot meaningfully branch on — so it
- * becomes a Defect (with a {@link TechnicalError} cause) HERE, at the single
- * decision point, instead of leaking a boolean that every downstream layer
- * re-triages its own way.
+ * The rejections amqp-connection-manager / amqplib settle a confirm-channel
+ * publish with, keyed by their (stable, library-owned) messages. Anything else
+ * is not a broker-side condition core can name, so it stays a defect.
  */
-function absorbWriteBufferConfirmation(published: boolean, target: string): Result<void, never> {
-  if (!published) {
-    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-    throw new TechnicalError(`Failed to publish message to ${target}: channel write buffer full`);
-  }
-  return Ok(undefined);
+const PUBLISH_REJECTIONS = new Map<string, PublishFailureReason>([
+  ["timeout", "timeout"],
+  ["Channel closed", "channel-closed"],
+  ["message nacked", "nacked"],
+]);
+
+function classifyPublishRejection(error: unknown, target: string): PublishError | undefined {
+  const reason = error instanceof Error ? PUBLISH_REJECTIONS.get(error.message) : undefined;
+  return reason === undefined ? undefined : new PublishError({ reason, target, cause: error });
 }
 
 /**
@@ -114,10 +120,45 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
 }
 
 /**
+ * Where a client's connection comes from — exactly one of (checked at
+ * construction; passing both or neither is a defect):
+ *
+ * - `urls` (+ optional `connectionOptions`): a connection dialled and pooled
+ *   by amqp-contract, released when the last client using it closes.
+ *   Multiple URLs provide failover.
+ * - `connection`: an `AmqpConnectionManager` the caller created and owns. The
+ *   client only opens a channel on it; `close()` never closes it. Pass the
+ *   same one to a client and a worker to share a TCP connection explicitly.
+ *
+ * A flat type rather than a union so `Omit<…>`-style wrappers keep working.
+ */
+export type ConnectionSource = {
+  urls?: ConnectionUrl[] | undefined;
+  connectionOptions?: AmqpConnectionManagerOptions | undefined;
+  connection?: AmqpConnectionManager | undefined;
+};
+
+function leaseConnection(options: AmqpClientOptions): ConnectionLease {
+  const { urls, connection } = options;
+  if (connection !== undefined && urls === undefined) {
+    // Borrowed, never released: the caller owns it.
+    return { connection, release: () => Promise.resolve() };
+  }
+  if (connection === undefined && urls !== undefined) {
+    return ConnectionManagerSingleton.getInstance().acquire(urls, {
+      connectionOptions: options.connectionOptions,
+      pool: options.connectionPool,
+    });
+  }
+  // oxlint-disable-next-line unthrown/no-throw -- fail-fast config error; surfaces as a Defect from the typed create() factories
+  throw new TechnicalError(
+    "Pass exactly one of `urls` (a pooled connection) or `connection` (one you own).",
+  );
+}
+
+/**
  * Options for creating an AMQP client.
  *
- * @property urls - AMQP broker URL(s). Multiple URLs provide failover support.
- * @property connectionOptions - Optional connection configuration (heartbeat, reconnect settings, etc.).
  * @property channelOptions - Optional channel configuration options.
  * @property connectTimeoutMs - Maximum time in ms to wait for the channel to
  *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
@@ -132,9 +173,17 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
  *   setup failures on connect/reconnect, publish-worker faults) are routed
  *   here — they are recoverable-by-reconnect conditions, never thrown.
  */
-export type AmqpClientOptions = {
-  urls: ConnectionUrl[];
-  connectionOptions?: AmqpConnectionManagerOptions | undefined;
+export type AmqpClientOptions = ConnectionSource & {
+  /**
+   * Partition of the connection pool this client draws from (ignored with an
+   * explicit `connection`). Clients with the same URLs, options AND pool share
+   * one TCP connection. `TypedAmqpClient` uses `"client"` and
+   * `TypedAmqpWorker` uses `"worker"`, so a publisher and a consumer in the
+   * same process never share a connection by default — RabbitMQ blocks a
+   * publishing connection under memory/disk alarms, and a consumer sharing it
+   * would stop acking with it. Defaults to `"default"`.
+   */
+  connectionPool?: string | undefined;
   channelOptions?: Partial<CreateChannelOpts> | undefined;
   connectTimeoutMs?: number | null | undefined;
   /**
@@ -157,6 +206,13 @@ export type AmqpClientOptions = {
    */
   publishTimeoutMs?: number | null | undefined;
   logger?: Logger | undefined;
+  /**
+   * What the channel's setup does with the contract's topology on every
+   * (re)connect — see {@link TopologyMode}. Defaults to `"assert"`. The
+   * contract passed to the constructor is the scope: hand it a slice (e.g.
+   * `publisherTopology(contract)`) to declare only what one role needs.
+   */
+  topology?: TopologyMode | undefined;
 };
 
 /**
@@ -216,10 +272,11 @@ export type AmqpConsumeOptions = Omit<Options.Consume, "prefetch"> & {
  * - Content encoding: non-Buffer payloads are JSON-encoded at publish time,
  *   Buffers go on the wire byte-for-byte
  *
- * All operations return `AsyncResult<T, never>`: infrastructure failures are
- * **unexpected**, so they surface through the `Defect` channel (with a
- * {@link TechnicalError} as the defect's `cause` for logging), never as a
- * modeled `Err`.
+ * Two failures are modeled: an unreachable broker (`waitForConnect` →
+ * {@link ConnectionError}) and a broker-side publish failure (`publish` /
+ * `sendToQueue` → {@link PublishError}). Every other infrastructure failure is
+ * **unexpected**, so it surfaces through the `Defect` channel (with a
+ * {@link TechnicalError} as the defect's `cause` for logging).
  *
  * @example
  * ```typescript
@@ -290,6 +347,14 @@ export class AmqpClient {
   private hasConnected = false;
 
   /**
+   * The most recent `connectFailed` error from amqp-connection-manager. A
+   * connect timeout reports THIS as its cause — "ECONNREFUSED" or "403
+   * ACCESS_REFUSED" is the diagnosis, "timed out" is only the symptom.
+   */
+  private lastConnectError: unknown = undefined;
+  private readonly onConnectFailed: (event: { err: Error }) => void;
+
+  /**
    * Create a new AMQP client instance.
    *
    * The client will automatically:
@@ -310,13 +375,12 @@ export class AmqpClient {
     // throws (routed to the defect channel by the typed create() factories).
     this.connectTimeoutMs = resolveConnectTimeoutMs(options.connectTimeoutMs);
 
-    // Always use singleton to get/create connection
-    const singleton = ConnectionManagerSingleton.getInstance();
-    this.connectionLease = singleton.acquire(options.urls, options.connectionOptions);
+    this.connectionLease = leaseConnection(options);
     this.connection = this.connectionLease.connection;
 
     // Create default setup function that calls setupAmqpTopology
-    const defaultSetup = (channel: Channel) => setupAmqpTopology(channel, this.contract);
+    const defaultSetup = (channel: Channel) =>
+      setupAmqpTopology(channel, this.contract, { mode: options.topology });
 
     // Destructure setup from channelOptions to handle it separately
     const { setup: userSetup, ...otherChannelOptions } = options.channelOptions ?? {};
@@ -384,6 +448,20 @@ export class AmqpClient {
 
     const logger = options.logger;
     this.logger = logger;
+
+    // The manager retries a failed dial forever and silently; without this the
+    // first sign of a wrong URL is the connect timeout, 30 seconds later.
+    this.onConnectFailed = ({ err }) => {
+      if (this.lastConnectError === undefined) {
+        logger?.warn("AMQP connection attempt failed; retrying", {
+          error: err.message,
+          cause: err,
+        });
+      }
+      this.lastConnectError = err;
+    };
+    this.connection.on("connectFailed", this.onConnectFailed);
+
     this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
       // Before the first 'connect', the only thing that has run is `setup` —
       // so this is the topology failing, and somebody is still waiting on
@@ -411,6 +489,15 @@ export class AmqpClient {
    */
   getConnection(): AmqpConnectionManager {
     return this.connection;
+  }
+
+  /**
+   * Whether the broker connection is up right now and this client has not
+   * been closed — the answer a readiness probe wants. `false` while
+   * amqp-connection-manager is reconnecting.
+   */
+  isConnected(): boolean {
+    return this.closing === undefined && this.connection.isConnected();
   }
 
   /**
@@ -463,14 +550,14 @@ export class AmqpClient {
     // MODELED, not a defect: an unreachable broker is what a wrong URL, a
     // rotated credential or a cluster still coming up look like — an
     // operator's business, and the anticipated failure of dialing one.
-    return fromPromise(
-      racedPromise,
-      (error: unknown) =>
-        new ConnectionError(
-          "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
-          error,
-        ),
-    ).flatMap((outcome) =>
+    return fromPromise(racedPromise, (error: unknown) => {
+      const lastConnectError = this.lastConnectError;
+      const detail = lastConnectError instanceof Error ? `: ${lastConnectError.message}` : "";
+      return new ConnectionError(
+        `Failed to connect to AMQP broker — verify the broker is running and reachable at the configured \`urls\`${detail}`,
+        lastConnectError ?? error,
+      );
+    }).flatMap((outcome) =>
       // A DEFECT rather than a modeled error: a topology the broker refuses (a
       // mismatched queue declaration, a missing exchange, a permission the
       // credentials lack) is a broken contract, which is a bug rather than an
@@ -489,31 +576,15 @@ export class AmqpClient {
   }
 
   /**
-   * Encode publishable content into the exact bytes that go on the wire:
-   * Buffers pass through untouched (compressed payloads, retry republishing);
-   * everything else is JSON-encoded. A non-serializable value (circular
-   * references, BigInt, `undefined`) is a programming fault — the throw is
-   * routed to the defect channel by the `fromSafeThrowable` boundary at the
-   * call sites.
-   */
-  private static encodeContent(content: Buffer | unknown): Buffer {
-    if (Buffer.isBuffer(content)) return content;
-    try {
-      return Buffer.from(JSON.stringify(content));
-    } catch (error) {
-      // oxlint-disable-next-line unthrown/no-throw -- known-technical precondition throw in a plain helper, adopted by the fromSafeThrowable boundary at the call sites
-      throw new TechnicalError("Failed to JSON-encode message content", error);
-    }
-  }
-
-  /**
    * Publish a message to an exchange.
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
    *
-   * A full channel write buffer (the wrapper's boolean `false` confirmation)
-   * surfaces as a Defect with a {@link TechnicalError} cause — like every
-   * other publish-side infrastructure failure. Callers never see the boolean.
+   * A broker-side failure core can name — publish timeout, broker nack,
+   * channel closed — is the modeled {@link PublishError}. A confirmed publish
+   * that leaves the write buffer full is a success (logged at `debug`). An
+   * unencodable payload or an unrecognised rejection is a Defect with a
+   * {@link TechnicalError} cause.
    *
    * @param target - The exchange and routing key to publish to
    * @param content - The message payload
@@ -523,53 +594,64 @@ export class AmqpClient {
     target: { exchange: string; routingKey: string },
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<void, never> {
+  ): AsyncResult<void, PublishError> {
     const { exchange, routingKey } = target;
-    return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
-      .toAsync()
-      .flatMap((encoded) =>
-        fromPromise(
-          this.channelWrapper.publish(exchange, routingKey, encoded, options),
-          (error: unknown, defect) =>
-            defect(
-              new TechnicalError(
-                `Failed to publish message to exchange "${exchange}" (routing key "${routingKey}")`,
-                error,
-              ),
-            ),
-        ),
-      )
-      .flatMap((published) =>
-        absorbWriteBufferConfirmation(
-          published,
-          `exchange "${exchange}" (routing key "${routingKey}")`,
-        ),
-      );
+    const description = `exchange "${exchange}" (routing key "${routingKey}")`;
+    return this.send(description, content, options, (encoded, traced) =>
+      this.channelWrapper.publish(exchange, routingKey, encoded, traced),
+    );
   }
 
   /**
    * Publish a message directly to a queue.
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
-   *
-   * A full channel write buffer surfaces as a Defect with a
-   * {@link TechnicalError} cause — see {@link publish}.
+   * Failures are reported exactly as for {@link publish}.
    */
   sendToQueue(
     queue: string,
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<void, never> {
-    return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
+  ): AsyncResult<void, PublishError> {
+    return this.send(`queue "${queue}"`, content, options, (encoded, traced) =>
+      this.channelWrapper.sendToQueue(queue, encoded, traced),
+    );
+  }
+
+  /**
+   * Stamp the trace context, encode, hand to the channel wrapper, and triage
+   * its outcome. The context is injected synchronously, on entry: the caller's
+   * active span (e.g. the client's producer span) is the one to propagate.
+   */
+  private send(
+    description: string,
+    content: Buffer | unknown,
+    options: AmqpPublishOptions | undefined,
+    write: (encoded: Buffer, options: AmqpPublishOptions | undefined) => Promise<boolean>,
+  ): AsyncResult<void, PublishError> {
+    const headers = injectTraceContext(options?.headers);
+    const traced = headers === options?.headers ? options : { ...options, headers };
+    return fromSafeThrowable(() => encodeBody(content))()
       .toAsync()
       .flatMap((encoded) =>
         fromPromise(
-          this.channelWrapper.sendToQueue(queue, encoded, options),
+          write(encoded, traced),
           (error: unknown, defect) =>
-            defect(new TechnicalError(`Failed to publish message to queue "${queue}"`, error)),
+            classifyPublishRejection(error, description) ??
+            defect(new TechnicalError(`Failed to publish message to ${description}`, error)),
         ),
       )
-      .flatMap((published) => absorbWriteBufferConfirmation(published, `queue "${queue}"`));
+      .map((published) => {
+        // On a confirm channel the wrapper resolves only AFTER the broker
+        // confirmed the message; `false` merely says the write buffer is now
+        // full (backpressure). The message IS delivered — reporting it as a
+        // failure would make callers republish it (duplicates).
+        if (!published) {
+          this.logger?.debug("Channel write buffer full after a confirmed publish (backpressure)", {
+            target: description,
+          });
+        }
+      });
   }
 
   /**
@@ -612,7 +694,13 @@ export class AmqpClient {
     }
 
     return fromPromise(
-      this.channelWrapper.consume(queue, callback, { ...options, prefetch }),
+      this.channelWrapper.consume(
+        queue,
+        // Each delivery runs inside the trace context its publisher stamped,
+        // so a span the consumer opens is parented on the producer's.
+        (msg) => runWithTraceContext(msg?.properties.headers, undefined, () => callback(msg)),
+        { ...options, prefetch },
+      ),
       (error: unknown, defect) =>
         defect(new TechnicalError("Failed to start consuming messages", error)),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
@@ -752,6 +840,9 @@ export class AmqpClient {
    */
   close(): AsyncResult<void, never> {
     if (this.closing) return this.closing;
+
+    // The connection may be pooled and outlive this client.
+    this.connection.removeListener("connectFailed", this.onConnectFailed);
 
     const inner = (async () => {
       const channelResult = await fromPromise(

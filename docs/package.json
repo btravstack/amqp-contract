@@ -25,6 +25,7 @@
     "mermaid": "catalog:",
     "tsx": "catalog:",
     "vitepress": "catalog:",
-    "vitepress-plugin-mermaid": "catalog:"
+    "vitepress-plugin-mermaid": "catalog:",
+    "vue": "catalog:"
   }
 }

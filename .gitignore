@@ -55,5 +55,8 @@ vite.config.ts.timestamp-*
 # Snippets materialised from the docs by tests/src/snippets/snippet-execution.spec.ts
 tests/.snippets/
 
+# The getting-started tutorial's project, typechecked by tests/src/docs/tutorial-typecheck.spec.ts
+tests/.tutorial/
+
 # SDD specs and plans: local scratch, never published to the docs site.
 docs/superpowers/
