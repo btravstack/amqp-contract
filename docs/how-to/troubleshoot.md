@@ -365,11 +365,12 @@ how a DLQ ends up bound to nothing:
 - **Exchange type.** Declaring `orders-dlx` with a type different from the
   existing one fails with `PRECONDITION_FAILED - inequivalent arg` at startup.
   Pass `{ type: "direct" }` (or whatever the policy targets) to match.
-- **Routing key, and this one is silent.** `#` is a _topic_ wildcard. On a
-  **direct** exchange it is an ordinary routing key that matches the literal
-  string `#` — so switching the type and leaving `#` in place declares a DLQ
-  that receives nothing, dead-letters into the void, and reports no error
-  anywhere. On a direct DLX, bind the actual dead-letter routing key: the
+- **Routing key.** `#` is a _topic_ wildcard. On a **direct** exchange it is
+  an ordinary routing key that matches only the literal string `#` — so
+  switching the type and leaving `#` in place would declare a DLQ that receives
+  nothing. `defineQueueBinding` refuses that at define time: a `#` or `*`
+  segment on a direct exchange throws. On a direct DLX, bind the actual
+  dead-letter routing key: the
   policy's `dead-letter-routing-key` if it sets one, otherwise every routing key
   the main queue can receive, since RabbitMQ preserves the original key when the
   policy does not override it. On a **fanout** DLX the key is ignored and any
@@ -477,11 +478,12 @@ matches nothing. Measured against RabbitMQ 4.2 in
 `tests/src/__tests__/dlx-routability.spec.ts`: the same `#` binding receives the dead
 letter on a topic DLX and receives nothing on a direct one.
 
-The check cannot catch this. When the queue sets no `deadLetter.routingKey`, the
-key a dead letter arrives under is the message's _original_ key, which is not
-knowable at define time — so the check accepts any binding on the exchange, and
-a `#` binding on a direct DLX passes it while routing nothing. That is why the
-error text carries the warning rather than the check carrying a rule.
+The dead-letter check alone cannot catch this. When the queue sets no
+`deadLetter.routingKey`, the key a dead letter arrives under is the message's
+_original_ key, which is not knowable at define time — so the check accepts any
+binding on the exchange. The binding builders close the gap instead:
+`defineQueueBinding` and `defineExchangeBinding` throw for a `#` or `*` segment
+on a direct exchange, naming the queue, the exchange and the fix.
 
 On a direct DLX, bind the key the message will actually carry: the queue's
 `deadLetter.routingKey` if it sets one, otherwise every key the source queue can
