@@ -84,6 +84,58 @@ export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError
 }
 
 /**
+ * Why the broker side of a publish failed — each one something core can
+ * actually observe on amqp-connection-manager's confirm channel:
+ *
+ * - `"timeout"` — the message sat buffered past `publishTimeoutMs` (the broker
+ *   was unreachable for that long).
+ * - `"nacked"` — the broker refused the message (`basic.nack`).
+ * - `"buffer-full"` — the channel's write buffer was full (backpressure).
+ * - `"channel-closed"` — the channel closed before the message was confirmed.
+ */
+export type PublishFailureReason = "timeout" | "nacked" | "buffer-full" | "channel-closed";
+
+const PUBLISH_FAILURE_DESCRIPTIONS: Record<PublishFailureReason, string> = {
+  timeout: "timed out waiting for the broker (publishTimeoutMs)",
+  nacked: "the broker rejected (nacked) the message",
+  "buffer-full": "channel write buffer full",
+  "channel-closed": "the channel closed before the message was confirmed",
+};
+
+/**
+ * The broker side of a publish failed: timed out, nacked, write buffer full,
+ * or the channel closed under it.
+ *
+ * **Modeled, not a defect** — a broker that is down, overloaded or refusing a
+ * message is an operational condition a publisher is expected to handle
+ * (buffer, retry, shed load, surface a 503), not a bug. Returned on the `E`
+ * channel of `AmqpClient.publish`, `TypedAmqpClient.publish` and
+ * `TypedAmqpClient.call`; switch on {@link PublishError.reason}. A failure
+ * core cannot classify (an unencodable payload, an unknown rejection) stays a
+ * `Defect` with a {@link TechnicalError} cause.
+ *
+ * Carries a `_tag` of `"@amqp-contract/PublishError"`; the `Error.name` is kept
+ * bare (`"PublishError"`). The underlying rejection, if any, is on `cause`.
+ */
+export class PublishError extends TaggedError("@amqp-contract/PublishError", {
+  name: "PublishError",
+})<{
+  reason: PublishFailureReason;
+  /** Where the message was going, e.g. `exchange "orders" (routing key "order.created")`. */
+  target: string;
+  cause?: unknown;
+}> {
+  /** The `_tag`, for `P.tag(PublishError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/PublishError";
+
+  constructor(props: { reason: PublishFailureReason; target: string; cause?: unknown }) {
+    super(props);
+    this.message = `Failed to publish message to ${props.target}: ${PUBLISH_FAILURE_DESCRIPTIONS[props.reason]}`;
+    recaptureStack(this);
+  }
+}
+
+/**
  * Error thrown when message validation fails (payload or headers).
  *
  * Used by both the client (publish-time payload validation) and the worker

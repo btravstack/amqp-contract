@@ -6,9 +6,9 @@ import {
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
 import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
-import type { AmqpClient, Logger } from "@amqp-contract/core";
+import { type AmqpClient, type Logger, PublishError, TechnicalError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { OkAsync, type AsyncResult } from "unthrown";
+import { OkAsync, P, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
@@ -307,45 +307,54 @@ function publishForRetry(
   // makes amqp-connection-manager redeliver it (or, on channel close, the
   // broker re-enqueues), so we either get the retry through or get another
   // chance at the original.
-  return ctx.amqpClient
-    .publish({ exchange, routingKey }, msg.content, {
-      ...msg.properties,
-      ...(delayMs !== undefined ? { expiration: delayMs.toString() } : {}), // Per-message TTL
-      headers: {
-        ...msg.properties.headers,
-        "x-retry-count": newRetryCount,
-        "x-last-error": error.message,
-        "x-first-failure-timestamp":
-          msg.properties.headers?.["x-first-failure-timestamp"] ?? Date.now(),
-        "x-original-routing-key":
-          msg.properties.headers?.["x-original-routing-key"] ?? msg.fields.routingKey,
-      },
-    })
-    .map(() => {
-      // Publish confirmed by the broker — safe to ack the original now. The
-      // epoch stamp keeps this safe even when the confirm arrived on a NEW
-      // channel (the publish buffer survives reconnects; delivery tags do not).
-      ctx.amqpClient.ack(msg, { deliveryEpoch: ctx.deliveryEpoch });
+  return (
+    ctx.amqpClient
+      .publish({ exchange, routingKey }, msg.content, {
+        ...msg.properties,
+        ...(delayMs !== undefined ? { expiration: delayMs.toString() } : {}), // Per-message TTL
+        headers: {
+          ...msg.properties.headers,
+          "x-retry-count": newRetryCount,
+          "x-last-error": error.message,
+          "x-first-failure-timestamp":
+            msg.properties.headers?.["x-first-failure-timestamp"] ?? Date.now(),
+          "x-original-routing-key":
+            msg.properties.headers?.["x-original-routing-key"] ?? msg.fields.routingKey,
+        },
+      })
+      // Keeps the pre-PublishError behaviour: a failed retry publish flows on as
+      // a defect (the worker's own routing of PublishError is a follow-up).
+      .mapErrCases((matcher, defect) =>
+        matcher.with(P.tag(PublishError.tag), (error) =>
+          defect(new TechnicalError(error.message, error)),
+        ),
+      )
+      .map(() => {
+        // Publish confirmed by the broker — safe to ack the original now. The
+        // epoch stamp keeps this safe even when the confirm arrived on a NEW
+        // channel (the publish buffer survives reconnects; delivery tags do not).
+        ctx.amqpClient.ack(msg, { deliveryEpoch: ctx.deliveryEpoch });
 
-      ctx.logger?.info("Message published for retry", {
-        queueName,
-        retryCount: newRetryCount,
-        ...(delayMs !== undefined ? { delayMs } : {}),
-      });
-    })
-    .tapDefect((publishError) => {
-      // The retry publish failed — core surfaces every publish-side
-      // infrastructure fault (full write buffer included) as a Defect. Same
-      // policy for all of them: do not ack the original; the redelivery path
-      // is the recovery mechanism. Observed here so the failure is logged
-      // before the defect flows on unchanged.
-      ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
-        queueName,
-        retryCount: newRetryCount,
-        ...(delayMs !== undefined ? { delayMs } : {}),
-        error: publishError,
-      });
-    });
+        ctx.logger?.info("Message published for retry", {
+          queueName,
+          retryCount: newRetryCount,
+          ...(delayMs !== undefined ? { delayMs } : {}),
+        });
+      })
+      .tapDefect((publishError) => {
+        // The retry publish failed — core surfaces every publish-side
+        // infrastructure fault (full write buffer included) as a Defect. Same
+        // policy for all of them: do not ack the original; the redelivery path
+        // is the recovery mechanism. Observed here so the failure is logged
+        // before the defect flows on unchanged.
+        ctx.logger?.error("Publish for retry failed; leaving original un-ack'd for redelivery", {
+          queueName,
+          retryCount: newRetryCount,
+          ...(delayMs !== undefined ? { delayMs } : {}),
+          error: publishError,
+        });
+      })
+  );
 }
 
 /**
