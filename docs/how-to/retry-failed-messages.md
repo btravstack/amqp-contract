@@ -142,13 +142,13 @@ const slowQueue = defineQueue("orders-slow", {
 
 Diagnostic headers are stamped **only on paths that republish the message** — classic queues under `immediate-requeue`, and any queue under `ttl-backoff`.
 
-| Header                      | Meaning                              | Set on                     |
-| --------------------------- | ------------------------------------ | -------------------------- |
-| `x-delivery-count`          | Broker-native attempt count          | Quorum queues, by RabbitMQ |
-| `x-retry-count`             | Worker-managed attempt count         | Republish paths only       |
-| `x-last-error`              | Message from the most recent failure | Republish paths only       |
-| `x-first-failure-timestamp` | Epoch ms of the first failure        | Republish paths only       |
-| `x-original-routing-key`    | Routing key of the first delivery    | Republish paths only       |
+| Header                      | Meaning                                             | Set on                     |
+| --------------------------- | --------------------------------------------------- | -------------------------- |
+| `x-delivery-count`          | Broker-native attempt count                         | Quorum queues, by RabbitMQ |
+| `x-retry-count`             | Worker-managed attempt count                        | Republish paths only       |
+| `x-last-error`              | Most recent failure message (first 1024 characters) | Republish paths only       |
+| `x-first-failure-timestamp` | Epoch ms of the first failure                       | Republish paths only       |
+| `x-original-routing-key`    | Routing key of the first delivery                   | Republish paths only       |
 
 Direct-nack paths — a `NonRetryableError`, a validation failure, a quorum queue exhausting `immediate-requeue` — do **not** republish, so the dead-lettered message arrives byte-identical to what the broker delivered, with no failure context. Error details are in the worker's logs instead.
 
