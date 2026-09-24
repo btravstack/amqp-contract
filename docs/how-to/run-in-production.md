@@ -71,7 +71,7 @@ prefetch × consumers in the process × largest message (decompressed)
 
 At `prefetch: 10`, three consumers and 1 MiB messages, that is 30 MiB of payload before your handlers allocate anything. Size the container from this number, not from the average message.
 
-Compressed messages are capped at 64 MiB after decompression; a message over the cap is dead-lettered instead of expanded. Lower the cap to your real largest message with `maxDecompressedBytes` on `TypedAmqpWorker.create`. See [compress messages](/how-to/compress-messages).
+Every inbound message is capped at 16 MiB — a plain body as it arrives, a compressed one after decompression (RabbitMQ 4's own default `max_message_size`). A message over the cap is dead-lettered instead of parsed or expanded. Set the cap to your real largest message with `maxMessageBytes` on `TypedAmqpWorker.create`. See [compress messages](/how-to/compress-messages).
 
 ## Keep publisher confirms on
 
@@ -107,7 +107,15 @@ The drain waits up to 30 seconds by default (`worker.close({ drainTimeoutMs })` 
 
 `TypedAmqpWorker.create` and `TypedAmqpClient.create` fail with a `ConnectionError` if the broker cannot be reached within `connectTimeoutMs` (30 seconds by default). Treat that as a failed startup: exit, and let the orchestrator restart the pod. Mark the service ready only after `create()` has succeeded.
 
-After startup, a lost connection is retried automatically. Check the [client](/api/client/) and [worker](/api/worker/) API reference for what each instance exposes about its connection state before building a readiness probe on it.
+After startup, a lost connection is retried automatically. `worker.isConnected()` and `client.isConnected()` report whether the connection is up right now — `false` while reconnecting — so a readiness probe can read them:
+
+```typescript
+app.get("/ready", (_req, res) => {
+  res.status(worker.isConnected() && client.isConnected() ? 200 : 503).end();
+});
+```
+
+Keep that on readiness, not liveness: a reconnecting process recovers by itself, and restarting it only adds a cold start. Consumers resume once the connection is back, and publishes issued meanwhile wait up to `publishTimeoutMs` before failing with `PublishError`.
 
 ## Where next
 
