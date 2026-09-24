@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { EventEmitter } from "node:events";
 
 import {
@@ -8,10 +9,23 @@ import {
   defineQueue,
   defineQueueBinding,
 } from "@amqp-contract/contract";
-import { _internal_resetConnections } from "@amqp-contract/core/internal";
+import {
+  _internal_resetConnections,
+  _internal_resetTelemetryCache,
+} from "@amqp-contract/core/internal";
+import {
+  type Context,
+  type ContextManager,
+  context,
+  ROOT_CONTEXT,
+  type Span,
+  trace,
+  TraceFlags,
+} from "@opentelemetry/api";
+import type { AmqpConnectionManager } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import { ErrAsync, OkAsync } from "unthrown";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { RetryableError } from "./errors.js";
@@ -40,6 +54,7 @@ const wrapper = (): FakeWrapper => fakes.wrapper as FakeWrapper;
 vi.mock("amqp-connection-manager", async () => {
   const { EventEmitter: Emitter } = await import("node:events");
   const w = new Emitter() as FakeWrapper;
+  w.setMaxListeners(50);
   w.waitForConnect = () => Promise.resolve();
   w.close = () => Promise.resolve();
   w.addSetup = vi.fn(() => Promise.resolve());
@@ -243,5 +258,179 @@ describe("dispatch outcomes", () => {
       "Message processing failed with a defect; nacking message",
       expect.anything(),
     );
+  });
+});
+
+describe("message size cap", () => {
+  beforeEach(async () => {
+    wrapper().consume.mockClear();
+    wrapper().ack.mockClear();
+    wrapper().nack.mockClear();
+    await _internal_resetConnections();
+  });
+
+  it.for([{ maxMessageBytes: 4 }, { maxDecompressedBytes: 4 }])(
+    "a body over %o is dead-lettered as poison (the old option name still works)",
+    async (cap) => {
+      const worker = await TypedAmqpWorker.create({
+        contract,
+        handlers: { processOrder: () => OkAsync(undefined) },
+        urls: ["amqp://localhost"],
+        ...cap,
+      }).getOrThrow();
+      const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
+        msg: ConsumeMessage | null,
+      ) => Promise<void>;
+
+      await consumeCallback(delivery());
+
+      expect(settles()).toEqual([0, [[false, false]]]);
+      await worker.close().get();
+    },
+  );
+});
+
+describe("connection, health and topology", () => {
+  beforeEach(async () => {
+    await _internal_resetConnections();
+  });
+
+  function ownedConnection(isUp: () => boolean) {
+    const createChannel = vi.fn(() => wrapper());
+    return {
+      connection: {
+        createChannel,
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        isConnected: isUp,
+        close: vi.fn(() => Promise.resolve()),
+      } as unknown as AmqpConnectionManager,
+      createChannel,
+    };
+  }
+
+  it("isConnected() reports the state of an explicit, caller-owned connection, which close() leaves open", async () => {
+    let up = true;
+    const { connection } = ownedConnection(() => up);
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: { processOrder: () => OkAsync(undefined) },
+      connection,
+    }).getOrThrow();
+
+    const whileUp = worker.isConnected();
+    up = false;
+
+    expect([whileUp, worker.isConnected()]).toEqual([true, false]);
+    await worker.close().get();
+    expect(connection.close).not.toHaveBeenCalled();
+  });
+
+  it.for(["passive", "none"] as const)(
+    "honours topology: %s — the channel setup declares nothing",
+    async (topology) => {
+      const { connection, createChannel } = ownedConnection(() => true);
+      const worker = await TypedAmqpWorker.create({
+        contract,
+        handlers: { processOrder: () => OkAsync(undefined) },
+        connection,
+        topology,
+      }).getOrThrow();
+      const setup = (
+        createChannel.mock.calls[0] as unknown as [{ setup: (ch: unknown) => Promise<void> }]
+      )[0].setup;
+      const declare = vi.fn(() => Promise.resolve({}));
+      const check = vi.fn(() => Promise.resolve({}));
+      const channel = {
+        assertExchange: declare,
+        assertQueue: declare,
+        bindQueue: declare,
+        bindExchange: declare,
+        checkExchange: check,
+        checkQueue: check,
+      };
+
+      await setup(channel);
+
+      expect([declare.mock.calls.length, check.mock.calls.length > 0]).toEqual([
+        0,
+        topology === "passive",
+      ]);
+      await worker.close().get();
+    },
+  );
+});
+
+/** AsyncLocalStorage-backed context manager — what an OTel Node SDK installs. */
+class AsyncContextManager implements ContextManager {
+  private readonly storage = new AsyncLocalStorage<Context>();
+  active(): Context {
+    return this.storage.getStore() ?? ROOT_CONTEXT;
+  }
+  with<A extends unknown[], F extends (...args: A) => ReturnType<F>>(
+    ctx: Context,
+    fn: F,
+    thisArg?: ThisParameterType<F>,
+    ...args: A
+  ): ReturnType<F> {
+    return this.storage.run(ctx, () => fn.call(thisArg, ...args));
+  }
+  bind<T>(_ctx: Context, target: T): T {
+    return target;
+  }
+  enable(): this {
+    return this;
+  }
+  disable(): this {
+    this.storage.disable();
+    return this;
+  }
+}
+
+describe("trace context", () => {
+  beforeEach(async () => {
+    wrapper().consume.mockClear();
+    _internal_resetTelemetryCache();
+    await _internal_resetConnections();
+  });
+
+  afterEach(() => {
+    context.disable();
+  });
+
+  it("the consume span is the active span inside the handler", async () => {
+    context.setGlobalContextManager(new AsyncContextManager());
+    const consumeSpan = trace.wrapSpanContext({
+      traceId: "0af7651916cd43dd8448eb211c80319c",
+      spanId: "00f067aa0ba902b7",
+      traceFlags: TraceFlags.SAMPLED,
+    });
+    let seen: Span | undefined;
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers: {
+        processOrder: () => {
+          seen = trace.getSpan(context.active());
+          return OkAsync(undefined);
+        },
+      },
+      urls: ["amqp://localhost"],
+      telemetry: {
+        getTracer: () => ({ startSpan: () => consumeSpan }) as never,
+        getPublishCounter: () => undefined,
+        getConsumeCounter: () => undefined,
+        getPublishLatencyHistogram: () => undefined,
+        getConsumeLatencyHistogram: () => undefined,
+        getLateRpcReplyCounter: () => undefined,
+      },
+    }).getOrThrow();
+    const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
+      msg: ConsumeMessage | null,
+    ) => Promise<void>;
+
+    await consumeCallback(delivery());
+
+    expect(seen).toBe(consumeSpan);
+    await worker.close().get();
   });
 });

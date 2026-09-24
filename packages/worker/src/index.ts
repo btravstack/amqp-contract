@@ -24,10 +24,14 @@ export {
   ConnectionError,
   isConnectionError,
   isTechnicalError,
+  PublishError,
   TechnicalError,
+  type ConnectionSource,
   type Logger,
   type LoggerContext,
+  type PublishFailureReason,
   type TelemetryProvider,
+  type TopologyMode,
 } from "@amqp-contract/core";
 export { declareHandler, declareHandlers } from "./handlers.js";
 export { composeMiddleware, declareMiddleware } from "./middleware.js";

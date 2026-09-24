@@ -820,6 +820,9 @@ importers:
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.13.0(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
+      '@opentelemetry/api':
+        specifier: 'catalog:'
+        version: 1.9.1
       '@types/node':
         specifier: 26.2.0
         version: 26.2.0

@@ -22,4 +22,4 @@ Topology setup is now role-scoped and has a mode.
   - `"none"` — touch nothing (topology provisioned elsewhere).
 - `setupAmqpTopology(channel, contract, { mode })` takes the mode too.
 
-The worker keeps asserting the full contract for now.
+The worker is scoped the same way (see the worker changeset for its slice).

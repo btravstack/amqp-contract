@@ -1,3 +1,4 @@
+import { recaptureStack } from "@amqp-contract/core/internal";
 import { TaggedError } from "unthrown";
 
 export { isRpcError, MessageValidationError, RpcError, rpcError } from "@amqp-contract/core";
@@ -21,9 +22,13 @@ export class RetryableError extends TaggedError("@amqp-contract/RetryableError",
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(RetryableError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/RetryableError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
   }
 }
 
@@ -41,9 +46,13 @@ export class NonRetryableError extends TaggedError("@amqp-contract/NonRetryableE
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(NonRetryableError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/NonRetryableError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
   }
 }
 

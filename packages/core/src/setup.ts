@@ -1,5 +1,5 @@
 import type { ContractDefinition, QueueDefinition } from "@amqp-contract/contract";
-import { deriveTtlBackoffInfrastructure } from "@amqp-contract/contract";
+import { deriveTtlBackoffInfrastructure, extractConsumer } from "@amqp-contract/contract";
 import type { Channel } from "amqplib";
 
 import { TechnicalError } from "./errors.js";
@@ -114,6 +114,36 @@ export function publisherTopology(contract: ContractDefinition): ContractDefinit
     if (binding.type === "queue" && !keep.queues.has(binding.queue.name)) keep.bindings.delete(key);
   }
   return sliceContract(contract, keep, new Set());
+}
+
+/**
+ * The slice of a contract a WORKER needs on the broker: the queues it consumes
+ * (consumers and RPCs) with everything they carry — retry wait queues, the
+ * bindings into them and the exchanges those bind to — plus their
+ * dead-letter exchanges and whatever those route to (the DLQs and their
+ * bindings), so a rejected message is retained from the first delivery.
+ * Publisher-only exchanges, their forwarding bindings and unrelated queues
+ * are left to their owners.
+ */
+export function workerTopology(contract: ContractDefinition): ContractDefinition {
+  const consumed = new Set([
+    ...Object.values(contract.consumers ?? {}).map((entry) => extractConsumer(entry).queue),
+    ...Object.values(contract.rpcs ?? {}).map((rpc) => rpc.queue),
+  ]);
+  const deadLetterExchanges = [...consumed].flatMap((queue) => {
+    const dlx = queue.deadLetter?.exchange.name ?? queue.arguments?.["x-dead-letter-exchange"];
+    return typeof dlx === "string" && dlx !== "" ? [dlx] : [];
+  });
+  const keep = routeClosure(contract, deadLetterExchanges);
+  const consumedNames = new Set([...consumed].map((queue) => queue.name));
+  for (const name of consumedNames) keep.queues.add(name);
+  for (const [key, binding] of Object.entries(contract.bindings ?? {})) {
+    if (binding.type === "queue" && consumedNames.has(binding.queue.name)) {
+      keep.bindings.add(key);
+      keep.exchanges.add(binding.exchange.name);
+    }
+  }
+  return sliceContract(contract, keep, consumedNames);
 }
 
 /**
