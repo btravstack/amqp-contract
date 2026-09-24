@@ -16,10 +16,11 @@ amqp-contract validates through [Standard Schema v1](https://standardschema.dev/
 | Validation speed | Good                    | Fastest                         | Good                           |
 | Ecosystem        | Largest                 | Growing                         | Growing                        |
 | Learning curve   | Low                     | Low                             | Medium                         |
+| AsyncAPI schemas | Native                  | Needs a converter               | Native                         |
 
 Bundle size rarely matters here — contracts run on a server, not in a browser. Validation speed matters only if profiling puts schema validation on your hot path, which for typical message sizes it will not.
 
-The practical advice: **use Zod unless you have a specific reason not to.** It has the largest ecosystem, the most examples, and the best-supported AsyncAPI converter. Reach for Valibot when you have measured validation cost and it matters, or when a shared contract package genuinely ships to a browser. Reach for ArkType if you prefer its syntax.
+The practical advice: **use Zod unless you have a specific reason not to.** It has the largest ecosystem, the most examples, and converts itself to JSON Schema for [AsyncAPI](#asyncapi-conversion) with no extra dependency. Reach for Valibot when you have measured validation cost and it matters, or when a shared contract package genuinely ships to a browser. Reach for ArkType if you prefer its syntax.
 
 ## Usage
 
@@ -54,19 +55,26 @@ Nothing stops you using different libraries for different messages in one contra
 
 ## AsyncAPI conversion
 
-Generating an AsyncAPI document needs a converter that turns your schema into JSON Schema:
+Generating an AsyncAPI document turns each schema into JSON Schema. How depends on the library:
+
+| Library | Conversion                                                                      |
+| ------- | ------------------------------------------------------------------------------- |
+| Zod 4   | Native — implements Standard JSON Schema (`~standard.jsonSchema`); no converter |
+| ArkType | Native — implements Standard JSON Schema; no converter                          |
+| Valibot | Needs a converter, e.g. `@orpc/valibot`                                         |
+
+A native schema converts itself to draft-07 and needs no configuration. For the rest, pass a converter:
 
 ```typescript
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
+import { experimental_ValibotToJsonSchemaConverter } from "@orpc/valibot";
 
 const generator = new AsyncAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
+  schemaConverters: [new experimental_ValibotToJsonSchemaConverter()],
 });
 ```
 
-Zod's converter is the best supported. Without a converter matching your library, generation fails — `failOnMissingConverter` defaults to `true`. Set it to `false` to generate anyway, degrading payload schemas to a generic `{ type: "object" }` placeholder whose message shapes carry no information. See [generate AsyncAPI](/how-to/generate-asyncapi).
-
-This is the strongest practical argument for Zod: if you want a useful AsyncAPI document, its conversion path is the most complete.
+`schemaConverters` takes the package's own `SchemaConverter` shape, which the oRPC converters satisfy; it is only consulted for schemas that do not convert themselves. Without either path, generation fails — `failOnMissingConverter` defaults to `true`. Set it to `false` to generate anyway, degrading payload schemas to a generic `{ type: "object" }` placeholder whose message shapes carry no information. See [generate AsyncAPI](/how-to/generate-asyncapi#convert-valibot-and-other-schemas).
 
 ## Validation is stricter than types
 
@@ -83,5 +91,5 @@ Migrate one message at a time and let the compiler find the drift: if the new sc
 ## Where next
 
 - [Define a contract](/how-to/define-a-contract) — using schemas in practice.
-- [Generate AsyncAPI](/how-to/generate-asyncapi) — converter setup.
+- [Generate AsyncAPI](/how-to/generate-asyncapi) — generation, and converter setup for Valibot.
 - [Tune performance](/how-to/tune-performance#validation-cost) — when validation cost is real.

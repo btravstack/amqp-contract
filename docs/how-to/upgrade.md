@@ -488,6 +488,26 @@ const orderQueue = defineQueue("order-processing", {
 
 Classic queues, `ttl-backoff` retry and queues with no retry are unaffected.
 
+### AsyncAPI: schemas convert natively; `schemaConverters` has its own type
+
+**What changes:** `@amqp-contract/asyncapi` converts any schema implementing Standard JSON Schema (`~standard.jsonSchema` — current Zod 4 and ArkType releases) by itself, and that takes precedence over `schemaConverters`. The converters are now only a fallback, for libraries without it such as Valibot. Three things can need action:
+
+- **Generated output differs slightly** for Zod and ArkType payloads, because the schema's own converter is used instead of oRPC's: Zod adds a `pattern` to `z.string().datetime()`, and ArkType's `$schema` marker is dropped. If CI diffs a committed `asyncapi.json`, regenerate and commit it once.
+- **`schemaConverters` is typed `SchemaConverter[]`**, a structural type exported by `@amqp-contract/asyncapi`, instead of `@orpc/openapi`'s `ConditionalSchemaConverter[]`. The oRPC converters still satisfy it, so passing them compiles unchanged; code that _names_ `ConditionalSchemaConverter` should switch to `SchemaConverter`.
+- **`@orpc/openapi` is no longer a dependency** of the package. If your own code imports from it, add it to your `package.json` yourself.
+
+**The fix** for a Zod- or ArkType-only contract is to delete the converter (and `@orpc/zod` / `@orpc/arktype`, if nothing else uses them); keep the converter for Valibot:
+
+```diff
+- import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+- const generator = new AsyncAPIGenerator({
+-   schemaConverters: [new ZodToJsonSchemaConverter()],
+- });
++ const generator = new AsyncAPIGenerator();
+```
+
+The generator also takes a new `vhost` option for the channel bindings, defaulting to the previously hardcoded `"/"` — no action unless your broker uses another virtual host. See [generate AsyncAPI](/how-to/generate-asyncapi).
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
