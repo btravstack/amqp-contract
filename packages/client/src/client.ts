@@ -25,10 +25,10 @@ import {
   recordLateRpcReply,
   recordPublishMetric,
   recordRpcCallMetric,
-  safeJsonParse,
   startPublishSpan,
   technicalDefect,
 } from "@amqp-contract/core";
+import { decodeMessage, encodeMessage } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -44,7 +44,6 @@ import {
   type Settle,
 } from "unthrown";
 
-import { compressBuffer } from "./compression.js";
 import { MessageValidationError, RpcCancelledError, RpcTimeoutError } from "./errors.js";
 import { chainInterceptors } from "./interceptors.js";
 import type {
@@ -330,36 +329,23 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       pending.resolve(result);
     };
 
-    // An unparseable reply body is an unexpected infrastructure fault — route
-    // it straight to the defect channel via the qualify's injected helper.
-    const parseResult = safeJsonParse(msg.content, (error, defect) =>
-      defect(new TechnicalError(`Failed to parse RPC reply JSON for "${pending.rpcName}"`, error)),
-    );
-    if (parseResult.isDefect()) {
-      settle(parseResult);
-      return;
-    }
-    if (!parseResult.isOk()) return; // unreachable: the error channel is `never`
-    const parsed = parseResult.value;
-
-    // A reply carrying the error-code header is a typed error reply: its body
-    // is `{ message, data }` rather than the response payload. Resolve it
-    // through the RPC's declared error schemas instead of the response schema.
+    // The same codec as the worker's inbound path: an undecodable or
+    // oversized reply is an unexpected infrastructure fault (a Defect).
     const errorCode = msg.properties.headers?.[RPC_ERROR_CODE_HEADER];
-    if (typeof errorCode === "string") {
-      this.resolveRpcErrorReply(pending, errorCode, parsed, settle);
-      return;
-    }
-
-    // `fromSchemaAsync` owns the validation boundary: schema issues surface as
-    // the modeled error (mapped to MessageValidationError), a validator that
-    // throws synchronously or rejects becomes a Defect — nothing can escape
-    // the consume callback and crash the reply consumer. The timer stays
-    // armed until `settle` runs (see above).
-    void fromSchemaAsync(pending.responseSchema)(parsed)
-      .mapErrCases((matcher) =>
-        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
-        matcher.with(P._, (issues) => new MessageValidationError(pending.rpcName, issues)),
+    void decodeMessage(msg.content, msg.properties.contentEncoding)
+      .flatMap((parsed) =>
+        // A reply carrying the error-code header is a typed error reply: its
+        // body is `{ message, data }` rather than the response payload.
+        typeof errorCode === "string"
+          ? this.resolveRpcErrorReply(pending, errorCode, parsed)
+          : // `fromSchemaAsync` owns the validation boundary: schema issues
+            // surface as the modeled error, a validator that throws or rejects
+            // becomes a Defect — nothing can escape the consume callback and
+            // crash the reply consumer. The timer stays armed until `settle`.
+            fromSchemaAsync(pending.responseSchema)(parsed).mapErrCases((matcher) =>
+              // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+              matcher.with(P._, (issues) => new MessageValidationError(pending.rpcName, issues)),
+            ),
       )
       .then((result) => settle(result));
   }
@@ -378,8 +364,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     pending: PendingCall,
     errorCode: string,
     parsed: unknown,
-    settle: PendingCall["resolve"],
-  ): void {
+  ): AsyncResult<never, MessageValidationError | RpcError> {
     // `Object.hasOwn` rather than plain indexing so prototype properties
     // (e.g. "toString") are not misclassified as declared error codes.
     const errorSchema =
@@ -387,14 +372,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         ? pending.rpcErrorSchemas[errorCode]
         : undefined;
     if (!errorSchema) {
-      settle(
-        technicalDefect(
-          new TechnicalError(
-            `RPC "${pending.rpcName}" replied with undeclared error code "${errorCode}"`,
-          ),
+      return technicalDefect(
+        new TechnicalError(
+          `RPC "${pending.rpcName}" replied with undeclared error code "${errorCode}"`,
         ),
-      );
-      return;
+      ).toAsync();
     }
 
     const body =
@@ -409,14 +391,13 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     // the modeled error (mapped to MessageValidationError), a validator that
     // throws or rejects becomes a Defect — nothing can escape the consume
     // callback. A validated `data` resolves the caller with the typed
-    // `Err(RpcError)`; the timer stays armed until `settle` runs.
-    void fromSchemaAsync(errorSchema.data)(body.data)
+    // `Err(RpcError)`.
+    return fromSchemaAsync(errorSchema.data)(body.data)
       .mapErrCases((matcher) =>
         // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
         matcher.with(P._, (issues) => new MessageValidationError(pending.rpcName, issues)),
       )
-      .flatMap((validatedData) => Err(new RpcError(errorCode, validatedData, message)))
-      .then((result) => settle(result));
+      .flatMap((validatedData) => Err(new RpcError(errorCode, validatedData, message)));
   }
 
   /**
@@ -474,31 +455,17 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       // Merge default options with provided options
       const mergedOptions = { ...this.defaultPublishOptions, ...callOptions };
 
-      // Extract compression from merged options and create publish options without it
+      // Compression is a codec concern, not an AMQP property: strip it, and
+      // let the codec set `contentEncoding` to match what it produced.
       const { compression, ...restOptions } = mergedOptions;
-      const publishOptions: AmqpPublishOptions = { ...restOptions };
-
-      // Prepare payload and options based on compression configuration
-      const preparePayload = (): AsyncResult<Buffer | unknown, never> => {
-        if (compression) {
-          // Compress the message payload
-          const messageBuffer = Buffer.from(JSON.stringify(validatedMessage));
-          publishOptions.contentEncoding = compression;
-          return compressBuffer(messageBuffer, compression);
-        }
-
-        // No compression: hand the validated value through — AmqpClient
-        // JSON-encodes non-Buffer content at publish time.
-        return OkAsync(validatedMessage);
-      };
 
       // A broker-side failure is AmqpClient's modeled PublishError already.
-      return preparePayload().flatMap((payload) =>
+      return encodeMessage(validatedMessage, compression).flatMap(({ body, contentEncoding }) =>
         this.amqpClient
           .publish(
             { exchange: publisher.exchange.name, routingKey: publisher.routingKey ?? "" },
-            payload,
-            publishOptions,
+            body,
+            contentEncoding ? { ...restOptions, contentEncoding } : restOptions,
           )
           .tap(() => {
             this.logger?.info("Message published successfully", {
