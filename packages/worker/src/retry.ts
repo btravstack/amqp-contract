@@ -2,11 +2,13 @@ import {
   type ConsumerDefinition,
   type QueueDefinition,
   type ResolvedTtlBackoffRetryOptions,
+} from "@amqp-contract/contract";
+import {
+  _internal_queueHasDeadLetterExchange,
   deriveTtlBackoffInfrastructure,
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
-} from "@amqp-contract/contract";
-import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
+} from "@amqp-contract/contract/internal";
 import { type AmqpClient, type Logger, PublishError } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync, P, type AsyncResult } from "unthrown";

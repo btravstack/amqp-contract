@@ -1,5 +1,5 @@
 import type { ContractDefinition, QueueDefinition } from "@amqp-contract/contract";
-import { deriveTtlBackoffInfrastructure, extractConsumer } from "@amqp-contract/contract";
+import { deriveTtlBackoffInfrastructure, extractConsumer } from "@amqp-contract/contract/internal";
 import type { Channel } from "amqplib";
 
 import { TechnicalError } from "./errors.js";

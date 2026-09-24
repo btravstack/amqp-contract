@@ -4,9 +4,11 @@ import {
   type InferConsumerNames,
   type InferRpcNames,
   type RpcErrorMap,
-  extractConsumer,
 } from "@amqp-contract/contract";
-import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
+import {
+  _internal_queueHasDeadLetterExchange,
+  extractConsumer,
+} from "@amqp-contract/contract/internal";
 import {
   AmqpClient,
   type AmqpConsumeOptions,

@@ -6,11 +6,8 @@
  * the error-routing decisions of `handleError` (settled through `settle`, as
  * the dispatcher does).
  */
-import {
-  defineMessage,
-  defineQueue,
-  deriveTtlBackoffInfrastructure,
-} from "@amqp-contract/contract";
+import { defineMessage, defineQueue } from "@amqp-contract/contract";
+import { deriveTtlBackoffInfrastructure } from "@amqp-contract/contract/internal";
 import type { AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync } from "unthrown";
