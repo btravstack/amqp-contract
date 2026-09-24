@@ -202,12 +202,12 @@ describe("RPC request publish failures", () => {
       contract: makeContract(z.object({ sum: z.number() })),
       urls: ["amqp://localhost"],
     }).getOrThrow();
-    wrapper().publish.mockResolvedValueOnce(false);
+    wrapper().publish.mockRejectedValueOnce(new Error("message nacked"));
 
     const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 60_000 });
 
     expect(result).toBeErrWith(
-      expect.objectContaining({ _tag: "@amqp-contract/PublishError", reason: "buffer-full" }),
+      expect.objectContaining({ _tag: "@amqp-contract/PublishError", reason: "nacked" }),
     );
 
     await client.close().get();
