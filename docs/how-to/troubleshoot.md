@@ -86,8 +86,9 @@ Usually missed heartbeats caused by a blocked event loop, not a network fault. S
 ### A publish hangs forever during a broker outage
 
 It no longer does. Channels now set a **30s** `publishTimeout` by default, so a
-publish issued while the broker is unreachable settles with a failure instead of
-buffering indefinitely with a promise that never resolves.
+publish issued while the broker is unreachable fails with a `PublishError`
+(`reason: "timeout"`) on the error channel instead of buffering indefinitely
+with a promise that never resolves.
 
 Tune it per client or worker:
 
@@ -160,9 +161,11 @@ The payload does not satisfy the publisher's schema. `error.issues` carries the 
 
 ```typescript
 errCases: (matcher) =>
-  matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-    console.error(JSON.stringify(error.issues, null, 2)),
-  ),
+  matcher
+    .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+      console.error(JSON.stringify(error.issues, null, 2)),
+    )
+    .with(P.tag("@amqp-contract/PublishError"), (error) => console.error(error.reason)),
 ```
 
 A common surprise is a schema that is stricter than the type — `z.string().email()` and `z.number().positive()` both accept any `string` / `number` at compile time.
@@ -547,7 +550,7 @@ In production, that means draining it first — or declaring a new queue under a
 
 ### `NOT_FOUND - no exchange`
 
-A publish targeted an exchange that was never declared. Since the worker declares the contract's topology at startup, this usually means the _client_ started first and the worker has never run. Start the worker once to establish topology.
+A publish targeted an exchange that was never declared. With the default `topology: "assert"` the client declares its publishers' exchanges — and the queues they route to — itself, so this means the client runs with `topology: "none"` against a broker where whoever owns the topology has not provisioned it yet, or the exchange is not in the client's contract at all. `topology: "passive"` turns the same gap into a `create()` failure naming the missing exchange, before anything is published.
 
 ## Worker problems
 
