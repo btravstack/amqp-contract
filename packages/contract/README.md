@@ -35,9 +35,9 @@ import {
   defineCommandConsumer,
   defineCommandPublisher,
   defineContract,
+  defineDeadLetterQueue,
   defineExchange,
   defineQueue,
-  defineQueueBinding,
   defineMessage,
 } from "@amqp-contract/contract";
 import { z } from "zod";
@@ -61,9 +61,10 @@ const ordersDlx = defineExchange("orders-dlx");
 const orderQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
 const analyticsQueue = defineQueue("analytics", { deadLetter: { exchange: ordersDlx } });
 // A dead-letter exchange with nothing bound to it discards every rejected
-// message, so declare the DLQ and bind it. `orders-dlx` is topic, so `#`
-// catches whatever routing key the message arrived with.
-const ordersDlq = defineQueue("orders-dlq");
+// message, so declare the DLQ and bind it. `orders-dlx` is topic, so
+// defineDeadLetterQueue binds `#`, which catches whatever routing key the
+// message arrived with (on a direct DLX it requires the exact key instead).
+const ordersDlq = defineDeadLetterQueue(ordersDlx, "orders-dlq");
 
 // Compose contract - exchanges, queues, bindings auto-extracted
 const contract = defineContract({
@@ -79,10 +80,8 @@ const contract = defineContract({
       routingKey: "order.*", // Subscribe to all order events
     }),
   },
-  queues: { ordersDlq },
-  bindings: {
-    ordersDlqBinding: defineQueueBinding(ordersDlq, ordersDlx, { routingKey: "#" }),
-  },
+  queues: { ordersDlq: ordersDlq.queue },
+  bindings: { ordersDlq: ordersDlq.binding },
 });
 ```
 
@@ -98,17 +97,17 @@ under the hood, so no reply queue declaration is needed.
 ```typescript
 import {
   defineContract,
+  defineDeadLetterQueue,
   defineExchange,
   defineMessage,
   defineQueue,
-  defineQueueBinding,
   defineRpc,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
 const rpcDlx = defineExchange("rpc-dlx");
 
-const rpcDlq = defineQueue("rpc-dlq");
+const rpcDlq = defineDeadLetterQueue(rpcDlx, "rpc-dlq");
 
 const calculate = defineRpc(defineQueue("rpc.calculate", { deadLetter: { exchange: rpcDlx } }), {
   request: defineMessage(z.object({ a: z.number(), b: z.number() })),
@@ -119,8 +118,8 @@ const contract = defineContract({
   rpcs: { calculate },
   // A dead-letter exchange with nothing bound to it discards every rejected
   // request, so declare the DLQ and bind it.
-  queues: { rpcDlq },
-  bindings: { rpcDlqBinding: defineQueueBinding(rpcDlq, rpcDlx, { routingKey: "#" }) },
+  queues: { rpcDlq: rpcDlq.queue },
+  bindings: { rpcDlq: rpcDlq.binding },
 });
 
 // Server handler returns the response value, not void:
