@@ -60,7 +60,7 @@ import {
   type EmptyContext,
   type WorkerMiddleware,
 } from "./middleware.js";
-import { handleError } from "./retry.js";
+import { handleError, readCount } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
 
 /**
@@ -1280,9 +1280,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       queueName,
       errorType: handlerError.name,
       retryCount:
-        (msg.properties.headers?.["x-delivery-count"] as number | undefined) ??
-        (msg.properties.headers?.["x-retry-count"] as number | undefined) ??
-        0,
+        readCount(msg.properties.headers, "x-delivery-count") ||
+        readCount(msg.properties.headers, "x-retry-count"),
       error: handlerError.message,
     });
 
