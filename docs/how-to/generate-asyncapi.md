@@ -11,17 +11,14 @@ description: Produce an AsyncAPI 3.1 document from a contract, export it as JSON
 
 ```bash
 pnpm add @amqp-contract/asyncapi
-pnpm add -D @orpc/zod
 ```
 
 ```typescript
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { contract } from "./contract.js";
 
-const generator = new AsyncAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
-});
+// Zod 4 and ArkType schemas convert themselves — no converter to configure.
+const generator = new AsyncAPIGenerator();
 
 export const spec = await generator.generate(contract, {
   info: {
@@ -44,7 +41,36 @@ export const spec = await generator.generate(contract, {
 });
 ```
 
-The converter is what turns your schemas into JSON Schema. Without a converter for a schema, generation fails — see [allow unconvertible schemas](#allow-unconvertible-schemas) to degrade to a placeholder instead.
+Each payload and headers schema becomes JSON Schema. A schema that implements [Standard JSON Schema](https://standardschema.dev/) — it exposes `~standard.jsonSchema`, as current Zod 4 and ArkType 2 releases do — converts itself, to draft-07 (the dialect AsyncAPI 3 schemas extend). Nothing needs configuring for those.
+
+## Convert Valibot and other schemas
+
+A library without Standard JSON Schema — Valibot, today — needs a converter in `schemaConverters`. The oRPC converters fit as they are:
+
+```bash
+pnpm add -D @orpc/valibot
+```
+
+```typescript
+import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
+import { experimental_ValibotToJsonSchemaConverter } from "@orpc/valibot";
+
+const generator = new AsyncAPIGenerator({
+  schemaConverters: [new experimental_ValibotToJsonSchemaConverter()],
+});
+```
+
+Converters are a fallback: a schema that converts itself is never handed to them, and for the rest they are tried in order until one's `condition` matches. A converter is any object of the `SchemaConverter` shape exported by `@amqp-contract/asyncapi` — `condition(schema, { strategy: "input" })` and `convert(schema, { strategy: "input" })`, returning `[required, jsonSchema]` — so you can write your own without depending on oRPC. A schema neither path can convert fails generation — see [allow unconvertible schemas](#allow-unconvertible-schemas) to degrade to a placeholder instead.
+
+## Set the virtual host
+
+Every channel's AMQP binding records the RabbitMQ virtual host. It is `/` unless you say otherwise:
+
+```typescript
+import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
+
+const generator = new AsyncAPIGenerator({ vhost: "orders" });
+```
 
 ## Write it to a file
 
@@ -82,7 +108,7 @@ An unconvertible schema fails generation by default (`failOnMissingConverter` de
 
 ```typescript
 const generator = new AsyncAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
+  schemaConverters: [new experimental_ValibotToJsonSchemaConverter()],
   failOnMissingConverter: false,
 });
 ```
@@ -147,4 +173,4 @@ Bridge exchanges appear on both channels, with a readable summary in the descrip
 ## Where next
 
 - [Define a contract](/how-to/define-a-contract#add-validated-headers-to-a-message) — where `summary` and `description` live.
-- [Schema libraries](/reference/schema-libraries) — converter support per library.
+- [Schema libraries](/reference/schema-libraries#asyncapi-conversion) — which libraries convert natively and which need a converter.
