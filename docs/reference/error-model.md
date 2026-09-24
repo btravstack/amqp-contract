@@ -31,7 +31,7 @@ RpcCancelledError             client-side: client closed mid-call
 TechnicalError                transport/framework failure — always a defect cause, never in E
 ```
 
-All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatch. `Error.name` stays bare, and the stack's first line reads `Name: message`. The core and client classes expose their tag as a static — `P.tag(PublishError.tag)` instead of the raw string.
+All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatch. `Error.name` stays bare, and the stack's first line reads `Name: message`. Every class exposes its tag as a static — `P.tag(PublishError.tag)`, `P.tag(RetryableError.tag)` — instead of the raw string.
 
 | Type                     | Tag                                     | Exported from                                           |
 | ------------------------ | --------------------------------------- | ------------------------------------------------------- |
@@ -39,7 +39,7 @@ All are `TaggedError`s, so they carry a namespaced `_tag` for exhaustive dispatc
 | `NonRetryableError`      | `@amqp-contract/NonRetryableError`      | `@amqp-contract/worker`                                 |
 | `MessageValidationError` | `@amqp-contract/MessageValidationError` | `@amqp-contract/core`, re-exported by client and worker |
 | `RpcError`               | `@amqp-contract/RpcError`               | `@amqp-contract/core`, re-exported by client and worker |
-| `PublishError`           | `@amqp-contract/PublishError`           | `@amqp-contract/core`, re-exported by client            |
+| `PublishError`           | `@amqp-contract/PublishError`           | `@amqp-contract/core`, re-exported by client and worker |
 | `RpcTimeoutError`        | `@amqp-contract/RpcTimeoutError`        | `@amqp-contract/client`                                 |
 | `RpcCancelledError`      | `@amqp-contract/RpcCancelledError`      | `@amqp-contract/client`                                 |
 | `TechnicalError`         | `@amqp-contract/TechnicalError`         | `@amqp-contract/core`, re-exported by client and worker |
@@ -66,7 +66,7 @@ The client exports the unions by name: `ClientPublishError` (`MessageValidationE
 
 ### `RetryableError`
 
-The failure may not recur. The queue's [retry mode](/how-to/retry-failed-messages) decides what happens. With no retry config, or `mode: "none"`, the message is dead-lettered.
+The failure may not recur. The queue's [retry mode](/how-to/retry-failed-messages) decides what happens. With no retry config, or `mode: "none"`, the message is dead-lettered. From an **RPC** handler it always dead-letters the request: RPC requests are never retried, since the caller stopped waiting long before a backoff would end.
 
 ```typescript
 import { RetryableError } from "@amqp-contract/worker";
@@ -123,7 +123,7 @@ A Standard Schema validation failed. Carries the source identifier (publisher or
 
 **On the client**, returned as a modeled `Err` from `publish()` and `call()`, so you can react before anything is sent.
 
-**On the worker**, validation failures dead-letter the message via `nack(requeue=false)` and never enter the retry pipeline — retrying a malformed payload cannot succeed. The body is preserved exactly as delivered; because the worker does not republish, no diagnostic headers are added. Details are in the logs.
+**On the worker**, it is modeled too, not a defect: the consume span records `MessageValidationError` as its exception and the consume metric counts a failure. The message is dead-lettered via `nack(requeue=false)` and never enters the retry pipeline — retrying a malformed payload cannot succeed. The body is preserved exactly as delivered; because the worker does not republish, no diagnostic headers are added. Details are in the logs. A body the worker cannot even decode (unknown `contentEncoding`, corrupt stream, over the 16 MiB `maxMessageBytes` cap) is a `TechnicalError` defect instead, dead-lettered the same way.
 
 Validated: publisher payloads, consumer payloads, consumer headers, RPC requests, RPC responses, and RPC error data. **Not** validated: headers on publish.
 
@@ -138,6 +138,8 @@ The broker side of a publish failed. Returned as a modeled `Err` from `publish()
 | `"timeout"`        | The message sat buffered past `publishTimeoutMs` — the broker was unreachable. |
 | `"nacked"`         | The broker refused the message (`basic.nack`).                                 |
 | `"channel-closed"` | The channel closed before the message was confirmed.                           |
+
+A full write buffer is **not** one of them: on the confirm channel it is only reported after the broker confirmed the message, so the publish answers `Ok` (logged at `debug`) rather than invite a duplicate republish.
 
 `target` names where the message was going, and `cause` carries the underlying rejection. **Modeled, not a defect**: a broker that is down, overloaded or refusing a message is an operational condition a publisher is expected to handle — buffer, retry, shed load, answer 503. A failure core cannot classify (an unencodable payload, an unknown rejection) stays a `TechnicalError` defect.
 
@@ -252,6 +254,8 @@ Error data is validated twice — on the worker before publishing, on the client
 | Client receives an undeclared code           | Resolves to a **defect** (`TechnicalError` cause)                                  |
 | Client's error data fails its schema         | Resolves to `Err(MessageValidationError)`                                          |
 | Request missing `replyTo` or `correlationId` | Dead-lettered; never answered                                                      |
+| `replyTo` refused by `rpc.allowReplyTo`      | Dead-lettered with the reason logged; never answered                               |
+| Handler returns `RetryableError`             | Dead-lettered, even on a queue with a `retry` config — RPC requests never retry    |
 
 ### Wire format
 
