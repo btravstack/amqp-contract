@@ -20,6 +20,7 @@ export {
   type Logger,
   type LoggerContext,
   type TelemetryProvider,
+  type TopologyMode,
 } from "@amqp-contract/core";
 export type {
   CallError,
