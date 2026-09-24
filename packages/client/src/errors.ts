@@ -1,3 +1,4 @@
+import { recaptureStack } from "@amqp-contract/core/internal";
 import { TaggedError } from "unthrown";
 
 export { isRpcError, MessageValidationError, RpcError } from "@amqp-contract/core";
@@ -18,9 +19,13 @@ export class RpcTimeoutError extends TaggedError("@amqp-contract/RpcTimeoutError
   rpcName: string;
   timeoutMs: number;
 }> {
+  /** The `_tag`, for `P.tag(RpcTimeoutError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/RpcTimeoutError";
+
   constructor(rpcName: string, timeoutMs: number) {
     super({ rpcName, timeoutMs });
     this.message = `RPC call to "${rpcName}" timed out after ${timeoutMs}ms with no reply received`;
+    recaptureStack(this);
   }
 }
 
@@ -36,8 +41,12 @@ export class RpcCancelledError extends TaggedError("@amqp-contract/RpcCancelledE
 })<{
   rpcName: string;
 }> {
+  /** The `_tag`, for `P.tag(RpcCancelledError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/RpcCancelledError";
+
   constructor(rpcName: string) {
     super({ rpcName });
     this.message = `RPC call to "${rpcName}" was cancelled because the client was closed`;
+    recaptureStack(this);
   }
 }

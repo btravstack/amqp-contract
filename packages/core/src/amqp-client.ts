@@ -290,6 +290,14 @@ export class AmqpClient {
   private hasConnected = false;
 
   /**
+   * The most recent `connectFailed` error from amqp-connection-manager. A
+   * connect timeout reports THIS as its cause — "ECONNREFUSED" or "403
+   * ACCESS_REFUSED" is the diagnosis, "timed out" is only the symptom.
+   */
+  private lastConnectError: unknown = undefined;
+  private readonly onConnectFailed: (event: { err: Error }) => void;
+
+  /**
    * Create a new AMQP client instance.
    *
    * The client will automatically:
@@ -384,6 +392,20 @@ export class AmqpClient {
 
     const logger = options.logger;
     this.logger = logger;
+
+    // The manager retries a failed dial forever and silently; without this the
+    // first sign of a wrong URL is the connect timeout, 30 seconds later.
+    this.onConnectFailed = ({ err }) => {
+      if (this.lastConnectError === undefined) {
+        logger?.warn("AMQP connection attempt failed; retrying", {
+          error: err.message,
+          cause: err,
+        });
+      }
+      this.lastConnectError = err;
+    };
+    this.connection.on("connectFailed", this.onConnectFailed);
+
     this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
       // Before the first 'connect', the only thing that has run is `setup` —
       // so this is the topology failing, and somebody is still waiting on
@@ -463,14 +485,14 @@ export class AmqpClient {
     // MODELED, not a defect: an unreachable broker is what a wrong URL, a
     // rotated credential or a cluster still coming up look like — an
     // operator's business, and the anticipated failure of dialing one.
-    return fromPromise(
-      racedPromise,
-      (error: unknown) =>
-        new ConnectionError(
-          "Failed to connect to AMQP broker — verify the broker is running and reachable at the configured `urls`",
-          error,
-        ),
-    ).flatMap((outcome) =>
+    return fromPromise(racedPromise, (error: unknown) => {
+      const lastConnectError = this.lastConnectError;
+      const detail = lastConnectError instanceof Error ? `: ${lastConnectError.message}` : "";
+      return new ConnectionError(
+        `Failed to connect to AMQP broker — verify the broker is running and reachable at the configured \`urls\`${detail}`,
+        lastConnectError ?? error,
+      );
+    }).flatMap((outcome) =>
       // A DEFECT rather than a modeled error: a topology the broker refuses (a
       // mismatched queue declaration, a missing exchange, a permission the
       // credentials lack) is a broken contract, which is a bug rather than an
@@ -752,6 +774,9 @@ export class AmqpClient {
    */
   close(): AsyncResult<void, never> {
     if (this.closing) return this.closing;
+
+    // The connection may be pooled and outlive this client.
+    this.connection.removeListener("connectFailed", this.onConnectFailed);
 
     const inner = (async () => {
       const channelResult = await fromPromise(

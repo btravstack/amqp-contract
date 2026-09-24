@@ -2,6 +2,20 @@ import { summarizeIssues } from "@amqp-contract/contract";
 import { TaggedError } from "unthrown";
 
 /**
+ * Re-capture an error's stack once its `name` and `message` are final.
+ *
+ * unthrown's `TaggedError` calls `super()` with no message, so V8 renders the
+ * stack header before `name`/`message` exist — every amqp-contract error used
+ * to print as a bare `Error` at the top of its stack. Called last in each
+ * error constructor; `this.constructor` trims the constructor frames.
+ *
+ * @internal
+ */
+export function recaptureStack(error: Error): void {
+  Error.captureStackTrace?.(error, error.constructor);
+}
+
+/**
  * Error for technical/runtime failures that cannot be prevented by TypeScript.
  *
  * This includes channel issues, compression/parse faults, and other unexpected
@@ -27,9 +41,13 @@ export class TechnicalError extends TaggedError("@amqp-contract/TechnicalError",
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(TechnicalError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/TechnicalError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
   }
 }
 
@@ -55,9 +73,13 @@ export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError
 })<{
   cause?: unknown;
 }> {
+  /** The `_tag`, for `P.tag(ConnectionError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/ConnectionError";
+
   constructor(message: string, cause?: unknown) {
     super({ cause });
     this.message = message;
+    recaptureStack(this);
   }
 }
 
@@ -78,6 +100,9 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
   source: string;
   issues: unknown;
 }> {
+  /** The `_tag`, for `P.tag(MessageValidationError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/MessageValidationError";
+
   constructor(source: string, issues: unknown) {
     super({ source, issues });
     // Render the issues into the message via the shared formatter when they
@@ -95,6 +120,7 @@ export class MessageValidationError extends TaggedError("@amqp-contract/MessageV
     this.message = summary
       ? `Message validation failed for "${source}": ${summary}`
       : `Message validation failed for "${source}"`;
+    recaptureStack(this);
   }
 }
 
@@ -157,12 +183,16 @@ export class RpcError<TCode extends string = string, TData = unknown> extends Ta
   code: string;
   data: unknown;
 }> {
+  /** The `_tag`, for `P.tag(RpcError.tag)` without a raw string. */
+  static readonly tag = "@amqp-contract/RpcError";
+
   declare readonly code: TCode;
   declare readonly data: TData;
 
   constructor(code: TCode, data: TData, message?: string) {
     super({ code, data });
     this.message = message ?? `RPC failed with error "${code}"`;
+    recaptureStack(this);
   }
 }
 
