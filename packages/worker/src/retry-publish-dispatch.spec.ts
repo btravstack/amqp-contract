@@ -119,4 +119,18 @@ describe("retry publish settles the original delivery (through dispatch)", () =>
     expect(wrapper().ack).toHaveBeenCalledTimes(1);
     expect(wrapper().nack).not.toHaveBeenCalled();
   });
+
+  it.for(["timeout", "message nacked", "Channel closed"])(
+    "INVARIANT: a retry publish that fails with '%s' requeues the original (nack requeue=true), never dead-letters it",
+    async (rejection) => {
+      wrapper().publish.mockRejectedValue(new Error(rejection));
+
+      await deliverFailingMessage();
+
+      expect(wrapper().publish).toHaveBeenCalledTimes(1);
+      expect(wrapper().nack).toHaveBeenCalledTimes(1);
+      expect(wrapper().nack).toHaveBeenCalledWith(expect.anything(), false, true);
+      expect(wrapper().ack).not.toHaveBeenCalled();
+    },
+  );
 });

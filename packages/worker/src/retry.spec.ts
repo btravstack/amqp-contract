@@ -4,9 +4,9 @@ import {
   defineQueue,
   type ResolvedTtlBackoffRetryOptions,
 } from "@amqp-contract/contract";
-import { TechnicalError, type AmqpClient } from "@amqp-contract/core";
+import { PublishError, TechnicalError, type AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
-import { fromSafeThrowable, OkAsync } from "unthrown";
+import { ErrAsync, fromSafeThrowable, OkAsync } from "unthrown";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -189,6 +189,28 @@ describe("publishForRetry", () => {
     expect(ack).toHaveBeenCalledTimes(1);
     // Critical ordering: publish must complete before ack runs.
     expect(callOrder).toEqual(["publish", "ack"]);
+  });
+
+  it("requeues the original (nack requeue=true) when the retry publish fails with a PublishError", async () => {
+    const { client, ack, nack } = createMockClient(() =>
+      ErrAsync(new PublishError({ reason: "timeout", target: 'queue "test-queue"' })),
+    );
+    const msg = createMockConsumeMessage();
+
+    const result = await publishForRetry(
+      { amqpClient: client as unknown as AmqpClient },
+      {
+        msg,
+        exchange: "",
+        routingKey: "test-queue",
+        queueName: "test-queue",
+        error: new Error("boom"),
+      },
+    );
+
+    expect(result).toBeOk();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledExactlyOnceWith(msg, { requeue: true, deliveryEpoch: undefined });
   });
 
   it("does NOT ack the original when publish itself rejects", async () => {
