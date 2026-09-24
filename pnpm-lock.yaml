@@ -450,9 +450,6 @@ importers:
       '@btravstack/tsconfig':
         specifier: 'catalog:'
         version: 0.4.0
-      '@orpc/zod':
-        specifier: 'catalog:'
-        version: 1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(zod@4.4.3)
       '@types/node':
         specifier: 26.2.0
         version: 26.2.0
