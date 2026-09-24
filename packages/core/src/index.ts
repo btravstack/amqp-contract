@@ -27,7 +27,7 @@ export {
 } from "./errors.js";
 export type { Logger, LoggerContext } from "./logger.js";
 export { safeJsonParse } from "./parsing.js";
-export { setupAmqpTopology } from "./setup.js";
+export { setupAmqpTopology, type TopologyMode } from "./setup.js";
 export {
   defaultTelemetryProvider,
   endSpanError,
