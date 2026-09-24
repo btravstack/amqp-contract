@@ -15,7 +15,7 @@ Two invariants matter when touching this layer:
 
 ## Topology
 
-`setupAmqpTopology(channel, contract, { mode })` runs on every (re)connect. `TopologyMode` is `"assert"` (default: declare), `"passive"` (`checkExchange` / `checkQueue` only, bindings skipped) or `"none"`. Scope is the contract you hand `AmqpClient`: `TypedAmqpClient` passes `publisherTopology(contract)` (publisher exchanges + the exchange-to-exchange bindings forwarding from them — never queues); `TypedAmqpWorker` still passes the full contract. See [`packages/core/src/setup.ts`](../../packages/core/src/setup.ts).
+`setupAmqpTopology(channel, contract, { mode })` runs on every (re)connect. `TopologyMode` is `"assert"` (default: declare), `"passive"` (`checkExchange` / `checkQueue` only, bindings skipped) or `"none"`. Scope is the contract you hand `AmqpClient`: `TypedAmqpClient` passes `publisherTopology(contract)`: publisher exchanges, everything they route to (e2e bindings transitively, the queues bound to any of them and those bindings) and the RPC request queues — so a message published before a worker declared its queue is retained, not confirmed-and-dropped (the runtime twin of invariant 19). Those queues are declared with the worker's exact arguments but with the DLX inlined as a raw argument (not declared) and no retry config (no wait queues); exclusive queues are skipped. See [`packages/core/src/setup.ts`](../../packages/core/src/setup.ts).
 
 ## Publish failures
 
