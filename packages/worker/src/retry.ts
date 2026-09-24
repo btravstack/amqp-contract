@@ -121,6 +121,11 @@ export function decideRetry(
  * {@link Outcome} the delivery must be settled with. It never settles the
  * delivery itself. The caller already logged the original error; this logs
  * only the routing decision.
+ *
+ * An RPC request is never retried, whatever its queue's retry config: the
+ * caller is waiting on a `timeoutMs` shorter than most backoffs, so a retry
+ * would re-run the handler for nobody (and the request's own `expiration`
+ * would drop the copy anyway). A failed RPC request is dead-lettered.
  */
 export function handleError(
   ctx: RetryContext,
@@ -128,9 +133,13 @@ export function handleError(
   msg: ConsumeMessage,
   consumerName: string,
   consumer: ConsumerDefinition,
+  options?: { isRpc?: boolean | undefined },
 ): AsyncResult<Outcome, never> {
   const queue = consumer.queue;
-  const action = decideRetry(error, queue, msg.properties.headers);
+  const action: RetryAction =
+    options?.isRpc && !(error instanceof NonRetryableError)
+      ? { kind: "dead-letter", reason: "RPC requests are not retried" }
+      : decideRetry(error, queue, msg.properties.headers);
   const fields = { consumerName, queueName: queue.name };
 
   switch (action.kind) {
