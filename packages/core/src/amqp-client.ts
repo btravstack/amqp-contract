@@ -18,6 +18,7 @@ import {
   type Result,
 } from "unthrown";
 
+import { encodeBody } from "./codec.js";
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { technicalDefect } from "./defect.js";
 import {
@@ -532,24 +533,6 @@ export class AmqpClient {
   }
 
   /**
-   * Encode publishable content into the exact bytes that go on the wire:
-   * Buffers pass through untouched (compressed payloads, retry republishing);
-   * everything else is JSON-encoded. A non-serializable value (circular
-   * references, BigInt, `undefined`) is a programming fault — the throw is
-   * routed to the defect channel by the `fromSafeThrowable` boundary at the
-   * call sites.
-   */
-  private static encodeContent(content: Buffer | unknown): Buffer {
-    if (Buffer.isBuffer(content)) return content;
-    try {
-      return Buffer.from(JSON.stringify(content));
-    } catch (error) {
-      // oxlint-disable-next-line unthrown/no-throw -- known-technical precondition throw in a plain helper, adopted by the fromSafeThrowable boundary at the call sites
-      throw new TechnicalError("Failed to JSON-encode message content", error);
-    }
-  }
-
-  /**
    * Publish a message to an exchange.
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
@@ -597,7 +580,7 @@ export class AmqpClient {
     content: Buffer | unknown,
     write: (encoded: Buffer) => Promise<boolean>,
   ): AsyncResult<void, PublishError> {
-    return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
+    return fromSafeThrowable(() => encodeBody(content))()
       .toAsync()
       .flatMap((encoded) =>
         fromPromise(
