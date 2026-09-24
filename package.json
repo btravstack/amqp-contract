@@ -6,7 +6,8 @@
   "author": "Benoit TRAVERS <benoit.travers.fr@gmail.com>",
   "type": "module",
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --filter=!@amqp-contract/docs",
+    "build:docs": "turbo run build --filter=@amqp-contract/docs",
     "changeset": "changeset",
     "dev": "turbo run dev",
     "format": "oxfmt .",
