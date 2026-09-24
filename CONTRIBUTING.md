@@ -48,6 +48,9 @@ cd packages/worker && pnpm vitest run --project unit src/retry.spec.ts
 
 # Type check everything
 pnpm typecheck
+
+# Build the documentation site (TypeDoc + VitePress; not part of `pnpm build`)
+pnpm build:docs
 ```
 
 > [!IMPORTANT]
