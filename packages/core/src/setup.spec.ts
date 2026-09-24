@@ -36,7 +36,7 @@ const contract = defineContract({
 });
 
 function fakeChannel() {
-  const ok = () => Promise.resolve({});
+  const ok = (..._args: unknown[]) => Promise.resolve({});
   return {
     assertExchange: vi.fn(ok),
     checkExchange: vi.fn(ok),

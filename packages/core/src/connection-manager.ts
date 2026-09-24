@@ -68,13 +68,20 @@ export class ConnectionManagerSingleton {
    * receiving one that is shutting down (and would never reconnect).
    *
    * @param urls - AMQP broker URL(s)
-   * @param connectionOptions - Optional connection configuration
+   * @param options.connectionOptions - Optional connection configuration
+   * @param options.pool - Pool partition: leases with different pools never
+   *   share a connection, even for identical URLs and options. Defaults to
+   *   `"default"`.
    */
   acquire(
     urls: ConnectionUrl[],
-    connectionOptions?: AmqpConnectionManagerOptions,
+    options?: {
+      connectionOptions?: AmqpConnectionManagerOptions | undefined;
+      pool?: string | undefined;
+    },
   ): ConnectionLease {
-    const key = this.createConnectionKey(urls, connectionOptions);
+    const connectionOptions = options?.connectionOptions;
+    const key = `${JSON.stringify(options?.pool ?? "default")}::${this.createConnectionKey(urls, connectionOptions)}`;
 
     let connection = this.connections.get(key);
     if (connection === undefined) {
