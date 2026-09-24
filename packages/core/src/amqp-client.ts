@@ -8,14 +8,12 @@ import type {
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
 import {
-  Err,
   fromPromise,
   fromSafePromise,
   fromSafeThrowable,
   Ok,
   OkAsync,
   type AsyncResult,
-  type Result,
 } from "unthrown";
 
 import { encodeBody } from "./codec.js";
@@ -52,20 +50,6 @@ function callSetupFunc(
     });
   }
   return (setup as (channel: Channel) => Promise<void>)(channel);
-}
-
-/**
- * Collapse the channel wrapper's boolean send confirmation into the result.
- * `false` means the channel's write buffer is full — backpressure — which is
- * reported as the modeled {@link PublishError} (`"buffer-full"`) HERE, at the
- * single decision point, instead of leaking a boolean that every downstream
- * layer re-triages its own way.
- */
-function absorbWriteBufferConfirmation(
-  published: boolean,
-  target: string,
-): Result<void, PublishError> {
-  return published ? Ok(undefined) : Err(new PublishError({ reason: "buffer-full", target }));
 }
 
 /**
@@ -596,8 +580,9 @@ export class AmqpClient {
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
    *
-   * A broker-side failure core can name — publish timeout, broker nack, full
-   * write buffer, channel closed — is the modeled {@link PublishError}. An
+   * A broker-side failure core can name — publish timeout, broker nack,
+   * channel closed — is the modeled {@link PublishError}. A confirmed publish
+   * that leaves the write buffer full is a success (logged at `debug`). An
    * unencodable payload or an unrecognised rejection is a Defect with a
    * {@link TechnicalError} cause.
    *
@@ -656,7 +641,17 @@ export class AmqpClient {
             defect(new TechnicalError(`Failed to publish message to ${description}`, error)),
         ),
       )
-      .flatMap((published) => absorbWriteBufferConfirmation(published, description));
+      .map((published) => {
+        // On a confirm channel the wrapper resolves only AFTER the broker
+        // confirmed the message; `false` merely says the write buffer is now
+        // full (backpressure). The message IS delivered — reporting it as a
+        // failure would make callers republish it (duplicates).
+        if (!published) {
+          this.logger?.debug("Channel write buffer full after a confirmed publish (backpressure)", {
+            target: description,
+          });
+        }
+      });
   }
 
   /**

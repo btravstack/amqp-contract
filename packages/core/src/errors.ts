@@ -90,21 +90,20 @@ export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError
  * - `"timeout"` — the message sat buffered past `publishTimeoutMs` (the broker
  *   was unreachable for that long).
  * - `"nacked"` — the broker refused the message (`basic.nack`).
- * - `"buffer-full"` — the channel's write buffer was full (backpressure).
  * - `"channel-closed"` — the channel closed before the message was confirmed.
  */
-export type PublishFailureReason = "timeout" | "nacked" | "buffer-full" | "channel-closed";
+export type PublishFailureReason = "timeout" | "nacked" | "channel-closed";
 
 const PUBLISH_FAILURE_DESCRIPTIONS: Record<PublishFailureReason, string> = {
   timeout: "timed out waiting for the broker (publishTimeoutMs)",
   nacked: "the broker rejected (nacked) the message",
-  "buffer-full": "channel write buffer full",
   "channel-closed": "the channel closed before the message was confirmed",
 };
 
 /**
- * The broker side of a publish failed: timed out, nacked, write buffer full,
- * or the channel closed under it.
+ * The broker side of a publish failed: timed out, nacked, or the channel
+ * closed under it. (A full write buffer is NOT one: on the confirm channel the
+ * wrapper only reports it after the broker confirmed the message.)
  *
  * **Modeled, not a defect** — a broker that is down, overloaded or refusing a
  * message is an operational condition a publisher is expected to handle

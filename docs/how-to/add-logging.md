@@ -119,13 +119,13 @@ The client logs one thing: a successful publish, at `info`, with `publisherName`
 
 The worker is where the useful output is:
 
-| Level   | Covers                                                                                                                                                                                                            |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ; discarding on a queue declared `onPoison: "drop"`                                         |
-| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has neither a dead-letter exchange nor an `onPoison` declaration — message will be lost on nack**                    |
-| `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (channel fault or a full write buffer) |
+| Level   | Covers                                                                                                                                                                                                                      |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `info`  | Successful consume; message published for retry (with `retryCount`, and `delayMs` under `ttl-backoff`); sending to DLQ; discarding on a queue declared `onPoison: "drop"`                                                   |
+| `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has neither a dead-letter exchange nor an `onPoison` declaration — message will be lost on nack**                              |
+| `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (publish timeout, broker nack or channel closed) |
 
-`Publish for retry failed; leaving original un-ack'd for redelivery` deserves an alert rather than a dashboard: retries are being dropped under load, and the logged cause names the fault (e.g. `channel write buffer full`).
+`Publish for retry failed; leaving original un-ack'd for redelivery` deserves an alert rather than a dashboard: retries are being dropped under load, and the logged cause names the fault (e.g. `timed out waiting for the broker`).
 
 `Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack` is the line to alert on for genuine, undeclared loss. It has two wordings from two code paths — `message` from the retry pipeline, `poison message` when the payload never reached the handler — so match on the shared prefix `Queue has no dead-letter exchange and no onPoison declaration`. Since 3.0 `defineContract` rejects that queue shape, so this can only reach a running worker through a hand-built `ContractDefinition` that bypassed the builder: treat it as a bug report, not a tuning signal.
 

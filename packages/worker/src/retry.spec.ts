@@ -191,43 +191,6 @@ describe("publishForRetry", () => {
     expect(callOrder).toEqual(["publish", "ack"]);
   });
 
-  it("does NOT ack the original when publish surfaces a full write buffer (core-level Defect)", async () => {
-    // Since the buffer-full unification, AmqpClient.publish absorbs the
-    // channel wrapper's boolean and surfaces a full write buffer as a Defect
-    // with a TechnicalError cause — mirror exactly that shape here.
-    const { client, ack, nack, publish } = createMockClient(() =>
-      fromSafeThrowable((): void => {
-        throw new TechnicalError(
-          'Failed to publish message to queue "test-queue": channel write buffer full',
-        );
-      })().toAsync(),
-    );
-
-    const msg = createMockConsumeMessage();
-
-    const result = await publishForRetry(
-      { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
-    );
-
-    // A full write buffer is an unexpected publish failure — it surfaces as a
-    // Defect (with a TechnicalError cause) from the core layer, not a
-    // modeled Err.
-    expect(result).toBeDefect();
-    expect(publish).toHaveBeenCalledTimes(1);
-    // The whole point of the fix: the original message must remain un-ack'd
-    // so amqp-connection-manager / the broker can redeliver it instead of
-    // losing it forever.
-    expect(ack).not.toHaveBeenCalled();
-    expect(nack).not.toHaveBeenCalled();
-  });
-
   it("does NOT ack the original when publish itself rejects", async () => {
     // `amqpClient.publish` routes every rejection to the defect channel (with a
     // `TechnicalError` cause), so the retry publish surfaces a Defect here.

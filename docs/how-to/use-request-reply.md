@@ -157,7 +157,7 @@ Be careful: retrying a call whose handler is not idempotent runs the work twice.
 | `RpcCancelledError`      | The client closed while the call was in flight.                                                  |
 | `RpcError<code, data>`   | A declared business error from the handler.                                                      |
 | `MessageValidationError` | The request failed its schema, or the reply arrived but failed the response schema.              |
-| `PublishError`           | The request never reached the broker: publish timeout, broker nack, buffer full, channel closed. |
+| `PublishError`           | The request never reached the broker: publish timeout, broker nack, channel closed.              |
 | Defect                   | An unexpected transport fault, or an error reply whose code the local contract does not declare. |
 
 That first row is worth dwelling on. If the handler returns a value that fails the response schema, the worker refuses to publish a malformed reply — so the caller sees a timeout rather than a wrong answer. A call timing out while the server looks healthy usually means a response-schema mismatch between the two sides' contracts.

@@ -11,8 +11,10 @@ import { PublishError, TechnicalError } from "./errors.js";
  * A broker-side publish failure is an operational condition a publisher must
  * be able to branch on, so `AmqpClient.publish` / `sendToQueue` report it as
  * the modeled `PublishError` — classified ONCE, here, from what the channel
- * wrapper settles with (a `false` confirmation, or its timeout / nack /
- * channel-closed rejections). Anything core cannot name stays a Defect.
+ * wrapper settles with (its timeout / nack / channel-closed rejections).
+ * Anything core cannot name stays a Defect. A `false` resolution is NOT a
+ * failure: amqp-connection-manager resolves a confirm-channel publish only
+ * after the broker's ack, and `false` just signals a full write buffer.
  */
 
 type FakeWrapper = EventEmitter & {
@@ -64,16 +66,11 @@ describe("AmqpClient publish failures", () => {
     void client.close();
   });
 
-  it("INVARIANT: publish reports a full write buffer as Err(PublishError buffer-full), at the core layer", async () => {
+  it("INVARIANT: a confirmed publish that leaves the write buffer full is Ok, not a failure (no duplicate on retry)", async () => {
     wrapper().publish.mockResolvedValue(false);
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
 
-    const result = await client.publish(target, { id: "1" });
-
-    expect(result).toBeErrWith(
-      expect.objectContaining({ constructor: PublishError, reason: "buffer-full" }),
-    );
-    if (result.isErr()) expect(result.error.message).toContain("channel write buffer full");
+    expect(await client.publish(target, { id: "1" })).toBeOkWith(undefined);
 
     void client.close();
   });
@@ -110,15 +107,11 @@ describe("AmqpClient publish failures", () => {
     void client.close();
   });
 
-  it("INVARIANT: sendToQueue reports a full write buffer as the same PublishError", async () => {
+  it("INVARIANT: sendToQueue treats a confirmed send with a full write buffer as Ok", async () => {
     wrapper().sendToQueue.mockResolvedValue(false);
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
 
-    const result = await client.sendToQueue("replies", { id: "1" });
-
-    expect(result).toBeErrWith(
-      expect.objectContaining({ constructor: PublishError, reason: "buffer-full" }),
-    );
+    expect(await client.sendToQueue("replies", { id: "1" })).toBeOkWith(undefined);
 
     void client.close();
   });
