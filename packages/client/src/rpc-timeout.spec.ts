@@ -159,3 +159,28 @@ describe("RPC timeout vs slow reply validation", () => {
     await client.close().get();
   });
 });
+
+describe("RPC request publish failures", () => {
+  beforeEach(async () => {
+    wrapper().removeAllListeners();
+    wrapper().consume.mockClear();
+    wrapper().publish.mockClear();
+    await _internal_resetConnections();
+  });
+
+  it("INVARIANT: a request the broker side refuses resolves Err(PublishError) at once, not a timeout", async () => {
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+    }).getOrThrow();
+    wrapper().publish.mockResolvedValueOnce(false);
+
+    const result = await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 60_000 });
+
+    expect(result).toBeErrWith(
+      expect.objectContaining({ _tag: "@amqp-contract/PublishError", reason: "buffer-full" }),
+    );
+
+    await client.close().get();
+  });
+});

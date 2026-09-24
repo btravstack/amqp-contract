@@ -13,7 +13,7 @@ import {
   defineQueue,
   defineRpc,
 } from "@amqp-contract/contract";
-import type { RpcError } from "@amqp-contract/core";
+import type { PublishError, RpcError } from "@amqp-contract/core";
 import type { AsyncResult } from "unthrown";
 import { describe, expectTypeOf, test } from "vitest";
 import { z } from "zod";
@@ -84,7 +84,7 @@ describe("publish payload inference", () => {
   test("should accept a valid payload and return a typed AsyncResult", () => {
     expectTypeOf(
       client.publish("orderCreated", { orderId: "ORD-123", amount: 99.99 }),
-    ).toEqualTypeOf<AsyncResult<void, MessageValidationError>>();
+    ).toEqualTypeOf<AsyncResult<void, MessageValidationError | PublishError>>();
   });
 
   test("should reject invalid payloads at compile time", () => {
@@ -128,7 +128,7 @@ describe("RPC call inference", () => {
   test("an RPC without declared errors has a purely transport-level error union", () => {
     expectTypeOf<ClientInferRpcErrors<typeof rpcContract, "plainRpc">>().toEqualTypeOf<never>();
     expectTypeOf<ClientInferCallError<typeof rpcContract, "plainRpc">>().toEqualTypeOf<
-      MessageValidationError | RpcTimeoutError | RpcCancelledError
+      MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError
     >();
   });
 
@@ -137,6 +137,7 @@ describe("RPC call inference", () => {
       AsyncResult<
         { orderId: string; status: string },
         | MessageValidationError
+        | PublishError
         | RpcTimeoutError
         | RpcCancelledError
         | RpcError<"ORDER_NOT_FOUND", { orderId: string }>
