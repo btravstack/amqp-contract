@@ -12,6 +12,8 @@ export { defineMessage } from "./message.js";
 
 // Queue
 export { defineQueue } from "./queue.js";
+export { defineDeadLetterQueue } from "./dead-letter-queue.js";
+export type { DeadLetterQueue } from "./dead-letter-queue.js";
 
 // Bindings
 export { defineExchangeBinding, defineQueueBinding } from "./binding.js";
