@@ -8,6 +8,7 @@ import type {
 } from "amqp-connection-manager";
 import type { Channel, ConsumeMessage, Options } from "amqplib";
 import {
+  Err,
   fromPromise,
   fromSafePromise,
   fromSafeThrowable,
@@ -19,7 +20,12 @@ import {
 
 import { ConnectionManagerSingleton, type ConnectionLease } from "./connection-manager.js";
 import { technicalDefect } from "./defect.js";
-import { ConnectionError, TechnicalError } from "./errors.js";
+import {
+  ConnectionError,
+  PublishError,
+  type PublishFailureReason,
+  TechnicalError,
+} from "./errors.js";
 import type { Logger } from "./logger.js";
 import { setupAmqpTopology } from "./setup.js";
 
@@ -47,19 +53,33 @@ function callSetupFunc(
 }
 
 /**
- * Collapse the channel wrapper's boolean send confirmation into the void
- * result channel. `false` means the channel's write buffer is full — an
- * infrastructure condition callers cannot meaningfully branch on — so it
- * becomes a Defect (with a {@link TechnicalError} cause) HERE, at the single
- * decision point, instead of leaking a boolean that every downstream layer
- * re-triages its own way.
+ * Collapse the channel wrapper's boolean send confirmation into the result.
+ * `false` means the channel's write buffer is full — backpressure — which is
+ * reported as the modeled {@link PublishError} (`"buffer-full"`) HERE, at the
+ * single decision point, instead of leaking a boolean that every downstream
+ * layer re-triages its own way.
  */
-function absorbWriteBufferConfirmation(published: boolean, target: string): Result<void, never> {
-  if (!published) {
-    // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-    throw new TechnicalError(`Failed to publish message to ${target}: channel write buffer full`);
-  }
-  return Ok(undefined);
+function absorbWriteBufferConfirmation(
+  published: boolean,
+  target: string,
+): Result<void, PublishError> {
+  return published ? Ok(undefined) : Err(new PublishError({ reason: "buffer-full", target }));
+}
+
+/**
+ * The rejections amqp-connection-manager / amqplib settle a confirm-channel
+ * publish with, keyed by their (stable, library-owned) messages. Anything else
+ * is not a broker-side condition core can name, so it stays a defect.
+ */
+const PUBLISH_REJECTIONS = new Map<string, PublishFailureReason>([
+  ["timeout", "timeout"],
+  ["Channel closed", "channel-closed"],
+  ["message nacked", "nacked"],
+]);
+
+function classifyPublishRejection(error: unknown, target: string): PublishError | undefined {
+  const reason = error instanceof Error ? PUBLISH_REJECTIONS.get(error.message) : undefined;
+  return reason === undefined ? undefined : new PublishError({ reason, target, cause: error });
 }
 
 /**
@@ -216,10 +236,11 @@ export type AmqpConsumeOptions = Omit<Options.Consume, "prefetch"> & {
  * - Content encoding: non-Buffer payloads are JSON-encoded at publish time,
  *   Buffers go on the wire byte-for-byte
  *
- * All operations return `AsyncResult<T, never>`: infrastructure failures are
- * **unexpected**, so they surface through the `Defect` channel (with a
- * {@link TechnicalError} as the defect's `cause` for logging), never as a
- * modeled `Err`.
+ * Two failures are modeled: an unreachable broker (`waitForConnect` →
+ * {@link ConnectionError}) and a broker-side publish failure (`publish` /
+ * `sendToQueue` → {@link PublishError}). Every other infrastructure failure is
+ * **unexpected**, so it surfaces through the `Defect` channel (with a
+ * {@link TechnicalError} as the defect's `cause` for logging).
  *
  * @example
  * ```typescript
@@ -533,9 +554,10 @@ export class AmqpClient {
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
    *
-   * A full channel write buffer (the wrapper's boolean `false` confirmation)
-   * surfaces as a Defect with a {@link TechnicalError} cause — like every
-   * other publish-side infrastructure failure. Callers never see the boolean.
+   * A broker-side failure core can name — publish timeout, broker nack, full
+   * write buffer, channel closed — is the modeled {@link PublishError}. An
+   * unencodable payload or an unrecognised rejection is a Defect with a
+   * {@link TechnicalError} cause.
    *
    * @param target - The exchange and routing key to publish to
    * @param content - The message payload
@@ -545,53 +567,47 @@ export class AmqpClient {
     target: { exchange: string; routingKey: string },
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<void, never> {
+  ): AsyncResult<void, PublishError> {
     const { exchange, routingKey } = target;
-    return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
-      .toAsync()
-      .flatMap((encoded) =>
-        fromPromise(
-          this.channelWrapper.publish(exchange, routingKey, encoded, options),
-          (error: unknown, defect) =>
-            defect(
-              new TechnicalError(
-                `Failed to publish message to exchange "${exchange}" (routing key "${routingKey}")`,
-                error,
-              ),
-            ),
-        ),
-      )
-      .flatMap((published) =>
-        absorbWriteBufferConfirmation(
-          published,
-          `exchange "${exchange}" (routing key "${routingKey}")`,
-        ),
-      );
+    const description = `exchange "${exchange}" (routing key "${routingKey}")`;
+    return this.send(description, content, (encoded) =>
+      this.channelWrapper.publish(exchange, routingKey, encoded, options),
+    );
   }
 
   /**
    * Publish a message directly to a queue.
    *
    * Non-Buffer content is JSON-encoded; Buffers are published byte-for-byte.
-   *
-   * A full channel write buffer surfaces as a Defect with a
-   * {@link TechnicalError} cause — see {@link publish}.
+   * Failures are reported exactly as for {@link publish}.
    */
   sendToQueue(
     queue: string,
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
-  ): AsyncResult<void, never> {
+  ): AsyncResult<void, PublishError> {
+    return this.send(`queue "${queue}"`, content, (encoded) =>
+      this.channelWrapper.sendToQueue(queue, encoded, options),
+    );
+  }
+
+  /** Encode, hand to the channel wrapper, and triage its outcome. */
+  private send(
+    description: string,
+    content: Buffer | unknown,
+    write: (encoded: Buffer) => Promise<boolean>,
+  ): AsyncResult<void, PublishError> {
     return fromSafeThrowable(() => AmqpClient.encodeContent(content))()
       .toAsync()
       .flatMap((encoded) =>
         fromPromise(
-          this.channelWrapper.sendToQueue(queue, encoded, options),
+          write(encoded),
           (error: unknown, defect) =>
-            defect(new TechnicalError(`Failed to publish message to queue "${queue}"`, error)),
+            classifyPublishRejection(error, description) ??
+            defect(new TechnicalError(`Failed to publish message to ${description}`, error)),
         ),
       )
-      .flatMap((published) => absorbWriteBufferConfirmation(published, `queue "${queue}"`));
+      .flatMap((published) => absorbWriteBufferConfirmation(published, description));
   }
 
   /**

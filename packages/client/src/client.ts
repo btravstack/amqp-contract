@@ -14,6 +14,7 @@ import {
   type AmqpPublishOptions,
   type Logger,
   MessagingSemanticConventions,
+  type PublishError,
   RPC_ERROR_CODE_HEADER,
   RpcError,
   TechnicalError,
@@ -49,7 +50,7 @@ import type {
   CallError as InterceptorCallError,
   CallInterceptor,
   CallInterceptorArgs,
-  PublishError,
+  ClientPublishError,
   PublishInterceptor,
   PublishInterceptorArgs,
 } from "./interceptors.js";
@@ -433,7 +434,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     publisherName: TName,
     message: ClientInferPublisherInput<TContract, TName>,
     options?: PublishOptions,
-  ): AsyncResult<void, MessageValidationError> {
+  ): AsyncResult<void, MessageValidationError | PublishError> {
     const startTime = Date.now();
     // TypeScript constrains TName to declared publisher names, but a JS caller
     // (or a stale name surviving a contract change behind a cast) reaches this
@@ -468,7 +469,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     const publishMessage = (
       validatedMessage: unknown,
       callOptions: PublishOptions,
-    ): AsyncResult<void, never> => {
+    ): AsyncResult<void, PublishError> => {
       // Merge default options with provided options
       const mergedOptions = { ...this.defaultPublishOptions, ...callOptions };
 
@@ -490,8 +491,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         return OkAsync(validatedMessage);
       };
 
-      // A full write buffer / rejected message is an unexpected publish
-      // failure — AmqpClient.publish surfaces it as a Defect already.
+      // A broker-side failure is AmqpClient's modeled PublishError already.
       return preparePayload().flatMap((payload) =>
         this.amqpClient
           .publish(
@@ -512,7 +512,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     // Interceptors wrap validation + publish; telemetry stays outermost so
     // the span covers interceptor work too.
-    const terminal = (args: PublishInterceptorArgs): AsyncResult<void, PublishError> =>
+    const terminal = (args: PublishInterceptorArgs): AsyncResult<void, ClientPublishError> =>
       validateMessage(args.message).flatMap((validatedMessage) =>
         publishMessage(validatedMessage, args.options),
       );
@@ -524,7 +524,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         PublishInterceptorArgs,
         { message?: unknown; options?: PublishOptions },
         void,
-        PublishError
+        ClientPublishError
       >(
         this.publishInterceptors,
         { publisherName: String(publisherName), message, options: options ?? {} },
@@ -555,6 +555,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    *   errCases: (matcher) =>
    *     matcher.with(
    *       P.tag("@amqp-contract/MessageValidationError"),
+   *       P.tag("@amqp-contract/PublishError"),
    *       P.tag("@amqp-contract/RpcTimeoutError"),
    *       P.tag("@amqp-contract/RpcCancelledError"),
    *       P.tag("@amqp-contract/RpcError"),
@@ -572,6 +573,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   ): AsyncResult<
     ClientInferRpcResponseOutput<TContract, TName>,
     | MessageValidationError
+    | PublishError
     | RpcTimeoutError
     | RpcCancelledError
     | ClientInferRpcErrors<TContract, TName>
@@ -579,6 +581,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     type ResponseType = ClientInferRpcResponseOutput<TContract, TName>;
     type CallError =
       | MessageValidationError
+      | PublishError
       | RpcTimeoutError
       | RpcCancelledError
       | ClientInferRpcErrors<TContract, TName>;
@@ -691,7 +694,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         matcher.with(P._, (issues) => new MessageValidationError(rpcName, issues)),
       );
 
-    const publishRequest = (validatedRequest: unknown): AsyncResult<void, never> => {
+    const publishRequest = (validatedRequest: unknown): AsyncResult<void, PublishError> => {
       // Merge `defaultPublishOptions` (persistent, priority, headers, …) with
       // the per-call options, then layer the RPC-managed fields on top so they
       // cannot be overridden. `compression` is intentionally dropped: RPC v1
@@ -706,8 +709,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         correlationId,
         contentType: "application/json",
       };
-      // A full write buffer is an unexpected publish failure — AmqpClient
-      // surfaces it as a Defect already.
+      // A broker-side failure is AmqpClient's modeled PublishError already.
       return this.amqpClient.publish(
         { exchange: "", routingKey: queueName },
         validatedRequest,

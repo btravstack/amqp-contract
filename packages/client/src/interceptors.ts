@@ -1,4 +1,4 @@
-import type { MessageValidationError, RpcError } from "@amqp-contract/core";
+import type { MessageValidationError, PublishError, RpcError } from "@amqp-contract/core";
 import { OkAsync, type AsyncResult } from "unthrown";
 
 import type { CallOptions, PublishOptions } from "./client.js";
@@ -6,18 +6,25 @@ import type { RpcCancelledError, RpcTimeoutError } from "./errors.js";
 
 /**
  * Error union a publish interceptor chain resolves with — identical to the
- * error channel of `client.publish(...)`. Infrastructure failures are not
- * modeled here: they surface through the `Defect` channel.
+ * error channel of `client.publish(...)`: the payload failed its schema, or
+ * the broker side of the publish failed ({@link PublishError}). Every other
+ * infrastructure failure surfaces through the `Defect` channel.
  */
-export type PublishError = MessageValidationError;
+export type ClientPublishError = MessageValidationError | PublishError;
 
 /**
  * Error union a call interceptor chain resolves with. The `RpcError` member
  * is the widened (untyped) form; the public `client.call(...)` signature
- * narrows it to the RPC's declared error union. Infrastructure failures are
- * not modeled here: they surface through the `Defect` channel.
+ * narrows it to the RPC's declared error union. A failed request publish is
+ * the modeled {@link PublishError}; other infrastructure failures surface
+ * through the `Defect` channel.
  */
-export type CallError = MessageValidationError | RpcTimeoutError | RpcCancelledError | RpcError;
+export type CallError =
+  | MessageValidationError
+  | PublishError
+  | RpcTimeoutError
+  | RpcCancelledError
+  | RpcError;
 
 /**
  * Arguments a publish interceptor observes. `message` is the pre-validation
@@ -41,7 +48,7 @@ export type PublishInterceptorArgs = {
 export type PublishInterceptorNext = (patch?: {
   message?: unknown;
   options?: PublishOptions;
-}) => AsyncResult<void, PublishError>;
+}) => AsyncResult<void, ClientPublishError>;
 
 /**
  * Intercepts `client.publish(...)`: runs outside validation and publishing,
@@ -63,7 +70,7 @@ export type PublishInterceptorNext = (patch?: {
 export type PublishInterceptor = (
   args: PublishInterceptorArgs,
   next: PublishInterceptorNext,
-) => AsyncResult<void, PublishError>;
+) => AsyncResult<void, ClientPublishError>;
 
 /**
  * Arguments a call interceptor observes. `request` is the pre-validation
@@ -101,6 +108,7 @@ export type CallInterceptorNext = (patch?: {
  *   next().flatMapErrCases((matcher) =>
  *     matcher.with(
  *       P.tag("@amqp-contract/MessageValidationError"),
+ *       P.tag("@amqp-contract/PublishError"),
  *       P.tag("@amqp-contract/RpcTimeoutError"),
  *       P.tag("@amqp-contract/RpcCancelledError"),
  *       P.tag("@amqp-contract/RpcError"),

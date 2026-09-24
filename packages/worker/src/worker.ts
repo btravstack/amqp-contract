@@ -12,6 +12,7 @@ import {
   type AmqpConsumeOptions,
   type ConnectionError,
   type Logger,
+  PublishError,
   RPC_ERROR_CODE_HEADER,
   RpcError,
   TechnicalError,
@@ -962,6 +963,12 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     // so the RPC DLQ routing keeps working.
     return this.amqpClient
       .publish({ exchange: "", routingKey: replyTo }, body, options)
+      .mapErrCases((matcher) =>
+        matcher.with(
+          P.tag(PublishError.tag),
+          (error): HandlerError => new NonRetryableError("Failed to publish RPC reply", error),
+        ),
+      )
       .recoverDefect((cause) =>
         Err<HandlerError>(new NonRetryableError("Failed to publish RPC reply", cause)),
       );

@@ -17,6 +17,8 @@ export {
   isRpcError,
   isTechnicalError,
   MessageValidationError,
+  PublishError,
+  type PublishFailureReason,
   RPC_ERROR_CODE_HEADER,
   RpcError,
   rpcError,

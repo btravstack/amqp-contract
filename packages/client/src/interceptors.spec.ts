@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   chainInterceptors,
-  type PublishError,
+  type ClientPublishError,
   type PublishInterceptor,
   type PublishInterceptorArgs,
 } from "./interceptors.js";
@@ -91,7 +91,9 @@ describe("chainInterceptors", () => {
       next().flatMapErrCases((matcher) =>
         matcher.with(
           P.tag("@amqp-contract/MessageValidationError"),
-          (error): AsyncResult<void, PublishError> => (attempts < 2 ? next() : ErrAsync(error)),
+          P.tag("@amqp-contract/PublishError"),
+          (error): AsyncResult<void, ClientPublishError> =>
+            attempts < 2 ? next() : ErrAsync(error),
         ),
       );
 
