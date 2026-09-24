@@ -30,7 +30,7 @@ mkdir amqp-demo && cd amqp-demo
 npm init -y
 npm pkg set type=module
 npm install @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
-npm install -D typescript tsx
+npm install -D typescript tsx @types/node
 ```
 
 Create `tsconfig.json`:
@@ -41,7 +41,9 @@ Create `tsconfig.json`:
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "strict": true
+    "strict": true,
+    "types": ["node"],
+    "skipLibCheck": true
   }
 }
 ```
