@@ -1,4 +1,4 @@
-import type { ContractDefinition } from "@amqp-contract/contract";
+import type { ContractDefinition, QueueDefinition } from "@amqp-contract/contract";
 import { deriveTtlBackoffInfrastructure } from "@amqp-contract/contract";
 import type { Channel } from "amqplib";
 
@@ -19,41 +19,101 @@ import { TechnicalError } from "./errors.js";
 export type TopologyMode = "assert" | "passive" | "none";
 
 /**
- * The slice of a contract a PUBLISHER needs on the broker: the exchanges its
- * publishers publish to, plus — transitively — every exchange those forward
- * to through exchange-to-exchange bindings, and those bindings. No queues:
- * queues (and their dead-lettering and retry infrastructure) are the
- * consumer's to declare, so a publisher never re-asserts, and never fights
- * over, another service's queue arguments.
+ * Everything a message sent to `exchanges` can reach: those exchanges, every
+ * exchange they forward to through exchange-to-exchange bindings
+ * (transitively), every queue bound to any of them, and the bindings between.
  */
-export function publisherTopology(contract: ContractDefinition): ContractDefinition {
-  const exchangeBindings = Object.entries(contract.bindings ?? {}).filter(
-    ([, binding]) => binding.type === "exchange",
-  );
-  const needed = new Set(Object.values(contract.publishers ?? {}).map((p) => p.exchange.name));
+function routeClosure(
+  contract: ContractDefinition,
+  exchanges: Iterable<string>,
+): { exchanges: Set<string>; queues: Set<string>; bindings: Set<string> } {
+  const bindings = Object.entries(contract.bindings ?? {});
+  const reached = {
+    exchanges: new Set(exchanges),
+    queues: new Set<string>(),
+    bindings: new Set<string>(),
+  };
   for (let grew = true; grew;) {
     grew = false;
-    for (const [, binding] of exchangeBindings) {
-      if (
-        binding.type === "exchange" &&
-        needed.has(binding.source.name) &&
-        !needed.has(binding.destination.name)
-      ) {
-        needed.add(binding.destination.name);
-        grew = true;
-      }
+    for (const [key, binding] of bindings) {
+      const source = binding.type === "queue" ? binding.exchange.name : binding.source.name;
+      if (!reached.exchanges.has(source) || reached.bindings.has(key)) continue;
+      reached.bindings.add(key);
+      if (binding.type === "queue") reached.queues.add(binding.queue.name);
+      else reached.exchanges.add(binding.destination.name);
+      grew = true;
     }
   }
+  return reached;
+}
+
+/**
+ * A queue as a role that does not CONSUME it declares it: the same broker-side
+ * arguments (a mismatch would be refused), but its dead-lettering inlined as
+ * raw arguments — the DLX need not exist for the queue to retain messages —
+ * and no retry config, so none of the consumer's wait queues are derived.
+ */
+function retainOnly(queue: QueueDefinition): QueueDefinition {
+  const { deadLetter, ...rest } = queue;
+  return {
+    ...rest,
+    retry: { mode: "none" },
+    arguments: {
+      ...queue.arguments,
+      ...(deadLetter && { "x-dead-letter-exchange": deadLetter.exchange.name }),
+      ...(deadLetter?.routingKey && { "x-dead-letter-routing-key": deadLetter.routingKey }),
+    },
+  };
+}
+
+function sliceContract(
+  contract: ContractDefinition,
+  keep: { exchanges: Set<string>; queues: Set<string>; bindings: Set<string> },
+  consumed: Set<string>,
+): ContractDefinition {
   return {
     exchanges: Object.fromEntries(
-      Object.entries(contract.exchanges ?? {}).filter(([, exchange]) => needed.has(exchange.name)),
+      Object.entries(contract.exchanges ?? {}).filter(([, e]) => keep.exchanges.has(e.name)),
+    ),
+    queues: Object.fromEntries(
+      Object.entries(contract.queues ?? {})
+        .filter(([, q]) => keep.queues.has(q.name))
+        .map(([key, q]) => [key, consumed.has(q.name) ? q : retainOnly(q)]),
     ),
     bindings: Object.fromEntries(
-      exchangeBindings.filter(
-        ([, binding]) => binding.type === "exchange" && needed.has(binding.source.name),
-      ),
+      Object.entries(contract.bindings ?? {}).filter(([key]) => keep.bindings.has(key)),
     ),
   };
+}
+
+/**
+ * The slice of a contract a PUBLISHER needs on the broker for what it sends to
+ * be routed AND retained: the exchanges its publishers publish to, everything
+ * those route to (exchange-to-exchange bindings, transitively), every queue
+ * reachable that way with its binding, and the RPC request queues. Declaring
+ * the queues closes the start-up window in which a message published before
+ * the worker declared its queue would be confirmed and silently dropped.
+ *
+ * Those queues are declared with the worker's exact arguments but without its
+ * consumer-side infrastructure: no retry wait queues, and the dead-letter
+ * exchange is referenced, not declared. Unrelated queues are never touched,
+ * nor exclusive ones (declaring one would lock its consumer out).
+ */
+export function publisherTopology(contract: ContractDefinition): ContractDefinition {
+  const keep = routeClosure(
+    contract,
+    Object.values(contract.publishers ?? {}).map((p) => p.exchange.name),
+  );
+  for (const rpc of Object.values(contract.rpcs ?? {})) keep.queues.add(rpc.queue.name);
+  // An exclusive queue belongs to the connection that declares it: declared
+  // here, it would lock the worker out of its own queue.
+  for (const queue of Object.values(contract.queues ?? {})) {
+    if (queue.type === "classic" && queue.exclusive) keep.queues.delete(queue.name);
+  }
+  for (const [key, binding] of Object.entries(contract.bindings ?? {})) {
+    if (binding.type === "queue" && !keep.queues.has(binding.queue.name)) keep.bindings.delete(key);
+  }
+  return sliceContract(contract, keep, new Set());
 }
 
 /**

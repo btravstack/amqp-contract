@@ -167,11 +167,15 @@ export type CreateClientOptions<TContract extends ContractDefinition> = Connecti
   callInterceptors?: readonly CallInterceptor[] | undefined;
   /**
    * What the client does with its topology on every (re)connect. The client
-   * only ever touches the exchanges its publishers need (and the
-   * exchange-to-exchange bindings forwarding from them) — never queues, which
-   * are the worker's to declare.
+   * only touches what its publishes need to be routed AND retained: its
+   * publishers' exchanges, everything they route to (exchange-to-exchange
+   * bindings, transitively), every queue reachable that way with its binding,
+   * and the RPC request queues — so a message published before the worker
+   * started is kept, not dropped. Those queues get the worker's exact
+   * arguments but none of its infrastructure (no dead-letter exchange, no
+   * retry wait queues); unrelated and exclusive queues are never touched.
    *
-   * - `"assert"` (default) — declare those exchanges.
+   * - `"assert"` (default) — declare them.
    * - `"passive"` — only check they exist; `create()` fails if one is missing.
    * - `"none"` — touch nothing (topology is provisioned elsewhere).
    */

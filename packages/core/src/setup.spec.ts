@@ -19,7 +19,10 @@ const audit = defineExchange("audit");
 const dlx = defineExchange("orders-dlx");
 const unrelated = defineExchange("unrelated");
 const dlq = defineQueue("orders-dlq");
-const processing = defineQueue("order-processing", { deadLetter: { exchange: dlx } });
+const processing = defineQueue("order-processing", {
+  deadLetter: { exchange: dlx },
+  retry: { mode: "ttl-backoff", maxRetries: 2 },
+});
 const created = defineEventPublisher(orders, defineMessage(z.object({ id: z.string() })), {
   routingKey: "order.created",
 });
@@ -62,7 +65,12 @@ describe("setupAmqpTopology modes", () => {
       channel.bindQueue.mock.calls.length + channel.bindExchange.mock.calls.length,
     ]).toEqual([
       ["audit", "orders", "orders-dlx", "unrelated"],
-      ["order-processing", "orders-dlq"],
+      [
+        "order-processing",
+        "order-processing-wait-1000ms",
+        "order-processing-wait-2000ms",
+        "orders-dlq",
+      ],
       3,
     ]);
   });
@@ -81,7 +89,12 @@ describe("setupAmqpTopology modes", () => {
         channel.bindExchange.mock.calls.length,
     ]).toEqual([
       ["audit", "orders", "orders-dlx", "unrelated"],
-      ["order-processing", "orders-dlq"],
+      [
+        "order-processing",
+        "order-processing-wait-1000ms",
+        "order-processing-wait-2000ms",
+        "orders-dlq",
+      ],
       0,
     ]);
   });
@@ -96,15 +109,49 @@ describe("setupAmqpTopology modes", () => {
 });
 
 describe("publisherTopology", () => {
-  it("keeps the publisher's exchanges and what they forward to — no queues, no DLX", async () => {
+  it("INVARIANT: declares every queue a publish can reach (no start-up loss window) — without the consumer's DLX, wait queues or unrelated queues", async () => {
     const channel = fakeChannel();
 
     await setupAmqpTopology(channel as unknown as Channel, publisherTopology(contract));
 
     expect([
       calledNames(channel.assertExchange),
-      channel.assertQueue.mock.calls.length + channel.bindQueue.mock.calls.length,
+      channel.assertQueue.mock.calls,
+      channel.bindQueue.mock.calls.map((call) => [call[0], call[1]]),
       channel.bindExchange.mock.calls.map((call) => [call[0], call[1]]),
-    ]).toEqual([["audit", "orders"], 0, [["audit", "orders"]]]);
+    ]).toEqual([
+      ["audit", "orders"],
+      [
+        [
+          "order-processing",
+          {
+            durable: true,
+            // The exact arguments the worker declares — a mismatch would be refused.
+            arguments: { "x-queue-type": "quorum", "x-dead-letter-exchange": "orders-dlx" },
+          },
+        ],
+      ],
+      [["order-processing", "orders"]],
+      [["audit", "orders"]],
+    ]);
+  });
+
+  it("never declares an exclusive queue (it would lock the consumer out)", async () => {
+    const channel = fakeChannel();
+    const replies = defineQueue("replies", {
+      type: "classic",
+      exclusive: true,
+      onPoison: "drop",
+    });
+    const exclusiveContract = defineContract({
+      publishers: { created },
+      consumers: { process: defineEventConsumer(created, replies) },
+    });
+
+    await setupAmqpTopology(channel as unknown as Channel, publisherTopology(exclusiveContract));
+
+    expect([channel.assertQueue.mock.calls.length, channel.bindQueue.mock.calls.length]).toEqual([
+      0, 0,
+    ]);
   });
 });
