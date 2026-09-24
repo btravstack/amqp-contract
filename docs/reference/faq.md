@@ -39,7 +39,7 @@ No. It ships as a dependency of the amqp-contract packages. You do need `unthrow
 
 ## Why are queues quorum by default?
 
-Quorum queues replicate through Raft and survive broker failure. The cost is some write latency, which is almost always worth paying. Classic queues are opt-in for the features quorum does not support: `exclusive`, `autoDelete`, and priority queues.
+Quorum queues replicate through Raft and survive broker failure. The cost is some write latency, which is almost always worth paying. Classic queues are opt-in for the features quorum does not support: `exclusive`, `autoDelete`, and classic `maxPriority` levels. Plain message priority works on quorum: they prioritise natively on RabbitMQ 4.0+ from each message's `priority` property, with no queue argument (normal vs high above 4 up to 4.2; 32 strict levels from 4.3).
 
 → [Topology options](/reference/topology-options#definequeue)
 

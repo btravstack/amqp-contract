@@ -109,7 +109,7 @@ A named entry in a contract's `publishers` map, pairing an exchange, a message a
 
 ### Quorum queue
 
-The default queue type, replicating through Raft consensus. Always durable; cannot be exclusive, auto-deleting, or a priority queue.
+The default queue type, replicating through Raft consensus. Always durable; cannot be exclusive or auto-deleting. Prioritises messages from their `priority` property on RabbitMQ 4.0+ without `maxPriority`, which is classic-only.
 
 ### Routing key
 
