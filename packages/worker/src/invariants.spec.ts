@@ -17,7 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
-import { decideRetry, handleError } from "./retry.js";
+import { decideRetry, handleError, MAX_LAST_ERROR_LENGTH } from "./retry.js";
 
 function mockMessage(headers: Record<string, unknown> = {}): ConsumeMessage {
   return {
@@ -225,5 +225,24 @@ describe("invariants: handler-error routing", () => {
     expect(publish.mock.calls[0]?.[2]).toMatchObject({
       headers: { "x-first-failure-timestamp": expect.any(Number), "x-original-routing-key": "k" },
     });
+  });
+
+  it("INVARIANT: the x-last-error header is bounded (a huge handler error cannot exceed frame_max)", async () => {
+    const { client, publish } = mockClient();
+    const consumer = {
+      queue: defineQueue("orders", { retry: { mode: "ttl-backoff", maxRetries: 3 } }),
+      message,
+    };
+
+    await handleError(
+      { amqpClient: client as never },
+      new RetryableError("x".repeat(1_000_000)),
+      mockMessage(),
+      "processOrder",
+      consumer,
+    ).get();
+
+    const headers = (publish.mock.calls[0]?.[2] as { headers: Record<string, string> }).headers;
+    expect(headers["x-last-error"]).toHaveLength(MAX_LAST_ERROR_LENGTH);
   });
 });
