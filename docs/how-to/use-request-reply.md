@@ -133,7 +133,7 @@ if (result.isErr() && isRpcError(result.error)) {
 }
 ```
 
-A declared error is a _business outcome_, not a processing failure: the worker validates the data, publishes the error reply, and **acknowledges the request**. Declared errors are never retried. Only `RetryableError` and `NonRetryableError` enter the retry pipeline.
+A declared error is a _business outcome_, not a processing failure: the worker validates the data, publishes the error reply, and **acknowledges the request**. Declared errors are never retried. Neither is an RPC request whose handler fails with `RetryableError`: the caller is waiting on a `timeoutMs` shorter than most backoffs, so the worker dead-letters the request instead of re-running the handler for nobody — whatever the queue's `retry` config.
 
 ## Set a per-call timeout
 
@@ -170,6 +170,17 @@ The type system stops undeclared error codes, but a cast or a version skew can g
 - **Client** — an error reply whose code is not in the local contract resolves to a **defect**. Error data failing its schema resolves to `Err(MessageValidationError)`.
 
 An RPC also requires `replyTo` and `correlationId` on the request. A request missing either is dead-lettered rather than answered, since there is nowhere to reply to.
+
+The worker only replies to direct reply-to addresses (`amq.rabbitmq.reply-to…`, which is what `client.call()` sets), so a request cannot make it publish into an arbitrary queue. A request with any other `replyTo` is dead-lettered with the reason logged. To reply to your own reply queues, allow them explicitly:
+
+```typescript
+TypedAmqpWorker.create({
+  contract,
+  handlers,
+  urls,
+  rpc: { allowReplyTo: (replyTo) => replyTo.startsWith("replies.") },
+});
+```
 
 Error data is validated twice — on the worker before publishing, on the client on arrival — the same as responses.
 
