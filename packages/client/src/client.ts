@@ -144,8 +144,8 @@ export type CreateClientOptions<TContract extends ContractDefinition> = Connecti
   connectTimeoutMs?: number | null | undefined;
   /**
    * Maximum time in ms a publish may sit buffered waiting for the broker
-   * before its promise settles with a timeout failure (surfaced as a
-   * `Defect`). Maps to amqp-connection-manager's channel-level
+   * before it fails with `PublishError` (reason `"timeout"`, on the `E`
+   * channel). Maps to amqp-connection-manager's channel-level
    * `publishTimeout`. Defaults to 30s (the {@link AmqpClient}'s
    * `DEFAULT_PUBLISH_TIMEOUT_MS`). Pass `null` to disable, restoring
    * unbounded buffering — a publish issued during an outage then never

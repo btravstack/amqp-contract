@@ -303,8 +303,9 @@ export type CreateWorkerOptions<
   connectTimeoutMs?: number | null | undefined;
   /**
    * Maximum time in ms a worker-side publish (retry republish, RPC reply) may
-   * sit buffered waiting for the broker before its promise settles with a
-   * timeout failure (surfaced as a `Defect`). Maps to
+   * sit buffered waiting for the broker before it fails with a `PublishError`
+   * (reason `"timeout"`): a failed retry republish requeues the original, a
+   * failed RPC reply dead-letters the request. Maps to
    * amqp-connection-manager's channel-level `publishTimeout`. Defaults to 30s
    * (the {@link AmqpClient}'s `DEFAULT_PUBLISH_TIMEOUT_MS`). Pass `null` to
    * disable, restoring unbounded buffering — a publish issued during an
