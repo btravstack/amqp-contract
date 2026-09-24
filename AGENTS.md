@@ -87,12 +87,12 @@ These have been re-introduced more than once across recent migrations / reviews 
 
 Each invariant maps to a named guarding test — extend the mapping when you add one (org DNA: unthrown's `invariants.spec.ts` pattern).
 
-1. **Retry publishes before ack** (a failed retry-publish must not lose the message; a _confirmed_ one — including one that leaves the write buffer full — acks the original, never duplicates it) — `packages/worker/src/retry.spec.ts` ("acks the original message only AFTER a successful retry publish") + `packages/worker/src/retry-publish-dispatch.spec.ts` (through the consume path: "acks the original after a confirmed retry publish even when the write buffer is full").
+1. **Retry publishes before ack** (a failed retry-publish must not lose the message; a _confirmed_ one — including one that leaves the write buffer full — acks the original, never duplicates it) — `packages/worker/src/dispatch.spec.ts` (through the consume path: "the original is acked only AFTER the retry copy's publish is confirmed", "acks the original after a confirmed retry publish even when the write buffer is full", and a retry publish failing with `PublishError` requeues the original — `nack(requeue=true)` — never dead-letters it).
 2. **NonRetryableError → exactly one `nack(requeue=false)`** (DLQ, never republished/acked) — `packages/worker/src/invariants.spec.ts`.
 3. **Retryable without retry config → DLQ, not infinite requeue** — `packages/worker/src/invariants.spec.ts`.
 4. **Immediate-requeue honors the retry budget** (requeue below, DLQ at) — `packages/worker/src/invariants.spec.ts`.
 5. **Validation failures bypass the retry pipeline** (deterministic poison → DLQ on first delivery, zero retry publishes) — `packages/worker/src/__tests__/worker-retry.spec.ts` ("an invalid payload on a retry-configured queue goes straight to the DLQ with zero retries").
-6. **A message is acked/nacked exactly once** — `packages/worker/src/__tests__/worker-double-ack.spec.ts`.
+6. **A message is acked/nacked exactly once** (every dispatch path ends in one modeled `Outcome`, settled once by `settle`; defects are reserved for genuine bugs) — `packages/worker/src/__tests__/worker-double-ack.spec.ts` + `packages/worker/src/outcome.spec.ts` + `packages/worker/src/dispatch.spec.ts`.
 7. **Middleware short-circuit skips the handler; its result routes like a handler result** — `packages/worker/src/middleware.spec.ts` + `tests/src/__tests__/middleware.spec.ts`.
 8. **Middleware-substituted payloads are re-validated before the handler** — `packages/worker/src/middleware.spec.ts` ("threads substituted payloads…") + `tests/src/__tests__/middleware.spec.ts` ("blocks handler execution when the substitution fails the schema").
    8a. **A middleware's injected context merges over the `createContext` seed — bare and array middleware forms are observably identical** — `packages/worker/src/__tests__/worker-middleware-context.spec.ts`.

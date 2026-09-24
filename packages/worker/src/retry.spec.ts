@@ -189,84 +189,52 @@ function createMockClient(publishImpl: () => ReturnType<AmqpClient["publish"]>):
 }
 
 describe("publishForRetry", () => {
-  it("acks the original message only AFTER a successful retry publish", async () => {
-    const { client, ack, publish } = createMockClient(() => OkAsync(undefined));
-    const callOrder: string[] = [];
-    (client.ack as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push("ack"));
-    (client.publish as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      callOrder.push("publish");
-      return OkAsync(undefined);
-    });
+  const target = { exchange: "", routingKey: "test-queue", queueName: "test-queue" };
 
-    const msg = createMockConsumeMessage();
+  it("answers `retried` only once the retry publish is confirmed — and never settles the delivery itself", async () => {
+    const { client, ack, nack, publish } = createMockClient(() => OkAsync(undefined));
+    const error = new Error("boom");
 
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, delayMs: 500, error },
     );
 
-    expect(result).toBeOk();
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(ack).toHaveBeenCalledTimes(1);
-    // Critical ordering: publish must complete before ack runs.
-    expect(callOrder).toEqual(["publish", "ack"]);
+    // Settling from the outcome is the dispatcher's job (outcome.ts `settle`);
+    // the publish-before-ack ordering is guarded through the consume path in
+    // retry-publish-dispatch.spec.ts.
+    expect(result).toBeOkWith({ kind: "retried", error, delayMs: 500 });
+    expect([publish.mock.calls.length, ack.mock.calls.length, nack.mock.calls.length]).toEqual([
+      1, 0, 0,
+    ]);
   });
 
-  it("requeues the original (nack requeue=true) when the retry publish fails with a PublishError", async () => {
-    const { client, ack, nack } = createMockClient(() =>
+  it("answers `requeued` when the retry publish fails with a PublishError", async () => {
+    const { client } = createMockClient(() =>
       ErrAsync(new PublishError({ reason: "timeout", target: 'queue "test-queue"' })),
     );
-    const msg = createMockConsumeMessage();
 
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "",
-        routingKey: "test-queue",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
     );
 
-    expect(result).toBeOk();
-    expect(ack).not.toHaveBeenCalled();
-    expect(nack).toHaveBeenCalledExactlyOnceWith(msg, { requeue: true, deliveryEpoch: undefined });
+    expect(result).toBeOkWith(expect.objectContaining({ kind: "requeued" }));
   });
 
-  it("does NOT ack the original when publish itself rejects", async () => {
-    // `amqpClient.publish` routes every rejection to the defect channel (with a
-    // `TechnicalError` cause), so the retry publish surfaces a Defect here.
-    const { client, ack, nack, publish } = createMockClient(() =>
+  it("keeps an unclassifiable publish failure on the defect channel", async () => {
+    const { client } = createMockClient(() =>
       fromSafeThrowable((): void => {
         throw new TechnicalError("publish exploded");
       })().toAsync(),
     );
 
-    const msg = createMockConsumeMessage();
-
     const result = await publishForRetry(
       { amqpClient: client as unknown as AmqpClient },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        delayMs: 500,
-        error: new Error("boom"),
-      },
+      { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
     );
 
     expect(result).toBeDefect();
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(ack).not.toHaveBeenCalled();
-    expect(nack).not.toHaveBeenCalled();
   });
 
   it("propagates retry headers and increments x-retry-count on publish", async () => {
@@ -420,70 +388,5 @@ describe("terminal-nack logging", () => {
       expect.stringContaining("onPoison"),
       expect.anything(),
     );
-  });
-});
-
-describe("delivery-epoch stamping (reconnect-safe settles)", () => {
-  // Delivery tags are per-channel: an ack/nack that lands after a reconnect
-  // must carry the epoch captured at delivery time so AmqpClient can refuse
-  // to settle a foreign tag on the new channel (guarded core-side by
-  // packages/core/src/channel-epoch.spec.ts). These tests pin the worker's
-  // half of the contract: every settle in the retry pipeline is stamped.
-  it("INVARIANT: the post-retry-publish ack carries the delivery epoch", async () => {
-    const { client, ack } = createMockClient(() => OkAsync(undefined));
-    const msg = createMockConsumeMessage();
-
-    await publishForRetry(
-      { amqpClient: client as unknown as AmqpClient, deliveryEpoch: 7 },
-      {
-        msg,
-        exchange: "retry-x",
-        routingKey: "test.key",
-        queueName: "test-queue",
-        error: new Error("boom"),
-      },
-    );
-
-    expect(ack).toHaveBeenCalledWith(msg, { deliveryEpoch: 7 });
-  });
-
-  it("INVARIANT: DLQ and requeue nacks carry the delivery epoch", async () => {
-    const consumer = {
-      queue: defineQueue("orders"),
-      message: defineMessage(z.object({ id: z.string() })),
-    };
-
-    // No retry config → DLQ nack.
-    const dlq = createMockClient(() => OkAsync(undefined));
-    await handleError(
-      { amqpClient: dlq.client as unknown as AmqpClient, deliveryEpoch: 3 },
-      new NonRetryableError("permanent"),
-      createMockConsumeMessage(),
-      "processOrder",
-      consumer,
-    );
-    expect(dlq.nack).toHaveBeenCalledWith(expect.anything(), { requeue: false, deliveryEpoch: 3 });
-
-    // Immediate-requeue below budget → requeue nack.
-    const requeue = createMockClient(() => OkAsync(undefined));
-    await handleError(
-      { amqpClient: requeue.client as unknown as AmqpClient, deliveryEpoch: 4 },
-      new RetryableError("transient"),
-      createMockConsumeMessage({
-        properties: {
-          headers: { "x-delivery-count": 0 },
-          contentType: "application/json",
-        } as never,
-      }),
-      "processOrder",
-      {
-        ...consumer,
-        queue: defineQueue("orders", { retry: { mode: "immediate-requeue", maxRetries: 2 } }),
-      },
-    );
-    expect(requeue.nack).toHaveBeenCalledWith(expect.anything(), {
-      requeue: true,
-      deliveryEpoch: 4,
-    });
   });
 });
