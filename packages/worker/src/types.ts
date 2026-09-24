@@ -306,90 +306,131 @@ export type WorkerInferRpcConsumedMessage<
 // with no placeholder to spell.
 
 /**
- * Handler signature for a regular consumer (event/command). Returns
- * `AsyncResult<void, HandlerError>` — there is no response message.
+ * A consumer handler for messages whose validated payload is `TPayload` (and
+ * headers `THeaders`): the helpers record first, the message second, an
+ * `AsyncResult<void, HandlerError>` back. This short alias — over the
+ * RESOLVED payload — is what a mistake in a handler reports
+ * (`ConsumerHandler<{ to: string; }, …>`), never the whole contract type.
+ */
+export type ConsumerHandler<
+  TPayload,
+  THeaders = undefined,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> = (
+  helpers: WorkerHandlerHelpers<TContext, EmptyContext, WorkerConsumedMessage<TPayload, THeaders>>,
+  message: WorkerConsumedMessage<TPayload, THeaders>,
+) => AsyncResult<void, HandlerError>;
+
+/** A {@link ConsumerHandler}, or a `[handler, consumerOptions]` tuple. */
+export type ConsumerHandlerEntry<
+  TPayload,
+  THeaders = undefined,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> =
+  | ConsumerHandler<TPayload, THeaders, TContext>
+  | readonly [ConsumerHandler<TPayload, THeaders, TContext>, ConsumerOptions];
+
+/**
+ * An RPC handler for requests whose validated payload is `TRequest`,
+ * answering `TResponse` — or one of the declared errors `TErrors` (an
+ * `RpcError` union), whose constructors it receives as `helpers.errors`.
+ * Like {@link ConsumerHandler}, a short alias over resolved types.
+ */
+export type RpcHandler<
+  TRequest,
+  TResponse,
+  TErrors extends RpcError = never,
+  THeaders = undefined,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> = (
+  helpers: WorkerHandlerHelpers<
+    TContext,
+    RpcErrorConstructors<TErrors>,
+    WorkerConsumedMessage<TRequest, THeaders>
+  >,
+  message: WorkerConsumedMessage<TRequest, THeaders>,
+) => AsyncResult<TResponse, HandlerError | TErrors>;
+
+/** A {@link RpcHandler}, or a `[handler, consumerOptions]` tuple. */
+export type RpcHandlerEntry<
+  TRequest,
+  TResponse,
+  TErrors extends RpcError = never,
+  THeaders = undefined,
+  TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
+> =
+  | RpcHandler<TRequest, TResponse, TErrors, THeaders, TContext>
+  | readonly [RpcHandler<TRequest, TResponse, TErrors, THeaders, TContext>, ConsumerOptions];
+
+/** `helpers.errors` for an RPC declaring the errors `TErrors`: one constructor per code. */
+type RpcErrorConstructors<TErrors extends RpcError> = [TErrors] extends [never]
+  ? EmptyContext
+  : {
+      [E in TErrors as E["code"]]: (data: E["data"], message?: string) => E;
+    };
+
+// The contract-driven names below resolve the payload types FIRST (the
+// `extends [infer …]` step), then instantiate the short alias with them — so
+// the compiler reports `ConsumerHandler<{ … }>`, not `…<ContractOutput<…>>`.
+
+/**
+ * Handler type for the consumer `TName` of `TContract`: a
+ * {@link ConsumerHandler} over that consumer's resolved payload and headers.
  */
 export type WorkerInferConsumerHandler<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
-> = (
-  helpers: WorkerHandlerHelpers<
-    TContext,
-    EmptyContext,
-    WorkerInferConsumedMessage<TContract, TName>
-  >,
-  message: WorkerInferConsumedMessage<TContract, TName>,
-) => AsyncResult<void, HandlerError>;
+> = [
+  WorkerInferConsumerPayload<TContract, TName>,
+  WorkerInferConsumerHeaders<TContract, TName>,
+] extends [infer TPayload, infer THeaders]
+  ? ConsumerHandler<TPayload, THeaders, TContext>
+  : never;
 
 /**
- * Handler signature for an RPC. Returns
- * `AsyncResult<TResponse, HandlerError | RpcError>` where `TResponse` is the
- * inferred response payload and the `RpcError` members come from the RPC's
- * declared `errors` map (absent when none are declared). The worker validates
- * the response against the RPC's response schema and publishes it back to
- * `msg.properties.replyTo` with the same `correlationId`; a declared
- * `RpcError` is validated, published as an error reply, and the request is
- * acked (business errors are not retried).
+ * Handler type for the RPC `TName` of `TContract`: a {@link RpcHandler} over
+ * its resolved request, response, declared errors and headers.
  */
 export type WorkerInferRpcHandler<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
-> = (
-  helpers: WorkerHandlerHelpers<
-    TContext,
-    WorkerInferRpcErrorConstructors<TContract, TName>,
-    WorkerInferRpcConsumedMessage<TContract, TName>
-  >,
-  message: WorkerInferRpcConsumedMessage<TContract, TName>,
-) => AsyncResult<
+> = [
+  WorkerInferRpcRequest<TContract, TName>,
   WorkerInferRpcResponse<TContract, TName>,
-  HandlerError | WorkerInferRpcErrors<TContract, TName>
->;
+  WorkerInferRpcErrors<TContract, TName>,
+  WorkerInferRpcHeaders<TContract, TName>,
+] extends [infer TRequest, infer TResponse, infer TErrors extends RpcError, infer THeaders]
+  ? RpcHandler<TRequest, TResponse, TErrors, THeaders, TContext>
+  : never;
 
-/**
- * Handler entry for a regular consumer — function or `[handler, options]`.
- */
+/** A {@link WorkerInferConsumerHandler}, or a `[handler, consumerOptions]` tuple. */
 export type WorkerInferConsumerHandlerEntry<
   TContract extends ContractDefinition,
   TName extends InferConsumerNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
-> =
-  | WorkerInferConsumerHandler<TContract, TName, TContext>
-  | readonly [WorkerInferConsumerHandler<TContract, TName, TContext>, ConsumerOptions];
+> = [
+  WorkerInferConsumerPayload<TContract, TName>,
+  WorkerInferConsumerHeaders<TContract, TName>,
+] extends [infer TPayload, infer THeaders]
+  ? ConsumerHandlerEntry<TPayload, THeaders, TContext>
+  : never;
 
-/**
- * Handler entry for an RPC — function or `[handler, options]`.
- */
+/** A {@link WorkerInferRpcHandler}, or a `[handler, consumerOptions]` tuple. */
 export type WorkerInferRpcHandlerEntry<
   TContract extends ContractDefinition,
   TName extends InferRpcNames<TContract>,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
-> =
-  | WorkerInferRpcHandler<TContract, TName, TContext>
-  | readonly [WorkerInferRpcHandler<TContract, TName, TContext>, ConsumerOptions];
+> = [
+  WorkerInferRpcRequest<TContract, TName>,
+  WorkerInferRpcResponse<TContract, TName>,
+  WorkerInferRpcErrors<TContract, TName>,
+  WorkerInferRpcHeaders<TContract, TName>,
+] extends [infer TRequest, infer TResponse, infer TErrors extends RpcError, infer THeaders]
+  ? RpcHandlerEntry<TRequest, TResponse, TErrors, THeaders, TContext>
+  : never;
 
-/**
- * All handlers for a contract: one entry per `consumers` key plus one entry
- * per `rpcs` key. The two name spaces are disjoint so the resulting object
- * type is unambiguous.
- *
- * `TContext` is the context produced by the worker's middleware chain; the
- * third handler argument is typed with it.
- *
- * @example
- * ```typescript
- * const handlers: WorkerInferHandlers<typeof contract> = {
- *   processOrder: ({ input: { payload } }) =>
- *     fromPromise(
- *       processPayment(payload),
- *       (error) => new RetryableError('Payment failed', error),
- *     ).map(() => undefined),
- *   calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
- * };
- * ```
- */
 export type WorkerInferHandlers<
   TContract extends ContractDefinition,
   TContext extends Record<string, unknown> | EmptyContext = EmptyContext,
