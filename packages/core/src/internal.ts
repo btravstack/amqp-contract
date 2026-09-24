@@ -24,7 +24,7 @@ export { technicalDefect } from "./defect.js";
 export { recaptureStack } from "./errors.js";
 export { startOrClose } from "./lifecycle.js";
 export { safeJsonParse } from "./parsing.js";
-export { publisherTopology, setupAmqpTopology } from "./setup.js";
+export { publisherTopology, setupAmqpTopology, workerTopology } from "./setup.js";
 export {
   _internal_resetTelemetryCache,
   endSpanError,

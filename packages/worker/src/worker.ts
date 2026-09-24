@@ -11,22 +11,25 @@ import {
   AmqpClient,
   type AmqpConsumeOptions,
   type ConnectionError,
+  type ConnectionSource,
   type Logger,
   RpcError,
   TechnicalError,
   type TelemetryProvider,
+  type TopologyMode,
   defaultTelemetryProvider,
   isRpcError,
 } from "@amqp-contract/core";
 import {
   decodeMessage,
+  runWithTraceContext,
   startConsumeSpan,
   startOrClose,
   technicalDefect,
+  workerTopology,
 } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
-import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import {
   allAsync,
@@ -210,7 +213,7 @@ export type CreateWorkerOptions<
   TContract extends ContractDefinition,
   TCreated extends Record<string, unknown> | EmptyContext = EmptyContext,
   TContext extends TCreated = TCreated,
-> = {
+> = ConnectionSource & {
   /** The AMQP contract definition specifying consumers and their message schemas */
   contract: TContract;
   /**
@@ -264,10 +267,18 @@ export type CreateWorkerOptions<
    * substitutes the message payload, re-validated before the handler runs.
    */
   middleware?: WorkerMiddleware<TCreated, TContext> | readonly AnyWorkerMiddleware[] | undefined;
-  /** AMQP broker URL(s). Multiple URLs provide failover support */
-  urls: ConnectionUrl[];
-  /** Optional connection configuration (heartbeat, reconnect settings, etc.) */
-  connectionOptions?: AmqpConnectionManagerOptions | undefined;
+  /**
+   * What the worker does with its topology on every (re)connect. The worker
+   * only touches what its consumers need: the queues it consumes (with their
+   * retry wait queues and the bindings into them, and the exchanges those
+   * bind to) plus their dead-letter exchanges and DLQs — never
+   * publisher-only exchanges or unrelated queues.
+   *
+   * - `"assert"` (default) — declare them.
+   * - `"passive"` — only check they exist; `create()` fails if one is missing.
+   * - `"none"` — touch nothing (topology is provisioned elsewhere).
+   */
+  topology?: TopologyMode | undefined;
   /** Optional logger for logging message consumption and errors */
   logger?: Logger | undefined;
   /**
@@ -299,12 +310,14 @@ export type CreateWorkerOptions<
    */
   publishTimeoutMs?: number | null | undefined;
   /**
-   * Cap on the decompressed size (bytes) of a single inbound message. Guards
-   * against a decompression bomb — a few-KB payload that expands to gigabytes
-   * before schema validation runs. Over-cap messages follow the poison-message
-   * DLQ path. Also caps uncompressed bodies. Defaults to core's
+   * Cap on the size (bytes) of a single inbound message — the plain body, or
+   * the decompressed one (guards against a decompression bomb: a few-KB
+   * payload that expands to gigabytes before schema validation runs).
+   * Over-cap messages follow the poison-message DLQ path. Defaults to core's
    * `DEFAULT_MAX_MESSAGE_BYTES` (16 MiB).
    */
+  maxMessageBytes?: number | undefined;
+  /** @deprecated Renamed {@link maxMessageBytes} (it caps plain bodies too). */
   maxDecompressedBytes?: number | undefined;
   /** RPC server options. */
   rpc?:
@@ -396,7 +409,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     private readonly createContext?: (
       info: WorkerCreateContextInfo,
     ) => Record<string, unknown> | Promise<Record<string, unknown>>,
-    private readonly maxDecompressedBytes?: number,
+    private readonly maxMessageBytes?: number,
     allowReplyTo: (replyTo: string) => boolean = isDirectReplyTo,
   ) {
     this.replyContext = { amqpClient, logger, allowReplyTo };
@@ -504,11 +517,14 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     middleware,
     urls,
     connectionOptions,
+    connection,
+    topology,
     defaultConsumerOptions,
     logger,
     telemetry,
     connectTimeoutMs,
     publishTimeoutMs,
+    maxMessageBytes,
     maxDecompressedBytes,
     rpc,
   }: CreateWorkerOptions<TContract, TCreated, TContext>): AsyncResult<
@@ -561,9 +577,13 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       () =>
         new TypedAmqpWorker(
           contract,
-          new AmqpClient(contract, {
+          // Scoped to what its consumers need: publisher-only topology is the
+          // publishers'.
+          new AmqpClient(workerTopology(contract), {
             urls,
             connectionOptions,
+            connection,
+            topology,
             // A pool of its own: never share a TCP connection with a client.
             connectionPool: "worker",
             connectTimeoutMs,
@@ -592,13 +612,21 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                 info: WorkerCreateContextInfo,
               ) => Record<string, unknown> | Promise<Record<string, unknown>>)
             | undefined,
-          maxDecompressedBytes,
+          maxMessageBytes ?? maxDecompressedBytes,
           rpc?.allowReplyTo,
         ),
       // Wait queues are declared by core's setupAmqpTopology (ttl-backoff).
       (worker) => worker.amqpClient.waitForConnect().flatMap(() => worker.consumeAll()),
       { name: "worker", logger },
     );
+  }
+
+  /**
+   * Whether the broker connection is currently up — for a readiness/health
+   * probe. `false` while reconnecting (consumers resume on reconnect).
+   */
+  isConnected(): boolean {
+    return this.amqpClient.isConnected();
   }
 
   /**
@@ -715,7 +743,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     consumerName: string,
   ): AsyncResult<ValidatedMessage, MessageValidationError> {
     const parsePayload = decodeMessage(msg.content, msg.properties.contentEncoding, {
-      maxBytes: this.maxDecompressedBytes,
+      maxBytes: this.maxMessageBytes,
     }).flatMap((parsed) =>
       this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, consumerName),
     );
@@ -924,13 +952,19 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     view: ConsumerView,
     name: HandlerName<TContract>,
     handler: StoredHandler,
+    span: ReturnType<typeof startConsumeSpan>,
   ): AsyncResult<Outcome, never> {
     const { consumer } = view;
     const fields = { consumerName: String(name), queueName: consumer.queue.name };
 
     return this.parseOrPoison(msg, consumer, String(name))
       .flatMap((validatedMessage): AsyncResult<Outcome, never> =>
-        this.runHandler(handler, validatedMessage, msg, name, view)
+        // The consume span is the active span while createContext, the
+        // middleware and the handler run, so their own spans (and any message
+        // they publish) are its children.
+        runWithTraceContext(undefined, span, () =>
+          this.runHandler(handler, validatedMessage, msg, name, view),
+        )
           .flatMap((handlerResponse) =>
             this.publishReplyIfRpc(msg, view, name, handlerResponse).map((): Outcome => {
               this.logger?.info("Message consumed successfully", fields);
@@ -939,9 +973,9 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           )
           .flatMapErrCases((matcher) =>
             matcher.with(
-              P.tag("@amqp-contract/RetryableError"),
-              P.tag("@amqp-contract/NonRetryableError"),
-              P.tag("@amqp-contract/RpcError"),
+              P.tag(RetryableError.tag),
+              P.tag(NonRetryableError.tag),
+              P.tag(RpcError.tag),
               (handlerError) => {
                 // A contract-declared RpcError is the RPC's business-failure
                 // channel, not a processing failure: publish it back to the
@@ -966,8 +1000,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
                     })
                     .flatMapErrCases((replyMatcher) =>
                       replyMatcher.with(
-                        P.tag("@amqp-contract/RetryableError"),
-                        P.tag("@amqp-contract/NonRetryableError"),
+                        P.tag(RetryableError.tag),
+                        P.tag(NonRetryableError.tag),
                         (replyError: HandlerError) =>
                           this.routeHandlerError(replyError, msg, name, view),
                       ),
@@ -1048,7 +1082,7 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
 
     let outcome: Outcome;
     try {
-      outcome = await this.processMessage(msg, view, name, handler).get();
+      outcome = await this.processMessage(msg, view, name, handler, span).get();
     } catch (error: unknown) {
       // Only reachable if the defect recovery itself threw (e.g. a throwing
       // logger) — still settle the delivery rather than leave it stuck.

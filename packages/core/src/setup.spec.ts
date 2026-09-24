@@ -12,7 +12,7 @@ import type { Channel } from "amqplib";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { publisherTopology, setupAmqpTopology } from "./setup.js";
+import { publisherTopology, setupAmqpTopology, workerTopology } from "./setup.js";
 
 const orders = defineExchange("orders");
 const audit = defineExchange("audit");
@@ -152,6 +152,34 @@ describe("publisherTopology", () => {
 
     expect([channel.assertQueue.mock.calls.length, channel.bindQueue.mock.calls.length]).toEqual([
       0, 0,
+    ]);
+  });
+});
+
+describe("workerTopology", () => {
+  it("declares the consumed queue with its retry and dead-letter infrastructure — not publisher-only topology", async () => {
+    const channel = fakeChannel();
+
+    await setupAmqpTopology(channel as unknown as Channel, workerTopology(contract));
+
+    expect([
+      calledNames(channel.assertExchange),
+      calledNames(channel.assertQueue),
+      channel.bindQueue.mock.calls.map((call) => [call[0], call[1]]).sort(),
+      channel.bindExchange.mock.calls.length,
+    ]).toEqual([
+      ["orders", "orders-dlx"],
+      [
+        "order-processing",
+        "order-processing-wait-1000ms",
+        "order-processing-wait-2000ms",
+        "orders-dlq",
+      ],
+      [
+        ["order-processing", "orders"],
+        ["orders-dlq", "orders-dlx"],
+      ],
+      0,
     ]);
   });
 });
