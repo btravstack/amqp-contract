@@ -28,7 +28,7 @@ import {
   startPublishSpan,
   technicalDefect,
 } from "@amqp-contract/core";
-import { decodeMessage, encodeMessage } from "@amqp-contract/core/internal";
+import { decodeMessage, encodeMessage, runWithTraceContext } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -461,20 +461,21 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
       // A broker-side failure is AmqpClient's modeled PublishError already.
       return encodeMessage(validatedMessage, compression).flatMap(({ body, contentEncoding }) =>
-        this.amqpClient
-          .publish(
+        // The producer span is active while core stamps the trace headers.
+        runWithTraceContext(undefined, span, () =>
+          this.amqpClient.publish(
             { exchange: publisher.exchange.name, routingKey: publisher.routingKey ?? "" },
             body,
             contentEncoding ? { ...restOptions, contentEncoding } : restOptions,
-          )
-          .tap(() => {
-            this.logger?.info("Message published successfully", {
-              publisherName: String(publisherName),
-              exchange: publisher.exchange.name,
-              routingKey: publisher.routingKey,
-              compressed: !!compression,
-            });
-          }),
+          ),
+        ).tap(() => {
+          this.logger?.info("Message published successfully", {
+            publisherName: String(publisherName),
+            exchange: publisher.exchange.name,
+            routingKey: publisher.routingKey,
+            compressed: !!compression,
+          });
+        }),
       );
     };
 
@@ -582,7 +583,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       unknown,
       InterceptorCallError
     >(this.callInterceptors, { rpcName: String(rpcName), request, options }, (args) =>
-      this.executeCall(String(rpcName), rpc, args.request, args.options),
+      this.executeCall(String(rpcName), rpc, args, span),
     );
 
     // The round trip is recorded on its own histogram: folded into the publish
@@ -605,8 +606,8 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   private executeCall(
     rpcName: string,
     rpc: RpcDefinition,
-    request: unknown,
-    options: CallOptions,
+    { request, options }: { request: unknown; options: CallOptions },
+    span: ReturnType<typeof startPublishSpan>,
   ): AsyncResult<unknown, InterceptorCallError> {
     // setTimeout truncates fractional ms and clamps anything outside the
     // 32-bit signed integer range (~24.8 days) to 1ms, so reject those up
@@ -686,10 +687,14 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         contentType: "application/json",
       };
       // A broker-side failure is AmqpClient's modeled PublishError already.
-      return this.amqpClient.publish(
-        { exchange: "", routingKey: queueName },
-        validatedRequest,
-        publishOptions,
+      // The producer span is active while core stamps the trace headers, so
+      // the RPC handler's span joins the caller's trace.
+      return runWithTraceContext(undefined, span, () =>
+        this.amqpClient.publish(
+          { exchange: "", routingKey: queueName },
+          validatedRequest,
+          publishOptions,
+        ),
       );
     };
 
