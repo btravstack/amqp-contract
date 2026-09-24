@@ -27,9 +27,9 @@ expected to handle, not a bug. Genuine bugs (an unencodable payload, a
 rejection core cannot classify) stay on the defect channel.
 
 Migration: every exhaustive matcher over `publish()` / `call()` errors gains a
-case — `P.tag(PublishError.tag)` — and `.get()` on a publish result no longer
-compiles (its `E` is no longer `never`; use `.getOrThrow()` or handle the
-error). The client's interceptor error union formerly exported as
+case — `P.tag(PublishError.tag)` — and `.get()` on core's `AmqpClient.publish`
+/ `sendToQueue` result no longer compiles (its `E` is no longer `never`; use
+`.getOrThrow()` or handle the error). The client's interceptor error union formerly exported as
 `PublishError` (then just `MessageValidationError`) is renamed
 `ClientPublishError` (`MessageValidationError | PublishError`); `CallError`
 gains `PublishError`. `PublishError` and `PublishFailureReason` are exported
