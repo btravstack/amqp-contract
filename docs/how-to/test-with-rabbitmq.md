@@ -59,7 +59,7 @@ describe("order worker", () => {
       handlers: declareHandlers(contract, {
         processOrder: ({ input: { payload } }) => {
           processed.push(payload);
-          return OkAsync();
+          return OkAsync(undefined);
         },
       }),
       urls: [amqpConnectionUrl],
