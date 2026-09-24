@@ -125,7 +125,7 @@ The worker is where the useful output is:
 | `warn`  | Retrying a message; retry disabled in `none` mode; consumer cancelled by the server; **queue has neither a dead-letter exchange nor an `onPoison` declaration — message will be lost on nack**                              |
 | `error` | Payload or header validation failed; decompression failed; error processing message; non-retryable error going straight to DLQ; max retries exceeded; retry publish failed (publish timeout, broker nack or channel closed) |
 
-`Publish for retry failed; leaving original un-ack'd for redelivery` deserves an alert rather than a dashboard: retries are being dropped under load, and the logged cause names the fault (e.g. `timed out waiting for the broker`).
+`Publish for retry failed; requeueing the original for redelivery` deserves an alert rather than a dashboard: the broker is refusing retry copies (the original is requeued, so nothing is lost, but it is redelivered until the publish succeeds), and the logged cause names the fault (e.g. `timed out waiting for the broker`).
 
 `Queue has no dead-letter exchange and no onPoison declaration - message will be lost on nack` is the line to alert on for genuine, undeclared loss. It has two wordings from two code paths — `message` from the retry pipeline, `poison message` when the payload never reached the handler — so match on the shared prefix `Queue has no dead-letter exchange and no onPoison declaration`. Since 3.0 `defineContract` rejects that queue shape, so this can only reach a running worker through a hand-built `ContractDefinition` that bypassed the builder: treat it as a bug report, not a tuning signal.
 
