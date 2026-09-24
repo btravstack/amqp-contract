@@ -682,9 +682,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     const publishRequest = (validatedRequest: unknown): AsyncResult<void, PublishError> => {
       // Merge `defaultPublishOptions` (persistent, priority, headers, …) with
       // the per-call options, then layer the RPC-managed fields on top so they
-      // cannot be overridden. `compression` is intentionally dropped: RPC v1
-      // does not implement reply-side decompression, so request-side
-      // compression would break the round-trip.
+      // cannot be overridden. `compression` is intentionally dropped: RPCs
+      // stay uncompressed in both directions by convention (worker replies
+      // are never compressed), even though both sides could decode it.
       const { compression: _ignoredCompression, ...defaultsWithoutCompression } =
         this.defaultPublishOptions;
       const publishOptions: AmqpPublishOptions = {
