@@ -136,10 +136,45 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
 }
 
 /**
+ * Where a client's connection comes from — exactly one of (checked at
+ * construction; passing both or neither is a defect):
+ *
+ * - `urls` (+ optional `connectionOptions`): a connection dialled and pooled
+ *   by amqp-contract, released when the last client using it closes.
+ *   Multiple URLs provide failover.
+ * - `connection`: an `AmqpConnectionManager` the caller created and owns. The
+ *   client only opens a channel on it; `close()` never closes it. Pass the
+ *   same one to a client and a worker to share a TCP connection explicitly.
+ *
+ * A flat type rather than a union so `Omit<…>`-style wrappers keep working.
+ */
+export type ConnectionSource = {
+  urls?: ConnectionUrl[] | undefined;
+  connectionOptions?: AmqpConnectionManagerOptions | undefined;
+  connection?: AmqpConnectionManager | undefined;
+};
+
+function leaseConnection(options: AmqpClientOptions): ConnectionLease {
+  const { urls, connection } = options;
+  if (connection !== undefined && urls === undefined) {
+    // Borrowed, never released: the caller owns it.
+    return { connection, release: () => Promise.resolve() };
+  }
+  if (connection === undefined && urls !== undefined) {
+    return ConnectionManagerSingleton.getInstance().acquire(urls, {
+      connectionOptions: options.connectionOptions,
+      pool: options.connectionPool,
+    });
+  }
+  // oxlint-disable-next-line unthrown/no-throw -- fail-fast config error; surfaces as a Defect from the typed create() factories
+  throw new TechnicalError(
+    "Pass exactly one of `urls` (a pooled connection) or `connection` (one you own).",
+  );
+}
+
+/**
  * Options for creating an AMQP client.
  *
- * @property urls - AMQP broker URL(s). Multiple URLs provide failover support.
- * @property connectionOptions - Optional connection configuration (heartbeat, reconnect settings, etc.).
  * @property channelOptions - Optional channel configuration options.
  * @property connectTimeoutMs - Maximum time in ms to wait for the channel to
  *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
@@ -154,9 +189,17 @@ function resolveConnectTimeoutMs(input: number | null | undefined): number | nul
  *   setup failures on connect/reconnect, publish-worker faults) are routed
  *   here — they are recoverable-by-reconnect conditions, never thrown.
  */
-export type AmqpClientOptions = {
-  urls: ConnectionUrl[];
-  connectionOptions?: AmqpConnectionManagerOptions | undefined;
+export type AmqpClientOptions = ConnectionSource & {
+  /**
+   * Partition of the connection pool this client draws from (ignored with an
+   * explicit `connection`). Clients with the same URLs, options AND pool share
+   * one TCP connection. `TypedAmqpClient` uses `"client"` and
+   * `TypedAmqpWorker` uses `"worker"`, so a publisher and a consumer in the
+   * same process never share a connection by default — RabbitMQ blocks a
+   * publishing connection under memory/disk alarms, and a consumer sharing it
+   * would stop acking with it. Defaults to `"default"`.
+   */
+  connectionPool?: string | undefined;
   channelOptions?: Partial<CreateChannelOpts> | undefined;
   connectTimeoutMs?: number | null | undefined;
   /**
@@ -348,9 +391,7 @@ export class AmqpClient {
     // throws (routed to the defect channel by the typed create() factories).
     this.connectTimeoutMs = resolveConnectTimeoutMs(options.connectTimeoutMs);
 
-    // Always use singleton to get/create connection
-    const singleton = ConnectionManagerSingleton.getInstance();
-    this.connectionLease = singleton.acquire(options.urls, options.connectionOptions);
+    this.connectionLease = leaseConnection(options);
     this.connection = this.connectionLease.connection;
 
     // Create default setup function that calls setupAmqpTopology

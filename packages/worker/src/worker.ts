@@ -542,6 +542,8 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
         new AmqpClient(contract, {
           urls,
           connectionOptions,
+          // A pool of its own: never share a TCP connection with a client.
+          connectionPool: "worker",
           connectTimeoutMs,
           publishTimeoutMs,
           logger,

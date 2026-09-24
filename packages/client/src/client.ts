@@ -12,6 +12,7 @@ import {
   AmqpClient,
   type ConnectionError,
   type AmqpPublishOptions,
+  type ConnectionSource,
   type Logger,
   MessagingSemanticConventions,
   type PublishError,
@@ -37,7 +38,6 @@ import {
 } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
-import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
 import {
   Err,
   fromExecutor,
@@ -115,10 +115,13 @@ export type PublishOptions = AmqpPublishOptions & {
 /**
  * Options for creating a client
  */
-export type CreateClientOptions<TContract extends ContractDefinition> = {
+/**
+ * Options for creating a client. The connection comes from `urls` (dialled
+ * and pooled — in a pool of its own, never shared with a worker) or from an
+ * explicit, caller-owned `connection` (see {@link ConnectionSource}).
+ */
+export type CreateClientOptions<TContract extends ContractDefinition> = ConnectionSource & {
   contract: TContract;
-  urls: ConnectionUrl[];
-  connectionOptions?: AmqpConnectionManagerOptions | undefined;
   logger?: Logger | undefined;
   /**
    * Optional telemetry provider for tracing and metrics.
@@ -228,22 +231,24 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
    * by amqp-connection-manager via the {@link AmqpClient}. The client establishes
    * infrastructure asynchronously in the background once the connection is ready.
    *
-   * Connections are automatically shared across clients with the same URLs and
-   * connection options, following RabbitMQ best practices.
+   * Connections are shared across clients with the same URLs and connection
+   * options — but never with a worker, which draws from a separate pool. Pass
+   * `connection` to use (and share) a connection you own instead.
    */
-  static create<TContract extends ContractDefinition>({
-    contract,
-    urls,
-    connectionOptions,
-    defaultPublishOptions,
-    logger,
-    telemetry,
-    connectTimeoutMs,
-    publishTimeoutMs,
-    publishInterceptors,
-    callInterceptors,
-    topology,
-  }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, ConnectionError> {
+  static create<TContract extends ContractDefinition>(
+    options: CreateClientOptions<TContract>,
+  ): AsyncResult<TypedAmqpClient<TContract>, ConnectionError> {
+    const {
+      contract,
+      defaultPublishOptions,
+      logger,
+      telemetry,
+      connectTimeoutMs,
+      publishTimeoutMs,
+      publishInterceptors,
+      callInterceptors,
+      topology,
+    } = options;
     // Enter through the safety net so a synchronous constructor throw (an
     // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
     // instead of escaping create() as a raw throw.
@@ -252,8 +257,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         contract,
         // Scoped to what a publisher needs: queues are the worker's.
         new AmqpClient(publisherTopology(contract), {
-          urls,
-          connectionOptions,
+          urls: options.urls,
+          connectionOptions: options.connectionOptions,
+          connection: options.connection,
+          // A pool of its own: never share a TCP connection with a worker.
+          connectionPool: "client",
           connectTimeoutMs,
           publishTimeoutMs,
           logger,
