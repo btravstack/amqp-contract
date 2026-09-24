@@ -508,6 +508,15 @@ export class AmqpClient {
   }
 
   /**
+   * Whether the broker connection is up right now and this client has not
+   * been closed — the answer a readiness probe wants. `false` while
+   * amqp-connection-manager is reconnecting.
+   */
+  isConnected(): boolean {
+    return this.closing === undefined && this.connection.isConnected();
+  }
+
+  /**
    * Wait for the channel to be connected and ready.
    *
    * The returned AsyncResult resolves to `Err({@link ConnectionError})` once
