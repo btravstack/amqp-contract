@@ -107,6 +107,7 @@ describe("AsyncAPIGenerator", () => {
                       },
                       "createdAt": {
                         "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                         "type": "string",
                       },
                       "customerId": {
@@ -156,6 +157,7 @@ describe("AsyncAPIGenerator", () => {
                       },
                       "createdAt": {
                         "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                         "type": "string",
                       },
                       "customerId": {
@@ -192,6 +194,7 @@ describe("AsyncAPIGenerator", () => {
                     },
                     "createdAt": {
                       "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                       "type": "string",
                     },
                     "customerId": {
@@ -222,6 +225,7 @@ describe("AsyncAPIGenerator", () => {
                     },
                     "createdAt": {
                       "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                       "type": "string",
                     },
                     "customerId": {
@@ -820,7 +824,6 @@ describe("AsyncAPIGenerator", () => {
                   "contentType": "application/json",
                   "description": "Event for payment processing",
                   "payload": {
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "properties": {
                       "amount": {
                         "type": "number",
@@ -880,7 +883,6 @@ describe("AsyncAPIGenerator", () => {
                   "contentType": "application/json",
                   "description": "Event for payment processing",
                   "payload": {
-                    "$schema": "https://json-schema.org/draft/2020-12/schema",
                     "properties": {
                       "amount": {
                         "type": "number",
@@ -927,7 +929,6 @@ describe("AsyncAPIGenerator", () => {
                 "contentType": "application/json",
                 "description": "Event for payment processing",
                 "payload": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "properties": {
                     "amount": {
                       "type": "number",
@@ -968,7 +969,6 @@ describe("AsyncAPIGenerator", () => {
                 "contentType": "application/json",
                 "description": "Event for payment processing",
                 "payload": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
                   "properties": {
                     "amount": {
                       "type": "number",
@@ -1274,9 +1274,10 @@ describe("AsyncAPIGenerator", () => {
 
   describe("without schema converters", () => {
     it("should throw by default when no converter matches (faithful-spec default)", async () => {
-      // GIVEN
+      // GIVEN — Valibot does not implement Standard JSON Schema, so without a
+      // converter nothing can convert it.
       const exchange = defineExchange("generic", { type: "fanout" });
-      const message = defineMessage(z.object({ id: z.string() }));
+      const message = defineMessage(v.object({ id: v.string() }));
       const contract = defineContract({
         publishers: {
           publish: definePublisher(exchange, message, { externalConsumers: true }),
@@ -1298,8 +1299,8 @@ describe("AsyncAPIGenerator", () => {
       // GIVEN
       const exchange = defineExchange("generic", { type: "fanout" });
 
-      const schema = z.object({
-        id: z.string(),
+      const schema = v.object({
+        id: v.string(),
       });
 
       const message = defineMessage(schema);
@@ -1937,7 +1938,7 @@ describe("AsyncAPIGenerator", () => {
   describe("strict converter mode", () => {
     it("throws when a payload schema cannot be converted and failOnMissingConverter=true", async () => {
       const exchange = defineExchange("orders");
-      const message = defineMessage(z.object({ id: z.string() }));
+      const message = defineMessage(v.object({ id: v.string() }));
       const generator = new AsyncAPIGenerator({
         schemaConverters: [],
         failOnMissingConverter: true,
@@ -1956,6 +1957,129 @@ describe("AsyncAPIGenerator", () => {
           { info: { title: "Strict", version: "1.0.0" } },
         ),
       ).rejects.toThrow(/No schema converter matched/);
+    });
+  });
+
+  describe("native Standard JSON Schema", () => {
+    const exchange = defineExchange("orders");
+    const contractFor = (message: ReturnType<typeof defineMessage>) =>
+      defineContract({
+        publishers: {
+          sent: definePublisher(exchange, message, { routingKey: "x", externalConsumers: true }),
+        },
+      });
+    const payloadOf = (doc: Awaited<ReturnType<AsyncAPIGenerator["generate"]>>) =>
+      (doc.components?.messages?.["sentMessage"] as { payload: unknown } | undefined)?.payload;
+
+    it("converts a Zod 4 schema with no converter configured", async () => {
+      const generator = new AsyncAPIGenerator();
+
+      const doc = await generator.generate(
+        contractFor(defineMessage(z.object({ id: z.string() }))),
+        { info: { title: "Native", version: "1.0.0" } },
+      );
+
+      // draft-07 output with the `$schema` dialect marker dropped.
+      expect(payloadOf(doc)).toEqual({
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+      });
+      await expect(new Parser().parse(JSON.stringify(doc))).resolves.toEqual(
+        expect.objectContaining({ diagnostics: [] }),
+      );
+    });
+
+    it("converts an ArkType schema with no converter configured", async () => {
+      const generator = new AsyncAPIGenerator();
+
+      const doc = await generator.generate(contractFor(defineMessage(type({ id: "string" }))), {
+        info: { title: "Native", version: "1.0.0" },
+      });
+
+      expect(payloadOf(doc)).toEqual({
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
+      });
+    });
+
+    it("prefers the schema's own JSON Schema over a configured converter", async () => {
+      const converter = {
+        condition: () => true,
+        convert: (): [boolean, object] => [true, { description: "from the converter" }],
+      };
+      const generator = new AsyncAPIGenerator({ schemaConverters: [converter] });
+
+      const doc = await generator.generate(
+        contractFor(defineMessage(z.object({ id: z.string() }))),
+        { info: { title: "Native", version: "1.0.0" } },
+      );
+
+      expect(payloadOf(doc)).toEqual(expect.objectContaining({ type: "object" }));
+    });
+
+    it("falls back to the converters when the library cannot produce draft-07", async () => {
+      const schema = {
+        "~standard": {
+          version: 1,
+          vendor: "test",
+          validate: (value: unknown) => ({ value }),
+          jsonSchema: {
+            input: () => {
+              throw new Error("draft-07 unsupported");
+            },
+            output: () => ({}),
+          },
+        },
+      } as const;
+      const converter = {
+        condition: () => true,
+        convert: (): [boolean, object] => [true, { description: "from the converter" }],
+      };
+      const generator = new AsyncAPIGenerator({ schemaConverters: [converter] });
+
+      const doc = await generator.generate(contractFor(defineMessage(schema)), {
+        info: { title: "Native", version: "1.0.0" },
+      });
+
+      expect(payloadOf(doc)).toEqual({ description: "from the converter" });
+    });
+  });
+
+  describe("vhost", () => {
+    const exchange = defineExchange("orders");
+    const queue = defineQueue("audit");
+    const contract = defineContract({
+      exchanges: { orders: exchange },
+      queues: { audit: queue },
+      bindings: { audit: defineQueueBinding(queue, exchange, { routingKey: "#" }) },
+    });
+    const vhostsOf = (doc: Awaited<ReturnType<AsyncAPIGenerator["generate"]>>) => {
+      const channels = doc.channels as Record<
+        string,
+        { bindings: { amqp: { queue?: { vhost: string }; exchange?: { vhost: string } } } }
+      >;
+      return {
+        queue: channels["audit"]?.bindings.amqp.queue?.vhost,
+        exchange: channels["orders"]?.bindings.amqp.exchange?.vhost,
+      };
+    };
+
+    it('defaults to "/"', async () => {
+      const doc = await new AsyncAPIGenerator().generate(contract, {
+        info: { title: "Vhost", version: "1.0.0" },
+      });
+
+      expect(vhostsOf(doc)).toEqual({ queue: "/", exchange: "/" });
+    });
+
+    it("writes the configured vhost into every channel binding", async () => {
+      const doc = await new AsyncAPIGenerator({ vhost: "orders-prod" }).generate(contract, {
+        info: { title: "Vhost", version: "1.0.0" },
+      });
+
+      expect(vhostsOf(doc)).toEqual({ queue: "orders-prod", exchange: "orders-prod" });
     });
   });
 });

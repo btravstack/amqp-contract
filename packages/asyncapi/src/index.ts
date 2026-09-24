@@ -7,7 +7,7 @@ import type {
   QueueBindingDefinition,
   QueueDefinition,
 } from "@amqp-contract/contract";
-import { extractConsumer } from "@amqp-contract/contract";
+import { extractConsumer } from "@amqp-contract/contract/internal";
 import {
   type AsyncAPIObject,
   type ChannelObject,
@@ -16,8 +16,33 @@ import {
   type MessagesObject,
   type OperationsObject,
 } from "@asyncapi/parser/esm/spec-types/v3.js";
-import { type ConditionalSchemaConverter, type JSONSchema } from "@orpc/openapi";
-import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from "@standard-schema/spec";
+
+/** A JSON Schema document (or boolean schema), as produced by a schema converter. */
+type JSONSchema = object | boolean;
+
+/**
+ * Converts a Standard Schema to JSON Schema for libraries that do not expose
+ * `~standard.jsonSchema` themselves (e.g. Valibot).
+ *
+ * Structurally the oRPC `ConditionalSchemaConverter`, so the `@orpc/zod`,
+ * `@orpc/valibot` and `@orpc/arktype` converters plug in directly — without
+ * this package depending on `@orpc/openapi`.
+ */
+export type SchemaConverter = {
+  /** Whether this converter handles `schema`. */
+  condition(
+    schema: StandardSchemaV1 | undefined,
+    options: { strategy: "input" },
+  ): boolean | Promise<boolean>;
+  /** Convert `schema`; the second tuple element is the JSON Schema. */
+  convert(
+    schema: StandardSchemaV1 | undefined,
+    options: { strategy: "input" },
+  ):
+    | [required: boolean, jsonSchema: JSONSchema]
+    | Promise<[required: boolean, jsonSchema: JSONSchema]>;
+};
 
 /**
  * Options for configuring the AsyncAPI generator.
@@ -25,19 +50,31 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
  * @example
  * ```typescript
  * import { AsyncAPIGenerator } from '@amqp-contract/asyncapi';
- * import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
+ * import { experimental_ValibotToJsonSchemaConverter } from '@orpc/valibot';
  *
+ * // Zod 4 and ArkType schemas convert natively; Valibot needs a converter.
  * const generator = new AsyncAPIGenerator({
- *   schemaConverters: [new ZodToJsonSchemaConverter()]
+ *   schemaConverters: [new experimental_ValibotToJsonSchemaConverter()]
  * });
  * ```
  */
 export type AsyncAPIGeneratorOptions = {
   /**
-   * Schema converters for transforming validation schemas to JSON Schema.
-   * Supports Zod, Valibot, ArkType, and other Standard Schema v1 compatible libraries.
+   * Schema converters for schemas that do not convert themselves.
+   *
+   * A schema implementing Standard JSON Schema (`~standard.jsonSchema`, e.g.
+   * Zod 4 and ArkType) is converted natively and needs none. The converters
+   * are the fallback for the rest (e.g. Valibot via `@orpc/valibot`), tried in
+   * order until one's `condition` matches.
    */
-  schemaConverters?: ConditionalSchemaConverter[];
+  schemaConverters?: SchemaConverter[];
+  /**
+   * The RabbitMQ virtual host written into every channel's AMQP binding
+   * (`bindings.amqp.queue.vhost` / `bindings.amqp.exchange.vhost`).
+   *
+   * @default "/"
+   */
+  vhost?: string;
   /**
    * Optional logger for warnings during generation (e.g. unmatched schema
    * converters). Structurally compatible with `@amqp-contract/core`'s
@@ -73,7 +110,6 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
  * ```typescript
  * import { AsyncAPIGenerator } from '@amqp-contract/asyncapi';
  * import { defineExchange, defineMessage, defineContract, definePublisher } from '@amqp-contract/contract';
- * import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
  * import { z } from 'zod';
  *
  * const ordersExchange = defineExchange('orders');
@@ -90,9 +126,8 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
  *   }
  * });
  *
- * const generator = new AsyncAPIGenerator({
- *   schemaConverters: [new ZodToJsonSchemaConverter()]
- * });
+ * // Zod 4 converts itself (Standard JSON Schema): no schemaConverters needed.
+ * const generator = new AsyncAPIGenerator();
  *
  * const asyncapi = await generator.generate(contract, {
  *   id: 'urn:com:example:order-service',
@@ -112,9 +147,10 @@ export type AsyncAPIGeneratorGenerateOptions = Pick<AsyncAPIObject, "info"> &
  * ```
  */
 export class AsyncAPIGenerator {
-  private readonly converters: ConditionalSchemaConverter[];
+  private readonly converters: SchemaConverter[];
   private readonly logger?: { warn: (message: string) => void } | undefined;
   private readonly failOnMissingConverter: boolean;
+  private readonly vhost: string;
 
   /**
    * Create a new AsyncAPI generator instance.
@@ -125,6 +161,7 @@ export class AsyncAPIGenerator {
     this.converters = options.schemaConverters ?? [];
     this.logger = options.logger;
     this.failOnMissingConverter = options.failOnMissingConverter ?? true;
+    this.vhost = options.vhost ?? "/";
   }
 
   /**
@@ -427,7 +464,7 @@ export class AsyncAPIGenerator {
             ...(queue.autoDelete !== undefined && { autoDelete: queue.autoDelete }),
             ...(queue.maxPriority !== undefined && { maxPriority: queue.maxPriority }),
             ...(Object.keys(mergedArgs).length > 0 ? { arguments: mergedArgs } : {}),
-            vhost: "/",
+            vhost: this.vhost,
           },
           bindingVersion: "0.3.0",
         },
@@ -521,7 +558,7 @@ export class AsyncAPIGenerator {
             ...(exchange.autoDelete !== undefined && { autoDelete: exchange.autoDelete }),
             ...(exchange.internal !== undefined && { internal: exchange.internal }),
             ...(exchange.arguments !== undefined && { arguments: exchange.arguments }),
-            vhost: "/",
+            vhost: this.vhost,
           },
           bindingVersion: "0.3.0",
         },
@@ -599,12 +636,19 @@ export class AsyncAPIGenerator {
   }
 
   /**
-   * Convert a Standard Schema to JSON Schema using oRPC converters.
+   * Convert a Standard Schema to JSON Schema: natively through Standard JSON
+   * Schema when the schema implements it, else through the configured
+   * converters.
    *
-   * Always the `"input"` strategy: an AsyncAPI message payload documents what
-   * goes on the wire, which is the schema's input shape.
+   * Always the input shape: an AsyncAPI message payload documents what goes
+   * on the wire, which is the schema's input.
    */
   private async convertSchema(schema: StandardSchemaV1): Promise<JSONSchema> {
+    const native = nativeJsonSchema(schema);
+    if (native !== undefined) {
+      return native;
+    }
+
     const strategy = "input" as const;
     // Try each converter until one matches
     for (const converter of this.converters) {
@@ -616,8 +660,9 @@ export class AsyncAPIGenerator {
     }
 
     const message =
-      `No schema converter matched for schema. ` +
-      `Configure schemaConverters (e.g. zodToJsonSchema) to generate accurate schemas.`;
+      `No schema converter matched for schema, and it does not implement Standard JSON ` +
+      `Schema (\`~standard.jsonSchema\`). Configure schemaConverters (e.g. ` +
+      `experimental_ValibotToJsonSchemaConverter from @orpc/valibot) to generate accurate schemas.`;
 
     if (this.failOnMissingConverter) {
       // oxlint-disable-next-line unthrown/no-throw -- deliberate fail-fast the caller opted into via failOnMissingConverter
@@ -629,5 +674,29 @@ export class AsyncAPIGenerator {
       `${message} The generated spec will use a generic { type: "object" } placeholder.`,
     );
     return { type: "object" };
+  }
+}
+
+/**
+ * The schema's own JSON Schema, when it implements Standard JSON Schema
+ * (`~standard.jsonSchema`, Standard Schema v1.1 — Zod 4, ArkType).
+ *
+ * Targets draft-07: AsyncAPI 3's default schema format is a superset of JSON
+ * Schema draft-07. The `$schema` dialect marker is dropped — inside an AsyncAPI
+ * document the message's schema format governs, not a per-payload dialect.
+ * A library that cannot produce draft-07 throws by contract; that is treated
+ * as "not native" so the configured converters still get their turn.
+ */
+function nativeJsonSchema(schema: StandardSchemaV1): Record<string, unknown> | undefined {
+  const standard: Partial<StandardJSONSchemaV1.Props> = schema["~standard"];
+  const converter = standard.jsonSchema;
+  if (typeof converter?.input !== "function") {
+    return undefined;
+  }
+  try {
+    const { $schema: _dialect, ...jsonSchema } = converter.input({ target: "draft-07" });
+    return jsonSchema;
+  } catch {
+    return undefined;
   }
 }
