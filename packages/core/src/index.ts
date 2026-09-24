@@ -10,8 +10,6 @@ export {
   DEFAULT_PUBLISH_TIMEOUT_MS,
 } from "./amqp-client.js";
 export { DEFAULT_MAX_MESSAGE_BYTES } from "./codec.js";
-export { type ConnectionLease } from "./connection-manager.js";
-export { technicalDefect } from "./defect.js";
 export {
   ConnectionError,
   isConnectionError,
@@ -27,18 +25,9 @@ export {
   TechnicalError,
 } from "./errors.js";
 export type { Logger, LoggerContext } from "./logger.js";
-export { safeJsonParse } from "./parsing.js";
-export { setupAmqpTopology, type TopologyMode } from "./setup.js";
+export type { TopologyMode } from "./setup.js";
 export {
   defaultTelemetryProvider,
-  endSpanError,
-  endSpanSuccess,
   MessagingSemanticConventions,
-  recordConsumeMetric,
-  recordLateRpcReply,
-  recordPublishMetric,
-  recordRpcCallMetric,
-  startConsumeSpan,
-  startPublishSpan,
   type TelemetryProvider,
 } from "./telemetry.js";
