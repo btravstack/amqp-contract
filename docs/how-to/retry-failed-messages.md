@@ -147,6 +147,12 @@ Direct-nack paths — a `NonRetryableError`, a validation failure, a quorum queu
 
 If you need context on the message itself, use `ttl-backoff` (which always republishes), or set `maxRetries: 1` so a single republish stamps the headers before the message is dead-lettered.
 
+## Know the edges of the retry path
+
+- **A retry the broker will not take requeues the original.** When the retry copy's publish fails with `PublishError` (timeout, nack, closed channel), the worker `nack`s the original with `requeue: true` instead of acking it. Its retry headers are unchanged, so the budget is intact, and nothing is dead-lettered for a broker hiccup. The log line is `Publish for retry failed; requeueing the original for redelivery`.
+- **RPC requests never retry.** A `RetryableError` from an RPC handler dead-letters the request even when its queue has a `retry` config: the caller waits on a `timeoutMs` far shorter than most backoffs, so a retry would re-run the handler for nobody.
+- **Malformed retry headers count as zero.** `x-retry-count` and `x-delivery-count` are read as non-negative integers; anything else — a string, a negative, a fraction — counts as 0 rather than bypassing the budget. A malformed `x-first-failure-timestamp` or `x-original-routing-key` is replaced, and a retry is only ever published to a wait queue the topology declares; anything else is dead-lettered with the reason logged.
+
 ## Avoid the common traps
 
 **No dead-letter exchange.** `nack(requeue=false)` with no `deadLetter` configured discards the message. The worker warns; the body is gone. Configure `deadLetter` if poison messages matter.
