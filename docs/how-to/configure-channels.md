@@ -44,7 +44,7 @@ const client = new AmqpClient(contract, {
 
 ## Add resources the contract does not describe
 
-The `setup` function runs after the contract's topology is established, so everything in the contract already exists when it fires:
+The `setup` function runs after the contract's topology is established — the client's or worker's slice of it, or all of it on a raw `AmqpClient` — so those resources already exist when it fires:
 
 ```typescript
 channelOptions: {
