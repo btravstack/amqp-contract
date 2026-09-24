@@ -19,7 +19,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 3. **RPC entry** — `defineRpc(queue, { request, response })`. Typed business errors go in an optional `errors` map whose entries are `{ data: schema, message?: string }` (the raw Standard Schema, NOT `defineMessage`); the optional `message` is the default human message when the handler constructs the error without one.
 4. **Add to `defineContract`** under `rpcs: { ... }`.
 5. **Server-side handler** — define it with `declareHandler(contract, "yourRpcName", ({ input: { payload } }) => OkAsync({ /* response */ }))`, via `declareHandlers`, or inline in the `handlers` object passed to `TypedAmqpWorker.create({ handlers: { … } })`. All three are RPC-aware: `declareHandler` / `declareHandlers` are overloaded against `InferRpcNames` and validate the name against both `contract.consumers` and `contract.rpcs`. The worker validates the response against the response schema and publishes back automatically.
-6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required.
+6. **Client call** — `client.call("yourRpcName", request, { timeoutMs: 5_000 })`. `timeoutMs` is required (the request also expires on the broker at it). Returns `AsyncResult<TResponse, MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError | <declared RpcErrors>>`.
 7. **Tests** — round-trip integration test (worker + client both wired up). For "no server" scenarios, just create the client without a worker; for "request validation fails", pass a deliberately wrong payload through `as unknown as ...`.
 8. **Changeset** — minor bump.
 
@@ -28,7 +28,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 1. **Event publisher**: `defineEventPublisher(exchange, message, { routingKey })`. One publisher, many consumers.
 2. **Command publisher**: derived from `defineCommandConsumer(...)` via `defineCommandPublisher(consumer)`. Many publishers, one consumer.
 3. **Add to `defineContract`** under `publishers: { ... }`.
-4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, MessageValidationError>` (a transport failure surfaces as a `Defect`, not in `E`).
+4. **Use** `client.publish("yourPublisherName", payload, options?)`. Returns `AsyncResult<void, MessageValidationError | PublishError>` (`PublishError`: the broker side failed — `timeout` / `nacked` / `channel-closed`; only an unclassifiable failure is a `Defect`).
 5. **Changeset** — minor bump if it's part of the public contract surface.
 
 ## Add a new publishable package
