@@ -25,6 +25,9 @@ type RetryContext = {
   deliveryEpoch?: number | undefined;
 };
 
+/** Cap on the `x-last-error` header, in characters (≤ 4 KiB of UTF-8). */
+export const MAX_LAST_ERROR_LENGTH = 1024;
+
 /**
  * What to do with a delivery whose handler failed — decided by
  * {@link decideRetry} without touching the broker, carried out by
@@ -243,7 +246,10 @@ function publishForRetry(
       headers: {
         ...headers,
         "x-retry-count": newRetryCount,
-        "x-last-error": error.message,
+        // Bounded: headers ride in one AMQP frame, and a handler error
+        // carrying a stack or payload dump could exceed frame_max — a
+        // connection error on every retry, a poison loop.
+        "x-last-error": error.message.slice(0, MAX_LAST_ERROR_LENGTH),
         // Carried over only when well-formed; a forged or corrupt value is
         // replaced, never propagated down the retry chain.
         "x-first-failure-timestamp":
