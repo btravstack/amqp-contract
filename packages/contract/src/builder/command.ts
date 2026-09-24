@@ -17,6 +17,9 @@ import { defineConsumer } from "./consumer.js";
 import { definePublisherInternal } from "./publisher.js";
 import type { BindingPattern, RoutingKey } from "./routing-types.js";
 
+/** Exchange types that ignore the routing key. */
+type KeylessExchange = FanoutExchangeDefinition | HeadersExchangeDefinition;
+
 /**
  * Configuration for a command consumer.
  *
@@ -77,133 +80,78 @@ export type BridgedPublisherConfig<
 };
 
 /**
- * Define a command consumer for receiving commands via a keyless exchange
- * (fanout or headers).
+ * The trailing options argument of {@link defineCommandConsumer}, chosen by
+ * the exchange type: optional for fanout / headers (no routing key), required
+ * with a concrete `routingKey` for direct, required with a binding pattern for
+ * topic. One signature rather than one overload per exchange type, so a
+ * forgotten routing key is reported against the options instead of as "the
+ * exchange is not a fanout or headers exchange".
+ */
+type CommandConsumerOptionsArgs<
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string,
+> = [TExchange] extends [KeylessExchange]
+  ? [options?: { arguments?: Record<string, unknown> }]
+  : [TExchange] extends [DirectExchangeDefinition]
+    ? [options: { routingKey: RoutingKey<TRoutingKey>; arguments?: Record<string, unknown> }]
+    : [options: { routingKey: BindingPattern<TRoutingKey>; arguments?: Record<string, unknown> }];
+
+/**
+ * Define a command consumer.
  *
  * Commands are sent by publishers to a specific queue. The consumer "owns" the
- * queue and defines what commands it accepts. Neither exchange type routes on
- * the routing key, so no routing key is accepted.
+ * queue and defines what commands it accepts; publishers are derived from it
+ * with {@link defineCommandPublisher}.
+ *
+ * The exchange type decides the options:
+ * - **fanout / headers**: no routing key. `options` is optional.
+ * - **direct**: `routingKey` is required and concrete (matched exactly).
+ * - **topic**: `routingKey` is required and may be a pattern (`*` one word,
+ *   `#` zero or more); publishers then send concrete keys matching it.
  *
  * @param queue - The queue that will receive commands
- * @param exchange - The fanout or headers exchange that routes commands
+ * @param exchange - The exchange that routes commands
  * @param message - The message definition (schema and metadata)
- * @param options - Optional binding configuration
+ * @param options - Binding configuration (required for direct and topic exchanges)
+ * @param options.routingKey - The routing key (direct) or pattern (topic) for the binding
  * @param options.arguments - Additional AMQP arguments
  * @returns A command consumer configuration
  *
  * @example
  * ```typescript
+ * // Keyless exchange
  * const tasksExchange = defineExchange('tasks', { type: 'fanout' });
  * const taskMessage = defineMessage(z.object({ taskId: z.string() }));
- *
- * // Consumer owns the queue
  * const executeTask = defineCommandConsumer(taskQueue, tasksExchange, taskMessage);
- *
- * // Publishers send commands to it
  * const sendTask = defineCommandPublisher(executeTask);
- * ```
- */
-export function defineCommandConsumer<
-  TMessage extends MessageDefinition,
-  TQueueDefinition extends QueueDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
->(
-  queue: TQueueDefinition,
-  exchange: TExchange,
-  message: TMessage,
-  options?: {
-    arguments?: Record<string, unknown>;
-  },
-): CommandConsumerConfig<TMessage, TExchange, undefined, TQueueDefinition>;
-
-/**
- * Define a command consumer for receiving commands via direct exchange.
  *
- * Commands are sent by publishers with a specific routing key that matches
- * the binding pattern.
- *
- * @param queue - The queue that will receive commands
- * @param exchange - The direct exchange that routes commands
- * @param message - The message definition (schema and metadata)
- * @param options - Configuration with required routing key
- * @param options.routingKey - The routing key for the binding
- * @param options.arguments - Additional AMQP arguments
- * @returns A command consumer configuration
- *
- * @example
- * ```typescript
- * const tasksExchange = defineExchange('tasks', { type: 'direct' });
- * const taskMessage = defineMessage(z.object({ taskId: z.string() }));
- *
- * const executeTask = defineCommandConsumer(taskQueue, tasksExchange, taskMessage, {
- *   routingKey: 'task.execute',
- * });
- *
- * const sendTask = defineCommandPublisher(executeTask);
- * ```
- */
-export function defineCommandConsumer<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TQueueDefinition extends QueueDefinition,
-  TExchange extends DirectExchangeDefinition,
->(
-  queue: TQueueDefinition,
-  exchange: TExchange,
-  message: TMessage,
-  options: {
-    routingKey: RoutingKey<TRoutingKey>;
-    arguments?: Record<string, unknown>;
-  },
-): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueDefinition>;
-
-/**
- * Define a command consumer for receiving commands via topic exchange.
- *
- * The consumer binds with a routing key pattern (can use * and # wildcards).
- * Publishers then send commands with concrete routing keys that match the pattern.
- *
- * @param queue - The queue that will receive commands
- * @param exchange - The topic exchange that routes commands
- * @param message - The message definition (schema and metadata)
- * @param options - Configuration with required routing key pattern
- * @param options.routingKey - The routing key pattern for the binding
- * @param options.arguments - Additional AMQP arguments
- * @returns A command consumer configuration
- *
- * @example
- * ```typescript
+ * // Topic exchange: the consumer binds a pattern, publishers send concrete keys
  * const ordersExchange = defineExchange('orders', { type: 'topic' });
  * const orderMessage = defineMessage(z.object({ orderId: z.string() }));
- *
- * // Consumer uses pattern to receive multiple command types
  * const processOrder = defineCommandConsumer(orderQueue, ordersExchange, orderMessage, {
  *   routingKey: 'order.*',
  * });
- *
- * // Publishers send with concrete keys
  * const createOrder = defineCommandPublisher(processOrder, {
  *   routingKey: 'order.create',
- * });
- * const updateOrder = defineCommandPublisher(processOrder, {
- *   routingKey: 'order.update',
  * });
  * ```
  */
 export function defineCommandConsumer<
   TMessage extends MessageDefinition,
-  TRoutingKey extends string,
   TQueueDefinition extends QueueDefinition,
-  TExchange extends TopicExchangeDefinition,
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string = never,
 >(
   queue: TQueueDefinition,
   exchange: TExchange,
   message: TMessage,
-  options: {
-    routingKey: BindingPattern<TRoutingKey>;
-    arguments?: Record<string, unknown>;
-  },
-): CommandConsumerConfig<TMessage, TExchange, TRoutingKey, TQueueDefinition>;
+  ...options: CommandConsumerOptionsArgs<TExchange, TRoutingKey>
+): CommandConsumerConfig<
+  TMessage,
+  TExchange,
+  [TExchange] extends [KeylessExchange] ? undefined : TRoutingKey,
+  TQueueDefinition
+>;
 
 /*
  * Implementation signature of defineCommandConsumer. (Deliberately a plain
@@ -234,143 +182,80 @@ export function defineCommandConsumer<TMessage extends MessageDefinition>(
 }
 
 /**
- * Create a bridged publisher that sends commands to a keyless-exchange
- * (fanout or headers) consumer via a bridge exchange.
+ * The bridge exchanges a command to `TExchange` may be published through: the
+ * bridge must preserve the target's routing semantics, so a fanout target
+ * needs a fanout bridge, a headers target a headers bridge, and a direct or
+ * topic target a direct or topic bridge (which keeps the routing key).
+ */
+type CommandBridgeExchange<TExchange extends ExchangeDefinition> =
+  TExchange["type"] extends "fanout"
+    ? FanoutExchangeDefinition
+    : TExchange["type"] extends "headers"
+      ? HeadersExchangeDefinition
+      : DirectExchangeDefinition | TopicExchangeDefinition;
+
+/**
+ * Options for {@link defineCommandPublisher}, chosen by the target exchange
+ * type. Only a topic target accepts a `routingKey` override (a concrete key,
+ * typically one matching the consumer's pattern).
+ */
+type CommandPublisherOptions<
+  TExchange extends ExchangeDefinition,
+  TBridgeExchange extends ExchangeDefinition,
+  TPublisherRoutingKey extends string,
+> = [TExchange] extends [TopicExchangeDefinition]
+  ? {
+      bridgeExchange?: TBridgeExchange;
+      routingKey?: RoutingKey<TPublisherRoutingKey>;
+      externalConsumers?: boolean;
+    }
+  : { bridgeExchange?: TBridgeExchange; externalConsumers?: boolean };
+
+/**
+ * The publisher {@link defineCommandPublisher} returns when not bridging.
+ */
+type CommandPublisherResult<
+  TMessage extends MessageDefinition,
+  TExchange extends ExchangeDefinition,
+  TPublisherRoutingKey extends string,
+> = [TExchange] extends [KeylessExchange]
+  ? { message: TMessage; exchange: TExchange; externalConsumers?: boolean }
+  : [TExchange] extends [DirectExchangeDefinition]
+    ? {
+        message: TMessage;
+        exchange: DirectExchangeDefinition;
+        routingKey: TPublisherRoutingKey;
+        externalConsumers?: boolean;
+      }
+    : {
+        message: TMessage;
+        exchange: TopicExchangeDefinition;
+        routingKey: TPublisherRoutingKey;
+        externalConsumers?: boolean;
+      };
+
+/**
+ * Create a publisher that sends commands to a command consumer.
+ *
+ * The publisher targets the consumer's exchange with the consumer's routing
+ * key. On a topic exchange, `routingKey` may override it with a concrete key —
+ * typically one matching the consumer's binding pattern.
+ *
+ * When `bridgeExchange` is provided, the publisher publishes to the bridge
+ * (local domain) exchange instead, and an exchange-to-exchange binding is
+ * created from the bridge to the target. The bridge must preserve the
+ * target's routing semantics: fanout↔fanout, headers↔headers, and
+ * direct/topic↔direct/topic.
  *
  * @param commandConsumer - The command consumer configuration
- * @param options - Configuration with required bridgeExchange
- * @param options.bridgeExchange - The local domain exchange to bridge through.
- *   Its type must match the target exchange's — a fanout target needs a fanout
- *   bridge, a headers target a headers bridge — so the routing semantics
- *   survive the hop.
+ * @param options - Optional publisher configuration
+ * @param options.routingKey - Override routing key (topic exchanges only)
+ * @param options.bridgeExchange - Publish through this local exchange
  * @param options.externalConsumers - Declare that the command's owner lives in
  *   another service, opting this publisher out of `defineContract`'s
  *   define-time routability check
- * @returns A bridged publisher configuration
- */
-export function defineCommandPublisher<
-  TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
-  TBridgeExchange extends Extract<
-    FanoutExchangeDefinition | HeadersExchangeDefinition,
-    { type: TExchange["type"] }
-  >,
->(
-  commandConsumer: CommandConsumerConfig<TMessage, TExchange, undefined>,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    externalConsumers?: boolean;
-  },
-): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
-
-/**
- * Create a bridged publisher that sends commands to a direct exchange consumer via a bridge exchange.
- *
- * @param commandConsumer - The command consumer configuration
- * @param options - Configuration with required bridgeExchange
- * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
- * @param options.externalConsumers - Declare that the command's owner lives in
- *   another service, opting this publisher out of `defineContract`'s
- *   define-time routability check
- * @returns A bridged publisher configuration
- */
-export function defineCommandPublisher<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends DirectExchangeDefinition,
-  TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
->(
-  commandConsumer: CommandConsumerConfig<TMessage, TExchange, TRoutingKey>,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    externalConsumers?: boolean;
-  },
-): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
-
-/**
- * Create a bridged publisher that sends commands to a topic exchange consumer via a bridge exchange.
- *
- * @param commandConsumer - The command consumer configuration
- * @param options - Configuration with required bridgeExchange and optional routingKey override
- * @param options.bridgeExchange - The bridge exchange (must be direct or topic to preserve routing keys)
- * @param options.routingKey - Override routing key (must match consumer's pattern)
- * @param options.externalConsumers - Declare that the command's owner lives in
- *   another service, opting this publisher out of `defineContract`'s
- *   define-time routability check
- * @returns A bridged publisher configuration
- */
-export function defineCommandPublisher<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TExchange extends TopicExchangeDefinition,
-  TBridgeExchange extends DirectExchangeDefinition | TopicExchangeDefinition,
-  TPublisherRoutingKey extends string = TRoutingKey,
->(
-  commandConsumer: CommandConsumerConfig<TMessage, TExchange, TRoutingKey>,
-  options: {
-    bridgeExchange: TBridgeExchange;
-    routingKey?: RoutingKey<TPublisherRoutingKey>;
-    externalConsumers?: boolean;
-  },
-): BridgedPublisherConfig<TMessage, TBridgeExchange, TExchange>;
-
-/**
- * Create a publisher that sends commands to a keyless-exchange (fanout or
- * headers) consumer.
- *
- * @param commandConsumer - The command consumer configuration
- * @returns A publisher definition
- *
- * @example
- * ```typescript
- * const executeTask = defineCommandConsumer(taskQueue, fanoutExchange, taskMessage);
- * const sendTask = defineCommandPublisher(executeTask);
- * ```
- */
-export function defineCommandPublisher<
-  TMessage extends MessageDefinition,
-  TExchange extends FanoutExchangeDefinition | HeadersExchangeDefinition,
->(
-  commandConsumer: CommandConsumerConfig<TMessage, TExchange, undefined>,
-  options?: {
-    externalConsumers?: boolean;
-  },
-): { message: TMessage; exchange: TExchange; externalConsumers?: boolean };
-
-/**
- * Create a publisher that sends commands to a direct exchange consumer.
- *
- * @param commandConsumer - The command consumer configuration
- * @returns A publisher definition
- */
-export function defineCommandPublisher<
-  TMessage extends MessageDefinition,
-  TRoutingKey extends string,
->(
-  commandConsumer: CommandConsumerConfig<TMessage, DirectExchangeDefinition, TRoutingKey>,
-  options?: {
-    externalConsumers?: boolean;
-  },
-): {
-  message: TMessage;
-  exchange: DirectExchangeDefinition;
-  routingKey: TRoutingKey;
-  externalConsumers?: boolean;
-};
-
-/**
- * Create a publisher that sends commands to a topic exchange consumer.
- *
- * For topic exchanges where the consumer uses a pattern, the publisher can
- * optionally specify a concrete routing key that matches the pattern.
- *
- * @param commandConsumer - The command consumer configuration
- * @param options - Optional binding configuration
- * @param options.routingKey - Override routing key (must match consumer's pattern)
- * @param options.externalConsumers - Declare that the command's owner lives in
- *   another service, opting this publisher out of `defineContract`'s
- *   define-time routability check
- * @returns A publisher definition
+ * @returns A publisher definition, or a bridged publisher configuration when
+ *   `bridgeExchange` is set
  *
  * @example
  * ```typescript
@@ -383,24 +268,27 @@ export function defineCommandPublisher<
  * const createOrder = defineCommandPublisher(processOrder, {
  *   routingKey: 'order.create',
  * });
+ *
+ * // Keyless exchange
+ * const executeTask = defineCommandConsumer(taskQueue, fanoutExchange, taskMessage);
+ * const sendTask = defineCommandPublisher(executeTask);
  * ```
  */
 export function defineCommandPublisher<
   TMessage extends MessageDefinition,
-  TRoutingKey extends string,
-  TPublisherRoutingKey extends string = TRoutingKey,
+  TExchange extends ExchangeDefinition,
+  TRoutingKey extends string | undefined,
+  TBridgeExchange extends CommandBridgeExchange<TExchange> = never,
+  TPublisherRoutingKey extends string = TRoutingKey & string,
 >(
-  commandConsumer: CommandConsumerConfig<TMessage, TopicExchangeDefinition, TRoutingKey>,
-  options?: {
-    routingKey?: RoutingKey<TPublisherRoutingKey>;
-    externalConsumers?: boolean;
-  },
-): {
-  message: TMessage;
-  exchange: TopicExchangeDefinition;
-  routingKey: TPublisherRoutingKey;
-  externalConsumers?: boolean;
-};
+  commandConsumer: CommandConsumerConfig<TMessage, TExchange, TRoutingKey>,
+  options?: CommandPublisherOptions<TExchange, TBridgeExchange, TPublisherRoutingKey>,
+  // NoInfer: inside `defineContract({ publishers: { … } })` the call has a
+  // contextual type, and TypeScript would otherwise infer TBridgeExchange from
+  // it, typing an unbridged publisher as bridged.
+): [NoInfer<TBridgeExchange>] extends [never]
+  ? CommandPublisherResult<TMessage, TExchange, TPublisherRoutingKey>
+  : BridgedPublisherConfig<TMessage, NoInfer<TBridgeExchange>, TExchange>;
 
 /*
  * Implementation signature of defineCommandPublisher. (Deliberately a plain
