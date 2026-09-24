@@ -147,18 +147,18 @@ Client interceptors run outside validation, so a patched message is validated ex
 ```typescript
 import { TypedAmqpClient, type PublishInterceptor } from "@amqp-contract/client";
 
-const stampTrace: PublishInterceptor = (args, next) =>
+const stampTenant: PublishInterceptor = (args, next) =>
   next({
     options: {
       ...args.options,
-      headers: { ...args.options.headers, traceparent: currentTraceparent() },
+      headers: { ...args.options.headers, "x-tenant-id": currentTenantId() },
     },
   });
 
 const client = await TypedAmqpClient.create({
   contract,
   urls: ["amqp://localhost"],
-  publishInterceptors: [stampTrace],
+  publishInterceptors: [stampTenant],
 }).getOrThrow();
 ```
 
@@ -176,6 +176,7 @@ const retryTimeoutsOnce: CallInterceptor = (args, next) =>
   next().flatMapErrCases((matcher) =>
     matcher.with(
       P.tag("@amqp-contract/MessageValidationError"),
+      P.tag("@amqp-contract/PublishError"),
       P.tag("@amqp-contract/RpcTimeoutError"),
       P.tag("@amqp-contract/RpcCancelledError"),
       P.tag("@amqp-contract/RpcError"),
@@ -186,11 +187,11 @@ const retryTimeoutsOnce: CallInterceptor = (args, next) =>
 
 They can also adjust `timeoutMs` or patch the request before it goes out.
 
-A transport failure is a defect, not a modeled error, so it flows through `flatMapErrCases` untouched. Use `.recoverDefect(…)` if you need to act on one.
+A request the broker side refused (timeout, nack, closed channel) is a modeled `PublishError`, so it reaches the matcher like any other case; this interceptor passes it on. Only a failure core cannot classify is a defect, which flows through `flatMapErrCases` untouched — use `.recoverDefect(…)` if you need to act on one.
 
-## Propagate a trace across services
+## Trace context needs neither
 
-The two mechanisms compose into W3C trace-context propagation without touching a handler: a publish interceptor stamps `traceparent` from the active span, and a worker middleware reads `args.rawMessage.properties.headers.traceparent`, resumes the remote context, and puts the span in the handler context.
+Trace context crosses the broker on its own: `publish` and `call` inject the producer span's context into the message headers (through the propagator your OpenTelemetry SDK registered), and the worker runs `createContext`, middleware and the handler with the consume span active, continuing the publisher's trace. No interceptor or middleware is needed, and a `traceparent` stamped by hand is overwritten by the injected one whenever an SDK is registered.
 
 Telemetry spans sit outside the interceptor chain, so interceptor work is already covered by the built-in instrumentation. See [instrument with OpenTelemetry](/how-to/instrument-with-opentelemetry).
 
