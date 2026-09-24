@@ -10,6 +10,7 @@ import {
 } from "@amqp-contract/contract";
 import { _internal_resetConnections } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { AmqpConnectionManager } from "amqp-connection-manager";
 import type { ConsumeMessage } from "amqplib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -157,6 +158,34 @@ describe("RPC timeout vs slow reply validation", () => {
     expect(result).toBeOkWith({ sum: 3 });
 
     await client.close().get();
+  });
+});
+
+describe("health", () => {
+  beforeEach(async () => {
+    await _internal_resetConnections();
+  });
+
+  it("isConnected() reports the connection state of an explicit, caller-owned connection", async () => {
+    let up = true;
+    const connection = {
+      createChannel: () => wrapper(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      isConnected: () => up,
+      close: vi.fn(() => Promise.resolve()),
+    } as unknown as AmqpConnectionManager;
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      connection,
+    }).getOrThrow();
+
+    const whileUp = client.isConnected();
+    up = false;
+
+    expect([whileUp, client.isConnected()]).toEqual([true, false]);
+    await client.close().get();
+    expect(connection.close).not.toHaveBeenCalled();
   });
 });
 
