@@ -132,7 +132,7 @@ Omitting it uses the default provider, which attempts to load OpenTelemetry and 
 
 Consumed falling below published means the queue is growing. Compare against broker-side queue depth, which is not something this library reports.
 
-`success=false` on `amqp.worker.messages.consumed`, split by `error.type`, is the most useful single chart: a rise in `NonRetryableError` means bad data arriving, while a rise in `RetryableError` means infrastructure trouble.
+`success=false` on `amqp.worker.messages.consumed` is the most useful single chart. The metric carries no error class; the failed consume spans do, as `error.type`, so split by that in your tracing backend: a rise in `NonRetryableError` means bad data arriving, a rise in `RetryableError` means infrastructure trouble, and `MessageValidationError` means a publisher is sending payloads the contract rejects.
 
 ## Where next
 
