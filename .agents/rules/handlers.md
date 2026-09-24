@@ -96,7 +96,9 @@ result.match({
 RPC error semantics worth knowing:
 
 - **Missing `replyTo` / `correlationId`** on the inbound message → `NonRetryableError`. The request is `nack`ed without requeue, so it routes to the queue's DLQ if configured (poison messages stay visible for inspection rather than being silently ack'd).
+- **`replyTo` not on the allowlist** → `NonRetryableError`, dead-lettered with the reason logged, never replied to. The default allows only direct reply-to (`amq.rabbitmq.reply-to[.*]`, what `client.call()` uses); `TypedAmqpWorker.create({ rpc: { allowReplyTo } })` widens it. See `packages/worker/src/rpc-reply.ts`.
 - **Response fails the response schema** → `NonRetryableError` (handler returned the wrong shape; retrying won't help).
+- **RPC requests are never retried** — a `RetryableError` from an RPC handler dead-letters the request even on a retry-configured queue: the caller's `timeoutMs` is shorter than most backoffs, so a retry would re-run the handler for nobody. See `handleError` in `packages/worker/src/retry.ts`.
 - **Client-side timeout** → call resolves to `Err(RpcTimeoutError)`; pending state is cleared. If a reply still arrives, it's logged at `warn` and counted via `recordLateRpcReply` (telemetry hook for tuning) — it's not retried.
 - **Client closed mid-call** → call resolves to `Err(RpcCancelledError)`.
 
