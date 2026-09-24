@@ -56,121 +56,31 @@ pnpm typecheck
 > - **`pnpm typecheck` is not in the pre-commit hook.** Lefthook only runs `oxfmt` and `oxlint` on commit, so run `pnpm typecheck` (and `pnpm test`) yourself before pushing.
 > - **Packages typecheck against each other's `dist/` output**, not `src/`. If you change a public type in package A, rebuild it (`pnpm --filter @amqp-contract/<a> build`) before typechecking a package that depends on it — otherwise you'll see stale, confusing type errors.
 
-## Testing Strategy
+## Testing
 
-This project uses a **integration-first testing approach** that prioritizes testing against real RabbitMQ instances over mocked unit tests.
+Every workspace builds its Vitest config from [`vitest.shared.ts`](./vitest.shared.ts), which fixes the layout:
 
-### Test Types
+- **Unit tests** — `src/**/*.spec.ts`, next to the source they test. Run by `pnpm test`; no Docker, no broker.
+- **Integration tests** — `src/__tests__/*.spec.ts`. Run by `pnpm test:integration` against a real RabbitMQ started through testcontainers, one isolated vhost per test.
+- **Type tests** — `src/**/*.test-d.ts`, typechecked rather than executed, in the packages that declare them.
 
-#### Integration Tests (`*.integration.spec.ts`)
-
-- Test against **real RabbitMQ** instances using testcontainers
-- Each test runs in an isolated vhost for complete test isolation
-- Located alongside source files: `src/*.integration.spec.ts`
-- Run with: `pnpm test:integration`
-- **Preferred** for testing AMQP behavior, message flow, and contract setup
-
-**Example packages with integration tests:**
-
-- `packages/core` - 16 integration tests (AmqpClient, connection sharing)
-- `packages/client` - 10 integration tests (publishing, validation, topology)
-- `packages/worker` - 9 integration tests (consuming, error handling, bindings)
-
-#### Unit Tests (`*.unit.spec.ts`)
-
-- Test pure logic without external dependencies
-- No mocking of AMQP libraries
-- Located alongside source files: `src/*.unit.spec.ts`
-- Run with: `pnpm test`
-- **Only used** for testing pure functions, utilities, and simple logic
-
-**Example packages with unit tests:**
-
-- `packages/core` - 4 unit tests (logger utility)
-
-### Why Integration Tests?
-
-✅ **More Robust**: Tests validate actual AMQP behavior, not mocked assumptions
-✅ **Catch Real Issues**: Detects problems with RabbitMQ integration that unit tests miss
-✅ **Less Brittle**: No complex mock setup that breaks with implementation changes
-✅ **Better Confidence**: Higher assurance that code works in production
-
-### Running Tests
-
-```bash
-# Run all unit tests (fast, no Docker needed)
-pnpm test
-
-# Run integration tests for a specific package (requires Docker)
-pnpm test:integration --filter @amqp-contract/core
-pnpm test:integration --filter @amqp-contract/client
-pnpm test:integration --filter @amqp-contract/worker
-
-# Run all integration tests (requires Docker)
-pnpm test:integration
-```
-
-### Writing New Tests
-
-**For new AMQP features:**
-
-1. Write integration tests using `@amqp-contract/testing/extension`
-2. Use test fixtures: `amqpConnectionUrl`, `amqpChannel`, `publishMessage`, `initConsumer`
-3. Place tests next to source: `feature.integration.spec.ts`
-
-**For pure utility functions:**
-
-1. Write unit tests without external dependencies
-2. Place tests next to source: `utility.unit.spec.ts`
-
-**Example integration test:**
-
-```typescript
-import { it } from "@amqp-contract/testing/extension";
-import { defineContract, defineExchange } from "@amqp-contract/contract";
-import { AmqpClient } from "@amqp-contract/core";
-
-describe("Feature Integration", () => {
-  it("should setup exchange", async ({ amqpConnectionUrl, amqpChannel }) => {
-    // GIVEN
-    const contract = defineContract({
-      exchanges: {
-        test: defineExchange("test", { durable: false }),
-      },
-    });
-
-    // WHEN
-    const client = new AmqpClient(contract, { urls: [amqpConnectionUrl] });
-    await client.waitForConnect().getOrThrow();
-
-    // THEN
-    await expect(amqpChannel.checkExchange("test")).resolves.toBeDefined();
-
-    // CLEANUP
-    await client.close();
-  });
-});
-```
+Integration tests are preferred for anything that touches the broker. Fixtures, conventions and examples are in [`.agents/rules/testing.md`](./.agents/rules/testing.md).
 
 ## Project Structure
 
-- `packages/contract` - Contract definition builder
-- `packages/client` - Type-safe AMQP client
-- `packages/worker` - Type-safe AMQP worker
-- `packages/asyncapi` - AsyncAPI specification generator
-- `examples/` - Example implementations
+- `packages/contract` — contract builder and types (the foundation)
+- `packages/core` — connection management, topology setup, telemetry
+- `packages/client` — `TypedAmqpClient` (publish and request/reply)
+- `packages/worker` — `TypedAmqpWorker` (consume, retry, dead-lettering)
+- `packages/asyncapi` — AsyncAPI 3.1 generator
+- `packages/testing` — Vitest fixtures and the RabbitMQ testcontainer
+- `tests/` — cross-package integration tests and documentation checks
+- `examples/` — runnable example apps
+- `docs/` — the VitePress documentation site
 
 ## Coding Guidelines
 
-📋 **[Read the complete coding guidelines](.github/copilot-instructions.md)**
-
-This project uses AI-assisted code review with GitHub Copilot. Our guidelines document:
-
-- TypeScript & type safety requirements
-- AMQP/RabbitMQ patterns & best practices
-- Code style & formatting rules
-- Testing conventions
-- Error handling patterns
+[`AGENTS.md`](./AGENTS.md) is the canonical list of constraints — language and type rules, the unthrown error-handling conventions, contract authoring rules and the load-bearing invariants — with topic-specific detail under [`.agents/rules/`](./.agents/rules/). It is written for humans and AI agents alike.
 
 ## Commit Convention
 
@@ -182,6 +92,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore:` - Maintenance tasks
 - `test:` - Test changes
 - `refactor:` - Code refactoring
+
+`ci`, `build`, `perf`, `revert` and `style` are accepted too. commitlint enforces the format on every commit.
 
 ## Pull Request Process
 
@@ -216,19 +128,15 @@ If your PR doesn't change anything published — e.g. tests, docs, repo tooling 
 
 ### Release workflow
 
-Releases are driven by GitHub Actions:
+Releases run in CI only — never run `pnpm release` or `npm publish` yourself.
 
-- **On every push to `main`**: the [release workflow](.github/workflows/release.yml) runs `changeset version` against the accumulated changesets. It opens (or updates) a "Version Packages" PR that bumps `package.json` versions and updates each package's `CHANGELOG.md`.
-- **When the Version Packages PR is merged**: the same workflow runs `changeset publish`, tagging the release and pushing the bumped packages to npm.
+1. A PR with a changeset is merged to `main`.
+2. Once CI passes on `main`, the [release workflow](.github/workflows/release.yml) calls the shared btravstack release workflow, which runs [`changesets/action`](https://github.com/changesets/action). It either opens (or updates) a `chore: release packages` PR that consumes the pending changesets — bumping versions and writing each package's `CHANGELOG.md` — or, when the versions on `main` are not yet on npm, runs the root `release` script (`pnpm build && changeset publish`).
+3. Publishing uses npm Trusted Publishing (OIDC); there is no npm token to manage.
 
-Manual steps to release locally (rarely needed):
+So releasing is: merge the `chore: release packages` PR.
 
-```bash
-pnpm changeset version  # consume changesets, bump versions, update changelogs
-pnpm release            # builds and publishes via `changeset publish`
-```
-
-Both require write access to the npm org and the appropriate `RELEASE_PAT` for tagging.
+The repository is currently in changesets **pre mode** (`.changeset/pre.json`, tag `beta`), so releases publish as `3.0.0-beta.N` under the `beta` dist-tag. See [Build & Release](./.agents/rules/build-and-release.md#prerelease-mode) for how pre mode is exited.
 
 ### Versioning policy
 
@@ -236,6 +144,17 @@ Both require write access to the npm org and the appropriate `RELEASE_PAT` for t
 - Breaking changes to the contract type system count as `major`. Be conservative.
 - Bug fixes that change behavior in a way users could rely on (even unintentionally) deserve at least a `minor` and a changelog note explaining the change.
 - Internal refactors with no surface change can ship as `patch`.
+
+## Conventions shared with sibling libraries
+
+amqp-contract shares its foundations with [unthrown](https://btravstack.github.io/unthrown/) (errors as values) and [temporal-contract](https://btravstack.github.io/temporal-contract/) (typed contracts for Temporal). The shared conventions are deliberate and stable: Standard Schema v1 validation, `define*` for contract authoring vs `declare*` for implementations, static `Typed*.create(...)` factories returning an `AsyncResult` (an unreachable broker is a modeled `ConnectionError`; a bug during start-up is a defect), namespaced `TaggedError` tags (`@amqp-contract/X`, `@temporal-contract/X`), and [Deno-style exported signatures](https://docs.deno.com/runtime/contributing/style_guide/) (at most two positional arguments, a trailing options object, no positional booleans).
+
+The divergences are equally deliberate — do not expect a future release to "align" them:
+
+- **Vocabulary.** amqp-contract speaks choreography (events, commands — see the [glossary](https://btravstack.github.io/amqp-contract/reference/glossary#choreography)); temporal-contract speaks orchestration (workflows, activities). Different coordination models earn different words.
+- **Retry configuration.** amqp-contract uses unit-suffixed retry-count semantics; temporal-contract exposes Temporal's native `RetryPolicy`. The mapping: `maxRetries` ≈ `maximumAttempts − 1`, `initialDelayMs` ≈ `initialInterval`, `maxDelayMs` ≈ `maximumInterval`, `backoffMultiplier` ≈ `backoffCoefficient`.
+- **Validation errors.** amqp-contract has a single `MessageValidationError` (one wire, one boundary); temporal-contract has per-surface errors because Temporal has five distinct invocation surfaces.
+- **Module format.** amqp-contract ships dual CJS + ESM; this is a compatibility stance, not an accident.
 
 ## Questions?
 
