@@ -183,13 +183,13 @@ Retried deliveries arrive via the default exchange, so their `fields.routingKey`
 
 Stamped only on paths that **republish** the message — classic queues under `immediate-requeue`, and any queue under `ttl-backoff`.
 
-| Header                      | Meaning                           | Set on                     |
-| --------------------------- | --------------------------------- | -------------------------- |
-| `x-delivery-count`          | Broker-native attempt count       | Quorum queues, by RabbitMQ |
-| `x-retry-count`             | Worker-managed attempt count      | Republish paths            |
-| `x-last-error`              | Most recent failure message       | Republish paths            |
-| `x-first-failure-timestamp` | Epoch ms of first failure         | Republish paths            |
-| `x-original-routing-key`    | Routing key of the first delivery | Republish paths            |
+| Header                      | Meaning                                             | Set on                     |
+| --------------------------- | --------------------------------------------------- | -------------------------- |
+| `x-delivery-count`          | Broker-native attempt count                         | Quorum queues, by RabbitMQ |
+| `x-retry-count`             | Worker-managed attempt count                        | Republish paths            |
+| `x-last-error`              | Most recent failure message (first 1024 characters) | Republish paths            |
+| `x-first-failure-timestamp` | Epoch ms of first failure                           | Republish paths            |
+| `x-original-routing-key`    | Routing key of the first delivery                   | Republish paths            |
 
 Direct-nack paths add nothing, so those dead-lettered messages arrive exactly as delivered.
 
