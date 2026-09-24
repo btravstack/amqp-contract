@@ -5,7 +5,11 @@
  * pointer instead of a duplicate here; this file adds direct unit guards for
  * the error-routing decisions of `handleError`.
  */
-import { defineMessage, defineQueue } from "@amqp-contract/contract";
+import {
+  defineMessage,
+  defineQueue,
+  deriveTtlBackoffInfrastructure,
+} from "@amqp-contract/contract";
 import type { AmqpClient } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync } from "unthrown";
@@ -13,7 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
-import { handleError } from "./retry.js";
+import { decideRetry, handleError } from "./retry.js";
 
 function mockMessage(headers: Record<string, unknown> = {}): ConsumeMessage {
   return {
@@ -150,5 +154,76 @@ describe("invariants: handler-error routing", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  const malformedCounts = [
+    ["a string", "abc"],
+    ["NaN", Number.NaN],
+    ["a negative", -5],
+    ["a fraction", 1.5],
+    ["a table", { nested: 1 }],
+    ["an unsafe integer", 2 ** 60],
+  ] as const;
+
+  it.for(malformedCounts)(
+    "INVARIANT: a malformed x-retry-count (%s) counts as 0 — the classic immediate-requeue budget still holds",
+    async ([, forged]) => {
+      const { client, publish } = mockClient();
+      const consumer = {
+        queue: defineQueue("orders", {
+          type: "classic",
+          retry: { mode: "immediate-requeue", maxRetries: 2 },
+        }),
+        message,
+      };
+
+      await handleError(
+        { amqpClient: client as never },
+        new RetryableError("transient"),
+        mockMessage({ "x-retry-count": forged }),
+        "processOrder",
+        consumer,
+      ).get();
+
+      // The copy restarts the count at 1 — never `"abc1"`, which would never
+      // reach the budget and loop forever.
+      expect(publish.mock.calls[0]?.[2]).toMatchObject({ headers: { "x-retry-count": 1 } });
+    },
+  );
+
+  it.for(malformedCounts)(
+    "INVARIANT: a malformed x-retry-count (%s) never computes an undeclared ttl-backoff wait-queue tier",
+    ([, forged]) => {
+      const queue = defineQueue("orders", {
+        retry: { mode: "ttl-backoff", maxRetries: 3, initialDelayMs: 1000 },
+      });
+      const declared = deriveTtlBackoffInfrastructure(queue)!.waitQueues.map((w) => w.name);
+
+      const action = decideRetry(new RetryableError("transient"), queue, {
+        "x-retry-count": forged,
+      });
+
+      expect(action).toMatchObject({ kind: "republish", routingKey: declared[0] });
+    },
+  );
+
+  it("INVARIANT: malformed x-first-failure-timestamp / x-original-routing-key are replaced, never propagated", async () => {
+    const { client, publish } = mockClient();
+    const consumer = {
+      queue: defineQueue("orders", { retry: { mode: "ttl-backoff", maxRetries: 3 } }),
+      message,
+    };
+
+    await handleError(
+      { amqpClient: client as never },
+      new RetryableError("transient"),
+      mockMessage({ "x-first-failure-timestamp": "yesterday", "x-original-routing-key": 42 }),
+      "processOrder",
+      consumer,
+    ).get();
+
+    expect(publish.mock.calls[0]?.[2]).toMatchObject({
+      headers: { "x-first-failure-timestamp": expect.any(Number), "x-original-routing-key": "k" },
+    });
   });
 });

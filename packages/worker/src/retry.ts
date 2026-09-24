@@ -2,6 +2,7 @@ import {
   type ConsumerDefinition,
   type QueueDefinition,
   type ResolvedTtlBackoffRetryOptions,
+  deriveTtlBackoffInfrastructure,
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
@@ -41,9 +42,16 @@ export type RetryAction =
   | { kind: "requeue"; retryCount: number }
   | { kind: "republish"; routingKey: string; retryCount: number; delayMs?: number | undefined };
 
-/** A delivery's retry counter header, as a count. */
-function readCount(headers: Record<string, unknown> | undefined, name: string): number {
-  return (headers?.[name] as number) ?? 0;
+/**
+ * A delivery's retry counter header, as a count. Headers arrive from the wire:
+ * anything but a non-negative safe integer (a string, NaN, a negative, a
+ * table — a producer bug or a forged header) counts as 0, so it can neither
+ * bypass the retry budget (`"abc" >= 3` is false forever) nor compute an
+ * undeclared wait-queue tier (`initialDelay * 2 ** NaN`).
+ */
+export function readCount(headers: Record<string, unknown> | undefined, name: string): number {
+  const value = headers?.[name];
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 /**
@@ -94,9 +102,16 @@ export function decideRetry(
   if (retryCount >= config.maxRetries) {
     return { kind: "dead-letter", reason: "max retries exceeded" };
   }
+  const waitQueue = ttlBackoffWaitQueueName(queue.name, ttlBackoffBaseDelay(config, retryCount));
+  // The copy goes through the default exchange without `mandatory`: a tier
+  // that was never declared would swallow it silently. Only publish to one
+  // setup declared; anything else is a bug, and the DLQ keeps the message.
+  if (!deriveTtlBackoffInfrastructure(queue)?.waitQueues.some((w) => w.name === waitQueue)) {
+    return { kind: "dead-letter", reason: `wait queue "${waitQueue}" is not a declared tier` };
+  }
   return {
     kind: "republish",
-    routingKey: ttlBackoffWaitQueueName(queue.name, ttlBackoffBaseDelay(config, retryCount)),
+    routingKey: waitQueue,
     retryCount: retryCount + 1,
     delayMs: calculateRetryDelay(retryCount, config, rand),
   };
@@ -208,7 +223,10 @@ function publishForRetry(
     error: Error;
   },
 ): AsyncResult<void, never> {
-  const newRetryCount = readCount(msg.properties.headers, "x-retry-count") + 1;
+  const headers = msg.properties.headers;
+  const newRetryCount = readCount(headers, "x-retry-count") + 1;
+  const firstFailure = headers?.["x-first-failure-timestamp"];
+  const originalRoutingKey = headers?.["x-original-routing-key"];
 
   // Publish FIRST, then ack the original only if the publish succeeded.
   //
@@ -223,13 +241,17 @@ function publishForRetry(
       ...msg.properties,
       ...(delayMs !== undefined ? { expiration: delayMs.toString() } : {}), // Per-message TTL
       headers: {
-        ...msg.properties.headers,
+        ...headers,
         "x-retry-count": newRetryCount,
         "x-last-error": error.message,
+        // Carried over only when well-formed; a forged or corrupt value is
+        // replaced, never propagated down the retry chain.
         "x-first-failure-timestamp":
-          msg.properties.headers?.["x-first-failure-timestamp"] ?? Date.now(),
+          typeof firstFailure === "number" && Number.isSafeInteger(firstFailure) && firstFailure > 0
+            ? firstFailure
+            : Date.now(),
         "x-original-routing-key":
-          msg.properties.headers?.["x-original-routing-key"] ?? msg.fields.routingKey,
+          typeof originalRoutingKey === "string" ? originalRoutingKey : msg.fields.routingKey,
       },
     })
     .map(() => {
