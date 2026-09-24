@@ -51,7 +51,7 @@ function resolveTtlBackoffOptions(
  *
  * By default, queues are created as quorum queues which provide better durability and
  * high-availability. Use `type: 'classic'` for special cases like non-durable queues
- * or priority queues.
+ * or `x-max-priority` priority levels.
  *
  * @param name - The name of the queue
  * @param options - Optional queue configuration
@@ -59,7 +59,7 @@ function resolveTtlBackoffOptions(
  * @param options.durable - If true, the queue survives broker restarts. Quorum queues only support durable queues (default: true)
  * @param options.exclusive - If true, the queue can only be used by the declaring connection and is deleted when that connection closes. Only supported with classic queues.
  * @param options.autoDelete - If true, the queue is deleted when the last consumer unsubscribes. Only supported with classic queues.
- * @param options.maxPriority - Maximum priority level for priority queue (1-255, recommended: 1-10). Only supported with classic queues.
+ * @param options.maxPriority - Maximum priority level for priority queue (1-255, recommended: 1-10). Only supported with classic queues: quorum queues ignore `x-max-priority` and honor the per-message `priority` property natively on RabbitMQ 4.0+.
  * @param options.deadLetter - Dead letter configuration for handling failed messages
  * @param options.onPoison - Set to 'drop' to declare that poison messages on this queue are deliberately discarded. `defineContract` requires either this or `deadLetter` on any queue it sees consumed.
  * @param options.retry - Retry configuration for handling failed message processing
@@ -91,7 +91,8 @@ function resolveTtlBackoffOptions(
  *   autoDelete: true,
  * });
  *
- * // Priority queue (requires classic type)
+ * // Classic priority levels (x-max-priority). A quorum queue needs none of
+ * // this: it honors the per-message `priority` natively on RabbitMQ 4.0+.
  * const taskQueue = defineQueue('urgent-tasks', {
  *   type: 'classic',
  *   maxPriority: 10,
@@ -179,10 +180,10 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
     // Quorum queues do not support non-durable, exclusive, autoDelete, or maxPriority.
     // The default type is quorum, so the remedy must say so: an author who never
     // wrote `type` does not know which type rejected the option.
-    const quorumRejects = (option: string, why: string): Error =>
+    const quorumRejects = (option: string, why: string, remedy = "Set"): Error =>
       new Error(
         `Queue "${name}": ${option} is not supported on quorum queues (the default type)${why}. ` +
-          `Set \`type: "classic"\` on this queue.`,
+          `${remedy} \`type: "classic"\` on this queue.`,
       );
     if (opts.durable === false) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
@@ -197,8 +198,17 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
       throw quorumRejects("autoDelete", "");
     }
     if (opts.maxPriority !== undefined) {
+      // Quorum queues DO prioritise messages (RabbitMQ 4.0+), but with no
+      // queue argument: `x-max-priority` is classic-only and silently ignored
+      // on a quorum queue, so accepting it would be a no-op option.
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-      throw quorumRejects("maxPriority", "");
+      throw quorumRejects(
+        "maxPriority",
+        " — `x-max-priority` is a classic-queue argument that quorum queues ignore",
+        "Quorum queues already honor the per-message `priority` property natively on " +
+          "RabbitMQ 4.0+ (normal vs high above 4 on 4.0–4.2; 32 strict levels on 4.3+): remove " +
+          "maxPriority to keep this a quorum queue, or for classic priority levels set",
+      );
     }
   } else if (
     opts.maxPriority !== undefined &&
