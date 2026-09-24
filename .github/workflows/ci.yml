@@ -33,3 +33,16 @@ jobs:
         uses: ./.github/actions/setup
       - name: Validate published surfaces (publint + are-the-types-wrong)
         run: pnpm run check:packages
+
+  docs-build:
+    # The root `build` skips the docs site, so build it here: VitePress fails on
+    # dead links, and deploy-docs only runs after merge.
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Build documentation site
+        run: pnpm run build:docs
