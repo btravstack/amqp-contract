@@ -28,7 +28,7 @@ import {
   TechnicalError,
 } from "./errors.js";
 import type { Logger } from "./logger.js";
-import { setupAmqpTopology } from "./setup.js";
+import { setupAmqpTopology, type TopologyMode } from "./setup.js";
 import { injectTraceContext, runWithTraceContext } from "./telemetry.js";
 
 /**
@@ -179,6 +179,13 @@ export type AmqpClientOptions = {
    */
   publishTimeoutMs?: number | null | undefined;
   logger?: Logger | undefined;
+  /**
+   * What the channel's setup does with the contract's topology on every
+   * (re)connect — see {@link TopologyMode}. Defaults to `"assert"`. The
+   * contract passed to the constructor is the scope: hand it a slice (e.g.
+   * `publisherTopology(contract)`) to declare only what one role needs.
+   */
+  topology?: TopologyMode | undefined;
 };
 
 /**
@@ -347,7 +354,8 @@ export class AmqpClient {
     this.connection = this.connectionLease.connection;
 
     // Create default setup function that calls setupAmqpTopology
-    const defaultSetup = (channel: Channel) => setupAmqpTopology(channel, this.contract);
+    const defaultSetup = (channel: Channel) =>
+      setupAmqpTopology(channel, this.contract, { mode: options.topology });
 
     // Destructure setup from channelOptions to handle it separately
     const { setup: userSetup, ...otherChannelOptions } = options.channelOptions ?? {};

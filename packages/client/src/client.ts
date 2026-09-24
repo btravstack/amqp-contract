@@ -19,6 +19,7 @@ import {
   RpcError,
   TechnicalError,
   type TelemetryProvider,
+  type TopologyMode,
   defaultTelemetryProvider,
   endSpanError,
   endSpanSuccess,
@@ -28,7 +29,12 @@ import {
   startPublishSpan,
   technicalDefect,
 } from "@amqp-contract/core";
-import { decodeMessage, encodeMessage, runWithTraceContext } from "@amqp-contract/core/internal";
+import {
+  decodeMessage,
+  encodeMessage,
+  publisherTopology,
+  runWithTraceContext,
+} from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -156,6 +162,17 @@ export type CreateClientOptions<TContract extends ContractDefinition> = {
    * publish, reply await): the first entry is the outermost.
    */
   callInterceptors?: readonly CallInterceptor[] | undefined;
+  /**
+   * What the client does with its topology on every (re)connect. The client
+   * only ever touches the exchanges its publishers need (and the
+   * exchange-to-exchange bindings forwarding from them) — never queues, which
+   * are the worker's to declare.
+   *
+   * - `"assert"` (default) — declare those exchanges.
+   * - `"passive"` — only check they exist; `create()` fails if one is missing.
+   * - `"none"` — touch nothing (topology is provisioned elsewhere).
+   */
+  topology?: TopologyMode | undefined;
 };
 
 /**
@@ -225,6 +242,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     publishTimeoutMs,
     publishInterceptors,
     callInterceptors,
+    topology,
   }: CreateClientOptions<TContract>): AsyncResult<TypedAmqpClient<TContract>, ConnectionError> {
     // Enter through the safety net so a synchronous constructor throw (an
     // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
@@ -232,12 +250,14 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return OkAsync(undefined).flatMap(() => {
       const client = new TypedAmqpClient(
         contract,
-        new AmqpClient(contract, {
+        // Scoped to what a publisher needs: queues are the worker's.
+        new AmqpClient(publisherTopology(contract), {
           urls,
           connectionOptions,
           connectTimeoutMs,
           publishTimeoutMs,
           logger,
+          topology,
         }),
         { persistent: true, ...defaultPublishOptions },
         logger,

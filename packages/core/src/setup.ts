@@ -5,6 +5,58 @@ import type { Channel } from "amqplib";
 import { TechnicalError } from "./errors.js";
 
 /**
+ * What topology setup does with the contract's resources on (re)connect:
+ *
+ * - `"assert"` (default) — declare them (`assertExchange` / `assertQueue`,
+ *   plus bindings): the broker creates what is missing and refuses a mismatch.
+ * - `"passive"` — only check they exist (`checkExchange` / `checkQueue`) and
+ *   declare nothing, for an application whose credentials may not configure
+ *   the broker; bindings cannot be checked passively and are skipped. A
+ *   missing resource fails `create()`.
+ * - `"none"` — touch nothing: topology is owned elsewhere (IaC, definitions
+ *   import, another service).
+ */
+export type TopologyMode = "assert" | "passive" | "none";
+
+/**
+ * The slice of a contract a PUBLISHER needs on the broker: the exchanges its
+ * publishers publish to, plus — transitively — every exchange those forward
+ * to through exchange-to-exchange bindings, and those bindings. No queues:
+ * queues (and their dead-lettering and retry infrastructure) are the
+ * consumer's to declare, so a publisher never re-asserts, and never fights
+ * over, another service's queue arguments.
+ */
+export function publisherTopology(contract: ContractDefinition): ContractDefinition {
+  const exchangeBindings = Object.entries(contract.bindings ?? {}).filter(
+    ([, binding]) => binding.type === "exchange",
+  );
+  const needed = new Set(Object.values(contract.publishers ?? {}).map((p) => p.exchange.name));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [, binding] of exchangeBindings) {
+      if (
+        binding.type === "exchange" &&
+        needed.has(binding.source.name) &&
+        !needed.has(binding.destination.name)
+      ) {
+        needed.add(binding.destination.name);
+        grew = true;
+      }
+    }
+  }
+  return {
+    exchanges: Object.fromEntries(
+      Object.entries(contract.exchanges ?? {}).filter(([, exchange]) => needed.has(exchange.name)),
+    ),
+    bindings: Object.fromEntries(
+      exchangeBindings.filter(
+        ([, binding]) => binding.type === "exchange" && needed.has(binding.source.name),
+      ),
+    ),
+  };
+}
+
+/**
  * Declare every item concurrently and, if any rejected, throw ONE
  * `AggregateError` naming all of them.
  *
@@ -50,6 +102,8 @@ async function settleAll<T>(
  *
  * @param channel - The AMQP channel to use for topology setup
  * @param contract - The contract definition containing the topology specification
+ *   (pass a slice, e.g. `publisherTopology(contract)`, to scope setup to a role)
+ * @param options.mode - {@link TopologyMode}; defaults to `"assert"`
  * @throws {AggregateError} If any exchanges, queues, or bindings fail to be created
  * @throws {TechnicalError} If a queue references a dead letter exchange not declared in the contract
  *
@@ -62,7 +116,12 @@ async function settleAll<T>(
 export async function setupAmqpTopology(
   channel: Channel,
   contract: ContractDefinition,
+  options?: { mode?: TopologyMode | undefined },
 ): Promise<void> {
+  const mode = options?.mode ?? "assert";
+  if (mode === "none") return;
+  const passive = mode === "passive";
+
   // Setup exchanges. The AMQP default exchange (name "") is implicit; RabbitMQ
   // does not allow asserting it, so we skip empty-named exchange entries.
   const exchanges = Object.values(contract.exchanges ?? {}).filter((e) => e.name !== "");
@@ -71,12 +130,14 @@ export async function setupAmqpTopology(
     "exchanges",
     (exchange) => exchange.name,
     (exchange) =>
-      channel.assertExchange(exchange.name, exchange.type, {
-        ...(exchange.durable !== undefined && { durable: exchange.durable }),
-        ...(exchange.autoDelete !== undefined && { autoDelete: exchange.autoDelete }),
-        ...(exchange.internal !== undefined && { internal: exchange.internal }),
-        ...(exchange.arguments !== undefined && { arguments: exchange.arguments }),
-      }),
+      passive
+        ? channel.checkExchange(exchange.name)
+        : channel.assertExchange(exchange.name, exchange.type, {
+            ...(exchange.durable !== undefined && { durable: exchange.durable }),
+            ...(exchange.autoDelete !== undefined && { autoDelete: exchange.autoDelete }),
+            ...(exchange.internal !== undefined && { internal: exchange.internal }),
+            ...(exchange.arguments !== undefined && { arguments: exchange.arguments }),
+          }),
   );
 
   // Validate dead letter exchanges before setting up queues
@@ -174,8 +235,11 @@ export async function setupAmqpTopology(
     queueAsserts,
     "queues",
     ({ name }) => name,
-    ({ assert }) => assert(),
+    ({ name, assert }) => (passive ? channel.checkQueue(name) : assert()),
   );
+
+  // AMQP has no passive bind: a passive setup checks existence only.
+  if (passive) return;
 
   // Setup bindings
   await settleAll(
