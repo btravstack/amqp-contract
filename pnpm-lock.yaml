@@ -296,6 +296,9 @@ catalogs:
     vitest:
       specifier: 4.1.11
       version: 4.1.11
+    vue:
+      specifier: 3.5.35
+      version: 3.5.35
     yaml:
       specifier: 2.9.1
       version: 2.9.1
@@ -394,6 +397,9 @@ importers:
       vitepress-plugin-mermaid:
         specifier: 'catalog:'
         version: 2.0.17(mermaid@11.17.1)(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.2.0)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))
+      vue:
+        specifier: 'catalog:'
+        version: 3.5.35(typescript@6.0.3)
 
   examples/basic-order-processing-client:
     dependencies:
