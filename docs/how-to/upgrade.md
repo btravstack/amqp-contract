@@ -597,6 +597,18 @@ Upgrades `unthrown` to `1.0.0`, which renames the value constructors: **`ok` →
 
 Replaces `neverthrow` with `unthrown`, which keeps errors-as-values but adds the defect channel.
 
+::: warning Historical mapping
+This table records what 1.0 shipped. Later sections supersede several rows — `ok(v).toAsync()`, `.unwrap()` and the `err` match key no longer exist in current unthrown. If you are going from 0.x straight to the latest release, use the current equivalents instead:
+
+| 1.x (this table)                       | Current                                                                |
+| -------------------------------------- | ---------------------------------------------------------------------- |
+| `ok(v).toAsync()` / `err(e).toAsync()` | `OkAsync(v)` / `ErrAsync(e)`                                           |
+| `.unwrap()`                            | `.getOrThrow()` (or `.get()` when the error channel is `never`)        |
+| `result.match({ ok, err, defect })`    | `result.match({ ok, errCases: (matcher) => matcher.with(…), defect })` |
+| `.tapErr`                              | `.tapErrCases((matcher) => matcher.with(…))`                           |
+
+:::
+
 | neverthrow (0.x)                     | unthrown (1.x)                                             |
 | ------------------------------------ | ---------------------------------------------------------- |
 | `ResultAsync<T, E>`                  | `AsyncResult<T, E>`                                        |
