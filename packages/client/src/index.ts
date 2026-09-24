@@ -19,6 +19,7 @@ export {
   TechnicalError,
   type Logger,
   type LoggerContext,
+  type ConnectionSource,
   type TelemetryProvider,
   type TopologyMode,
 } from "@amqp-contract/core";

@@ -3,6 +3,7 @@ export {
   type AmqpClientOptions,
   type AmqpConsumeOptions,
   type AmqpPublishOptions,
+  type ConnectionSource,
   type ConsumeCallback,
   DEFAULT_CONNECT_TIMEOUT_MS,
   DEFAULT_PREFETCH,
