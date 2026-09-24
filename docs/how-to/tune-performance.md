@@ -73,7 +73,7 @@ Quorum queues are the default and replicate through Raft, which costs write late
 
 That cost is the durability you are buying, and it is almost always worth it. Switching to `type: "classic"` for speed is only defensible for genuinely disposable data — transient caches, ephemeral notifications — where losing the queue on a broker restart is acceptable.
 
-Under `immediate-requeue`, remember quorum queues also enforce `x-delivery-limit` (20 by default in RabbitMQ 4) independently of your `maxRetries`. See [retry failed messages](/how-to/retry-failed-messages#retry-immediately).
+Under `immediate-requeue`, quorum queues also cap redeliveries with `x-delivery-limit` (20 by default in RabbitMQ 4). `defineQueue` sets it to `maxRetries + 1`, so a large `maxRetries` is honoured rather than cut short by the broker — but every retry is still a full redelivery, so keep the budget small. See [retry failed messages](/how-to/retry-failed-messages#retry-immediately).
 
 ## Validation cost
 

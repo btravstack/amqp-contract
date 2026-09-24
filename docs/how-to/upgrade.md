@@ -456,6 +456,38 @@ during start-up.
 A blanket `.recoverDefect(...)` that existed only to move this failure onto the
 `Err` channel can go — that is what this change is for.
 
+### Quorum queues with immediate-requeue retry declare `x-delivery-limit`
+
+**What breaks:** workers and clients fail at startup against a quorum queue that **already exists on the broker** and has `retry: { mode: "immediate-requeue" }`. `defineQueue` now adds the queue argument `x-delivery-limit: maxRetries + 1`, and RabbitMQ refuses to redeclare a queue with arguments that differ from the live one:
+
+```
+PRECONDITION_FAILED - inequivalent arg 'x-delivery-limit' for queue 'order-processing'
+in vhost '/': received the value '4' of type 'byte' but current is none
+```
+
+**Why:** RabbitMQ 4 caps quorum redeliveries at `x-delivery-limit`, 20 by default, and dead-letters past it by itself. With `maxRetries` of 20 or more, the broker dead-lettered the message (reason `delivery_limit`) before the worker's retry budget ran out, so the configured budget was never reached. Setting the limit one above `maxRetries` keeps the worker in charge.
+
+**The fix** depends on what the live queue was declared with:
+
+- **No `x-delivery-limit` argument** (the common case — the old default): recreate the queue so it is declared with the new argument. Drain it first; queue arguments cannot be changed in place. The contract always sends the argument for these queues, so there is no way to match a queue declared without one.
+- **An explicit `x-delivery-limit` already in `arguments`**: nothing changes — `defineQueue` keeps your value — as long as it is at least `maxRetries + 1` (or negative, RabbitMQ's "unlimited"). A lower value is now rejected at define time; raise it (which again means recreating the queue) or lower `maxRetries`.
+
+```typescript
+import { defineExchange, defineQueue } from "@amqp-contract/contract";
+
+const ordersDlx = defineExchange("orders-dlx");
+
+// Already declared with x-delivery-limit 10: kept as-is, since 10 >= maxRetries + 1.
+// A value below maxRetries + 1 is rejected at define time.
+const orderQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+  retry: { mode: "immediate-requeue", maxRetries: 3 },
+  arguments: { "x-delivery-limit": 10 },
+});
+```
+
+Classic queues, `ttl-backoff` retry and queues with no retry are unaffected.
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
@@ -469,6 +501,7 @@ A blanket `.recoverDefect(...)` that existed only to move this failure onto the
    ones that read their payload; grep for the rest.
 8. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
 9. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
+10. Plan a recreate for every existing quorum queue with `immediate-requeue` retry: it now [declares `x-delivery-limit`](#quorum-queues-with-immediate-requeue-retry-declare-x-delivery-limit) and fails to redeclare against the old one.
 
 ## 2.3.x → 2.4.x
 
