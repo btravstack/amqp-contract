@@ -14,17 +14,22 @@
 
 ## Integration Test Setup
 
-Use `@amqp-contract/testing` for RabbitMQ integration tests. Configure `globalSetup` in vitest.config.ts for container lifecycle:
+Every workspace builds its `vitest.config.ts` from `sharedVitestConfig` in [`vitest.shared.ts`](../../vitest.shared.ts) — don't hand-write the config. Passing `integration: true` splits the run into a `unit` project (`src/**/*.spec.ts`, no broker) and an `integration` project (`src/__tests__/*.spec.ts`) whose `globalSetup` is `@amqp-contract/testing/global-setup`, which starts the RabbitMQ testcontainer:
 
 ```typescript
-// vitest.config.ts
+// packages/<name>/vitest.config.ts
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  test: {
-    globalSetup: ["@amqp-contract/testing/global-setup"],
-  },
-});
+import { sharedVitestConfig } from "../../vitest.shared.js";
+
+export default defineConfig(
+  sharedVitestConfig({
+    integration: true,
+    // Optional: coverage floors (raise, never lower), type tests, setup file.
+    thresholds: { statements: 30, branches: 30, functions: 30, lines: 30 },
+    typecheck: true,
+  }),
+);
 ```
 
 ## Test Fixtures
@@ -68,7 +73,7 @@ const mockHandler = vi.fn().mockReturnValue(OkAsync(undefined));
 
 // Assertion pattern
 expect(mockHandler).toHaveBeenCalledWith(
-  expect.anything(), // helpers: { context, errors, raw }
+  expect.anything(), // helpers: { input, context, errors, raw, retryable, nonRetryable }
   expect.objectContaining({
     payload: expect.objectContaining({ orderId: "123" }),
   }),

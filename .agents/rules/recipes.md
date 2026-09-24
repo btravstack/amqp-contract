@@ -35,7 +35,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 
 If you're spinning up a new `@amqp-contract/*` package:
 
-1. Create `packages/<name>/` with at minimum: `package.json`, `tsconfig.json` (extends `@amqp-contract/tsconfig`), and `src/index.ts`. Add `vitest.config.ts` only if the package has tests; add `tsdown.config.ts` only if you need config beyond what the CLI flags can express (see existing packages — `contract` and `testing` skip the config file, the others use one).
+1. Create `packages/<name>/` with at minimum: `package.json`, `tsconfig.json` (extends `@btravstack/tsconfig/base.json`), and `src/index.ts`. Add `vitest.config.ts` only if the package has tests; add `tsdown.config.ts` only if you need config beyond what the CLI flags can express — in practice, marking a dep `external` (see existing packages — `contract` and `testing` skip the config file, the others use one).
 2. Mirror the metadata fields from `packages/contract/package.json`: `homepage`, `bugs`, `license`, `author`, `repository` (with the correct `directory`), `files`, `type: "module"`, plus the appropriate `exports` map (single entry like `contract` or multi-entry like `testing`). **All of these are required** — npm Trusted Publishing rejects on missing or empty `repository.url` (we hit that during the migration).
 3. Pick the build shape that matches your package's exports:
    - **Single-entry, dual ESM+CJS** (most packages): `tsdown src/index.ts --format cjs,esm --dts --clean`, with a `tsdown.config.ts` if you need to mark deps external (see [Build & Release](./build-and-release.md)).
