@@ -206,9 +206,13 @@ export type CompressionAlgorithm = "gzip" | "deflate";
  * - `quorum`: Quorum queues (default, recommended) - Provide better durability and high-availability
  *   using the Raft consensus algorithm. Best for most production use cases.
  * - `classic`: Classic queues - The traditional RabbitMQ queue type. Use only when you need
- *   specific features not supported by quorum queues (e.g., non-durable queues, priority queues).
+ *   specific features not supported by quorum queues (e.g., non-durable, exclusive or
+ *   auto-deleting queues, or `x-max-priority` priority levels).
  *
- * Note: Quorum queues only support durable queues, and do not support exclusive, auto-deleting, or priority queues.
+ * Note: Quorum queues only support durable queues, and do not support exclusive or auto-deleting
+ * queues. They do support message priority natively on RabbitMQ 4.0+ — the per-message `priority`
+ * property, with no queue argument (normal vs high above 4 on 4.0–4.2; 32 strict levels on 4.3+) —
+ * so `maxPriority` (`x-max-priority`, which quorum queues ignore) is classic-only.
  *
  * @see https://www.rabbitmq.com/docs/quorum-queues
  *
@@ -291,7 +295,8 @@ type BaseQueueOptions = {
  * Quorum queues do not support:
  * - `exclusive` - Use classic queues for connection-scoped queues
  * - `autoDelete` - Use classic queues for auto-deleting queues when consumers disconnect
- * - `maxPriority` - Use classic queues for priority queues
+ * - `maxPriority` - `x-max-priority` is classic-only; quorum queues honor the per-message
+ *   `priority` property natively on RabbitMQ 4.0+ with no queue argument
  * - `durable: false` - Use classic queues for non-durable queues
  *
  * Quorum queues provide native retry support for immediate-requeue retry mode:
@@ -332,8 +337,11 @@ export type QuorumQueueOptions = BaseQueueOptions & {
   autoDelete?: never;
 
   /**
-   * Quorum queues do not support priority queues.
-   * Use type: 'classic' if you need priority queues.
+   * `x-max-priority` is a classic-queue argument; quorum queues ignore it.
+   * Quorum queues honor the per-message `priority` property natively on
+   * RabbitMQ 4.0+ (normal vs high above 4 on 4.0–4.2; 32 strict levels on
+   * 4.3+) — publish with `priority` and leave this unset. Use
+   * type: 'classic' only if you need classic priority levels.
    */
   maxPriority?: never;
 };
@@ -344,7 +352,7 @@ export type QuorumQueueOptions = BaseQueueOptions & {
  * Classic queues support all traditional RabbitMQ features including:
  * - `exclusive` - For connection-scoped queues
  * - `autoDelete` - For auto-deleting queues when consumers disconnect
- * - `maxPriority` - For priority queues
+ * - `maxPriority` - For `x-max-priority` priority levels
  * - `durable: false` - For non-durable queues
  *
  * @example
@@ -390,6 +398,7 @@ export type ClassicQueueOptions = BaseQueueOptions & {
  * to enforce quorum queue constraints at compile time.
  *
  * - Quorum queues (default): Do not support `exclusive`, `autoDelete`, or `maxPriority`
+ *   (they prioritise messages natively on RabbitMQ 4.0+, without `x-max-priority`)
  * - Classic queues: Support all options including `exclusive`, `autoDelete`, and `maxPriority`
  */
 export type DefineQueueOptions = QuorumQueueOptions | ClassicQueueOptions;
@@ -636,8 +645,11 @@ export type QuorumQueueDefinition<TName extends string = string> = BaseQueueDefi
   autoDelete?: never;
 
   /**
-   * Quorum queues do not support priority queues.
-   * Use type: 'classic' if you need priority queues.
+   * `x-max-priority` is a classic-queue argument; quorum queues ignore it.
+   * Quorum queues honor the per-message `priority` property natively on
+   * RabbitMQ 4.0+ (normal vs high above 4 on 4.0–4.2; 32 strict levels on
+   * 4.3+) — publish with `priority` and leave this unset. Use
+   * type: 'classic' only if you need classic priority levels.
    */
   maxPriority?: never;
 };
@@ -646,7 +658,8 @@ export type QuorumQueueDefinition<TName extends string = string> = BaseQueueDefi
  * Definition of a classic queue.
  *
  * Classic queues are the traditional RabbitMQ queue type. Use them when you need
- * specific features not supported by quorum queues (e.g., exclusive queues, auto-deleting queues, priority queues).
+ * specific features not supported by quorum queues (e.g., exclusive queues, auto-deleting queues,
+ * `x-max-priority` priority levels).
  */
 export type ClassicQueueDefinition<TName extends string = string> = BaseQueueDefinition<TName> & {
   /**

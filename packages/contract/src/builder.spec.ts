@@ -270,9 +270,20 @@ describe("builder", () => {
         expect(() => defineQueue("orders", options as never)).toThrow(
           `Queue "orders": ${option} is not supported on quorum queues (the default type)`,
         );
-        expect(() => defineQueue("orders", options as never)).toThrow('Set `type: "classic"`');
+        expect(() => defineQueue("orders", options as never)).toThrow(
+          '`type: "classic"` on this queue',
+        );
       },
     );
+
+    it("should point a quorum maxPriority at native per-message priority, not only at classic", () => {
+      // Quorum queues prioritise natively on RabbitMQ 4.0+ with no queue
+      // argument; `x-max-priority` is ignored there. Telling the author that
+      // quorum "does not support priority" would push them off quorum for nothing.
+      expect(() => defineQueue("orders", { maxPriority: 10 } as never)).toThrow(
+        /quorum queues ignore.*honor the per-message `priority` property natively.*remove maxPriority/,
+      );
+    });
 
     it("should throw error for maxPriority greater than 255", () => {
       // WHEN/THEN
