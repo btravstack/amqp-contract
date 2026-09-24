@@ -39,45 +39,24 @@ import {
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
-// 1. Define resources with Dead Letter Exchange and retry configuration
 const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");
-const orderProcessingQueue = defineQueue("order-processing", {
-  deadLetter: { exchange: ordersDlx, routingKey: "order.failed" },
-  retry: { mode: "ttl-backoff", maxRetries: 3, initialDelayMs: 1000 }, // Retry configured at queue level
-});
-// A dead-letter exchange with nothing bound to it drops what it receives, so the
-// DLQ and its binding are what make `deadLetter` actually keep anything. The
-// binding key must match the dead-letter routing key set above.
+// Every consumed queue needs a dead-letter exchange (or an explicit
+// `onPoison: "drop"`), and that exchange must route somewhere — defineContract
+// rejects a contract that would silently lose rejected messages.
+const orderQueue = defineQueue("order-processing", { deadLetter: { exchange: ordersDlx } });
 const orderDlq = defineQueue("order-processing-dlq");
 
-// 2. Define message with schema validation
-const orderMessage = defineMessage(
-  z.object({
-    orderId: z.string(),
-    amount: z.number(),
-  }),
-);
-
-// 3. Event pattern: publisher broadcasts, consumers subscribe
-const orderCreatedEvent = defineEventPublisher(ordersExchange, orderMessage, {
+const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
+const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
 });
 
-// 4. Define contract - only publishers and consumers needed
-//    Exchanges, queues, and bindings are automatically extracted
 export const contract = defineContract({
-  publishers: {
-    orderCreated: orderCreatedEvent,
-  },
-  consumers: {
-    processOrder: defineEventConsumer(orderCreatedEvent, orderProcessingQueue),
-  },
-  // The DLQ is declared but never consumed — standalone topology
+  publishers: { orderCreated },
+  consumers: { processOrder: defineEventConsumer(orderCreated, orderQueue) },
   queues: { orderDlq },
-  bindings: {
-    orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "order.failed" }),
-  },
+  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
 });
 ```
 
@@ -90,46 +69,39 @@ import { OkAsync } from "unthrown";
 
 import { contract } from "./contract.js";
 
-// 5. Type-safe consuming with automatic retry (configured at queue level)
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers: {
     processOrder: ({ input: { payload } }) => {
-      console.log(payload.orderId); // ✅ TypeScript knows!
-      return OkAsync();
+      console.log(payload.orderId); // typed from the schema
+      return OkAsync(undefined);
     },
   },
   urls: ["amqp://localhost"],
 }).getOrThrow();
 
-// 6. Type-safe publishing with validation
-const client = await TypedAmqpClient.create({
-  contract,
-  urls: ["amqp://localhost"],
-}).getOrThrow();
+const client = await TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] }).getOrThrow();
 
-// publish() returns an AsyncResult instead of throwing — awaiting it yields a
-// Result. close() has an empty error channel (E = never), so .get() is correct
-// there; create() carries ConnectionError and publish() a validation error, so
-// extract those with .getOrThrow() (or handle them with .match()). See the
-// error model guide.
-await client
-  .publish("orderCreated", {
-    orderId: "ORD-123", // ✅ TypeScript knows!
-    amount: 99.99,
-  })
-  .getOrThrow();
+// Validated against the schema before it is sent. publish() returns a Result;
+// .getOrThrow() unwraps it here — a service would .match() on it instead.
+await client.publish("orderCreated", { orderId: "ORD-123", amount: 99.99 }).getOrThrow();
 
-// 7. Clean up
 await client.close().get();
 await worker.close().get();
 ```
 
-▶ For the full runnable version (including the RabbitMQ Docker command), follow the [5-minute quick start](https://btravstack.github.io/amqp-contract/tutorial/getting-started).
+▶ For the full runnable version (including the RabbitMQ Docker command), follow the [fifteen-minute tutorial](https://btravstack.github.io/amqp-contract/tutorial/getting-started).
 
 ## Installation
 
-Requires **Node.js 22.19+**.
+> [!NOTE]
+> This README describes **amqp-contract 3.x**, which is published under the `beta` npm tag until 3.0 is stable — `latest` is still 2.x, and the root of the documentation site documents 2.x (the 3.x docs are at [/beta/](https://btravstack.github.io/amqp-contract/beta/)). Install 3.x with:
+>
+> ```bash
+> pnpm add @amqp-contract/contract@beta @amqp-contract/client@beta @amqp-contract/worker@beta unthrown zod
+> ```
+
+Requires **Node.js 22.22+**.
 
 ```bash
 pnpm add @amqp-contract/contract @amqp-contract/client @amqp-contract/worker unthrown zod
@@ -147,7 +119,7 @@ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:4-management
 
 📖 **[Full Documentation →](https://btravstack.github.io/amqp-contract)**
 
-- [Get Started](https://btravstack.github.io/amqp-contract/tutorial/getting-started) — Get running in 5 minutes
+- [Get Started](https://btravstack.github.io/amqp-contract/tutorial/getting-started) — Get running in fifteen minutes
 - [Core Concepts](https://btravstack.github.io/amqp-contract/explanation/core-concepts) — Understand the fundamentals
 - [Examples](https://btravstack.github.io/amqp-contract/examples/) — Real-world usage patterns
 
