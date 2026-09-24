@@ -88,7 +88,7 @@ Prefer the promise form.
 
 ## Understand what you cannot do
 
-**You cannot suppress contract topology.** `setup` runs after it, so contract exchanges, queues and bindings are already declared. There is no hook to skip them — that is what makes the contract authoritative.
+**`setup` cannot suppress contract topology.** It runs after the client's or worker's slice of the contract is declared, so those exchanges, queues and bindings already exist. To skip declaring them — topology owned by IaC, or credentials without configure permission — pass `topology: "none"` (or `"passive"`, to only check they exist) to `create()` instead.
 
 **Channel options are per channel.** Connection-level settings are separate:
 

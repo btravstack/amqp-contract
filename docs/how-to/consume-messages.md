@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
 }).getOrThrow();
 ```
 
-Creating the worker declares the contract's topology against the broker and starts consuming every queue in it. There is no separate `start()`.
+Creating the worker declares what its consumers need against the broker — the consumed queues with their bindings, retry wait queues, dead-letter exchanges and DLQs — and starts consuming every consumer and RPC queue. There is no separate `start()`.
 
 The message is on the record as `input` as well as in the second parameter, so `({ input }) => …` and `({ errors }, message) => …` are the same call — oRPC's own shape, and its own word for it, where `ProcedureHandlerOptions` carries `input` and the handler still takes it positionally. Reach for the record: it is the one that needs no placeholder when a handler wants only its message.
 
