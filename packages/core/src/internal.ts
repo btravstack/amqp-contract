@@ -16,4 +16,8 @@ export {
 } from "./codec.js";
 export { recaptureStack } from "./errors.js";
 export { _internal_getConnectionCount, _internal_resetConnections } from "./connection-manager.js";
-export { _internal_resetTelemetryCache } from "./telemetry.js";
+export {
+  _internal_resetTelemetryCache,
+  injectTraceContext,
+  runWithTraceContext,
+} from "./telemetry.js";

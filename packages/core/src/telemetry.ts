@@ -270,6 +270,69 @@ function swallowTelemetryThrow<T>(operation: () => T): T | undefined {
 }
 
 /**
+ * Write the active trace context (W3C `traceparent`/`tracestate`, or whatever
+ * propagator the application registered) into a message's headers, so the
+ * consumer's span continues the publisher's trace.
+ *
+ * Returns the headers to publish with — a new object when something was
+ * injected, the input untouched otherwise (no `@opentelemetry/api`, no SDK, no
+ * active span). Never throws.
+ */
+export function injectTraceContext(
+  headers: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  return (
+    swallowTelemetryThrow(() => {
+      const api = tryLoadOpenTelemetryApi();
+      if (!api) return headers;
+      const carrier: Record<string, unknown> = {};
+      api.propagation.inject(api.context.active(), carrier);
+      return Object.keys(carrier).length === 0 ? headers : { ...headers, ...carrier };
+    }) ?? headers
+  );
+}
+
+/**
+ * Run `fn` inside the trace context a message carries: the context extracted
+ * from `headers` (or the active one when there are none), with `span` set as
+ * the active span when given. The publish side runs with its producer span
+ * active so {@link injectTraceContext} propagates it; the consume side runs
+ * the handler under its consumer span, parented on the publisher's context.
+ *
+ * Degrades to a plain `fn()` without `@opentelemetry/api` or a registered
+ * context manager. A throwing propagator or context manager is swallowed —
+ * telemetry never throws into the data path — but a throw from `fn` itself is
+ * rethrown untouched.
+ */
+export function runWithTraceContext<T>(
+  headers: Record<string, unknown> | undefined,
+  span: Span | undefined,
+  fn: () => T,
+): T {
+  const api = tryLoadOpenTelemetryApi();
+  const ctx = swallowTelemetryThrow(() => {
+    if (!api) return undefined;
+    const parent = headers
+      ? api.propagation.extract(api.context.active(), headers)
+      : api.context.active();
+    return span ? api.trace.setSpan(parent, span) : parent;
+  });
+  if (!api || ctx === undefined) return fn();
+
+  let entered = false;
+  try {
+    return api.context.with(ctx, () => {
+      entered = true;
+      return fn();
+    });
+  } catch (error) {
+    // oxlint-disable-next-line unthrown/no-throw -- transparent helper: a throw from `fn` must surface exactly as it would without telemetry
+    if (entered) throw error;
+    return fn();
+  }
+}
+
+/**
  * Create a span for a publish operation.
  * Returns undefined if OpenTelemetry is not available.
  * Never throws — a throwing provider is treated as "no telemetry".
