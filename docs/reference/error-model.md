@@ -23,7 +23,7 @@ HandlerError                  worker-side, returned by handlers (a union type)
 └── NonRetryableError         → dead-letter, skipping retries
 
 MessageValidationError        Standard Schema validation failed
-PublishError                  the broker side of a publish failed (timeout, nack, buffer full, channel closed)
+PublishError                  the broker side of a publish failed (timeout, nack, channel closed)
 ConnectionError               the broker could not be reached at create()
 RpcError<code, data>          declared business error on an RPC
 RpcTimeoutError               client-side: no reply in time
@@ -137,7 +137,6 @@ The broker side of a publish failed. Returned as a modeled `Err` from `publish()
 | ------------------ | ------------------------------------------------------------------------------ |
 | `"timeout"`        | The message sat buffered past `publishTimeoutMs` — the broker was unreachable. |
 | `"nacked"`         | The broker refused the message (`basic.nack`).                                 |
-| `"buffer-full"`    | The channel's write buffer was full (backpressure).                            |
 | `"channel-closed"` | The channel closed before the message was confirmed.                           |
 
 `target` names where the message was going, and `cause` carries the underlying rejection. **Modeled, not a defect**: a broker that is down, overloaded or refusing a message is an operational condition a publisher is expected to handle — buffer, retry, shed load, answer 503. A failure core cannot classify (an unencodable payload, an unknown rejection) stays a `TechnicalError` defect.

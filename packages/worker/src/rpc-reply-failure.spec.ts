@@ -17,14 +17,11 @@ import { z } from "zod";
 import { TypedAmqpWorker } from "./worker.js";
 
 /**
- * Guard for the buffer-full unification's one deliberate exception: core now
- * surfaces EVERY publish-side infrastructure failure (full write buffer
- * included) as a Defect, and `publishReply` is the single site that recovers
- * that defect into a modeled `NonRetryableError` — because a reply that
- * cannot be published must route the request to the DLQ (the caller has
- * already timed out; retrying re-runs the handler against nobody). If the
- * recovery is dropped, the defect would bypass `handleError` and the request
- * would never be nacked to the DLQ — this test pins the routing.
+ * A reply publish that fails on the broker side (core's modeled
+ * `PublishError`) must route the request to the DLQ as a `NonRetryableError`
+ * — the caller has already timed out; retrying re-runs the handler against
+ * nobody. A confirmed publish that merely leaves the write buffer full is NOT
+ * a failure: the reply was delivered, so the request is acked.
  */
 
 type FakeWrapper = EventEmitter & {
@@ -117,11 +114,10 @@ describe("RPC reply publish failure routing", () => {
     await _internal_resetConnections();
   });
 
-  it("INVARIANT: a reply publish that fails at the core layer (write buffer full) nacks the request to the DLQ, never acks", async () => {
-    // Core absorbs the wrapper's boolean: `false` (buffer full) becomes a
-    // Defect inside AmqpClient.publish. publishReply must recover it into a
-    // NonRetryableError so handleError routes the request to the DLQ.
-    wrapper().publish.mockResolvedValue(false);
+  it("INVARIANT: a reply publish the broker refuses (PublishError) nacks the request to the DLQ, never acks", async () => {
+    // Core classifies the rejection as PublishError("nacked"); publishReply
+    // maps it to a NonRetryableError so the request is routed to the DLQ.
+    wrapper().publish.mockRejectedValue(new Error("message nacked"));
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
     const worker = await TypedAmqpWorker.create({
@@ -146,7 +142,7 @@ describe("RPC reply publish failure routing", () => {
     expect(wrapper().nack).toHaveBeenCalledWith(expect.anything(), false, false);
     expect(wrapper().ack).not.toHaveBeenCalled();
 
-    // It must be the MODELED routing (recoverDefect → NonRetryableError →
+    // It must be the MODELED routing (PublishError → NonRetryableError →
     // handleError → sendToDLQ), not the defensive terminal-defect fallback:
     // the fallback would produce the same nack but would mean the recovery
     // was dropped and reply failures no longer follow HandlerError routing.
@@ -159,25 +155,30 @@ describe("RPC reply publish failure routing", () => {
     await worker.close().get();
   });
 
-  it("acks the request when the reply publish succeeds (control)", async () => {
-    wrapper().publish.mockResolvedValue(true);
+  it.for([true, false])(
+    "acks the request when the reply publish is confirmed (write buffer full: %s)",
+    async (bufferHasRoom) => {
+      wrapper().publish.mockResolvedValue(bufferHasRoom);
 
-    const worker = await TypedAmqpWorker.create({
-      contract,
-      handlers: { calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }) },
-      urls: ["amqp://localhost"],
-    }).getOrThrow();
+      const worker = await TypedAmqpWorker.create({
+        contract,
+        handlers: {
+          calculate: ({ input: { payload } }) => OkAsync({ sum: payload.a + payload.b }),
+        },
+        urls: ["amqp://localhost"],
+      }).getOrThrow();
 
-    const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
-      msg: ConsumeMessage | null,
-    ) => Promise<void>;
+      const consumeCallback = wrapper().consume.mock.calls[0]?.[1] as (
+        msg: ConsumeMessage | null,
+      ) => Promise<void>;
 
-    await consumeCallback(rpcRequestMessage());
+      await consumeCallback(rpcRequestMessage());
 
-    expect(wrapper().publish).toHaveBeenCalledTimes(1);
-    expect(wrapper().ack).toHaveBeenCalledTimes(1);
-    expect(wrapper().nack).not.toHaveBeenCalled();
+      expect(wrapper().publish).toHaveBeenCalledTimes(1);
+      expect(wrapper().ack).toHaveBeenCalledTimes(1);
+      expect(wrapper().nack).not.toHaveBeenCalled();
 
-    await worker.close().get();
-  });
+      await worker.close().get();
+    },
+  );
 });

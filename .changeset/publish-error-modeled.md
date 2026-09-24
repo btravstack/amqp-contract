@@ -13,8 +13,14 @@ where it used to arrive as a `Defect` carrying a `TechnicalError`.
 
 - `"timeout"` — the message sat buffered past `publishTimeoutMs`;
 - `"nacked"` — the broker refused it (`basic.nack`);
-- `"buffer-full"` — the channel's write buffer was full;
 - `"channel-closed"` — the channel closed before the message was confirmed.
+
+A full write buffer is **not** a failure: amqp-connection-manager resolves a
+confirm-channel publish with `false` only after the broker confirmed the
+message, so `publish` answers `Ok` (and logs the backpressure at `debug`)
+instead of inviting a duplicate republish. The worker acks the original after
+a confirmed retry publish, and acks an RPC request after a confirmed reply, in
+that case too.
 
 A broker that is down or overloaded is an operational condition a publisher is
 expected to handle, not a bug. Genuine bugs (an unencodable payload, a

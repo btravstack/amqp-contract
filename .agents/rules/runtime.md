@@ -19,7 +19,7 @@ Two invariants matter when touching this layer:
 
 ## Publish failures
 
-Core's `AmqpClient.publish` / `sendToQueue` classify the channel wrapper's outcome **once**: a `false` confirmation → `PublishError("buffer-full")`; its `timeout` / `message nacked` / `Channel closed` rejections → `PublishError("timeout" | "nacked" | "channel-closed")`, all on the `E` channel; anything else (unencodable payload, unknown rejection) → defect with a `TechnicalError` cause. Callers never see the boolean. The worker currently maps `PublishError` back to its pre-existing routing at its two publish sites (retry republish → defect, RPC reply → `NonRetryableError`).
+Core's `AmqpClient.publish` / `sendToQueue` classify the channel wrapper's outcome **once**: its `timeout` / `message nacked` / `Channel closed` rejections → `PublishError("timeout" | "nacked" | "channel-closed")`, all on the `E` channel; anything else (unencodable payload, unknown rejection) → defect with a `TechnicalError` cause. Callers never see the boolean: on the confirm channel amqp-connection-manager resolves `false` only _after_ the broker confirmed the message (it signals a full write buffer — backpressure), so `false` is success, logged at `debug`. Treating it as a failure would make callers republish a delivered message. The worker currently maps `PublishError` back to its pre-existing routing at its two publish sites (retry republish → defect, RPC reply → `NonRetryableError`).
 
 ## Telemetry (OpenTelemetry, optional)
 

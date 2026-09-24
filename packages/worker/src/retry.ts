@@ -343,7 +343,7 @@ function publishForRetry(
       })
       .tapDefect((publishError) => {
         // The retry publish failed — core surfaces every publish-side
-        // infrastructure fault (full write buffer included) as a Defect. Same
+        // infrastructure fault as a Defect. Same
         // policy for all of them: do not ack the original; the redelivery path
         // is the recovery mechanism. Observed here so the failure is logged
         // before the defect flows on unchanged.

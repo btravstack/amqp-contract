@@ -79,7 +79,7 @@ result.match({
 });
 ```
 
-`publish` returns `AsyncResult<void, MessageValidationError | PublishError>`. `PublishError` is the broker side failing, with a `reason`: `"timeout"` (buffered past `publishTimeoutMs` while the broker was unreachable), `"nacked"` (the broker refused the message), `"buffer-full"` (channel backpressure) or `"channel-closed"`. Buffer, retry, shed load or surface a 503 — it is yours to handle. Anything else (an unencodable payload, a rejection nobody anticipated) arrives as a defect. Each error class exposes its tag as a static, so `P.tag(PublishError.tag)` works too.
+`publish` returns `AsyncResult<void, MessageValidationError | PublishError>`. `PublishError` is the broker side failing, with a `reason`: `"timeout"` (buffered past `publishTimeoutMs` while the broker was unreachable), `"nacked"` (the broker refused the message) or `"channel-closed"`. A full write buffer is not a failure: the message was confirmed before the backpressure was reported, so `publish` answers `Ok`. Buffer, retry, shed load or surface a 503 — it is yours to handle. Anything else (an unencodable payload, a rejection nobody anticipated) arrives as a defect. Each error class exposes its tag as a static, so `P.tag(PublishError.tag)` works too.
 
 ## Set default options for every publish
 
