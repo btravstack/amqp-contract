@@ -15,6 +15,7 @@ export {
   encodeMessage,
 } from "./codec.js";
 export { recaptureStack } from "./errors.js";
+export { startOrClose } from "./lifecycle.js";
 export { publisherTopology } from "./setup.js";
 export { _internal_getConnectionCount, _internal_resetConnections } from "./connection-manager.js";
 export {

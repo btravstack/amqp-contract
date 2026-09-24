@@ -25,7 +25,7 @@ import {
   startConsumeSpan,
   technicalDefect,
 } from "@amqp-contract/core";
-import { decodeMessage } from "@amqp-contract/core/internal";
+import { decodeMessage, startOrClose } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -533,70 +533,47 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
       ).toAsync();
     }
 
-    // Enter through the safety net so a synchronous constructor throw (an
-    // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
-    // instead of escaping create() as a raw throw.
-    return OkAsync(undefined).flatMap(() => {
-      const worker = new TypedAmqpWorker(
-        contract,
-        new AmqpClient(contract, {
-          urls,
-          connectionOptions,
-          // A pool of its own: never share a TCP connection with a client.
-          connectionPool: "worker",
-          connectTimeoutMs,
-          publishTimeoutMs,
+    return startOrClose(
+      () =>
+        new TypedAmqpWorker(
+          contract,
+          new AmqpClient(contract, {
+            urls,
+            connectionOptions,
+            // A pool of its own: never share a TCP connection with a client.
+            connectionPool: "worker",
+            connectTimeoutMs,
+            publishTimeoutMs,
+            logger,
+          }),
+          // Context types are erased at the dispatch boundary: handlers receive
+          // whatever the (type-checked) middleware chain produced at runtime.
+          handlers as WorkerInferHandlers<TContract>,
+          defaultConsumerOptions ?? {},
           logger,
-        }),
-        // Context types are erased at the dispatch boundary: handlers receive
-        // whatever the (type-checked) middleware chain produced at runtime.
-        handlers as WorkerInferHandlers<TContract>,
-        defaultConsumerOptions ?? {},
-        logger,
-        telemetry,
-        // The array form (first = outermost) composes exactly like an explicit
-        // composeMiddleware(...) call; an empty array means "no middleware".
-        // The cast reaches past the fixed-arity typed overloads to the variadic
-        // implementation signature.
-        (Array.isArray(middleware)
-          ? middleware.length === 0
-            ? undefined
-            : (composeMiddleware as (...m: readonly AnyWorkerMiddleware[]) => AnyWorkerMiddleware)(
-                ...(middleware as AnyWorkerMiddleware[]),
-              )
-          : middleware) as AnyWorkerMiddleware | undefined,
-        createContext as
-          | ((
-              info: WorkerCreateContextInfo,
-            ) => Record<string, unknown> | Promise<Record<string, unknown>>)
-          | undefined,
-        maxDecompressedBytes,
-      );
-
-      // Note: Wait queues are now created by the core package in setupAmqpTopology
-      // when the queue's retry mode is "ttl-backoff"
-      const setup = worker.amqpClient.waitForConnect().flatMap(() => worker.consumeAll());
-
-      // If setup fails, release the AmqpClient's connection ref-count and cancel
-      // any consumers that registered before the failure, so a failed create()
-      // does not leak.
-      const inner = (async () => {
-        const setupResult = await setup;
-        if (!setupResult.isOk()) {
-          const closeResult = await worker.close();
-          if (closeResult.isDefect()) {
-            logger?.warn("Failed to close worker after setup failure", {
-              error: closeResult.cause,
-            });
-          }
-        }
-        // `map` runs only on Ok; an Err/Defect passes through with its value type
-        // re-shaped to the worker, so the failure surfaces unchanged.
-        return setupResult.map(() => worker);
-      })();
-
-      return fromSafePromise(inner).flatMap((result) => result);
-    });
+          telemetry,
+          // The array form (first = outermost) composes exactly like an explicit
+          // composeMiddleware(...) call; an empty array means "no middleware".
+          // The cast reaches past the fixed-arity typed overloads to the variadic
+          // implementation signature.
+          (Array.isArray(middleware)
+            ? middleware.length === 0
+              ? undefined
+              : (
+                  composeMiddleware as (...m: readonly AnyWorkerMiddleware[]) => AnyWorkerMiddleware
+                )(...(middleware as AnyWorkerMiddleware[]))
+            : middleware) as AnyWorkerMiddleware | undefined,
+          createContext as
+            | ((
+                info: WorkerCreateContextInfo,
+              ) => Record<string, unknown> | Promise<Record<string, unknown>>)
+            | undefined,
+          maxDecompressedBytes,
+        ),
+      // Wait queues are declared by core's setupAmqpTopology (ttl-backoff).
+      (worker) => worker.amqpClient.waitForConnect().flatMap(() => worker.consumeAll()),
+      { name: "worker", logger },
+    );
   }
 
   /**
