@@ -282,8 +282,8 @@ catalogs:
       specifier: 5.9.0
       version: 5.9.0
     valibot:
-      specifier: 1.4.2
-      version: 1.4.2
+      specifier: 1.5.0
+      version: 1.5.0
     vitepress:
       specifier: 1.6.4
       version: 1.6.4
@@ -541,7 +541,7 @@ importers:
         version: 1.14.8(@ark/schema@0.56.2)(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(arktype@2.2.3)
       '@orpc/valibot':
         specifier: 'catalog:'
-        version: 1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(valibot@1.4.2(typescript@6.0.3))
+        version: 1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(valibot@1.5.0(typescript@6.0.3))
       '@orpc/zod':
         specifier: 'catalog:'
         version: 1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(zod@4.4.3)
@@ -571,7 +571,7 @@ importers:
         version: 6.0.3
       valibot:
         specifier: 'catalog:'
-        version: 1.4.2(typescript@6.0.3)
+        version: 1.5.0(typescript@6.0.3)
       vitest:
         specifier: 'catalog:'
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(@vitest/coverage-v8@4.1.11)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
@@ -5349,8 +5349,8 @@ packages:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
-  valibot@1.4.2:
-    resolution: {integrity: sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg==}
+  valibot@1.5.0:
+    resolution: {integrity: sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ==}
     peerDependencies:
       typescript: '>=5'
     peerDependenciesMeta:
@@ -6535,13 +6535,13 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/valibot@1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(valibot@1.4.2(typescript@6.0.3))':
+  '@orpc/valibot@1.14.8(@opentelemetry/api@1.9.1)(@orpc/contract@1.14.8(@opentelemetry/api@1.9.1))(@orpc/server@1.14.8(@opentelemetry/api@1.9.1))(valibot@1.5.0(typescript@6.0.3))':
     dependencies:
       '@orpc/contract': 1.14.8(@opentelemetry/api@1.9.1)
       '@orpc/openapi': 1.14.8(@opentelemetry/api@1.9.1)
       '@orpc/server': 1.14.8(@opentelemetry/api@1.9.1)
-      '@valibot/to-json-schema': 1.7.1(valibot@1.4.2(typescript@6.0.3))
-      valibot: 1.4.2(typescript@6.0.3)
+      '@valibot/to-json-schema': 1.7.1(valibot@1.5.0(typescript@6.0.3))
+      valibot: 1.5.0(typescript@6.0.3)
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - crossws
@@ -7407,9 +7407,9 @@ snapshots:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
 
-  '@valibot/to-json-schema@1.7.1(valibot@1.4.2(typescript@6.0.3))':
+  '@valibot/to-json-schema@1.7.1(valibot@1.5.0(typescript@6.0.3))':
     dependencies:
-      valibot: 1.4.2(typescript@6.0.3)
+      valibot: 1.5.0(typescript@6.0.3)
 
   '@vitejs/plugin-vue@5.2.4(vite@6.4.3(@types/node@26.2.0)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))(vue@3.5.35(typescript@6.0.3))':
     dependencies:
@@ -10203,7 +10203,7 @@ snapshots:
 
   uuid@14.0.0: {}
 
-  valibot@1.4.2(typescript@6.0.3):
+  valibot@1.5.0(typescript@6.0.3):
     optionalDependencies:
       typescript: 6.0.3
 
