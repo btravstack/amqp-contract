@@ -24,6 +24,7 @@ import {
   endSpanSuccess,
   recordLateRpcReply,
   recordPublishMetric,
+  recordRpcCallMetric,
   safeJsonParse,
   startPublishSpan,
   technicalDefect,
@@ -519,7 +520,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
     // Explicit type arguments: TArgs must be the wire-level interceptor shape
     // (message: unknown), not the narrower type inferred from this literal.
-    return this.instrumentPublish(
+    return this.instrument(
       chainInterceptors<
         PublishInterceptorArgs,
         { message?: unknown; options?: PublishOptions },
@@ -531,9 +532,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         terminal,
       ),
       span,
-      exchange.name,
-      routingKey,
       startTime,
+      (success, durationMs) =>
+        recordPublishMetric(this.telemetry, exchange.name, routingKey, success, durationMs),
     );
   }
 
@@ -617,7 +618,11 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       this.executeCall(String(rpcName), rpc, args.request, args.options),
     );
 
-    const instrumented = this.instrumentPublish(chained, span, "", queueName, startTime);
+    // The round trip is recorded on its own histogram: folded into the publish
+    // histogram, a slow handler would read as a slow broker.
+    const instrumented = this.instrument(chained, span, startTime, (success, durationMs) =>
+      recordRpcCallMetric(this.telemetry, queueName, String(rpcName), success, durationMs),
+    );
 
     // Safe: executeCall resolves with the schema-validated response, and its
     // wire-level error union is the widened form of CallError.
@@ -704,6 +709,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         this.defaultPublishOptions;
       const publishOptions: AmqpPublishOptions = {
         ...defaultsWithoutCompression,
+        // A request nobody consumed before the caller gave up is dead weight:
+        // let the broker drop it rather than have a worker answer a caller
+        // that is gone. Per-call `publishOptions.expiration` still wins.
+        expiration: String(options.timeoutMs),
         ...options.publishOptions,
         replyTo: DIRECT_REPLY_TO,
         correlationId,
@@ -758,37 +767,27 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   }
 
   /**
-   * Attach the publish-side span and metrics to a chain, recording success on
-   * `Ok` and failure on both `Err` and `Defect`.
-   *
-   * `publish()` and `call()` instrument identically — same span, same
-   * `recordPublishMetric`, same "unwrap whichever channel failed" — differing
-   * only in the exchange/routing-key pair they report under.
+   * Attach the span and a duration metric to a chain, recording success on
+   * `Ok` and failure on both `Err` and `Defect`. `publish()` records on the
+   * publish histogram, `call()` on the RPC round-trip histogram.
    */
-  private instrumentPublish<T, E>(
+  private instrument<T, E>(
     chain: AsyncResult<T, E>,
     span: ReturnType<typeof startPublishSpan>,
-    exchangeName: string,
-    routingKey: string | undefined,
     startTime: number,
+    record: (success: boolean, durationMs: number) => void,
   ): AsyncResult<T, E> {
     return chain
       .tap(() => {
         endSpanSuccess(span);
-        recordPublishMetric(this.telemetry, exchangeName, routingKey, true, Date.now() - startTime);
+        record(true, Date.now() - startTime);
       })
       .tapFailure((failure) => {
         // Both channels count as failures for metrics: a modeled `Err` and an
         // infrastructure `Defect` alike.
         const reported = failure.tag === "Err" ? failure.error : failure.cause;
         endSpanError(span, reported instanceof Error ? reported : new Error(String(reported)));
-        recordPublishMetric(
-          this.telemetry,
-          exchangeName,
-          routingKey,
-          false,
-          Date.now() - startTime,
-        );
+        record(false, Date.now() - startTime);
       });
   }
 }

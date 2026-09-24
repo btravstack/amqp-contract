@@ -183,4 +183,53 @@ describe("RPC request publish failures", () => {
 
     await client.close().get();
   });
+
+  it("INVARIANT: the request expires at the caller's timeoutMs, so an unconsumed request is dropped by the broker", async () => {
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+    }).getOrThrow();
+
+    const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_234 });
+    await vi.waitFor(() => expect(wrapper().publish).toHaveBeenCalledTimes(1));
+
+    const options = (wrapper().publish.mock.calls[0] as unknown[])[3];
+    expect(options).toMatchObject({ expiration: "1234" });
+
+    await client.close().get();
+    await pending;
+  });
+
+  it("records the round trip on the RPC histogram, not the publish histogram", async () => {
+    const publishHistogram = { record: vi.fn() };
+    const rpcHistogram = { record: vi.fn() };
+    const telemetry = {
+      getTracer: () => undefined,
+      getPublishCounter: () => undefined,
+      getConsumeCounter: () => undefined,
+      getPublishLatencyHistogram: () => publishHistogram as never,
+      getConsumeLatencyHistogram: () => undefined,
+      getLateRpcReplyCounter: () => undefined,
+      getRpcCallLatencyHistogram: () => rpcHistogram as never,
+    };
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+      telemetry,
+    }).getOrThrow();
+
+    const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_000 });
+    await vi.waitFor(() => expect(wrapper().publish).toHaveBeenCalledTimes(1));
+    replyCallback()(replyMessage(publishedCorrelationId(), { sum: 3 }));
+    await pending;
+
+    expect(rpcHistogram.record).toHaveBeenCalledTimes(1);
+    expect(rpcHistogram.record).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.objectContaining({ success: true, "messaging.destination.name": "rpc.calculate" }),
+    );
+    expect(publishHistogram.record).not.toHaveBeenCalled();
+
+    await client.close().get();
+  });
 });

@@ -35,6 +35,7 @@ export {
   recordConsumeMetric,
   recordLateRpcReply,
   recordPublishMetric,
+  recordRpcCallMetric,
   startConsumeSpan,
   startPublishSpan,
   type TelemetryProvider,
