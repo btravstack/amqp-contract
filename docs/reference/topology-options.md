@@ -139,7 +139,7 @@ Common raw arguments:
 | `x-expires`          | Queue idle TTL in ms; deletes the queue and its messages, not dead-lettered |
 | `x-max-length`       | Max messages; overflow routes to the DLX                                    |
 | `x-max-length-bytes` | Max total body bytes; overflow routes to the DLX                            |
-| `x-delivery-limit`   | Quorum-queue redelivery cap (RabbitMQ 4 default: 20)                        |
+| `x-delivery-limit`   | Quorum-queue redelivery cap (RabbitMQ 4 default: 20); see below             |
 
 ## Retry configuration
 
@@ -161,7 +161,7 @@ retry: { mode, maxRetries, … }
 
 Attempt counts come from `x-delivery-count` on quorum queues (broker-native) and from a worker-maintained `x-retry-count` on classic queues.
 
-Quorum queues also enforce `x-delivery-limit` independently of `maxRetries`.
+On a quorum queue, `defineQueue` sets the `x-delivery-limit` argument to `maxRetries + 1`, so the broker's own redelivery cap (20 by default in RabbitMQ 4) never dead-letters before the worker's budget is spent. An explicit `x-delivery-limit` is kept if it is at least `maxRetries + 1` (or negative, meaning unlimited) and rejected at define time otherwise. Classic queues and the other retry modes are left untouched.
 
 ### `ttl-backoff`
 
