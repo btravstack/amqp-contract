@@ -24,8 +24,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   # A version bump can publish several Releases at once (monorepo); collapse that burst of events
@@ -41,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Tags are needed to find the latest stable release to build the root site from.
           fetch-depth: 0
@@ -112,8 +110,10 @@ jobs:
         if: steps.meta.outputs.prerelease == 'true'
         env:
           DOCS_VERSIONS: ${{ steps.meta.outputs.versions_stable }}
+          # Via env, not `${{ }}` in the script: a ref name may contain `$(…)`.
+          STABLE_TAG: ${{ steps.meta.outputs.stable_tag }}
         run: |
-          git worktree add /tmp/stable-docs "${{ steps.meta.outputs.stable_tag }}"
+          git worktree add /tmp/stable-docs "$STABLE_TAG"
           pnpm --filter ./docs exec tsx "$GITHUB_WORKSPACE/.github/scripts/inject-docs-version-nav.ts" \
             /tmp/stable-docs/docs/.vitepress
           cd /tmp/stable-docs
@@ -128,7 +128,7 @@ jobs:
           cp -r docs/.vitepress/dist/* site/beta/
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
@@ -139,7 +139,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     name: Deploy
+    # Only the deploy job needs Pages write + OIDC; the build job runs
+    # `pnpm install` against an old tag's lockfile and should not hold them.
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
