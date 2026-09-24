@@ -8,6 +8,7 @@ export {
   DEFAULT_PREFETCH,
   DEFAULT_PUBLISH_TIMEOUT_MS,
 } from "./amqp-client.js";
+export { DEFAULT_MAX_MESSAGE_BYTES } from "./codec.js";
 export { type ConnectionLease } from "./connection-manager.js";
 export { technicalDefect } from "./defect.js";
 export {

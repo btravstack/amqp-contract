@@ -22,10 +22,10 @@ import {
   endSpanSuccess,
   isRpcError,
   recordConsumeMetric,
-  safeJsonParse,
   startConsumeSpan,
   technicalDefect,
 } from "@amqp-contract/core";
+import { decodeMessage } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";
@@ -43,7 +43,6 @@ import {
   type Result,
 } from "unthrown";
 
-import { decompressBuffer } from "./decompression.js";
 import type { HandlerError } from "./errors.js";
 import { MessageValidationError, NonRetryableError, RetryableError } from "./errors.js";
 import {
@@ -298,7 +297,8 @@ export type CreateWorkerOptions<
    * Cap on the decompressed size (bytes) of a single inbound message. Guards
    * against a decompression bomb — a few-KB payload that expands to gigabytes
    * before schema validation runs. Over-cap messages follow the poison-message
-   * DLQ path. Defaults to {@link DEFAULT_MAX_DECOMPRESSED_BYTES} (64 MiB).
+   * DLQ path. Also caps uncompressed bodies. Defaults to core's
+   * `DEFAULT_MAX_MESSAGE_BYTES` (16 MiB).
    */
   maxDecompressedBytes?: number | undefined;
 };
@@ -734,22 +734,16 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
     const context = { consumerName: String(consumerName) };
 
-    const parsePayload = decompressBuffer(msg.content, msg.properties.contentEncoding, {
-      maxDecompressedBytes: this.maxDecompressedBytes,
-    })
-      .flatMap((buffer) =>
-        // A malformed JSON body is an unexpected infrastructure/producer fault:
-        // route the parse error straight to the defect channel via qualify.
-        safeJsonParse(buffer, (error, defect) =>
-          defect(new TechnicalError("Failed to parse JSON", error)),
-        ),
-      )
-      .flatMap((parsed) =>
-        this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, {
-          ...context,
-          field: "payload",
-        }),
-      );
+    // Decompress + size cap + JSON parse, all through the core codec; any
+    // failure is an unexpected infrastructure/producer fault (a Defect).
+    const parsePayload = decodeMessage(msg.content, msg.properties.contentEncoding, {
+      maxBytes: this.maxDecompressedBytes,
+    }).flatMap((parsed) =>
+      this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, {
+        ...context,
+        field: "payload",
+      }),
+    );
 
     const parseHeaders: AsyncResult<unknown, never> = consumer.message.headers
       ? this.validateSchema(
