@@ -77,6 +77,35 @@ export function _internal_assertRoutingKeyPresent(
 }
 
 /**
+ * Throw when a binding on a DIRECT exchange uses a topic wildcard segment.
+ *
+ * A direct exchange matches routing keys literally: `#` or `order.*` there only
+ * matches a message published with that exact literal key, so the binding
+ * looks like a catch-all and receives nothing. On a dead-letter exchange that
+ * is silent message loss (see `dead-letter-routability.ts`). No real publisher
+ * uses `#` or `*` as a literal key segment, so rejecting it is never a false
+ * positive in practice.
+ *
+ * Callers must gate on the exchange type: only direct exchanges are checked.
+ */
+export function _internal_assertNoWildcardOnDirect(
+  bindingDescription: string,
+  exchangeName: string,
+  routingKey: string,
+): void {
+  const wildcard = routingKey.split(".").find((segment) => segment === "#" || segment === "*");
+  if (wildcard === undefined) return;
+  // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error (see module doc)
+  throw new Error(
+    `${bindingDescription} uses routing key "${routingKey}" on direct exchange "${exchangeName}", ` +
+      `but "${wildcard}" is a topic wildcard: a direct exchange matches keys literally, so this ` +
+      `binding only receives messages published with the literal key "${routingKey}" — in ` +
+      `practice, nothing. Bind the exact routing key(s) you publish with (one binding per key), ` +
+      `or declare "${exchangeName}" with \`type: "topic"\` if you need pattern matching.`,
+  );
+}
+
+/**
  * Duck-check that a value implements Standard Schema v1 (has a `~standard`
  * object with a `validate` function) — catches passing a plain object or a
  * schema from an incompatible library where a payload schema is expected.

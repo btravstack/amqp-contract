@@ -116,7 +116,7 @@ Nothing is bound to "orders-dlx". RabbitMQ discards a message routed to zero que
   });
 ```
 
-**On a direct DLX, bind the real routing key.** `#` is a _topic_ wildcard. A direct exchange has no wildcards, so it treats `#` as the literal routing key `#` and a dead letter arriving under any other key matches nothing — measured against RabbitMQ 4.2: the same `#` binding on a topic DLX receives the dead letter, on a direct DLX it receives nothing (`tests/src/__tests__/dlx-routability.spec.ts`). This is the one case the check cannot catch for you: with no `deadLetter.routingKey` set, the key a dead letter arrives under is the message's original key, which is not knowable at define time, so any binding at all satisfies the check. Bind the key the message will actually carry — the queue's `deadLetter.routingKey` if it sets one, otherwise every key the source queue can receive:
+**On a direct DLX, bind the real routing key.** `#` is a _topic_ wildcard. A direct exchange has no wildcards, so it treats `#` as the literal routing key `#` and a dead letter arriving under any other key matches nothing — measured against RabbitMQ 4.2: the same `#` binding on a topic DLX receives the dead letter, on a direct DLX it receives nothing (`tests/src/__tests__/dlx-routability.spec.ts`). The dead-letter check itself cannot see this (with no `deadLetter.routingKey` set, the key a dead letter arrives under is not knowable at define time, so any binding satisfies it), so `defineQueueBinding` closes it instead: a `#` or `*` segment on a direct exchange throws at define time. Bind the key the message will actually carry — the queue's `deadLetter.routingKey` if it sets one, otherwise every key the source queue can receive:
 
 ```typescript
 import { defineExchange, defineQueue, defineQueueBinding } from "@amqp-contract/contract";
@@ -456,6 +456,58 @@ during start-up.
 A blanket `.recoverDefect(...)` that existed only to move this failure onto the
 `Err` channel can go — that is what this change is for.
 
+### Quorum queues with immediate-requeue retry declare `x-delivery-limit`
+
+**What breaks:** workers and clients fail at startup against a quorum queue that **already exists on the broker** and has `retry: { mode: "immediate-requeue" }`. `defineQueue` now adds the queue argument `x-delivery-limit: maxRetries + 1`, and RabbitMQ refuses to redeclare a queue with arguments that differ from the live one:
+
+```
+PRECONDITION_FAILED - inequivalent arg 'x-delivery-limit' for queue 'order-processing'
+in vhost '/': received the value '4' of type 'byte' but current is none
+```
+
+**Why:** RabbitMQ 4 caps quorum redeliveries at `x-delivery-limit`, 20 by default, and dead-letters past it by itself. With `maxRetries` of 20 or more, the broker dead-lettered the message (reason `delivery_limit`) before the worker's retry budget ran out, so the configured budget was never reached. Setting the limit one above `maxRetries` keeps the worker in charge.
+
+**The fix** depends on what the live queue was declared with:
+
+- **No `x-delivery-limit` argument** (the common case — the old default): recreate the queue so it is declared with the new argument. Drain it first; queue arguments cannot be changed in place. The contract always sends the argument for these queues, so there is no way to match a queue declared without one.
+- **An explicit `x-delivery-limit` already in `arguments`**: nothing changes — `defineQueue` keeps your value — as long as it is at least `maxRetries + 1` (or negative, RabbitMQ's "unlimited"). A lower value is now rejected at define time; raise it (which again means recreating the queue) or lower `maxRetries`.
+
+```typescript
+import { defineExchange, defineQueue } from "@amqp-contract/contract";
+
+const ordersDlx = defineExchange("orders-dlx");
+
+// Already declared with x-delivery-limit 10: kept as-is, since 10 >= maxRetries + 1.
+// A value below maxRetries + 1 is rejected at define time.
+const orderQueue = defineQueue("order-processing", {
+  deadLetter: { exchange: ordersDlx },
+  retry: { mode: "immediate-requeue", maxRetries: 3 },
+  arguments: { "x-delivery-limit": 10 },
+});
+```
+
+Classic queues, `ttl-backoff` retry and queues with no retry are unaffected.
+
+### AsyncAPI: schemas convert natively; `schemaConverters` has its own type
+
+**What changes:** `@amqp-contract/asyncapi` converts any schema implementing Standard JSON Schema (`~standard.jsonSchema` — current Zod 4 and ArkType releases) by itself, and that takes precedence over `schemaConverters`. The converters are now only a fallback, for libraries without it such as Valibot. Three things can need action:
+
+- **Generated output differs slightly** for Zod and ArkType payloads, because the schema's own converter is used instead of oRPC's: Zod adds a `pattern` to `z.string().datetime()`, and ArkType's `$schema` marker is dropped. If CI diffs a committed `asyncapi.json`, regenerate and commit it once.
+- **`schemaConverters` is typed `SchemaConverter[]`**, a structural type exported by `@amqp-contract/asyncapi`, instead of `@orpc/openapi`'s `ConditionalSchemaConverter[]`. The oRPC converters still satisfy it, so passing them compiles unchanged; code that _names_ `ConditionalSchemaConverter` should switch to `SchemaConverter`.
+- **`@orpc/openapi` is no longer a dependency** of the package. If your own code imports from it, add it to your `package.json` yourself.
+
+**The fix** for a Zod- or ArkType-only contract is to delete the converter (and `@orpc/zod` / `@orpc/arktype`, if nothing else uses them); keep the converter for Valibot:
+
+```diff
+- import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+- const generator = new AsyncAPIGenerator({
+-   schemaConverters: [new ZodToJsonSchemaConverter()],
+- });
++ const generator = new AsyncAPIGenerator();
+```
+
+The generator also takes a new `vhost` option for the channel bindings, defaulting to the previously hardcoded `"/"` — no action unless your broker uses another virtual host. See [generate AsyncAPI](/how-to/generate-asyncapi).
+
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
@@ -469,6 +521,7 @@ A blanket `.recoverDefect(...)` that existed only to move this failure onto the
    ones that read their payload; grep for the rest.
 8. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
 9. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
+10. Plan a recreate for every existing quorum queue with `immediate-requeue` retry: it now [declares `x-delivery-limit`](#quorum-queues-with-immediate-requeue-retry-declare-x-delivery-limit) and fails to redeclare against the old one.
 
 ## 2.3.x → 2.4.x
 

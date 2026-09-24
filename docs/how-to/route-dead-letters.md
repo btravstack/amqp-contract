@@ -22,6 +22,8 @@ const orderProcessingQueue = defineQueue("order-processing", {
 
 The DLX is extracted into the contract automatically — you do not list it in `defineContract` yourself. What is _not_ automatic is a queue bound to it: `defineContract` rejects a dead-letter exchange with nothing bound, because RabbitMQ discards a message routed to zero queues. Bind one of the two ways below, or set `externalConsumers: true` on the `deadLetter` config when another service owns the dead-letter queue.
 
+The binding key depends on the exchange type. On a **topic** DLX, `#` catches every dead letter. On a **direct** DLX there is no wildcard: `#` and `*` are matched literally, so a `#` binding receives nothing — `defineQueueBinding` rejects a `#` or `*` segment on a direct exchange at define time. Bind the exact key the dead letter carries: the queue's `deadLetter.routingKey`, which is why setting one is worth it on a direct DLX.
+
 If `routingKey` is omitted, the message keeps its original routing key. Setting one is usually clearer, because it lets a single DLX distinguish sources.
 
 ## Consume dead-lettered messages
@@ -87,17 +89,17 @@ Give the dead-letter queue a `retry: { mode: "none" }` policy, or none at all, a
 
 ## Declare a dead-letter queue nobody consumes here
 
-If no consumer in this service drains the DLQ — an operator replays from it, or another process owns it — declare it as standalone topology instead of inventing a consumer:
+If no consumer in this service drains the DLQ — an operator replays from it, or another process owns it — declare it as standalone topology instead of inventing a consumer. `defineDeadLetterQueue(dlx, name, options?)` builds the queue and its binding in one call and returns them as `{ queue, binding }`:
 
 ```typescript
 import {
   defineContract,
+  defineDeadLetterQueue,
   defineEventConsumer,
   defineEventPublisher,
   defineExchange,
   defineMessage,
   defineQueue,
-  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
@@ -105,11 +107,11 @@ const ordersExchange = defineExchange("orders");
 const ordersDlx = defineExchange("orders-dlx");
 const orderMessage = defineMessage(z.object({ orderId: z.string() }));
 // No dead-letter routing key here, so a dead letter keeps the key it arrived
-// with — and `orders-dlx` is topic, where `#` catches all of them.
+// with — and `orders-dlx` is topic, where the helper's `#` catches all of them.
 const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
-const ordersDlxQueue = defineQueue("orders-dlx-queue");
+const ordersDlq = defineDeadLetterQueue(ordersDlx, "orders-dlx-queue");
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
   routingKey: "order.created",
 });
@@ -118,14 +120,27 @@ export const contract = defineContract({
   consumers: {
     processOrder: defineEventConsumer(orderCreated, orderProcessingQueue),
   },
-  queues: { ordersDlxQueue },
-  bindings: {
-    dlqBinding: defineQueueBinding(ordersDlxQueue, ordersDlx, { routingKey: "#" }),
-  },
+  queues: { ordersDlq: ordersDlq.queue },
+  bindings: { ordersDlq: ordersDlq.binding },
 });
 ```
 
-The queue and binding are asserted at setup like any other, so dead-lettered messages land somewhere durable even before anything consumes them. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
+What the helper binds follows the exchange type: `#` on a topic DLX (override it with `routingKey`), no key on fanout or headers, and on a **direct** DLX a `routingKey` you must pass — the type requires it, because there is no catch-all to default to:
+
+```typescript
+import { defineDeadLetterQueue, defineExchange, defineQueue } from "@amqp-contract/contract";
+
+const paymentsDlx = defineExchange("payments-dlx", { type: "direct" });
+const paymentsQueue = defineQueue("payments", {
+  deadLetter: { exchange: paymentsDlx, routingKey: "payments.dead" },
+});
+// The key the dead letters carry — the queue's deadLetter.routingKey.
+const paymentsDlq = defineDeadLetterQueue(paymentsDlx, "payments-dlq", {
+  routingKey: "payments.dead",
+});
+```
+
+Pass `queue: { … }` for the dead-letter queue's own `defineQueue` options. The queue and binding are asserted at setup like any other, so dead-lettered messages land somewhere durable even before anything consumes them. See [declare standalone topology](/how-to/define-a-contract#declare-standalone-topology).
 
 ## Know what triggers dead-lettering
 

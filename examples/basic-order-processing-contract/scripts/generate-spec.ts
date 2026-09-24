@@ -1,11 +1,9 @@
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 
 import { orderContract } from "../src/index.js";
 
-const generator = new AsyncAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
-});
+// Zod 4 schemas convert natively via Standard JSON Schema; no converter needed.
+const generator = new AsyncAPIGenerator();
 
 export const spec = await generator.generate(orderContract, {
   info: {

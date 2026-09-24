@@ -104,13 +104,13 @@ defineQueue(name, options?);
 | `durable`     | `boolean`                   | `true`             | Quorum queues are always durable; `false` requires `classic` |
 | `autoDelete`  | `boolean`                   | `false`            | `classic` only                                               |
 | `exclusive`   | `boolean`                   | `false`            | `classic` only                                               |
-| `maxPriority` | `number`                    | —                  | `classic` only                                               |
+| `maxPriority` | `number`                    | —                  | `classic` only (`x-max-priority`, integer 1–255)             |
 | `deadLetter`  | `{ exchange, routingKey? }` | —                  | See below                                                    |
 | `onPoison`    | `"drop"`                    | —                  | Declares deliberate loss; see below                          |
 | `retry`       | retry config                | `{ mode: "none" }` | See below                                                    |
 | `arguments`   | `Record<string, unknown>`   | —                  | Raw AMQP queue arguments                                     |
 
-Quorum queues replicate through Raft and cannot be exclusive, auto-deleting, or priority queues. TypeScript rejects those options unless `type: "classic"`.
+Quorum queues replicate through Raft and cannot be exclusive or auto-deleting. TypeScript rejects those options, and `maxPriority`, unless `type: "classic"`. Quorum queues do prioritise messages: they prioritise natively on RabbitMQ 4.0+ from each message's `priority` property, with no queue argument (normal vs high above 4 up to 4.2; 32 strict levels from 4.3). `maxPriority` is the classic-only `x-max-priority` argument, which quorum queues ignore.
 
 ### `deadLetter`
 
@@ -139,7 +139,7 @@ Common raw arguments:
 | `x-expires`          | Queue idle TTL in ms; deletes the queue and its messages, not dead-lettered |
 | `x-max-length`       | Max messages; overflow routes to the DLX                                    |
 | `x-max-length-bytes` | Max total body bytes; overflow routes to the DLX                            |
-| `x-delivery-limit`   | Quorum-queue redelivery cap (RabbitMQ 4 default: 20)                        |
+| `x-delivery-limit`   | Quorum-queue redelivery cap (RabbitMQ 4 default: 20); see below             |
 
 ## Retry configuration
 
@@ -161,7 +161,7 @@ retry: { mode, maxRetries, … }
 
 Attempt counts come from `x-delivery-count` on quorum queues (broker-native) and from a worker-maintained `x-retry-count` on classic queues.
 
-Quorum queues also enforce `x-delivery-limit` independently of `maxRetries`.
+On a quorum queue, `defineQueue` sets the `x-delivery-limit` argument to `maxRetries + 1`, so the broker's own redelivery cap (20 by default in RabbitMQ 4) never dead-letters before the worker's budget is spent. An explicit `x-delivery-limit` is kept if it is at least `maxRetries + 1` (or negative, meaning unlimited) and rejected at define time otherwise. Classic queues and the other retry modes are left untouched.
 
 ### `ttl-backoff`
 

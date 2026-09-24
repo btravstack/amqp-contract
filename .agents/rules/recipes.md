@@ -5,7 +5,7 @@ End-to-end how-tos for the changes that come up most. Each recipe lists the exac
 ## Add a new event consumer
 
 1. **Schema** — define (or reuse) a `defineMessage(...)` for the payload, in the contract that owns the publisher.
-2. **Queue** — `defineQueue(...)` with a `deadLetter` and a `retry` mode (immediate-requeue or ttl-backoff). Quorum by default; classic only if you need priority/exclusive/auto-delete.
+2. **Queue** — `defineQueue(...)` with a `deadLetter` and a `retry` mode (immediate-requeue or ttl-backoff). Quorum by default; classic only if you need exclusive/auto-delete or classic `maxPriority` levels (quorum honours per-message `priority` natively on RabbitMQ 4.0+).
 3. **Consumer entry** — `defineEventConsumer(eventPublisher, queue, { routingKey: ... })`. The queue↔exchange binding is auto-generated.
 4. **Add to `defineContract`** under `consumers: { ... }`. Don't add the queue or binding yourself — they're auto-extracted.
 5. **Handler** — implement with `declareHandler(contract, "yourConsumerName", ({ input: { payload, headers } }) => …)` returning `AsyncResult<void, HandlerError>`. See [handlers.md](./handlers.md).

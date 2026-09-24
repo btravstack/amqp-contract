@@ -14,12 +14,12 @@ Define resources as named constants, then compose them:
 ```typescript
 import {
   defineContract,
+  defineDeadLetterQueue,
   defineEventConsumer,
   defineEventPublisher,
   defineExchange,
   defineMessage,
   defineQueue,
-  defineQueueBinding,
 } from "@amqp-contract/contract";
 import { z } from "zod";
 
@@ -29,8 +29,9 @@ const orderProcessingQueue = defineQueue("order-processing", {
   deadLetter: { exchange: ordersDlx },
 });
 // A DLX with no bound queue drops what it receives. Declare the dead-letter
-// queue and the binding, or `deadLetter` buys you nothing.
-const orderDlq = defineQueue("order-processing-dlq");
+// queue and its binding, or `deadLetter` buys you nothing. `orders-dlx` is
+// topic, so the helper binds `#` and catches every dead letter.
+const orderDlq = defineDeadLetterQueue(ordersDlx, "order-processing-dlq");
 const orderMessage = defineMessage(z.object({ orderId: z.string(), amount: z.number() }));
 
 const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
@@ -40,16 +41,16 @@ const orderCreated = defineEventPublisher(ordersExchange, orderMessage, {
 export const contract = defineContract({
   publishers: { orderCreated },
   consumers: { processOrder: defineEventConsumer(orderCreated, orderProcessingQueue) },
-  queues: { orderDlq },
-  bindings: { orderDlq: defineQueueBinding(orderDlq, ordersDlx, { routingKey: "#" }) },
+  queues: { orderDlq: orderDlq.queue },
+  bindings: { orderDlq: orderDlq.binding },
 });
 ```
 
 `defineContract` takes `publishers`, `consumers` and `rpcs`. The contract it returns also exposes `exchanges`, `queues` and `bindings`, all extracted from what you passed — you rarely list them yourself. The exception is [standalone topology](#declare-standalone-topology): resources with no publisher or consumer attached, which is exactly what a dead-letter queue is.
 
-Two separate rules apply here. `defineContract` requires a **consumed** queue to declare a `deadLetter` (or `onPoison: "drop"`). Separately, it requires something to be bound to whatever exchange a `deadLetter` names — and that rule applies to **every queue the contract declares**, consumed or not, because an unbound dead-letter exchange loses the message whoever consumes the source queue. A dead-letter exchange that routes nowhere loses exactly the messages `deadLetter` was added to keep, since the broker silently drops what matches no binding. Declaring the DLQ and its binding alongside is what makes the dead-lettering real. When another service owns the dead-letter queue, say so with `externalConsumers: true` on the `deadLetter` config instead.
+Two separate rules apply here. `defineContract` requires a **consumed** queue to declare a `deadLetter` (or `onPoison: "drop"`). Separately, it requires something to be bound to whatever exchange a `deadLetter` names — and that rule applies to **every queue the contract declares**, consumed or not, because an unbound dead-letter exchange loses the message whoever consumes the source queue. A dead-letter exchange that routes nowhere loses exactly the messages `deadLetter` was added to keep, since the broker silently drops what matches no binding. Declaring the DLQ and its binding alongside is what makes the dead-lettering real. `defineDeadLetterQueue(dlx, name, options?)` returns both — `{ queue, binding }` — as ordinary topology that `defineContract` checks like any other. When another service owns the dead-letter queue, say so with `externalConsumers: true` on the `deadLetter` config instead.
 
-Bind the key that will actually arrive, not the one the publisher sends. On a `direct` dead-letter exchange `#` is a literal that matches nothing, and on a queue with `retry: { mode: "ttl-backoff" }` a retried message re-enters through the wait queue and carries the _queue name_ as its routing key from the second delivery on. Setting an explicit `deadLetter.routingKey` sidesteps both.
+Bind the key that will actually arrive, not the one the publisher sends. On a queue with `retry: { mode: "ttl-backoff" }` a retried message re-enters through the wait queue and carries the _queue name_ as its routing key from the second delivery on. Setting an explicit `deadLetter.routingKey` and binding that sidesteps it. A `direct` dead-letter exchange has no catch-all at all: it matches keys literally, so `defineDeadLetterQueue` requires the exact `routingKey` there, and `defineQueueBinding` rejects a `#` or `*` segment on a direct exchange at define time.
 
 ## Broadcast an event to many consumers
 
@@ -186,7 +187,9 @@ const tempQueue = defineQueue("temp-queue", {
 });
 ```
 
-`durable: false`, `autoDelete`, `exclusive` and priority queues all require `type: "classic"`. TypeScript rejects them on a quorum queue.
+`durable: false`, `autoDelete`, `exclusive` and `maxPriority` all require `type: "classic"`. TypeScript rejects them on a quorum queue.
+
+Message priority itself does not: quorum queues honour the per-message `priority` publish option natively on RabbitMQ 4.0+ with no queue argument — normal vs high (above 4) up to 4.2, 32 strict levels from 4.3. `maxPriority` sets the classic-only `x-max-priority` argument, which quorum queues ignore, so reach for it only when you need classic priority levels.
 
 ## Declare standalone topology
 
@@ -224,6 +227,8 @@ export const contract = defineContract({
   },
 });
 ```
+
+For the dead-letter case, `defineDeadLetterQueue(ordersDlxExchange, "order-processing-dlq")` builds the same queue and binding in one call — see [route dead letters](/how-to/route-dead-letters#declare-a-dead-letter-queue-nobody-consumes-here).
 
 Standalone `exchanges`, `queues` and `bindings` are asserted by client and worker setup exactly like extracted ones. In the contract output, standalone exchanges and queues are re-keyed by their resource name; binding labels are kept verbatim. Dead-letter exchanges are auto-extracted for standalone queues too, just as for consumer queues; TTL-backoff wait queues are derived at setup time and never appear in the contract.
 

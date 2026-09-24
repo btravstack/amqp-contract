@@ -8,7 +8,10 @@ import type {
   QueueDefinition,
   TopicExchangeDefinition,
 } from "../types.js";
-import { _internal_assertRoutingKeyPresent } from "./validate.js";
+import {
+  _internal_assertNoWildcardOnDirect,
+  _internal_assertRoutingKeyPresent,
+} from "./validate.js";
 
 /**
  * Define a binding between a queue and a fanout or headers exchange.
@@ -51,7 +54,9 @@ export function defineQueueBinding(
  * Binds a queue to an exchange with a specific routing key pattern.
  * Messages are only routed to the queue if the routing key matches the pattern.
  *
- * For direct exchanges: The routing key must match exactly.
+ * For direct exchanges: The routing key must match exactly. A `*` or `#`
+ * segment is rejected — a direct exchange treats it as a literal key, so the
+ * binding would silently receive nothing.
  * For topic exchanges: The routing key can include wildcards:
  * - `*` matches exactly one word
  * - `#` matches zero or more words
@@ -119,6 +124,13 @@ export function defineQueueBinding(
 
   const routingKey = options?.routingKey;
   _internal_assertRoutingKeyPresent("Queue binding", exchange.name, exchange.type, routingKey);
+  if (exchange.type === "direct") {
+    _internal_assertNoWildcardOnDirect(
+      `Queue binding of "${queue.name}"`,
+      exchange.name,
+      routingKey,
+    );
+  }
 
   return {
     type: "queue",
@@ -189,6 +201,7 @@ export function defineExchangeBinding(
  *
  * Binds a destination exchange to a direct or topic source exchange with a routing key pattern.
  * Messages are forwarded from source to destination only if the routing key matches the pattern.
+ * On a direct source a `*` or `#` segment is rejected: it would be matched literally.
  *
  * @param destination - The destination exchange definition
  * @param source - The direct or topic source exchange definition
@@ -248,6 +261,13 @@ export function defineExchangeBinding(
 
   const routingKey = options?.routingKey;
   _internal_assertRoutingKeyPresent("Exchange binding", source.name, source.type, routingKey);
+  if (source.type === "direct") {
+    _internal_assertNoWildcardOnDirect(
+      `Exchange binding to "${destination.name}"`,
+      source.name,
+      routingKey,
+    );
+  }
 
   return {
     type: "exchange",

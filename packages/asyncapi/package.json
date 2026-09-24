@@ -59,7 +59,6 @@
   },
   "dependencies": {
     "@amqp-contract/contract": "workspace:*",
-    "@orpc/openapi": "catalog:",
     "@standard-schema/spec": "catalog:"
   },
   "devDependencies": {

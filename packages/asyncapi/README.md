@@ -20,15 +20,15 @@ pnpm add @amqp-contract/asyncapi
 
 ```typescript
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { writeFileSync } from "node:fs";
 
 import { contract } from "./contract.js";
 
-// Create generator with schema converters
-const generator = new AsyncAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
-});
+// Zod 4 and ArkType schemas convert themselves (Standard JSON Schema), so no
+// converter is needed. For a library that does not, pass one — e.g.
+// `schemaConverters: [new experimental_ValibotToJsonSchemaConverter()]` from
+// `@orpc/valibot`. `vhost` (default "/") is written into every AMQP binding.
+const generator = new AsyncAPIGenerator({ vhost: "/" });
 
 // Generate AsyncAPI specification
 const asyncAPISpec = await generator.generate(contract, {
@@ -61,7 +61,9 @@ writeFileSync("asyncapi.json", JSON.stringify(asyncAPISpec, null, 2));
 ## Features
 
 - ✅ **AsyncAPI 3.1 compliant** with proper AMQP bindings (v0.3.0)
-- ✅ **Schema validation** - Converts Zod, Valibot, and ArkType schemas to JSON Schema
+- ✅ **Schema validation** - Converts Zod, Valibot, and ArkType schemas to JSON Schema: natively
+  through Standard JSON Schema (`~standard.jsonSchema`) when the schema implements it, otherwise
+  through a configured `schemaConverters` entry
 - ✅ **Queue-exchange binding documentation** in channel descriptions
 - ✅ **Type-safe** with full TypeScript support
 

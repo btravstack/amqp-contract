@@ -158,10 +158,11 @@ const contract = defineContract({
 ## Queue Types
 
 - **Quorum queues are the default** and recommended for most use cases
-- Use `type: 'quorum'` (default) for reliable, replicated queues (always durable, do not support exclusive, auto-deleting, or priority queues)
-- Use `type: 'classic'` only for special cases (non-durable, exclusive, auto-deleting, or priority queues)
+- Use `type: 'quorum'` (default) for reliable, replicated queues (always durable, do not support exclusive or auto-deleting queues)
+- Quorum queues **do** prioritise messages: RabbitMQ 4.0+ honours each message's `priority` property with no queue argument (normal vs high above 4 up to 4.2; 32 strict levels from 4.3). `maxPriority` sets the classic-only `x-max-priority`, which quorum ignores — `defineQueue` rejects it on a quorum queue rather than accept a no-op
+- Use `type: 'classic'` only for special cases (non-durable, exclusive, auto-deleting, or classic `maxPriority` levels)
 - Every **consumed** queue needs a `deadLetter` — or an explicit `onPoison: "drop"`. `defineContract` throws otherwise, because a consumed queue with neither discards every rejected message with no record. Declared-but-unconsumed queues (dead-letter queues included) are exempt; a DLQ you _do_ consume needs `onPoison: "drop"`, since it cannot dead-letter to itself.
-- Every `deadLetter` exchange needs **something bound to it**. `defineContract` throws for a DLX that routes nowhere, because RabbitMQ discards a message routed to zero queues — the loss is identical to having no DLX, while the worker logs a reassuring `Sending message to DLQ`. Bind a DLQ, or set `externalConsumers: true` on the `deadLetter` config when another service owns that queue. On a **direct** DLX bind the actual key: `#` is a topic wildcard and matches nothing there. A DLX declaring an `alternate-exchange` argument is exempt, as it is for publishers — the broker catches its unmatched messages.
+- Every `deadLetter` exchange needs **something bound to it**. `defineContract` throws for a DLX that routes nowhere, because RabbitMQ discards a message routed to zero queues — the loss is identical to having no DLX, while the worker logs a reassuring `Sending message to DLQ`. Bind a DLQ, or set `externalConsumers: true` on the `deadLetter` config when another service owns that queue. On a **direct** DLX bind the actual key: `#` is a topic wildcard a direct exchange matches literally, and `defineQueueBinding` / `defineExchangeBinding` reject a `#` or `*` segment on a direct exchange at define time. `defineDeadLetterQueue(dlx, name, options?)` returns the DLQ and its binding as `{ queue, binding }` — `#` on topic, the required exact key on direct. A DLX declaring an `alternate-exchange` argument is exempt, as it is for publishers — the broker catches its unmatched messages.
 
 ```typescript
 // Quorum queue (default, recommended)
@@ -171,7 +172,8 @@ const orderQueue = defineQueue("orders", {
   retry: { mode: "immediate-requeue", maxRetries: 3 }, // Dead-letter after 3 retry attempts
 });
 
-// Classic queue for special cases only
+// Classic queue for special cases only — here, classic x-max-priority levels.
+// Plain message priority needs none of this on a quorum queue (RabbitMQ 4.0+).
 const priorityQueue = defineQueue("priority-tasks", {
   type: "classic",
   maxPriority: 10, // Only supported with classic queues

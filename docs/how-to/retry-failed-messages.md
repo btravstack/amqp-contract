@@ -60,17 +60,10 @@ declaration; every `deadLetter` on this page assumes it is in place.
 
 On quorum queues the count comes from RabbitMQ's native `x-delivery-count`; on classic queues the worker maintains `x-retry-count` by republishing.
 
-::: warning Quorum delivery limit
-Quorum queues enforce their own delivery limit — 20 by default in RabbitMQ 4 — independently of `maxRetries`. If you set `maxRetries` above it, the broker dead-letters the message first. Raise it explicitly when needed:
+::: info Quorum delivery limit
+Quorum queues also cap redeliveries on the broker side with `x-delivery-limit` — 20 by default in RabbitMQ 4 — and dead-letter past it on their own. `defineQueue` sets it to `maxRetries + 1` on every quorum queue with `immediate-requeue` retry, so the worker's retry budget is always the one that runs out first, and you need not set it.
 
-```typescript
-defineQueue("order-processing", {
-  deadLetter: { exchange: dlx },
-  retry: { mode: "immediate-requeue", maxRetries: 3 },
-  arguments: { "x-delivery-limit": 20 },
-});
-```
-
+An explicit `x-delivery-limit` in `arguments` is kept as long as it leaves room for `maxRetries` (at least `maxRetries + 1`, or `-1` for unlimited); a lower one is rejected at define time. A delivery limit applied through a broker **policy** is invisible to the contract — check it does not undercut `maxRetries`.
 :::
 
 ## Retry with exponential backoff
