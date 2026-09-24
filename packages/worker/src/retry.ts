@@ -12,17 +12,11 @@ import type { ConsumeMessage } from "amqplib";
 import { OkAsync, P, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
+import type { Outcome } from "./outcome.js";
 
 type RetryContext = {
   amqpClient: AmqpClient;
   logger?: Logger | undefined;
-  /**
-   * Channel epoch captured when the message was delivered
-   * ({@link AmqpClient.currentChannelEpoch}). Stamped onto every ack/nack so
-   * a settle that lands after a reconnect is skipped instead of targeting a
-   * foreign delivery tag on the new channel.
-   */
-  deliveryEpoch?: number | undefined;
 };
 
 /** Cap on the `x-last-error` header, in characters (≤ 4 KiB of UTF-8). */
@@ -31,7 +25,8 @@ export const MAX_LAST_ERROR_LENGTH = 1024;
 /**
  * What to do with a delivery whose handler failed — decided by
  * {@link decideRetry} without touching the broker, carried out by
- * {@link handleError}.
+ * {@link handleError} (which returns the resulting {@link Outcome}; the
+ * dispatch path settles the delivery from it).
  *
  * - `dead-letter` — `nack(requeue: false)`: the queue's DLX gets it.
  * - `requeue` — `nack(requeue: true)`: a quorum queue's native retry, counted
@@ -121,9 +116,11 @@ export function decideRetry(
 }
 
 /**
- * Route a handler failure: {@link decideRetry}, then carry the action out on
- * the broker. The caller already logged the original error; this logs only
- * the routing decision.
+ * Route a handler failure: {@link decideRetry}, then carry the action out —
+ * publishing the retry copy when there is one — and answer the
+ * {@link Outcome} the delivery must be settled with. It never settles the
+ * delivery itself. The caller already logged the original error; this logs
+ * only the routing decision.
  */
 export function handleError(
   ctx: RetryContext,
@@ -131,7 +128,7 @@ export function handleError(
   msg: ConsumeMessage,
   consumerName: string,
   consumer: ConsumerDefinition,
-): AsyncResult<void, never> {
+): AsyncResult<Outcome, never> {
   const queue = consumer.queue;
   const action = decideRetry(error, queue, msg.properties.headers);
   const fields = { consumerName, queueName: queue.name };
@@ -139,15 +136,14 @@ export function handleError(
   switch (action.kind) {
     case "dead-letter":
       ctx.logger?.info(`Sending to DLQ: ${action.reason}`, fields);
-      sendToDLQ(ctx, msg, consumer);
-      return OkAsync(undefined);
+      logDeadLetter(ctx, msg, queue);
+      return OkAsync({ kind: "dead-lettered", error, reason: action.reason });
     case "requeue":
       ctx.logger?.info("Retrying message (requeue)", {
         ...fields,
         retryCount: action.retryCount,
       });
-      ctx.amqpClient.nack(msg, { requeue: true, deliveryEpoch: ctx.deliveryEpoch });
-      return OkAsync(undefined);
+      return OkAsync({ kind: "requeued", error, reason: "immediate requeue" });
     case "republish":
       ctx.logger?.info("Retrying message (republish)", {
         ...fields,
@@ -225,13 +221,14 @@ function publishForRetry(
     delayMs?: number | undefined;
     error: Error;
   },
-): AsyncResult<void, never> {
+): AsyncResult<Outcome, never> {
   const headers = msg.properties.headers;
   const newRetryCount = readCount(headers, "x-retry-count") + 1;
   const firstFailure = headers?.["x-first-failure-timestamp"];
   const originalRoutingKey = headers?.["x-original-routing-key"];
 
-  // Publish FIRST, then ack the original only if the publish succeeded.
+  // Publish FIRST; the original is acked (outcome `retried`) only once the
+  // broker confirmed the copy.
   //
   // Acking before publishing would lose the message if the publish then fails:
   // the broker has already discarded the original delivery and the retry copy
@@ -260,20 +257,17 @@ function publishForRetry(
           typeof originalRoutingKey === "string" ? originalRoutingKey : msg.fields.routingKey,
       },
     })
-    .map(() => {
-      // Publish confirmed by the broker — safe to ack the original now. The
-      // epoch stamp keeps this safe even when the confirm arrived on a NEW
-      // channel (the publish buffer survives reconnects; delivery tags do not).
-      ctx.amqpClient.ack(msg, { deliveryEpoch: ctx.deliveryEpoch });
-
+    .map((): Outcome => {
+      // Publish confirmed by the broker — safe to ack the original now.
       ctx.logger?.info("Message published for retry", {
         queueName,
         retryCount: newRetryCount,
         ...(delayMs !== undefined ? { delayMs } : {}),
       });
+      return { kind: "retried", error, delayMs };
     })
     .recoverErrCases((matcher) =>
-      matcher.with(P.tag(PublishError.tag), (publishError) => {
+      matcher.with(P.tag(PublishError.tag), (publishError): Outcome => {
         // The broker did not take the retry copy (timeout, nack, channel
         // closed). Requeue the ORIGINAL: it is redelivered with its retry
         // headers unchanged, so the retry budget is intact and nothing is
@@ -284,16 +278,14 @@ function publishForRetry(
           ...(delayMs !== undefined ? { delayMs } : {}),
           error: publishError,
         });
-        ctx.amqpClient.nack(msg, { requeue: true, deliveryEpoch: ctx.deliveryEpoch });
+        return { kind: "requeued", error, reason: "retry publish failed" };
       }),
     );
 }
 
 /**
- * Send message to dead letter queue.
- * Nacks the message without requeue, relying on DLX configuration.
- *
- * Three outcomes, logged as distinct facts:
+ * Log where a dead-lettered message goes — `nack(requeue: false)` relies on
+ * the queue's DLX configuration. Three cases, logged as distinct facts:
  *
  * - a DLX is configured — the message is handed off, `info`;
  * - no DLX but `onPoison: "drop"` — the author declared the loss, `info`;
@@ -308,8 +300,7 @@ function publishForRetry(
  * {@link _internal_queueHasDeadLetterExchange} — a queue dead-lettering through
  * the raw `arguments` passthrough is handed off, not reported as lost.
  */
-function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDefinition): void {
-  const queue = consumer.queue;
+function logDeadLetter(ctx: RetryContext, msg: ConsumeMessage, queue: QueueDefinition): void {
   const queueName = queue.name;
   const fields = { queueName, deliveryTag: msg.fields.deliveryTag };
 
@@ -326,9 +317,6 @@ function sendToDLQ(ctx: RetryContext, msg: ConsumeMessage, consumer: ConsumerDef
       fields,
     );
   }
-
-  // Nack without requeue - relies on DLX configuration
-  ctx.amqpClient.nack(msg, { requeue: false, deliveryEpoch: ctx.deliveryEpoch });
 }
 
 /**

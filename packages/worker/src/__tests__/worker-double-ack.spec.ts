@@ -22,8 +22,9 @@ import { it } from "./fixture.js";
  * on the same delivery tag — RabbitMQ then closes the channel with 406
  * PRECONDITION_FAILED.
  *
- * The fix tracks `messageHandled` across the dispatch path and refuses to nack
- * once the message has already been ack'd or nack'd.
+ * The dispatch path now settles each delivery exactly once, from its modeled
+ * outcome (`outcome.ts` `settle`), and only then records telemetry — so a
+ * throwing telemetry provider can no longer reach a second settle.
  */
 const doubleAckDlx = defineExchange("doubleack-dlx", { durable: false });
 // Topic DLX with no dead-letter routing key on the queue, so `#` catches

@@ -22,9 +22,6 @@ import {
 } from "@amqp-contract/core";
 import {
   decodeMessage,
-  endSpanError,
-  endSpanSuccess,
-  recordConsumeMetric,
   startConsumeSpan,
   startOrClose,
   technicalDefect,
@@ -60,6 +57,14 @@ import {
   type EmptyContext,
   type WorkerMiddleware,
 } from "./middleware.js";
+import {
+  ACKED,
+  asError,
+  type DeadLettered,
+  type Outcome,
+  recordOutcome,
+  settle,
+} from "./outcome.js";
 import { handleError, readCount } from "./retry.js";
 import type { WorkerInferHandlers } from "./types.js";
 
@@ -99,14 +104,8 @@ type StoredHandler = (
   message: { payload: unknown; headers: unknown },
 ) => AsyncResult<unknown, HandlerError | RpcError>;
 
-/**
- * Per-delivery dispatch state. `messageHandled` guards the ack/nack-exactly-
- * once invariant; `deliveryEpoch` is the channel epoch captured when the
- * message arrived ({@link AmqpClient.currentChannelEpoch}) and is stamped on
- * every settle so a reconnect can never route an ack/nack to a foreign
- * delivery tag on the new channel.
- */
-type DeliveryState = { messageHandled: boolean; deliveryEpoch: number };
+/** A message whose payload (and headers, when declared) passed their schemas. */
+type ValidatedMessage = { payload: unknown; headers: unknown };
 
 /**
  * Per-message information handed to the `createContext` factory — enough to
@@ -664,77 +663,45 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
-   * Validate data against a Standard Schema. No side effects; the caller is
-   * responsible for ack/nack based on the Result.
+   * Validate data against a Standard Schema. Schema issues are the modeled
+   * `MessageValidationError` — the same error the client reports for an
+   * invalid outgoing message; a validator that throws is a Defect.
    */
   private validateSchema(
     schema: StandardSchemaV1,
     data: unknown,
-    context: { consumerName: string; field: string },
-  ): AsyncResult<unknown, never> {
-    // A validator that throws *synchronously* (header schemas are validated
-    // eagerly while the chain is built) would escape before fromPromise wraps
-    // it — guard the call so it surfaces on the defect channel like a rejection.
-    let rawValidation: ReturnType<StandardSchemaV1["~standard"]["validate"]>;
-    try {
-      rawValidation = schema["~standard"].validate(data);
-    } catch (error) {
-      return technicalDefect(
-        new TechnicalError(`Error validating ${context.field}`, error),
-      ).toAsync();
-    }
-    const validationPromise =
-      rawValidation instanceof Promise ? rawValidation : Promise.resolve(rawValidation);
-
-    return fromPromise(validationPromise, (error, defect) =>
-      defect(new TechnicalError(`Error validating ${context.field}`, error)),
-    ).flatMap((result) => {
-      if (result.issues) {
-        // A schema-invalid incoming message is routed to the DLQ by the caller;
-        // it is an infrastructure/producer fault, so surface it as a defect.
-        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-        throw new TechnicalError(
-          `${context.field} validation failed`,
-          new MessageValidationError(context.consumerName, result.issues),
-        );
-      }
-      return Ok(result.value);
-    });
+    consumerName: string,
+  ): AsyncResult<unknown, MessageValidationError> {
+    return fromSchemaAsync(schema)(data).mapErrCases((matcher) =>
+      matcher.with(
+        // oxlint-disable-next-line unthrown/no-catch-all-pattern -- SchemaIssues is a single non-union error type
+        P._,
+        (issues) => new MessageValidationError(consumerName, issues),
+      ),
+    );
   }
 
   /**
-   * Parse and validate a message from AMQP. Pure: returns the validated payload
-   * and headers, or an error. The dispatch path in {@link processMessage} routes
-   * validation/parse errors directly to the DLQ (single nack) — they never enter
-   * the retry pipeline because retrying an unparseable or schema-violating
-   * payload cannot succeed.
+   * Decode and validate a message from AMQP: the payload (decompression, size
+   * cap and JSON parse through the core codec, then its schema) and, when the
+   * message declares them, the headers.
    */
   private parseAndValidateMessage(
     msg: ConsumeMessage,
     consumer: ConsumerDefinition,
-    consumerName: HandlerName<TContract>,
-  ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
-    const context = { consumerName: String(consumerName) };
-
-    // Decompress + size cap + JSON parse, all through the core codec; any
-    // failure is an unexpected infrastructure/producer fault (a Defect).
+    consumerName: string,
+  ): AsyncResult<ValidatedMessage, MessageValidationError> {
     const parsePayload = decodeMessage(msg.content, msg.properties.contentEncoding, {
       maxBytes: this.maxDecompressedBytes,
     }).flatMap((parsed) =>
-      this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, {
-        ...context,
-        field: "payload",
-      }),
+      this.validateSchema(consumer.message.payload as StandardSchemaV1, parsed, consumerName),
     );
 
-    const parseHeaders: AsyncResult<unknown, never> = consumer.message.headers
+    const parseHeaders: AsyncResult<unknown, MessageValidationError> = consumer.message.headers
       ? this.validateSchema(
           consumer.message.headers as StandardSchemaV1,
           msg.properties.headers ?? {},
-          {
-            ...context,
-            field: "headers",
-          },
+          consumerName,
         )
       : OkAsync(undefined);
 
@@ -951,27 +918,33 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
-   * Parse and validate the message; on failure, nack(requeue=false) so the
-   * queue's DLX (if configured) receives the poison message and bypass the
-   * retry pipeline — a malformed payload is deterministic and retrying it
-   * would burn the queue's retry budget on a guaranteed failure.
+   * Parse and validate the message; a message that cannot be decoded or fails
+   * its schema is poison and becomes a `dead-lettered` outcome at once. It
+   * never enters the retry pipeline — a malformed payload is deterministic,
+   * and retrying it would burn the queue's retry budget on a guaranteed
+   * failure.
+   *
+   * Decode faults (unknown encoding, corrupt stream, over the size cap,
+   * invalid JSON) and a throwing validator arrive as defects; at this
+   * boundary every one of them means "these bytes cannot become a valid
+   * message", so they are triaged into the same poison outcome.
    */
-  private parseAndValidateOrNack(
+  private parseOrPoison(
     msg: ConsumeMessage,
     consumer: ConsumerDefinition,
-    name: HandlerName<TContract>,
-    deliveryEpoch: number,
-  ): AsyncResult<{ payload: unknown; headers: unknown }, never> {
-    return this.parseAndValidateMessage(msg, consumer, name).tapDefect(() => {
-      // A poison message on a queue with no DLX is discarded by this nack.
-      // Mirrors the retry path's sendToDLQ: a declared drop is a fact at
-      // `info`; a queue carrying neither a DLX nor the declaration is only
-      // reachable via a hand-built ContractDefinition that bypassed
+    consumerName: string,
+  ): AsyncResult<ValidatedMessage, DeadLettered> {
+    const poison = (error: Error, reason: string): DeadLettered => {
+      const fields = { consumerName, queueName: consumer.queue.name };
+      this.logger?.error("Failed to parse/validate message; sending to DLQ", { ...fields, error });
+      // A poison message on a queue with no DLX is discarded by the nack.
+      // Mirrors the retry path's dead-letter logging: a declared drop is a
+      // fact at `info`; a queue carrying neither a DLX nor the declaration is
+      // only reachable via a hand-built ContractDefinition that bypassed
       // defineContract, and keeps the warning. "Is there a DLX?" is the
       // guard's own question, asked through the shared predicate so a queue
       // dead-lettering via the raw `arguments` passthrough stays silent here.
       if (!_internal_queueHasDeadLetterExchange(consumer.queue)) {
-        const fields = { consumerName: String(name), queueName: consumer.queue.name };
         if (consumer.queue.onPoison === "drop") {
           this.logger?.info(
             'Discarding poison message: queue is declared onPoison: "drop" and has no DLX',
@@ -984,8 +957,16 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
           );
         }
       }
-      this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
-    });
+      return { kind: "dead-lettered", error, reason };
+    };
+
+    return this.parseAndValidateMessage(msg, consumer, consumerName)
+      .mapErrCases((matcher) =>
+        matcher.with(P.tag(MessageValidationError.tag), (error) =>
+          poison(error, "invalid message"),
+        ),
+      )
+      .recoverDefect((cause) => Err(poison(asError(cause), "undecodable message")));
   }
 
   /**
@@ -1106,246 +1087,119 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
   }
 
   /**
-   * Process a single consumed message: validate, invoke handler, optionally
-   * publish the RPC response, record telemetry, and route errors.
+   * Process a single consumed message — validate, invoke the handler, publish
+   * the RPC reply, route failures — down to the {@link Outcome} it must be
+   * settled with. Nothing here acks or nacks: {@link dispatchMessage} settles
+   * once, from the outcome.
    *
-   * The caller-supplied `state` is mutated as the message is ack'd/nack'd so
-   * the consume callback's catch-all guard can tell whether a defensive nack
-   * is still needed (see {@link consume}).
-   *
-   * Success-vs-failure telemetry is data-driven: the chain resolves to
-   * `Ok(undefined)` only on handler success (and reply-publish success for
-   * RPC). Handler failures — even when {@link handleError} routes them
-   * successfully to retry/DLQ — are classified as failures for metrics by
-   * re-failing the chain as a `Defect` (a `TechnicalError` whose `cause` is the
-   * original `HandlerError`). The terminal `tapDefect` unwraps the cause before
-   * recording the span exception so traces keep the original
-   * `RetryableError` / `NonRetryableError` class as the exception type.
+   * A Defect reaching the end (a handler or middleware that threw, a bug) is
+   * dead-lettered rather than left un-acked — stuck until the channel closes,
+   * then redelivered, which would re-run the failing code forever.
    */
   private processMessage(
     msg: ConsumeMessage,
     view: ConsumerView,
     name: HandlerName<TContract>,
     handler: StoredHandler,
-    state: DeliveryState,
-  ): AsyncResult<void, never> {
+  ): AsyncResult<Outcome, never> {
     const { consumer } = view;
-    const queueName = consumer.queue.name;
-    const startTime = Date.now();
-    const span = startConsumeSpan(this.telemetry, queueName, String(name), {
-      "messaging.rabbitmq.message.delivery_tag": msg.fields.deliveryTag,
-    });
+    const fields = { consumerName: String(name), queueName: consumer.queue.name };
 
-    return (
-      this.parseAndValidateOrNack(msg, consumer, name, state.deliveryEpoch)
-        .tapDefect((parseError) => {
-          this.logger?.error("Failed to parse/validate message; sending to DLQ", {
-            consumerName: String(name),
-            queueName,
-            error: parseError,
-          });
-          // parseAndValidateOrNack already nacked; mark handled so the
-          // catch-all in consume does not double-act.
-          state.messageHandled = true;
-        })
-        .flatMap<void, never>((validatedMessage) =>
-          this.runHandler(handler, validatedMessage, msg, name, view)
-            .flatMap((handlerResponse) =>
-              this.publishReplyIfRpc(msg, view, name, handlerResponse).tap(() => {
-                this.logger?.info("Message consumed successfully", {
-                  consumerName: String(name),
-                  queueName,
-                });
-                this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
-                state.messageHandled = true;
-              }),
-            )
-            .flatMapErrCases((matcher) =>
-              matcher.with(
-                P.tag("@amqp-contract/RetryableError"),
-                P.tag("@amqp-contract/NonRetryableError"),
-                P.tag("@amqp-contract/RpcError"),
-                (handlerError) => {
-                  // A contract-declared RpcError is the RPC's business-failure
-                  // channel, not a processing failure: publish it back to the
-                  // caller and ack the request. Only if the error reply itself
-                  // cannot be produced (undeclared code, schema mismatch, publish
-                  // failure) does the failure fall through to retry/DLQ routing.
-                  if (isRpcError(handlerError) && view.isRpc) {
-                    return this.publishRpcErrorReply(msg, view, name, handlerError)
-                      .tap(() => {
-                        this.logger?.info("RPC handler replied with a typed error", {
-                          consumerName: String(name),
-                          queueName,
-                          errorCode: handlerError.code,
-                        });
-                        this.amqpClient.ack(msg, { deliveryEpoch: state.deliveryEpoch });
-                        state.messageHandled = true;
-                      })
-                      .flatMapErrCases((replyMatcher) =>
-                        replyMatcher.with(
-                          P.tag("@amqp-contract/RetryableError"),
-                          P.tag("@amqp-contract/NonRetryableError"),
-                          (replyError: HandlerError) =>
-                            this.routeHandlerError(
-                              replyError,
-                              msg,
-                              name,
-                              consumer,
-                              queueName,
-                              state,
-                            ),
-                        ),
-                      );
-                  }
-                  // An RpcError from a non-RPC consumer is type-impossible but
-                  // runtime-reachable through casts; treat it as a permanent
-                  // failure rather than crashing the dispatch loop.
-                  const routableError: HandlerError = isRpcError(handlerError)
-                    ? new NonRetryableError(
-                        `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
-                        handlerError,
-                      )
-                    : handlerError;
-                  return this.routeHandlerError(
-                    routableError,
-                    msg,
-                    name,
-                    consumer,
-                    queueName,
-                    state,
-                  );
-                },
-              ),
+    return this.parseOrPoison(msg, consumer, String(name))
+      .flatMap((validatedMessage): AsyncResult<Outcome, never> =>
+        this.runHandler(handler, validatedMessage, msg, name, view)
+          .flatMap((handlerResponse) =>
+            this.publishReplyIfRpc(msg, view, name, handlerResponse).map((): Outcome => {
+              this.logger?.info("Message consumed successfully", fields);
+              return ACKED;
+            }),
+          )
+          .flatMapErrCases((matcher) =>
+            matcher.with(
+              P.tag("@amqp-contract/RetryableError"),
+              P.tag("@amqp-contract/NonRetryableError"),
+              P.tag("@amqp-contract/RpcError"),
+              (handlerError) => {
+                // A contract-declared RpcError is the RPC's business-failure
+                // channel, not a processing failure: publish it back to the
+                // caller and ack the request. Only if the error reply itself
+                // cannot be produced (undeclared code, schema mismatch, publish
+                // failure) does the failure fall through to retry/DLQ routing.
+                if (isRpcError(handlerError) && view.isRpc) {
+                  return this.publishRpcErrorReply(msg, view, name, handlerError)
+                    .map((): Outcome => {
+                      this.logger?.info("RPC handler replied with a typed error", {
+                        ...fields,
+                        errorCode: handlerError.code,
+                      });
+                      return ACKED;
+                    })
+                    .flatMapErrCases((replyMatcher) =>
+                      replyMatcher.with(
+                        P.tag("@amqp-contract/RetryableError"),
+                        P.tag("@amqp-contract/NonRetryableError"),
+                        (replyError: HandlerError) =>
+                          this.routeHandlerError(replyError, msg, name, view),
+                      ),
+                    );
+                }
+                // An RpcError from a non-RPC consumer is type-impossible but
+                // runtime-reachable through casts; treat it as a permanent
+                // failure rather than crashing the dispatch loop.
+                const routableError: HandlerError = isRpcError(handlerError)
+                  ? new NonRetryableError(
+                      `Consumer "${String(name)}" returned an RpcError but is not an RPC`,
+                      handlerError,
+                    )
+                  : handlerError;
+                return this.routeHandlerError(routableError, msg, name, view);
+              },
             ),
-        )
-        // Telemetry never throws into the dispatch path: every helper below
-        // swallows a buggy provider or span internally (see core's
-        // `swallowTelemetryThrow`, guarded by its own "throwing telemetry
-        // providers" suite), so no defensive wrapper is needed here.
-        .tap(() => {
-          endSpanSuccess(span);
-          recordConsumeMetric(
-            this.telemetry,
-            queueName,
-            String(name),
-            true,
-            Date.now() - startTime,
-          );
-        })
-        .tapDefect((cause) => {
-          // Every routed failure reaches the terminal as a `Defect` whose cause is
-          // a `TechnicalError` carrying the original failure (a `HandlerError`, a
-          // parse/validation fault, …) via its own `cause`. Surface that original
-          // to the span so the recorded `exception.type` is the discriminating
-          // subclass (`RetryableError` / `NonRetryableError`) rather than the
-          // wrapper.
-          const original =
-            cause instanceof Error && cause.cause instanceof Error ? cause.cause : cause;
-          endSpanError(span, original instanceof Error ? original : new Error(String(original)));
-          recordConsumeMetric(
-            this.telemetry,
-            queueName,
-            String(name),
-            false,
-            Date.now() - startTime,
-          );
-        })
-    );
+          ),
+      )
+      .recoverErrCases((matcher) =>
+        matcher.with({ kind: "dead-lettered" }, (poisoned): Outcome => poisoned),
+      )
+      .recoverDefect((cause) => {
+        this.logger?.error("Message processing failed with a defect; nacking message", {
+          ...fields,
+          error: cause,
+        });
+        return Ok<Outcome>({ kind: "dead-lettered", error: asError(cause), reason: "defect" });
+      });
   }
 
   /**
-   * Route a handler failure to retry / DLQ via {@link handleError}. On its
-   * success paths (retry republish, immediate-requeue nack, DLQ nack) the
-   * message has been ack'd or nack'd, so mark it handled. On its failure
-   * paths (e.g. TTL-backoff misconfig) no ack/nack happens and the message
-   * will be redelivered — leave `messageHandled` false so the consume
-   * catch-all can defensive-nack if needed.
-   *
-   * Either way, re-fail the chain with the original handlerError as `cause`
-   * so the failure-telemetry path fires; routing-internal errors
-   * (TechnicalError) take precedence and surface as the chain's error
-   * directly.
+   * Route a handler failure to retry / DLQ via {@link handleError}, which
+   * answers the outcome to settle with.
    */
   private routeHandlerError(
     handlerError: HandlerError,
     msg: ConsumeMessage,
     name: HandlerName<TContract>,
-    consumer: ConsumerDefinition,
-    queueName: string,
-    state: DeliveryState,
-  ): AsyncResult<void, never> {
+    view: ConsumerView,
+  ): AsyncResult<Outcome, never> {
+    const headers = msg.properties.headers;
     this.logger?.error("Error processing message", {
       consumerName: String(name),
-      queueName,
+      queueName: view.consumer.queue.name,
       errorType: handlerError.name,
-      retryCount:
-        readCount(msg.properties.headers, "x-delivery-count") ||
-        readCount(msg.properties.headers, "x-retry-count"),
+      retryCount: readCount(headers, "x-delivery-count") || readCount(headers, "x-retry-count"),
       error: handlerError.message,
     });
 
     return handleError(
-      { amqpClient: this.amqpClient, logger: this.logger, deliveryEpoch: state.deliveryEpoch },
+      { amqpClient: this.amqpClient, logger: this.logger },
       handlerError,
       msg,
       String(name),
-      consumer,
-    )
-      .tap(() => {
-        state.messageHandled = true;
-      })
-      .flatMap((): Result<void, never> => {
-        // Routing succeeded (retry republish / requeue / DLQ nack). Re-fail the
-        // chain so the failure-telemetry path fires, carrying the original
-        // handlerError as the defect cause. The throw becomes a `Defect`; a
-        // routing *failure* (handleError defect) short-circuits before this and
-        // leaves `messageHandled` false so the message is redelivered.
-        // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing — the combinator adopts the throw as a Defect
-        throw new TechnicalError(
-          `Handler "${String(name)}" failed: ${handlerError.message}`,
-          handlerError,
-        );
-      });
+      view.consumer,
+    );
   }
 
   /**
-   * Defensive nack that never throws. During `close()` — or a
-   * server-initiated channel teardown — the underlying channel may already
-   * reject writes; a throw here would escape the async consume callback as a
-   * process-level unhandled rejection. Dropping the nack is safe: an unacked
-   * delivery is redelivered once the channel is gone.
-   */
-  private safeNack(
-    msg: ConsumeMessage,
-    context: Record<string, unknown>,
-    deliveryEpoch?: number,
-  ): void {
-    try {
-      this.amqpClient.nack(msg, { requeue: false, deliveryEpoch });
-    } catch (error: unknown) {
-      this.logger?.warn(
-        "Failed to nack message (channel closing?); broker will redeliver instead",
-        { ...context, error },
-      );
-    }
-  }
-
-  /**
-   * Process one delivery end to end. Never rejects.
-   *
-   * The dispatch path is built on `AsyncResult` so handler failures are
-   * values, not exceptions. Defensively guard the boundary anyway: a handler
-   * that violates the contract by throwing synchronously (or any unexpected
-   * fault inside processMessage) would otherwise leave the message neither
-   * acked nor nacked, and amqp-connection-manager would not redeliver it until
-   * the channel closes. nack(requeue=false) routes it via DLX if configured.
-   *
-   * The `state.messageHandled` flag guards the catch-block nack: if an
-   * exception is thrown *after* the message was already ack'd or nack'd
-   * (e.g. from the telemetry chain in processMessage's tail), a second nack
-   * would target the same delivery tag and close the channel with 406
-   * PRECONDITION_FAILED.
+   * Process one delivery end to end, then settle it exactly once from its
+   * {@link Outcome} and record telemetry from the same outcome. Never rejects.
    */
   private async dispatchMessage(
     msg: ConsumeMessage,
@@ -1355,45 +1209,22 @@ export class TypedAmqpWorker<TContract extends ContractDefinition> {
     queueName: string,
     deliveryEpoch: number,
   ): Promise<void> {
-    const state: DeliveryState = { messageHandled: false, deliveryEpoch };
+    const consumerName = String(name);
+    const startTime = Date.now();
+    const span = startConsumeSpan(this.telemetry, queueName, consumerName, {
+      "messaging.rabbitmq.message.delivery_tag": msg.fields.deliveryTag,
+    });
+
+    let outcome: Outcome;
     try {
-      const result = await this.processMessage(msg, view, name, handler, state);
-      // A terminal `Defect` (an infra fault now on the defect channel —
-      // e.g. an RPC reply publish that *rejected*) is a value, not a
-      // throw, so it never reaches the catch below. If nothing already
-      // ack'd/nack'd the message, route it via DLX rather than leaving it
-      // un-acked — stuck until the channel closes, then redelivered, which
-      // would re-run an already-succeeded handler. This preserves the
-      // pre-defect-migration behaviour (terminal technical failure → DLQ)
-      // and prevents a persistent defect from poison-looping.
-      if (!state.messageHandled && result.isDefect()) {
-        this.logger?.error("Message processing failed with a defect; nacking message", {
-          consumerName: String(name),
-          queueName,
-          error: result.cause,
-        });
-        this.safeNack(msg, { consumerName: String(name), queueName }, state.deliveryEpoch);
-        state.messageHandled = true;
-      }
+      outcome = await this.processMessage(msg, view, name, handler).get();
     } catch (error: unknown) {
-      if (state.messageHandled) {
-        this.logger?.error(
-          "Uncaught error in consume callback after message was already handled; not nacking",
-          {
-            consumerName: String(name),
-            queueName,
-            error,
-          },
-        );
-        return;
-      }
-      this.logger?.error("Uncaught error in consume callback; nacking message", {
-        consumerName: String(name),
-        queueName,
-        error,
-      });
-      this.safeNack(msg, { consumerName: String(name), queueName }, state.deliveryEpoch);
+      // Only reachable if the defect recovery itself threw (e.g. a throwing
+      // logger) — still settle the delivery rather than leave it stuck.
+      outcome = { kind: "dead-lettered", error: asError(error), reason: "defect" };
     }
+    settle(this.amqpClient, msg, outcome, deliveryEpoch, this.logger);
+    recordOutcome(this.telemetry, span, outcome, queueName, consumerName, startTime);
   }
 
   /**

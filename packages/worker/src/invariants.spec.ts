@@ -3,7 +3,8 @@
  * `invariants.spec.ts` pattern). Invariants whose natural guard lives in
  * another suite are listed in AGENTS.md ("Load-bearing invariants") with a
  * pointer instead of a duplicate here; this file adds direct unit guards for
- * the error-routing decisions of `handleError`.
+ * the error-routing decisions of `handleError` (settled through `settle`, as
+ * the dispatcher does).
  */
 import {
   defineMessage,
@@ -17,6 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { NonRetryableError, RetryableError } from "./errors.js";
+import { settle } from "./outcome.js";
 import { decideRetry, handleError, MAX_LAST_ERROR_LENGTH } from "./retry.js";
 
 function mockMessage(headers: Record<string, unknown> = {}): ConsumeMessage {
@@ -47,12 +49,20 @@ function mockClient(): {
 
 const message = defineMessage(z.object({ id: z.string() }));
 
+/** `handleError`, then `settle` its outcome — exactly what the dispatcher does with a handler failure. */
+function routeAndSettle(...args: Parameters<typeof handleError>): ReturnType<typeof handleError> {
+  const [ctx, , msg] = args;
+  return handleError(...args).tap((outcome) =>
+    settle(ctx.amqpClient, msg, outcome, undefined, undefined),
+  );
+}
+
 describe("invariants: handler-error routing", () => {
   it("INVARIANT: a NonRetryableError is nacked exactly once with requeue=false (DLQ), never published or acked", async () => {
     const { client, ack, nack, publish } = mockClient();
     const consumer = { queue: defineQueue("orders"), message };
 
-    const result = await handleError(
+    const result = await routeAndSettle(
       { amqpClient: client as never },
       new NonRetryableError("permanent"),
       mockMessage(),
@@ -74,7 +84,7 @@ describe("invariants: handler-error routing", () => {
     const { client, nack, publish } = mockClient();
     const consumer = { queue: defineQueue("orders"), message };
 
-    const result = await handleError(
+    const result = await routeAndSettle(
       { amqpClient: client as never },
       new RetryableError("transient"),
       mockMessage(),
@@ -99,7 +109,7 @@ describe("invariants: handler-error routing", () => {
 
     // Below the budget: broker-side redelivery via nack(requeue=true).
     const below = mockClient();
-    await handleError(
+    await routeAndSettle(
       { amqpClient: below.client as never },
       new RetryableError("transient"),
       mockMessage({ "x-delivery-count": 1 }),
@@ -113,7 +123,7 @@ describe("invariants: handler-error routing", () => {
 
     // At the budget: permanent failure, DLQ.
     const at = mockClient();
-    await handleError(
+    await routeAndSettle(
       { amqpClient: at.client as never },
       new RetryableError("transient"),
       mockMessage({ "x-delivery-count": 2 }),
@@ -139,7 +149,7 @@ describe("invariants: handler-error routing", () => {
       message,
     };
 
-    const result = await handleError(
+    const result = await routeAndSettle(
       { amqpClient: client as never },
       new RetryableError("transient"),
       mockMessage({ "x-retry-count": 0 }),
@@ -177,7 +187,7 @@ describe("invariants: handler-error routing", () => {
         message,
       };
 
-      await handleError(
+      await routeAndSettle(
         { amqpClient: client as never },
         new RetryableError("transient"),
         mockMessage({ "x-retry-count": forged }),
@@ -214,7 +224,7 @@ describe("invariants: handler-error routing", () => {
       message,
     };
 
-    await handleError(
+    await routeAndSettle(
       { amqpClient: client as never },
       new RetryableError("transient"),
       mockMessage({ "x-first-failure-timestamp": "yesterday", "x-original-routing-key": 42 }),
@@ -234,7 +244,7 @@ describe("invariants: handler-error routing", () => {
       message,
     };
 
-    await handleError(
+    await routeAndSettle(
       { amqpClient: client as never },
       new RetryableError("x".repeat(1_000_000)),
       mockMessage(),
@@ -242,7 +252,8 @@ describe("invariants: handler-error routing", () => {
       consumer,
     ).get();
 
-    const headers = (publish.mock.calls[0]?.[2] as { headers: Record<string, string> }).headers;
-    expect(headers["x-last-error"]).toHaveLength(MAX_LAST_ERROR_LENGTH);
+    expect(publish.mock.calls[0]?.[2]).toMatchObject({
+      headers: { "x-last-error": "x".repeat(MAX_LAST_ERROR_LENGTH) },
+    });
   });
 });
