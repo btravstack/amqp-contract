@@ -85,8 +85,13 @@ export function _internal_resolveDeadLetterRoutability(
 
   // What is left is the weak test: "at least one binding" catches the defect
   // actually observed (a DLX with nothing bound). It accepts a DLX bound only
-  // to non-matching patterns — a known, deliberate false negative, and the only
-  // inaccuracy this row still carries.
+  // to keys the original routing key never matches — a known, deliberate false
+  // negative, and the only inaccuracy this row still carries. Its worst case,
+  // `#` on a DIRECT DLX (a literal key that matches nothing, measured in
+  // tests/src/__tests__/dlx-routability.spec.ts), no longer reaches this row:
+  // `defineQueueBinding` / `defineExchangeBinding` reject a `*` or `#` segment
+  // on a direct exchange (`_internal_assertNoWildcardOnDirect`). Only a
+  // hand-built binding object literal can still carry one here.
   return _internal_declaredPatternsFor(exchange.name, bindings).length > 0
     ? "routable"
     : "unroutable";
@@ -100,12 +105,10 @@ export function _internal_resolveDeadLetterRoutability(
  * worse than none, because it sends the reader after the wrong thing while
  * looking authoritative.
  *
- * On a DIRECT exchange the remedy carries an extra warning about `#`. Row 4 of
- * the decision table accepts ANY binding when the queue sets no dead-letter
- * routing key, so a reader who reaches for `#` here passes this check and still
- * routes nothing — `#` is a topic wildcard, and a direct exchange treats it as a
- * literal key. The guard structurally cannot catch that (it does not know which
- * key will arrive), so this message is the only place that can warn.
+ * On a DIRECT exchange the remedy carries an extra warning about `#`: it is the
+ * catch-all a reader reaches for first, and on a direct exchange it is a literal
+ * key that matches nothing. The binding builders now reject it outright, so the
+ * hint steers the reader to the working fix instead of into a second error.
  *
  * @internal
  */
@@ -129,8 +132,7 @@ export function _internal_assertDeadLetterRoutable(
     deadLetter.routingKey === undefined
       ? "its dead-lettered messages keep their original routing key"
       : `its dead-lettered messages are routed with "${deadLetter.routingKey}"`;
-  // See the doc comment: on a direct exchange this check cannot tell a routing
-  // binding from a decorative one, so the warning has to travel in the message.
+  // See the doc comment: pre-empt the `#` attempt the binding builders reject.
   const directHint =
     exchange.type === "direct"
       ? ` Bind the routing key itself: "#" is a topic wildcard, and on a direct exchange it is a` +

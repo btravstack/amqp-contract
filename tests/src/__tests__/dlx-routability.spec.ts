@@ -19,13 +19,14 @@ import { z } from "zod";
  * shows the guard rejects that contract before it can run. Tests 3 and 4 are
  * the mirror image: the same unbound exchange *does* deliver when it declares
  * an `alternate-exchange`, so accepting that contract is not a hole in the
- * guard. Test 5 measures the `#`-on-a-direct-exchange trap the guard's error
- * text warns about but cannot detect, which is why the warning has to travel in
- * the message.
+ * guard. Test 5 measures the `#`-on-a-direct-exchange trap: the routability
+ * guard cannot see it (the DLX *has* a binding), so test 6 shows the binding
+ * builder rejecting it instead.
  *
  * The first test is the reason the second exists; if anyone ever weakens the
  * guard, the pair reads as a complete argument for putting it back. The third
  * is the reason the fourth exists, for the same reason in the other direction.
+ * The fifth is the reason the sixth exists.
  */
 describe("dead-letter routability", () => {
   const message = defineMessage(z.object({ orderId: z.string() }));
@@ -301,4 +302,13 @@ describe("dead-letter routability", () => {
     expect(viaLiteralBody).toEqual({ orderId: "measured" });
     expect(await amqpChannel.get("dlq-direct-literal", { noAck: true })).toBe(false);
   }, 20_000);
+
+  it("INVARIANT: the same '#' binding on a direct exchange is rejected at define time", () => {
+    const dlx = defineExchange("dlx-direct-guard", { type: "direct", durable: false });
+    const dlq = defineQueue("dlq-direct-guard", { type: "classic", durable: false });
+
+    expect(() => defineQueueBinding(dlq, dlx, { routingKey: "#" })).toThrow(
+      /direct exchange "dlx-direct-guard"/,
+    );
+  });
 });

@@ -240,14 +240,27 @@ describe("defineContract dead-letter routability", () => {
   });
 
   it("warns that '#' matches nothing when the dead-letter exchange is direct", () => {
-    // Row 4 accepts ANY binding when the queue sets no dead-letter routing key,
-    // so a reader who answers this error with `#` on a direct exchange passes
-    // the check and still routes nothing. The message is the only warning.
+    // `#` is the catch-all a reader reaches for first; on a direct exchange it
+    // is a literal key that matches nothing, and `defineQueueBinding` rejects
+    // it. The hint steers the reader to the working fix before that second error.
     const dlx = defineExchange("orders-dlx-direct-hint", { type: "direct" });
     const queue = defineQueue("order-processing-direct-hint", { deadLetter: { exchange: dlx } });
 
     expect(() => defineContract(contractWith(queue))).toThrow(/"#" is a topic wildcard/);
     expect(() => defineContract(contractWith(queue))).toThrow(/matches nothing/);
+  });
+
+  it("rejects the '#' answer to that warning at the binding, before defineContract runs", () => {
+    // Row 4 accepts ANY binding when the queue sets no dead-letter routing key,
+    // so `#` on a direct DLX used to pass this guard and route nothing (measured
+    // in tests/src/__tests__/dlx-routability.spec.ts). The binding builder is
+    // where that false negative is now closed.
+    const dlx = defineExchange("orders-dlx-direct-hash", { type: "direct" });
+    const dlqForHash = defineQueue("orders-dlq-direct-hash");
+
+    expect(() => defineQueueBinding(dlqForHash, dlx, { routingKey: "#" })).toThrow(
+      /"#" is a topic wildcard: a direct exchange matches keys literally/,
+    );
   });
 
   it("does NOT mention '#' when the dead-letter exchange is topic — there it is correct", () => {

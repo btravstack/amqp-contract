@@ -635,6 +635,50 @@ describe("builder", () => {
         exchange,
       });
     });
+
+    it.each(["#", "*", "order.*", "order.#", "*.created"])(
+      "should reject the wildcard key %s on a direct exchange — it is matched literally",
+      (routingKey) => {
+        const queue = defineQueue("orders-dlq");
+        const dlx = defineExchange("orders-dlx", { type: "direct" });
+
+        expect(() => defineQueueBinding(queue, dlx, { routingKey })).toThrow(
+          new RegExp(
+            `Queue binding of "orders-dlq" uses routing key "${routingKey.replace(/[.*#]/g, "\\$&")}" on direct exchange "orders-dlx".*Bind the exact routing key`,
+          ),
+        );
+      },
+    );
+
+    it("should accept wildcard-looking characters that are not whole segments on a direct exchange", () => {
+      // Only a segment that IS `*` or `#` is a topic wildcard; `a#b` is literal on both types.
+      const queue = defineQueue("orders-dlq");
+      const dlx = defineExchange("orders-dlx", { type: "direct" });
+
+      expect(() => defineQueueBinding(queue, dlx, { routingKey: "order#1.x*" })).not.toThrow();
+    });
+
+    it("should accept the same wildcard on a topic exchange", () => {
+      const queue = defineQueue("orders-dlq");
+      const dlx = defineExchange("orders-dlx", { type: "topic" });
+
+      expect(() => defineQueueBinding(queue, dlx, { routingKey: "#" })).not.toThrow();
+    });
+
+    it("should reject a wildcard consumer override on a direct exchange", () => {
+      // The types only offer the override on topic exchanges; a JavaScript
+      // caller (modelled by the cast) reaches the same binding builder and is
+      // rejected there.
+      const exchange = defineExchange("tasks", { type: "direct" });
+      const message = defineMessage(z.object({ id: z.string() }));
+      const queue = defineQueue("tasks-queue", { onPoison: "drop" });
+      const event = defineEventPublisher(exchange, message, { routingKey: "task.run" });
+      const untypedDefineEventConsumer = defineEventConsumer as (...args: unknown[]) => unknown;
+
+      expect(() => untypedDefineEventConsumer(event, queue, { routingKey: "task.*" })).toThrow(
+        /direct exchange "tasks"/,
+      );
+    });
   });
 
   describe("defineExchangeBinding", () => {
@@ -692,6 +736,15 @@ describe("builder", () => {
         routingKey: "order.*",
         arguments: { "x-match": "any" },
       });
+    });
+
+    it("should reject a wildcard key on a direct source exchange", () => {
+      const destination = defineExchange("archive", { type: "fanout" });
+      const source = defineExchange("orders-direct", { type: "direct" });
+
+      expect(() => defineExchangeBinding(destination, source, { routingKey: "#" })).toThrow(
+        /Exchange binding to "archive" uses routing key "#" on direct exchange "orders-direct"/,
+      );
     });
   });
 
