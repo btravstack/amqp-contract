@@ -190,24 +190,23 @@ They usually want different responses — a failure needs investigating, an expi
 There is no built-in replay. Consume from the dead-letter queue and publish back through the normal publisher once you have fixed the cause:
 
 ```typescript
-import { NonRetryableError } from "@amqp-contract/worker";
-import { Err, OkAsync, P } from "unthrown";
+import { NonRetryableError, PublishError, RetryableError } from "@amqp-contract/worker";
+import { OkAsync, P } from "unthrown";
 
 handleFailedOrders: ({ input: { payload } }) =>
   shouldReplay(payload)
-    ? client
-        .publish("orderCreated", payload)
-        .mapErrCases((matcher) =>
-          matcher.with(
+    ? client.publish("orderCreated", payload).mapErrCases((matcher) =>
+        matcher
+          .with(
             P.tag("@amqp-contract/MessageValidationError"),
             (error) => new NonRetryableError("replay rejected", error),
-          ),
-        )
-        .recoverDefect((cause) => Err(new NonRetryableError("replay failed", cause)))
+          )
+          .with(P.tag(PublishError.tag), (error) => new RetryableError("replay failed", error)),
+      )
     : OkAsync(undefined),
 ```
 
-Both channels need converting: `publish`'s modeled `MessageValidationError` through `mapErrCases`, and a transport failure — which arrives as a defect — through `recoverDefect`. Without the second, a broker hiccup would dead-letter the replay instead of retrying it.
+`publish` models both failures, and they want opposite answers: a payload that fails its schema will fail again, so it is non-retryable; a broker hiccup (`PublishError`: timeout, nack, closed channel) is transient, so it is retryable — give the queue this handler consumes a `retry` config, or a `RetryableError` is dead-lettered like any other. Only a failure core cannot classify arrives as a defect, which dead-letters the message like any bug.
 
 Do this deliberately, not automatically. A replay loop that re-dead-letters is an infinite loop with extra steps — gate it on a fix having shipped, or on an attempt counter you control.
 
