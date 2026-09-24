@@ -84,11 +84,12 @@ result.match({
   errCases: (matcher) =>
     matcher.with(
       P.tag("@amqp-contract/MessageValidationError"),
+      P.tag("@amqp-contract/PublishError"),
       P.tag("@amqp-contract/RpcTimeoutError"),
       P.tag("@amqp-contract/RpcCancelledError"),
       (error) => console.error(error),
     ),
-  // transport failures (TechnicalError) surface here as defects, not modeled errors
+  // only unclassifiable failures (TechnicalError cause) are defects; a refused publish is PublishError
   defect: (cause) => console.error(cause),
 });
 ```
