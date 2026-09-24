@@ -37,11 +37,16 @@ const result = await client.publish("orderCreated", {
 result.match({
   ok: () => console.log("Published successfully"),
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-      console.error("Publish failed:", error),
-    ),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("Invalid payload, never sent:", error.issues),
+      )
+      .with(P.tag("@amqp-contract/PublishError"), (error) =>
+        // timeout, nacked or channel-closed: the broker did not take it
+        console.error("Broker did not take the message:", error.reason),
+      ),
   defect: (cause) => {
-    // transport failures (TechnicalError) surface here as defects
+    // only unclassifiable failures (a TechnicalError cause) arrive here
     throw cause;
   },
 });
