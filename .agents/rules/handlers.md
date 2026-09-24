@@ -143,7 +143,7 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 
 | Error                    | When                                                                                                                                                                                                                                |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried. A modeled `Err` in `E`.                                                                                                 |
+| `MessageValidationError` | Inbound payload/headers failed schema validation **before** the handler ran. Routes to DLQ — never retried. Modeled (a `dead-lettered` outcome, recorded as the span's exception), not a defect.                                    |
 | `TechnicalError`         | Transport-level failure (connection, channel, broker). Surfaced as a **`Defect`** (its `cause`), **not** a modeled `Err` — handle it in the `defect` arm of `match` (or `recoverDefect` / `tapDefect`), never in the error matcher. |
 
 ### Client-side (returned from `client.publish` / `client.call`)
@@ -151,12 +151,13 @@ Helpers: `qualifyRetryable(message)` / `qualifyNonRetryable(message)` build `fro
 | Error                    | When                                                                                                                                                                                     |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MessageValidationError` | Outbound payload failed the request/publisher schema before the message hit the broker. A modeled `Err`.                                                                                 |
-| `TechnicalError`         | Publish/transport failed at the broker (channel buffer full, connection lost, etc.). Surfaced as a **`Defect`** (its `cause`), never a modeled `Err` — handle it in the `defect` arm.    |
+| `PublishError`           | The broker side of the publish failed (`reason`: `timeout` / `nacked` / `channel-closed`). A modeled `Err`. A confirmed publish that leaves the write buffer full is **not** one.        |
+| `TechnicalError`         | An unclassifiable publish failure (unencodable payload, unknown rejection). Surfaced as a **`Defect`** (its `cause`), never a modeled `Err` — handle it in the `defect` arm.             |
 | `RpcTimeoutError`        | RPC call's `timeoutMs` elapsed before a reply arrived. Pending state is cleared. A reply that arrives later is logged at `warn` and counted via `recordLateRpcReply` (it isn't retried). |
 | `RpcCancelledError`      | RPC was in flight when `client.close()` was called. All pending calls fail with this so callers don't hang.                                                                              |
 
-`publish()` returns `AsyncResult<void, MessageValidationError>` (a transport failure is a `Defect`, not in `E`).
-`call()` returns `AsyncResult<TResponse, MessageValidationError | RpcTimeoutError | RpcCancelledError>` (plus any declared `RpcError`s; a transport failure is a `Defect`, not in `E`).
+`publish()` returns `AsyncResult<void, MessageValidationError | PublishError>`.
+`call()` returns `AsyncResult<TResponse, MessageValidationError | PublishError | RpcTimeoutError | RpcCancelledError>` (plus any declared `RpcError`s; an unclassifiable failure is a `Defect`, not in `E`).
 
 ```typescript
 // Conditional error mapping inside fromPromise's qualify
@@ -213,4 +214,4 @@ For the authoritative list, read [`packages/worker/src/index.ts`](../../packages
 - Classes: `TypedAmqpWorker`, `RetryableError`, `NonRetryableError`, `MessageValidationError` (the error classes are unthrown `TaggedError`s). `HandlerError` is a **type** (`RetryableError | NonRetryableError`), not a class.
 - Qualifiers: `qualifyRetryable`, `qualifyNonRetryable`
 - Helpers: `declareHandler`, `declareHandlers` (both accept consumer **and** RPC names)
-- Types: `CreateWorkerOptions`, `ConsumerOptions`, `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`
+- Types: `CreateWorkerOptions`, `ConsumerOptions`, `ConsumerHandler` / `ConsumerHandlerEntry` / `RpcHandler` / `RpcHandlerEntry` (short aliases over the resolved payload — what a handler is checked against, so type errors stay readable; the contract-driven `WorkerInfer*Handler*` types resolve to them, guarded by `packages/worker/src/handler-diagnostics.spec.ts`), `WorkerConsumedMessage`, `WorkerInferConsumedMessage`, `WorkerInferConsumerHandler`, `WorkerInferConsumerHandlerEntry`, `WorkerInferConsumerHeaders`, `WorkerInferHandlers` (consumers ∪ rpcs), `WorkerInferRpcConsumedMessage`, `WorkerInferRpcHandler`, `WorkerInferRpcHandlerEntry`, `WorkerInferRpcHeaders`, `WorkerInferRpcRequest`, `WorkerInferRpcResponse`
