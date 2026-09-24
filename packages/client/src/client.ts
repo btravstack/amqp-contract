@@ -35,13 +35,13 @@ import {
   encodeMessage,
   publisherTopology,
   runWithTraceContext,
+  startOrClose,
 } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import {
   Err,
   fromExecutor,
-  fromSafePromise,
   Ok,
   OkAsync,
   P,
@@ -249,52 +249,32 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       callInterceptors,
       topology,
     } = options;
-    // Enter through the safety net so a synchronous constructor throw (an
-    // invalid connectTimeoutMs, an unparseable URL) becomes a `Defect`
-    // instead of escaping create() as a raw throw.
-    return OkAsync(undefined).flatMap(() => {
-      const client = new TypedAmqpClient(
-        contract,
-        // Scoped to what a publisher needs: queues are the worker's.
-        new AmqpClient(publisherTopology(contract), {
-          urls: options.urls,
-          connectionOptions: options.connectionOptions,
-          connection: options.connection,
-          // A pool of its own: never share a TCP connection with a worker.
-          connectionPool: "client",
-          connectTimeoutMs,
-          publishTimeoutMs,
+    return startOrClose(
+      () =>
+        new TypedAmqpClient(
+          contract,
+          // Scoped to what a publisher needs: queues are the worker's.
+          new AmqpClient(publisherTopology(contract), {
+            urls: options.urls,
+            connectionOptions: options.connectionOptions,
+            connection: options.connection,
+            // A pool of its own: never share a TCP connection with a worker.
+            connectionPool: "client",
+            connectTimeoutMs,
+            publishTimeoutMs,
+            logger,
+            topology,
+          }),
+          { persistent: true, ...defaultPublishOptions },
           logger,
-          topology,
-        }),
-        { persistent: true, ...defaultPublishOptions },
-        logger,
-        telemetry ?? defaultTelemetryProvider,
-        publishInterceptors ?? [],
-        callInterceptors ?? [],
-      );
-
-      const setup = client.amqpClient
-        .waitForConnect()
-        .flatMap(() => client.setupReplyConsumerIfNeeded());
-
-      const inner = (async () => {
-        const setupResult = await setup;
-        if (!setupResult.isOk()) {
-          const closeResult = await client.close();
-          if (closeResult.isDefect()) {
-            logger?.warn("Failed to close client after connection failure", {
-              error: closeResult.cause,
-            });
-          }
-        }
-        // `map` runs only on Ok; an Err/Defect passes through with its value type
-        // re-shaped to the client, so the failure surfaces unchanged.
-        return setupResult.map(() => client);
-      })();
-
-      return fromSafePromise(inner).flatMap((result) => result);
-    });
+          telemetry ?? defaultTelemetryProvider,
+          publishInterceptors ?? [],
+          callInterceptors ?? [],
+        ),
+      (client) =>
+        client.amqpClient.waitForConnect().flatMap(() => client.setupReplyConsumerIfNeeded()),
+      { name: "client", logger },
+    );
   }
 
   /**
