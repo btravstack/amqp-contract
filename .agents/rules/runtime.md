@@ -4,39 +4,48 @@ Cross-cutting concerns for code that touches the live AMQP layer: telemetry, con
 
 ## Connection management
 
-`@amqp-contract/core` keeps a process-wide `ConnectionManagerSingleton` keyed on the URL set + connection options. `TypedAmqpClient` and `TypedAmqpWorker` share connections automatically when they're constructed with the same URLs — you don't need to (and shouldn't) wire connections manually.
+`@amqp-contract/core` keeps a process-wide `ConnectionManagerSingleton` keyed on **pool partition** + URL set + connection options. `TypedAmqpClient` leases from the `"client"` pool and `TypedAmqpWorker` from the `"worker"` pool (`AmqpClientOptions.connectionPool`, default `"default"`), so a publisher and a consumer never share a TCP connection by default — RabbitMQ blocks publishing connections under resource alarms. Clients share among themselves, workers among themselves. A caller-owned `AmqpConnectionManager` can be passed as `connection` instead of `urls` (exactly one of the two; see `ConnectionSource` in [`packages/core/src/amqp-client.ts`](../../packages/core/src/amqp-client.ts)) — it is borrowed, never closed.
 
 Two invariants matter when touching this layer:
 
 - **Ref-counted lifecycle.** `getConnection(...)` increments the count; `releaseConnection(...)` decrements and closes the underlying connection when the count hits zero. Every `getConnection` must be paired with a `releaseConnection` — otherwise the connection lives forever.
-- **Failure-path cleanup.** If `waitForConnect()` (or any setup step before the worker/client returns to the user) errors, you must call `close()` to release the ref-count _before_ returning the error. `TypedAmqpClient.create` and `TypedAmqpWorker.create` already do this; if you write a new factory, mirror the pattern.
+- **Failure-path cleanup.** If `waitForConnect()` (or any setup step before the worker/client returns to the user) errors, you must call `close()` to release the ref-count _before_ returning the error. `TypedAmqpClient.create` and `TypedAmqpWorker.create` both go through `startOrClose` ([`packages/core/src/lifecycle.ts`](../../packages/core/src/lifecycle.ts), exported from `@amqp-contract/core/internal`); a new factory should too.
 
-`AmqpClient.waitForConnect()` accepts a `connectTimeoutMs` (default 30s). `null` disables it; `Infinity`/`NaN`/`<= 0` are coerced to `null` because Node's `setTimeout` clamps and silently mis-fires on those. See `DEFAULT_CONNECT_TIMEOUT_MS` in [`packages/core/src/amqp-client.ts`](../../packages/core/src/amqp-client.ts).
+`AmqpClient.waitForConnect()` answers `Err(ConnectionError)` on timeout, with the last `connectFailed` error from amqp-connection-manager as `cause`; the first failed dial is logged at `warn`. `isConnected()` (core `AmqpClient`, delegated by `TypedAmqpClient`) is the readiness accessor. `connectTimeoutMs` defaults to 30s. `null` disables it; `Infinity`/`NaN`/`<= 0` are coerced to `null` because Node's `setTimeout` clamps and silently mis-fires on those. See `DEFAULT_CONNECT_TIMEOUT_MS` in [`packages/core/src/amqp-client.ts`](../../packages/core/src/amqp-client.ts).
+
+## Topology
+
+`setupAmqpTopology(channel, contract, { mode })` runs on every (re)connect. `TopologyMode` is `"assert"` (default: declare), `"passive"` (`checkExchange` / `checkQueue` only, bindings skipped) or `"none"`. Scope is the contract you hand `AmqpClient`: `TypedAmqpClient` passes `publisherTopology(contract)` (publisher exchanges + the exchange-to-exchange bindings forwarding from them — never queues); `TypedAmqpWorker` still passes the full contract. See [`packages/core/src/setup.ts`](../../packages/core/src/setup.ts).
+
+## Publish failures
+
+Core's `AmqpClient.publish` / `sendToQueue` classify the channel wrapper's outcome **once**: a `false` confirmation → `PublishError("buffer-full")`; its `timeout` / `message nacked` / `Channel closed` rejections → `PublishError("timeout" | "nacked" | "channel-closed")`, all on the `E` channel; anything else (unencodable payload, unknown rejection) → defect with a `TechnicalError` cause. Callers never see the boolean. The worker currently maps `PublishError` back to its pre-existing routing at its two publish sites (retry republish → defect, RPC reply → `NonRetryableError`).
 
 ## Telemetry (OpenTelemetry, optional)
 
 `@opentelemetry/api` is an **optional peer dependency** of `@amqp-contract/core`. If a consumer installs it, telemetry flows automatically; if not, the default provider is a no-op.
 
-Public surface from `@amqp-contract/core`:
+Public surface from `@amqp-contract/core`: `TelemetryProvider` (type — pass a custom one via `CreateClientOptions.telemetry` etc.), `defaultTelemetryProvider` (auto-detects `@opentelemetry/api`; no-op if absent) and `MessagingSemanticConventions` (attribute keys — use these rather than ad-hoc strings).
 
-| Export                                        | Use                                                                                                                  |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `TelemetryProvider`                           | Type. Pass a custom one via `CreateClientOptions.telemetry` etc.                                                     |
-| `defaultTelemetryProvider`                    | Auto-detects `@opentelemetry/api`; no-op if absent.                                                                  |
-| `startPublishSpan` / `startConsumeSpan`       | Open a span around a publish or consume operation.                                                                   |
-| `endSpanSuccess` / `endSpanError`             | Close it; `endSpanError(span, error)` records the exception too.                                                     |
-| `recordPublishMetric` / `recordConsumeMetric` | Counter for success/failure + duration histogram.                                                                    |
-| `recordLateRpcReply`                          | Counter for replies that arrived after the caller gave up.                                                           |
-| `MessagingSemanticConventions`                | Pre-defined attribute keys (`messaging.rabbitmq.message.delivery_tag`, etc.) — use these rather than ad-hoc strings. |
+Implementation helpers, from `@amqp-contract/core/internal` (no semver guarantee):
 
-When adding a new public method to `TypedAmqpClient` / `TypedAmqpWorker`, wrap it in spans and metrics consistent with the surrounding code. See `client.ts:publish` for the canonical pattern (start span → run → `andTee` records success metric, `orTee` records failure metric).
+| Export                                                                | Use                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `startPublishSpan` / `startConsumeSpan`                               | Open a span around a publish or consume operation.                                                                                                                                                                                                                                                                        |
+| `endSpanSuccess` / `endSpanError`                                     | Close it; `endSpanError(span, error)` records the exception too.                                                                                                                                                                                                                                                          |
+| `recordPublishMetric` / `recordConsumeMetric` / `recordRpcCallMetric` | Success/failure counter + duration histogram (`recordRpcCallMetric` → `amqp.client.rpc.duration`, histogram only).                                                                                                                                                                                                        |
+| `recordLateRpcReply`                                                  | Counter for replies that arrived after the caller gave up.                                                                                                                                                                                                                                                                |
+| `injectTraceContext` / `runWithTraceContext(headers, span, fn)`       | Trace propagation. Core's `publish` injects the active context into headers; core's `consume` runs each delivery inside the extracted context. `runWithTraceContext` runs `fn` under extracted-or-active context with `span` active — the client wraps its core publish in it so the producer span is what gets injected. |
 
-## Compression
+When adding a new public method to `TypedAmqpClient` / `TypedAmqpWorker`, wrap it in spans and metrics consistent with the surrounding code. See `client.ts:instrument` for the canonical pattern (start span → run → `.tap` records success, `.tapFailure` records failure on both `Err` and `Defect`). Every helper swallows its own throws — telemetry never throws into the data path (invariant 16).
 
-Both ends support gzip and deflate, controlled by the publisher:
+## Compression and the message codec
 
-- **Client** opts in per-publish via `options.compression: 'gzip' | 'deflate'`. The body is compressed and `contentEncoding` is set automatically — don't set `contentEncoding` yourself when using `compression`.
-- **Worker** decompresses transparently before validation, based on `properties.contentEncoding`. Unknown encodings surface as a `Defect` (its cause a `TechnicalError`) — parse failure → DLQ via single `nack`, never enters retry.
+All encoding lives in one module, [`packages/core/src/codec.ts`](../../packages/core/src/codec.ts) (`encodeBody` / `encodeMessage` / `decompressBuffer` / `decodeMessage`, from `@amqp-contract/core/internal`). Don't hand-roll JSON or zlib calls elsewhere.
+
+- **Client** opts in per-publish via `options.compression: 'gzip' | 'deflate'`; `encodeMessage` compresses and the client sets `contentEncoding` from what it produced — don't set `contentEncoding` yourself when using `compression`.
+- **Worker** runs `decodeMessage` before validation, based on `properties.contentEncoding`. Unknown encodings, corrupt streams and bodies over the size cap surface as a `Defect` (its cause a `TechnicalError`) — parse failure → DLQ via single `nack`, never enters retry.
+- **Size cap**: `DEFAULT_MAX_MESSAGE_BYTES` = 16 MiB, applied to decompressed output (enforced by zlib's `maxOutputLength` while inflating) **and** to plain bodies. The worker's `maxDecompressedBytes` overrides it. The client decodes RPC replies through the same codec.
 - **RPC requests don't carry compression.** The worker's parse/validate path _does_ decompress an RPC request fine if it sees `contentEncoding`, and replies are always uncompressed — so a compressed RPC request would round-trip mechanically. Even so, `client.call()` deliberately strips any inherited `compression` from `defaultPublishOptions` before publishing, so the on-wire convention stays consistent (no compression in either direction of an RPC). If you're wiring a new code path involving RPCs, mirror that — don't compress RPC requests.
 
 The `CompressionAlgorithm` type is exported from `@amqp-contract/contract`.

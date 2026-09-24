@@ -1,13 +1,13 @@
 ---
 title: Share connections - amqp-contract
-description: Reuse one AMQP connection across clients and workers, configure heartbeats and reconnection, close in the right order, and reset the cache between tests.
+description: How clients and workers pool connections, share one explicitly, configure heartbeats and reconnection, close in the right order, and reset the cache between tests.
 ---
 
 # Share connections
 
-A client and a worker in the same process share one connection automatically when their URLs and connection options match. RabbitMQ recommends few connections and many channels, and this is how you get that without managing anything.
+Connections are pooled per process. Clients with the same URLs and connection options share one connection; workers with the same URLs and options share another. A client and a worker never share a pooled connection: RabbitMQ blocks a _publishing_ connection under a memory or disk alarm, and a consumer on that same connection would stop acknowledging along with it.
 
-## Share a connection
+## Get the default pooling
 
 Pass the same `urls`:
 
@@ -20,38 +20,56 @@ const client = await TypedAmqpClient.create({
 const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
-  urls: ["amqp://localhost"], // same URLs → same connection
+  urls: ["amqp://localhost"],
 }).getOrThrow();
 ```
 
-The result is one connection with two channels. There is nothing to opt into.
+The result is two connections — one for publishing, one for consuming — each carrying as many channels as there are clients or workers on it. There is nothing to opt into.
 
-Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one and not the other and you get two connections — so keep them identical, or omit them on both.
+Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one client and not another and you get two connections — so keep them identical, or omit them on both.
+
+## Share one connection explicitly
+
+To put a client on a connection you own — to share it with a worker anyway, or to manage its lifecycle yourself — create it with amqp-connection-manager and pass `connection` instead of `urls`:
+
+```typescript
+import amqp from "amqp-connection-manager";
+
+const connection = amqp.connect(["amqp://localhost"]);
+
+const client = await TypedAmqpClient.create({ contract, connection }).getOrThrow();
+```
+
+Pass exactly one of `urls` or `connection`. The client opens its channel on the connection and never closes it: closing it is yours, after every client using it has closed. (`TypedAmqpWorker` does not take `connection` yet; the core `AmqpClient` does.)
 
 ## Publish from inside a handler
 
-The usual reason to want sharing. The subtlety is not the connection; it is that a publish failure inside a handler has to become a _handler_ error so the worker can route the message:
+A handler that publishes needs a client next to its worker. The subtlety is not the connection; it is that a publish failure inside a handler has to become a _handler_ error so the worker can route the message:
 
 ```typescript
-import { RetryableError } from "@amqp-contract/worker";
-import { Err, P } from "unthrown";
+import { NonRetryableError, RetryableError } from "@amqp-contract/worker";
+import { P } from "unthrown";
 
 processOrder: ({ input: { payload } }) =>
   client
     .publish("orderProcessed", { orderId: payload.orderId, status: "completed" })
     .map(() => undefined)
-    // Modeled validation failure → retryable handler error
     .mapErrCases((matcher) =>
-      matcher.with(
-        P.tag("@amqp-contract/MessageValidationError"),
-        (error) => new RetryableError("failed to publish", error),
-      ),
-    )
-    // Transport failure arrives as a defect → recover it into a handler error
-    .recoverDefect((cause) => Err(new RetryableError("failed to publish", cause))),
+      matcher
+        // The payload we built is wrong — retrying will not fix it
+        .with(
+          P.tag("@amqp-contract/MessageValidationError"),
+          (error) => new NonRetryableError("invalid outgoing message", error),
+        )
+        // The broker side failed (timeout, nack, backpressure) — try again later
+        .with(
+          P.tag("@amqp-contract/PublishError"),
+          (error) => new RetryableError("failed to publish", error),
+        ),
+    ),
 ```
 
-Without the `recoverDefect`, a broker hiccup would surface as a defect and the message would be dead-lettered instead of retried.
+A broker hiccup is a modeled `PublishError`, so mapping it to `RetryableError` sends the message through the retry pipeline instead of dead-lettering it.
 
 Do not wrap `client.publish(...)` in `fromPromise` — it already returns an `AsyncResult`, and wrapping it again nests one inside another.
 
@@ -62,7 +80,7 @@ await worker.close().get(); // stop consuming first
 await client.close().get(); // then stop publishing
 ```
 
-Each closes its own channel. The shared connection is reference-counted and closes once the last user releases it.
+Each closes its own channel. A pooled connection is reference-counted and closes once the last user releases it; a connection you passed in stays open until you close it.
 
 Worker first matters if handlers publish: closing the client first leaves in-flight handlers unable to publish.
 
@@ -95,11 +113,9 @@ const client = await TypedAmqpClient.create({
 
 `create` answers `Err(ConnectionError)` if the connection is not ready in time; the default is 30 seconds. Pass `null` to wait indefinitely and let amqp-connection-manager keep retrying — appropriate for a worker that should tolerate the broker starting after it does.
 
-## Use separate connections deliberately
+## Separate connections further
 
-Sharing is usually right, but not always. A high-throughput publisher and a slow consumer on one connection contend for the same socket, and TCP backpressure from one becomes latency for the other.
-
-To separate them, give them different connection options — differing options mean different cache entries and therefore different connections.
+Publishers and consumers are already on separate connections. To split two clients (or two workers) from each other — say a high-throughput publisher from a latency-sensitive one — give them different connection options (differing options mean different cache entries), or give each its own explicit `connection`.
 
 ## Know the limits
 
@@ -119,7 +135,7 @@ afterEach(async () => {
 });
 ```
 
-`_internal_getConnectionCount()` returns the current count, which is how you verify sharing is actually happening.
+`_internal_getConnectionCount()` returns the current count of pooled connections (a client and a worker on the same URLs count as two), which is how you verify pooling is actually happening.
 
 Both are test-only helpers.
 
@@ -132,7 +148,7 @@ docker exec rabbitmq rabbitmqctl list_connections
 docker exec rabbitmq rabbitmqctl list_channels
 ```
 
-One connection and several channels means it is working. Several connections means your URLs or `connectionOptions` differ somewhere — compare them exactly, including array order.
+One connection per role (publishing, consuming) with several channels each means it is working. More than that means your URLs or `connectionOptions` differ somewhere — compare them exactly, including array order.
 
 ## Where next
 

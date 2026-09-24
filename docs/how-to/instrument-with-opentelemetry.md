@@ -54,17 +54,19 @@ Metrics:
 | `amqp.client.messages.published` | Counter   | `{message}` |
 | `amqp.worker.messages.consumed`  | Counter   | `{message}` |
 | `amqp.client.publish.duration`   | Histogram | ms          |
+| `amqp.client.rpc.duration`       | Histogram | ms          |
 | `amqp.worker.process.duration`   | Histogram | ms          |
+| `amqp.client.rpc.late_reply`     | Counter   | `{message}` |
 
-All carry `messaging.system`, `messaging.destination.name` and a `success` boolean.
+All carry `messaging.system`, `messaging.destination.name` and a `success` boolean (the late-reply counter carries a `reason` instead). `amqp.client.rpc.duration` is the full `call()` round trip — request publish to validated reply — and is kept apart from the publish histogram so a slow handler does not read as a slow broker; RPC calls are not counted in `amqp.client.messages.published`.
 
 ## Connect traces across the broker
 
-Publish and consume spans are not linked automatically — a message crossing a broker breaks the in-process context. To join them, carry W3C trace context in a header.
+This is automatic. On publish, the active trace context is injected into the message headers through the propagator your SDK registered (`traceparent` / `tracestate` with the default W3C setup); `publish()` and `call()` run that injection with their producer span active, so the header carries the producer span. On consume, each delivery runs inside the context extracted from its headers, so the consume span is parented on the producer span and one trace spans producer, broker hop and consumer.
 
-Stamp it on the way out with a publish interceptor, and resume it on the way in with worker middleware. Both hook points are in [add middleware](/how-to/add-middleware#propagate-a-trace-across-services); the instrumentation here is what the resumed context attaches to.
+Without an SDK (or without `@opentelemetry/api`) nothing is injected and headers are left untouched. A misbehaving propagator degrades to "no propagation" — it never fails a publish or a delivery.
 
-Without this you still get per-service spans and metrics, just not one trace spanning producer and consumer.
+To propagate something other than trace context (a tenant id, a correlation id), stamp it with a publish interceptor and read it in worker middleware — see [add middleware](/how-to/add-middleware).
 
 ## Sample in production
 
@@ -122,7 +124,7 @@ const client = await TypedAmqpClient.create({
 }).getOrThrow();
 ```
 
-Omitting it uses the default provider, which attempts to load OpenTelemetry and no-ops if it is absent.
+Omitting it uses the default provider, which attempts to load OpenTelemetry and no-ops if it is absent. `getRpcCallLatencyHistogram` is optional on a custom provider; leave it out and RPC durations are not recorded.
 
 ## Watch the right signals
 
@@ -135,5 +137,5 @@ Consumed falling below published means the queue is growing. Compare against bro
 ## Where next
 
 - [Add logging](/how-to/add-logging) — per-message detail traces do not carry.
-- [Add middleware](/how-to/add-middleware) — trace propagation.
+- [Add middleware](/how-to/add-middleware) — propagating other context.
 - [Tune performance](/how-to/tune-performance) — acting on what the metrics show.
