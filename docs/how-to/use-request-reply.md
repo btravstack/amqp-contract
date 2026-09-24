@@ -70,6 +70,9 @@ result.match({
     matcher
       .with(P.tag("@amqp-contract/RpcTimeoutError"), () => console.error("no reply in time"))
       .with(P.tag("@amqp-contract/RpcCancelledError"), () => console.error("client closing"))
+      .with(P.tag("@amqp-contract/PublishError"), (e) =>
+        console.error(`request not sent (${e.reason})`),
+      )
       .with(P.tag("@amqp-contract/MessageValidationError"), (e) =>
         console.error("reply failed its schema", e.issues),
       ),
@@ -80,6 +83,10 @@ result.match({
 ```
 
 Always set `timeoutMs`. A call with no reply is otherwise bounded only by the server-side default, and a caller holding a request open is holding memory.
+
+The request is published with `expiration` set to `timeoutMs`, so a request no worker picked up before the caller gave up is dropped by the broker rather than answered for nobody. Pass `publishOptions: { expiration }` to override it.
+
+The round trip is recorded on its own histogram, `amqp.client.rpc.duration` — not on the publish histogram — so a slow handler does not read as a slow broker.
 
 ## Declare typed errors
 
@@ -134,7 +141,7 @@ A declared error is a _business outcome_, not a processing failure: the worker v
 await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 30_000 });
 ```
 
-Size it to the work, not to a house default. When it expires the pending call is cleared and you get `RpcTimeoutError` — but note the request may still be processed by the server. A timeout tells you no reply arrived, not that nothing happened.
+Size it to the work, not to a house default. When it expires the pending call is cleared and you get `RpcTimeoutError` — but note the request may still be processed by the server: the request's `expiration` only drops it if it is still _queued_. A timeout tells you no reply arrived, not that nothing happened.
 
 ## Retry a timed-out call
 
@@ -144,13 +151,14 @@ Be careful: retrying a call whose handler is not idempotent runs the work twice.
 
 ## Understand what makes a call fail
 
-| Failure                  | Cause                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------- |
-| `RpcTimeoutError`        | No reply within `timeoutMs`. Also what you get when the reply was dropped for being malformed. |
-| `RpcCancelledError`      | The client closed while the call was in flight.                                                |
-| `RpcError<code, data>`   | A declared business error from the handler.                                                    |
-| `MessageValidationError` | The reply arrived but failed the response schema.                                              |
-| Defect                   | Transport failure, or an error reply whose code the local contract does not declare.           |
+| Failure                  | Cause                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `RpcTimeoutError`        | No reply within `timeoutMs`. Also what you get when the reply was dropped for being malformed.   |
+| `RpcCancelledError`      | The client closed while the call was in flight.                                                  |
+| `RpcError<code, data>`   | A declared business error from the handler.                                                      |
+| `MessageValidationError` | The request failed its schema, or the reply arrived but failed the response schema.              |
+| `PublishError`           | The request never reached the broker: publish timeout, broker nack, buffer full, channel closed. |
+| Defect                   | An unexpected transport fault, or an error reply whose code the local contract does not declare. |
 
 That first row is worth dwelling on. If the handler returns a value that fails the response schema, the worker refuses to publish a malformed reply — so the caller sees a timeout rather than a wrong answer. A call timing out while the server looks healthy usually means a response-schema mismatch between the two sides' contracts.
 

@@ -28,6 +28,23 @@ processOrder: ({ input: { payload } }) => {
 
 Because decompression happens before validation, a message that cannot be decompressed never reaches your handler — it is dead-lettered, like any other unparseable payload, without retrying.
 
+## Cap the message size
+
+Every inbound body is capped at 16 MiB (`DEFAULT_MAX_MESSAGE_BYTES`, exported from `@amqp-contract/core` — RabbitMQ 4's own default `max_message_size`). The cap applies to what a compressed body inflates to, enforced while inflating so a few-KB "zip bomb" never materialises, and to plain bodies as they arrive. An over-cap message is dead-lettered like any other unparseable payload.
+
+Raise it on the worker if you legitimately send larger messages:
+
+```typescript
+const worker = await TypedAmqpWorker.create({
+  contract,
+  handlers,
+  urls: ["amqp://localhost"],
+  maxDecompressedBytes: 64 * 1024 * 1024,
+}).getOrThrow();
+```
+
+The client and worker share one codec in `@amqp-contract/core`, so what the client compresses is exactly what the worker (and the client itself, for RPC replies) knows how to decode.
+
 ## Compress only when it is worth it
 
 Compression has a fixed cost and a payload-dependent benefit, so a size threshold is usually better than compressing everything:
