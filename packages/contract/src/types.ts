@@ -89,6 +89,11 @@ export type TtlBackoffRetryOptions = {
  * For classic queues, messages are re-published on the same queue, and the worker tracks delivery count via a custom `x-retry-count` header.
  * When the count exceeds `maxRetries`, the message is automatically dead-lettered (if DLX is configured) or dropped.
  *
+ * On a quorum queue, `defineQueue` also sets the `x-delivery-limit` queue argument to
+ * `maxRetries + 1` (RabbitMQ 4.x defaults it to 20 and dead-letters past it, which would
+ * pre-empt a worker counting to 20 or more). An explicit `x-delivery-limit` in `arguments`
+ * is kept, and rejected if it is below `maxRetries + 1`.
+ *
  * **Benefits:** Simpler architecture, no wait queues needed, no head-of-queue blocking.
  * **Limitation:** Immediate retries only (no exponential backoff).
  *
@@ -302,6 +307,8 @@ type BaseQueueOptions = {
  * Quorum queues provide native retry support for immediate-requeue retry mode:
  * - RabbitMQ tracks delivery count automatically via `x-delivery-count` header
  * - When the limit is exceeded, messages are dead-lettered (if DLX is configured) or dropped
+ * - `x-delivery-limit` is set to `maxRetries + 1` so the broker's own cap (default 20 on
+ *   RabbitMQ 4.x) never dead-letters before the worker's retry budget is spent
  * - This is simpler than TTL-based retry and avoids head-of-queue blocking issues
  *
  * @example

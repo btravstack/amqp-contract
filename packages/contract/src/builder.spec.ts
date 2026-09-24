@@ -334,6 +334,7 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 4 },
         retry: { mode: "immediate-requeue", maxRetries: 3 },
       });
     });
@@ -349,6 +350,7 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 6 },
         retry: {
           mode: "immediate-requeue",
           maxRetries: 5,
@@ -379,6 +381,7 @@ describe("builder", () => {
           exchange: dlx,
           routingKey: "failed",
         },
+        arguments: { "x-delivery-limit": 4 },
         retry: { mode: "immediate-requeue", maxRetries: 3 },
       });
     });
@@ -416,7 +419,58 @@ describe("builder", () => {
         name: "retry-queue",
         type: "quorum",
         durable: true,
+        arguments: { "x-delivery-limit": 2 },
         retry: { mode: "immediate-requeue", maxRetries: 1 },
+      });
+    });
+
+    describe("x-delivery-limit alignment", () => {
+      // RabbitMQ 4.x caps quorum redeliveries at x-delivery-limit (default 20)
+      // and dead-letters past it. Without alignment a worker with maxRetries
+      // >= 20 never reaches its own budget; the broker decides instead.
+      it("should raise the limit above the broker default for maxRetries >= 20", () => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 25 },
+        });
+
+        expect(queue.arguments).toEqual({ "x-delivery-limit": 26 });
+      });
+
+      it("should merge with the author's other arguments", () => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 3 },
+          arguments: { "x-message-ttl": 1000 },
+        });
+
+        expect(queue.arguments).toEqual({ "x-message-ttl": 1000, "x-delivery-limit": 4 });
+      });
+
+      it.each([4, 50, -1])("should keep an explicit x-delivery-limit of %s", (limit) => {
+        const queue = defineQueue("retry-queue", {
+          retry: { mode: "immediate-requeue", maxRetries: 3 },
+          arguments: { "x-delivery-limit": limit },
+        });
+
+        expect(queue.arguments).toEqual({ "x-delivery-limit": limit });
+      });
+
+      it("should reject an explicit x-delivery-limit the worker's budget cannot fit in", () => {
+        expect(() =>
+          defineQueue("retry-queue", {
+            retry: { mode: "immediate-requeue", maxRetries: 25 },
+            arguments: { "x-delivery-limit": 20 },
+          }),
+        ).toThrow(
+          /Queue "retry-queue": arguments\["x-delivery-limit"\] is 20, but its immediate-requeue retry needs at least 26/,
+        );
+      });
+
+      it.each([
+        ["a classic queue", { type: "classic", retry: { mode: "immediate-requeue" } }],
+        ["ttl-backoff retry", { retry: { mode: "ttl-backoff" } }],
+        ["no retry", { retry: { mode: "none" } }],
+      ] as const)("should not touch the arguments for %s", (_label, options) => {
+        expect(defineQueue("retry-queue", options).arguments).toBeUndefined();
       });
     });
   });

@@ -44,6 +44,44 @@ function resolveTtlBackoffOptions(
 }
 
 /**
+ * Align a quorum queue's broker-side redelivery cap with immediate-requeue retry.
+ *
+ * Immediate-requeue on a quorum queue is `nack(requeue: true)`, and the worker
+ * dead-letters once `x-delivery-count` reaches `maxRetries`. RabbitMQ 4.x also
+ * caps redeliveries itself: `x-delivery-limit` defaults to 20, past which the
+ * broker dead-letters (or drops) the message on its own. With `maxRetries >= 20`
+ * the broker would win, the worker's budget would silently never be reached,
+ * and its "max retries exceeded" log and DLQ hand-off would never happen.
+ * Setting the limit one above `maxRetries` keeps the worker the one deciding.
+ *
+ * An explicit `x-delivery-limit` is kept; one too low to let the worker finish
+ * is rejected. A negative value is RabbitMQ's "unlimited" and always passes.
+ * (A `delivery-limit` applied by broker policy is invisible here.)
+ */
+function withQuorumDeliveryLimit(
+  name: string,
+  args: Record<string, unknown> | undefined,
+  maxRetries: number,
+): Record<string, unknown> {
+  const required = maxRetries + 1;
+  const explicit = args?.["x-delivery-limit"];
+  if (explicit === undefined) {
+    return { ...args, "x-delivery-limit": required };
+  }
+  if (typeof explicit === "number" && explicit >= 0 && explicit < required) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
+    throw new Error(
+      `Queue "${name}": arguments["x-delivery-limit"] is ${explicit}, but its immediate-requeue ` +
+        `retry needs at least ${required} (maxRetries ${maxRetries} + 1). RabbitMQ would dead-letter ` +
+        `the message after ${explicit} redeliveries, before the worker's retry budget runs out. ` +
+        `Remove the argument (it defaults to ${required} for this queue), raise it to at least ` +
+        `${required}, or lower maxRetries.`,
+    );
+  }
+  return { ...args };
+}
+
+/**
  * Define an AMQP queue.
  *
  * A queue stores messages until they are consumed by workers. Queues can be bound to exchanges
@@ -62,7 +100,7 @@ function resolveTtlBackoffOptions(
  * @param options.maxPriority - Maximum priority level for priority queue (1-255, recommended: 1-10). Only supported with classic queues: quorum queues ignore `x-max-priority` and honor the per-message `priority` property natively on RabbitMQ 4.0+.
  * @param options.deadLetter - Dead letter configuration for handling failed messages
  * @param options.onPoison - Set to 'drop' to declare that poison messages on this queue are deliberately discarded. `defineContract` requires either this or `deadLetter` on any queue it sees consumed.
- * @param options.retry - Retry configuration for handling failed message processing
+ * @param options.retry - Retry configuration for handling failed message processing. On a quorum queue, immediate-requeue retry also sets `arguments["x-delivery-limit"]` to `maxRetries + 1` (see {@link ImmediateRequeueRetryOptions})
  * @param options.arguments - Additional AMQP arguments (e.g., x-message-ttl)
  * @returns A queue definition
  *
@@ -162,7 +200,6 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
     name,
     ...(opts.deadLetter !== undefined && { deadLetter: opts.deadLetter }),
     ...(opts.onPoison !== undefined && { onPoison: opts.onPoison }),
-    ...(opts.arguments !== undefined && { arguments: opts.arguments }),
   };
 
   // Build specific properties for classic queues
@@ -244,8 +281,14 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
         ? resolveTtlBackoffOptions(inputRetry)
         : inputRetry;
 
+  const queueArguments =
+    type === "quorum" && retry.mode === "immediate-requeue"
+      ? withQuorumDeliveryLimit(name, opts.arguments, retry.maxRetries)
+      : opts.arguments;
+
   const baseQueueDefinition: BaseQueueDefinition = {
     ...baseProps,
+    ...(queueArguments !== undefined && { arguments: queueArguments }),
     retry,
   };
 
