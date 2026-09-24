@@ -9,7 +9,7 @@ In this tutorial you will build a small email-notification service: one program 
 
 This is a lesson, not a reference. Follow it exactly — every choice here (Zod, npm, a direct exchange) has alternatives, but picking them now would only get in the way. Once it works, the [how-to guides](/how-to/define-a-contract) cover the variations.
 
-You need about fifteen minutes, [Node.js 22.19+](https://nodejs.org/), and Docker.
+You need about fifteen minutes, [Node.js 22.22+](https://nodejs.org/), and Docker.
 
 ## Step 1: Start RabbitMQ
 
@@ -126,7 +126,7 @@ Notice the order: resources first, then references to them. Defining a queue or 
 
 Notice too that `defineEventConsumer` takes `sendEmailEvent` — the publisher itself. That is what ties the consumer's payload type to the publisher's schema. You cannot accidentally consume a different shape than you publish.
 
-And notice that the dead-letter side is three declarations, not one. `deadLetter` only points the queue at an exchange; RabbitMQ still drops anything that exchange cannot route. `defineContract` requires the pointer but cannot check the route, so declaring the DLQ and its binding is on you. A dead-letter exchange with no bound queue loses messages exactly as thoroughly as no dead-lettering at all — and more quietly, because the worker will log that it sent them to the DLQ.
+And notice that the dead-letter side is three declarations, not one. `deadLetter` only points the queue at an exchange; RabbitMQ still drops anything that exchange cannot route. A dead-letter exchange with no bound queue loses messages exactly as thoroughly as no dead-lettering at all — and more quietly, because the worker would log that it sent them to the DLQ. So `defineContract` checks both: remove the `emailDlq` binding and it throws when the module loads, naming the queue whose dead letters have nowhere to go.
 
 ## Step 4: Publish a message
 
@@ -262,13 +262,13 @@ The message did not match the schema: ...
 
 The publish returned a `MessageValidationError` and the message was never sent. This is the case the `errCases` branch exists for, and why compile-time types alone are not enough: validation catches at runtime what the type system cannot express.
 
-**Stop the broker.** Run `docker stop rabbitmq` and then the publisher. The program throws, because you told it to — that is your `defect` branch rethrowing. Restart it with `docker start rabbitmq`.
+**Stop the broker.** Run `docker stop rabbitmq` and then the publisher. It waits — the client keeps retrying the connection — and after 30 seconds it throws a `ConnectionError`. That is `TypedAmqpClient.create(...).getOrThrow()` failing on the modeled error, as you told it to in step 4; the publish never runs. Restart the broker with `docker start rabbitmq`.
 
 ## What you learned
 
 - A **contract** is one definition that produces both the TypeScript types and the AMQP topology.
 - Types are checked when you compile; **schemas are checked at runtime**, on publish and again on consume. The two catch different mistakes.
-- Nothing in the public API throws. Operations return results with three channels — `ok`, a modeled error, or a **defect** — and the compiler makes you address each one.
+- Runtime operations do not throw. They return results with three channels — `ok`, a modeled error, or a **defect** — and the compiler makes you address each one. The `define*` builders are the exception: a contract that would lose messages throws when it is declared, before any of it reaches a broker.
 
 ## Where next
 
