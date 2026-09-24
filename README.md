@@ -82,8 +82,8 @@ const worker = await TypedAmqpWorker.create({
 
 const client = await TypedAmqpClient.create({ contract, urls: ["amqp://localhost"] }).getOrThrow();
 
-// Validated against the schema before it is sent. publish() returns a Result;
-// .getOrThrow() unwraps it here — a service would .match() on it instead.
+// Validated against the schema before it is sent. publish() returns an AsyncResult;
+// .getOrThrow() awaits and unwraps it here — a service would .match() on it instead.
 await client.publish("orderCreated", { orderId: "ORD-123", amount: 99.99 }).getOrThrow();
 
 await client.close().get();
