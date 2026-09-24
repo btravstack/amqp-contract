@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { discoverMarkdownFiles } from "./discover.js";
+import { discoverMarkdownFiles, ROOTS } from "./discover.js";
 import { parseSnippets, type Snippet } from "./extract.js";
 
 /**
@@ -40,15 +40,18 @@ afterAll(() => {
 describe("documentation snippets", () => {
   it("finds snippets to check", () => {
     // Guards the guard: a discovery bug that returns nothing would otherwise
-    // make this whole suite pass vacuously. The count is pinned to the CURRENT
-    // corpus size (31), exactly, not a floor — a >= comparison only catches
-    // coverage going down; it stays green if the corpus grows past it while
-    // discovery silently drops pages, which is the same failure this suite
-    // exists to prevent, one layer up. At 20 against a corpus of 31, dropping
-    // two whole ROOTS still passed. Both directions now require a deliberate
-    // edit here: adding a documented example fails until this number is
-    // bumped, and losing coverage fails too.
-    expect(snippets.length).toBe(31);
+    // make this whole suite pass vacuously. Two checks, neither a pin on the
+    // exact corpus size (which failed every time someone added an example):
+    // a floor well below the current corpus (31 when this was written), and
+    // every discovery root contributing at least one snippet — dropping a
+    // whole root is the failure a bare floor let through.
+    expect(snippets.length).toBeGreaterThanOrEqual(20);
+    for (const root of ROOTS) {
+      expect(
+        snippets.some((snippet) => snippet.file.startsWith(join(repoRoot, root))),
+        `no documented contract found under ${root}`,
+      ).toBe(true);
+    }
   });
 
   for (const [index, snippet] of snippets.entries()) {
