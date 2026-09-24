@@ -33,22 +33,23 @@ type Handler = (msg) => AsyncResult<void, HandlerError>;
 
 Most result types have two channels: success and failure. amqp-contract uses [unthrown](https://github.com/btravstack/unthrown), which has three. The third exists because "failure" conflates two genuinely different things.
 
-Consider two ways `publish` can fail:
+Consider three ways `publish` can fail:
 
 1. The payload does not match the schema.
-2. The TCP connection to the broker died mid-write.
+2. The broker did not take the message — it was unreachable for `publishTimeoutMs`, it nacked, or the channel closed before the confirm.
+3. The payload cannot be encoded at all, or the channel rejects in a way nobody anticipated.
 
-The first is an **anticipated outcome**. You can predict it, you can branch on it, and there is something sensible to do — reject the request, log the invalid field, fix the caller. It belongs in the type signature so callers are made to handle it.
+The first two are **anticipated outcomes**. You can predict them, you can branch on them, and there is something sensible to do — reject the request and name the invalid field, or buffer, retry, shed load and answer 503. They belong in the type signature so callers are made to handle them.
 
-The second is a **defect**. You did not ask for it, there is no meaningful branch, and it is not specific to this call — the connection being gone affects everything. Putting it in the error channel would force every caller to write an arm for a case they cannot act on, which is how `catch (e) { /* ignore */ }` gets written.
+The third is a **defect**. It is a bug, not an operating condition: there is no meaningful branch at the call site, and forcing every caller to write an arm for it is how `catch (e) { /* ignore */ }` gets written.
 
 So `publish` has this signature:
 
 ```typescript
-publish(...): AsyncResult<void, MessageValidationError>
+publish(...): AsyncResult<void, MessageValidationError | PublishError>
 ```
 
-`MessageValidationError` is the entire modeled error channel. Transport failures arrive as defects, carrying a `TechnicalError` as their cause.
+`MessageValidationError` and `PublishError` are the entire modeled error channel. `PublishError` carries a `reason` — `"timeout"`, `"nacked"` or `"channel-closed"`. A confirmed publish that leaves the write buffer full is not a failure at all: the broker already has the message, so `publish` answers `Ok`. Everything else arrives as a defect, carrying a `TechnicalError` as its cause.
 
 Handling all three is one expression:
 
@@ -56,15 +57,20 @@ Handling all three is one expression:
 result.match({
   ok: () => reply(202),
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (e) => reply(400, e.message)),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (e) => reply(400, e.message))
+      .with(P.tag("@amqp-contract/PublishError"), (e) => {
+        logger.warn({ reason: e.reason }, "broker did not take the message");
+        reply(503);
+      }),
   defect: (cause) => {
-    logger.error({ cause }, "broker unreachable");
-    reply(503);
+    logger.error({ cause }, "bug while publishing");
+    reply(500);
   },
 });
 ```
 
-That maps cleanly onto the distinction an HTTP boundary already makes: modeled errors are the caller's fault (4xx), defects are ours (5xx).
+That maps cleanly onto the distinctions an HTTP boundary already makes: an invalid payload is the caller's fault (4xx), an unavailable dependency is a 503 the caller may retry, and a defect is our bug (500).
 
 ## Why `errCases` and not a single `err` callback
 
