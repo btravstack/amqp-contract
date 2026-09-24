@@ -190,7 +190,7 @@ const tempQueue = defineQueue("temp-queue", {
 
 ## Declare standalone topology
 
-Sometimes a service must assert topology it neither publishes to nor consumes from. The classic cases: a dead-letter queue bound to the auto-extracted DLX so failed messages land somewhere durable, or an audit queue that another process drains. Pass them at the top level of `defineContract`:
+Sometimes a service must assert topology it neither publishes to nor consumes from. The classic cases: a dead-letter queue bound to the auto-extracted DLX so failed messages land somewhere durable, or an audit queue that another process drains. Pass them at the top level of `defineContract`. Each role declares only what it can reach — the worker a DLQ bound to a consumed queue's dead-letter exchange, the client a queue bound to an exchange it publishes to — so standalone topology reachable from neither is declared by nobody; assert that with `setupAmqpTopology` (below).
 
 ```typescript
 import {

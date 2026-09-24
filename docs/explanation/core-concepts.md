@@ -49,7 +49,7 @@ export const contract = defineContract({
 });
 ```
 
-There is no separate topology setup step and no separate type declaration. When a worker starts, it walks the contract and asserts every exchange, queue and binding it finds. When you call `client.publish("orderCreated", …)`, the payload type comes from the same object.
+There is no separate topology setup step and no separate type declaration. When a worker starts, it walks the contract and asserts the exchanges, queues and bindings its consumers need — their dead-letter and retry infrastructure included — and a client asserts everything its publishes route to. When you call `client.publish("orderCreated", …)`, the payload type comes from the same object.
 
 This is also why the composition pattern matters: every resource above is a named constant, defined first and then referenced. Inlining a queue inside `defineContract` works, but a named resource can be referenced from several places — a consumer, a dead-letter target, a binding — and referencing the same constant is what guarantees they mean the same queue.
 
