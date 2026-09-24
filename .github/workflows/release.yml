@@ -10,12 +10,20 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # `branches: [main]` above filters on the triggering run's HEAD branch, so a
+    # fork PR from a branch named `main` passes it. Only a push to this repo's
+    # own main may release: a `pull_request` CI run (fork or not) never does.
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
     permissions:
       contents: write
       pull-requests: write
       id-token: write
-    uses: btravstack/tools/.github/workflows/release-reusable.yml@workflows-v1
+    uses: btravstack/tools/.github/workflows/release-reusable.yml@01ed3e01c672c04f59d48469c4558980fb685f26 # workflows-v1
     with:
       # The exact commit the green CI run measured. Without it a `workflow_run`
       # checkout takes the default branch's CURRENT tip, which a push landing
