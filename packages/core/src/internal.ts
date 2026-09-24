@@ -7,5 +7,6 @@
  * Reach for these in test teardown only (see `docs/how-to/share-connections.md`);
  * production code never needs them.
  */
+export { recaptureStack } from "./errors.js";
 export { _internal_getConnectionCount, _internal_resetConnections } from "./connection-manager.js";
 export { _internal_resetTelemetryCache } from "./telemetry.js";
