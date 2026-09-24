@@ -128,6 +128,25 @@ describe("AmqpClient connection source", () => {
     ]).toEqual([true, 0, 0]);
   });
 
+  it("isConnected reflects the connection, and is false once the client is closed", async () => {
+    let up = false;
+    const connection = {
+      createChannel: vi.fn(() => wrapper()),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      isConnected: () => up,
+      close: vi.fn(() => Promise.resolve()),
+    } as unknown as AmqpConnectionManager;
+    const client = new AmqpClient(contract, { connection });
+
+    const before = client.isConnected();
+    up = true;
+    const connected = client.isConnected();
+    await client.close();
+
+    expect([before, connected, client.isConnected()]).toEqual([false, true, false]);
+  });
+
   it("refuses both or neither of urls / connection", () => {
     const connection = {} as AmqpConnectionManager;
 

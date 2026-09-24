@@ -723,6 +723,15 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   }
 
   /**
+   * Whether the broker connection is up and the client is not closed — for a
+   * readiness/health probe. `false` while reconnecting; publishes issued then
+   * are buffered up to `publishTimeoutMs`.
+   */
+  isConnected(): boolean {
+    return this.amqpClient.isConnected();
+  }
+
+  /**
    * Close the channel and connection. Cancels the reply consumer (if any) and
    * rejects every in-flight RPC call with `RpcCancelledError`.
    */
