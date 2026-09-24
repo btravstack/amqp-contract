@@ -12,7 +12,7 @@ import { join, relative, sep } from "node:path";
  */
 
 /** Roots to walk, relative to the repository root. */
-const ROOTS = ["docs", "packages", ".agents", "README.md"] as const;
+export const ROOTS = ["docs", "packages", ".agents", "README.md"] as const;
 
 /**
  * Path fragments that disqualify a file.
