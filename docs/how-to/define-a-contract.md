@@ -186,7 +186,9 @@ const tempQueue = defineQueue("temp-queue", {
 });
 ```
 
-`durable: false`, `autoDelete`, `exclusive` and priority queues all require `type: "classic"`. TypeScript rejects them on a quorum queue.
+`durable: false`, `autoDelete`, `exclusive` and `maxPriority` all require `type: "classic"`. TypeScript rejects them on a quorum queue.
+
+Message priority itself does not: quorum queues honour the per-message `priority` publish option natively on RabbitMQ 4.0+ with no queue argument — normal vs high (above 4) up to 4.2, 32 strict levels from 4.3. `maxPriority` sets the classic-only `x-max-priority` argument, which quorum queues ignore, so reach for it only when you need classic priority levels.
 
 ## Declare standalone topology
 

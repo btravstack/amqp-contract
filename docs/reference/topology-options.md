@@ -104,13 +104,13 @@ defineQueue(name, options?);
 | `durable`     | `boolean`                   | `true`             | Quorum queues are always durable; `false` requires `classic` |
 | `autoDelete`  | `boolean`                   | `false`            | `classic` only                                               |
 | `exclusive`   | `boolean`                   | `false`            | `classic` only                                               |
-| `maxPriority` | `number`                    | —                  | `classic` only                                               |
+| `maxPriority` | `number`                    | —                  | `classic` only (`x-max-priority`, integer 1–255)             |
 | `deadLetter`  | `{ exchange, routingKey? }` | —                  | See below                                                    |
 | `onPoison`    | `"drop"`                    | —                  | Declares deliberate loss; see below                          |
 | `retry`       | retry config                | `{ mode: "none" }` | See below                                                    |
 | `arguments`   | `Record<string, unknown>`   | —                  | Raw AMQP queue arguments                                     |
 
-Quorum queues replicate through Raft and cannot be exclusive, auto-deleting, or priority queues. TypeScript rejects those options unless `type: "classic"`.
+Quorum queues replicate through Raft and cannot be exclusive or auto-deleting. TypeScript rejects those options, and `maxPriority`, unless `type: "classic"`. Quorum queues do prioritise messages: they prioritise natively on RabbitMQ 4.0+ from each message's `priority` property, with no queue argument (normal vs high above 4 up to 4.2; 32 strict levels from 4.3). `maxPriority` is the classic-only `x-max-priority` argument, which quorum queues ignore.
 
 ### `deadLetter`
 
