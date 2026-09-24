@@ -20,6 +20,11 @@ Topology setup is now role-scoped and has a mode.
     credentials that may not configure the broker; a missing resource fails
     `create()`;
   - `"none"` — touch nothing (topology provisioned elsewhere).
-- `setupAmqpTopology(channel, contract, { mode })` takes the mode too.
+- `setupAmqpTopology(channel, contract, { mode })` takes the mode too (it now
+  lives on `@amqp-contract/core/internal`, with `publisherTopology` /
+  `workerTopology`, the slices the client and worker pass it).
 
 The worker is scoped the same way (see the worker changeset for its slice).
+**Migration:** a standalone queue or exchange that neither a publisher nor a
+consumer reaches is no longer declared by anyone. Declare it where it is owned,
+or run `setupAmqpTopology` on a channel of your own.

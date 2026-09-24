@@ -18,8 +18,8 @@
   `maxRetries + 1` is rejected at define time. **Migration:** an existing quorum
   queue declared without the argument fails redeclaration with
   `PRECONDITION_FAILED - inequivalent arg 'x-delivery-limit'` — recreate the
-  queue, or pin `arguments: { "x-delivery-limit": … }` to match what the broker
-  holds.
+  queue. A queue already declared with an explicit `x-delivery-limit` keeps
+  working when `arguments` pins that value and it is at least `maxRetries + 1`.
 - Queue option errors name the queue and the remedy, e.g.
   `Queue "orders": exclusive is not supported on quorum queues (the default type). Set type: "classic" on this queue.`
   `maxPriority` must now be an integer. The `maxPriority`-on-quorum error and the
