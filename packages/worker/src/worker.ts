@@ -18,14 +18,17 @@ import {
   TechnicalError,
   type TelemetryProvider,
   defaultTelemetryProvider,
+  isRpcError,
+} from "@amqp-contract/core";
+import {
+  decodeMessage,
   endSpanError,
   endSpanSuccess,
-  isRpcError,
   recordConsumeMetric,
   startConsumeSpan,
+  startOrClose,
   technicalDefect,
-} from "@amqp-contract/core";
-import { decodeMessage, startOrClose } from "@amqp-contract/core/internal";
+} from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
 import type { AmqpConnectionManagerOptions, ConnectionUrl } from "amqp-connection-manager";

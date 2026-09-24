@@ -22,20 +22,20 @@ import {
   type TelemetryProvider,
   type TopologyMode,
   defaultTelemetryProvider,
-  endSpanError,
-  endSpanSuccess,
-  recordLateRpcReply,
-  recordPublishMetric,
-  recordRpcCallMetric,
-  startPublishSpan,
-  technicalDefect,
 } from "@amqp-contract/core";
 import {
   decodeMessage,
   encodeMessage,
+  endSpanError,
+  endSpanSuccess,
   publisherTopology,
+  recordLateRpcReply,
+  recordPublishMetric,
+  recordRpcCallMetric,
   runWithTraceContext,
   startOrClose,
+  startPublishSpan,
+  technicalDefect,
 } from "@amqp-contract/core/internal";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { fromSchemaAsync } from "@unthrown/standard-schema";
