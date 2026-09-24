@@ -43,6 +43,10 @@ export type {
   WorkerMiddlewareNext,
 } from "./middleware.js";
 export type {
+  ConsumerHandler,
+  ConsumerHandlerEntry,
+  RpcHandler,
+  RpcHandlerEntry,
   WorkerConsumedMessage,
   WorkerInferConsumedMessage,
   WorkerInferConsumerHandler,
