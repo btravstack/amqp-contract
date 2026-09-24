@@ -38,9 +38,10 @@ import amqp from "amqp-connection-manager";
 const connection = amqp.connect(["amqp://localhost"]);
 
 const client = await TypedAmqpClient.create({ contract, connection }).getOrThrow();
+const worker = await TypedAmqpWorker.create({ contract, handlers, connection }).getOrThrow();
 ```
 
-Pass exactly one of `urls` or `connection`. The client opens its channel on the connection and never closes it: closing it is yours, after every client using it has closed. (`TypedAmqpWorker` does not take `connection` yet; the core `AmqpClient` does.)
+Pass exactly one of `urls` or `connection`. The client or worker opens its channel on the connection and never closes it: closing it is yours, after every client and worker using it has closed. Sharing one connection between a publisher and a consumer gives up the protection above — under a resource alarm, the consumer stalls with the publisher.
 
 ## Publish from inside a handler
 
@@ -121,7 +122,7 @@ Publishers and consumers are already on separate connections. To split two clien
 
 **Same process only.** The cache is a per-process singleton. Every process, worker thread or Lambda instance gets its own connections. Size your broker's connection limits on process count, not service count.
 
-**No manual lifecycle.** You cannot hold, name or pre-warm a connection. It exists while something uses it.
+**No manual lifecycle for pooled connections.** You cannot hold, name or pre-warm one; it exists while something uses it. For a connection you control, create it yourself and pass it as `connection`.
 
 ## Reset the cache between tests
 
