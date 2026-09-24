@@ -154,9 +154,13 @@ const result = await client.publish("sendEmail", {
 result.match({
   ok: () => console.log("Published."),
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
-      console.error("The message did not match the schema:", error.message),
-    ),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) =>
+        console.error("The message did not match the schema:", error.message),
+      )
+      .with(P.tag("@amqp-contract/PublishError"), (error) =>
+        console.error("The broker did not take the message:", error.message),
+      ),
   defect: (cause) => {
     throw cause;
   },
@@ -170,7 +174,7 @@ Three things in this file are worth slowing down for.
 
 `TypedAmqpClient.create(...)` does not return a client. It returns an `AsyncResult`, and `.getOrThrow()` unwraps it. Awaiting without unwrapping would leave you holding a `Result`, not something you can call `.publish()` on. The error it can carry is `ConnectionError` — an unreachable broker. This tutorial fails fast on it deliberately: `.getOrThrow()` throws, which is what you want from a script. A service branches on it instead — see [the error model](/reference/error-model#connectionerror).
 
-`client.publish(...)` does not throw when the message is invalid. It returns a result you inspect. `.match` has three branches, and the compiler makes you handle all of them: `ok`, the modeled errors in `errCases`, and `defect` for the genuinely unexpected. A broken TCP connection is a defect, not a modeled error — you did not ask for it and cannot meaningfully branch on it, so here it is rethrown.
+`client.publish(...)` does not throw when the message is invalid. It returns a result you inspect. `.match` has three branches, and the compiler makes you handle all of them: `ok`, the modeled errors in `errCases`, and `defect` for the genuinely unexpected. There are two modeled errors: the payload failed its schema, or the broker did not take the message (`PublishError` — it stayed unreachable past the publish timeout, refused the message, or the channel closed). A defect is a bug, such as a payload that cannot be encoded at all; you cannot meaningfully branch on it, so here it is rethrown.
 
 `await client.close().get()` closes the connection. The `.get()` is not decoration: without it the close result is discarded silently.
 

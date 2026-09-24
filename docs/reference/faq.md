@@ -15,7 +15,7 @@ Every fallible operation returns a result instead. Awaiting one gives you a `Res
 
 ## What is the `defect` branch for?
 
-Failures nobody anticipated — a dropped connection, a channel error. They are not in the type signature because there is no meaningful way to branch on them. Modeled errors (like a validation failure) go in `errCases`; everything else arrives as a defect with a `TechnicalError` cause.
+Failures nobody anticipated — a bug such as a payload that cannot be encoded, a broker rejection core cannot classify, or a connection lost while consuming. They are not in the type signature because there is no meaningful way to branch on them. Anticipated failures are modeled and go in `errCases`: a validation failure (`MessageValidationError`), a broker that did not take a publish (`PublishError`), a broker `create()` could not reach (`ConnectionError`). Everything else arrives as a defect with a `TechnicalError` cause.
 
 → [Error model](/reference/error-model)
 

@@ -61,7 +61,7 @@ processOrder: ({ input: { payload } }) =>
           P.tag("@amqp-contract/MessageValidationError"),
           (error) => new NonRetryableError("invalid outgoing message", error),
         )
-        // The broker side failed (timeout, nack, backpressure) — try again later
+        // The broker side failed (timeout, nack, closed channel) — try again later
         .with(
           P.tag("@amqp-contract/PublishError"),
           (error) => new RetryableError("failed to publish", error),
