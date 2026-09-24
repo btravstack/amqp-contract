@@ -176,33 +176,39 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
   };
 
   if (type === "quorum") {
-    // Quorum queues do not support non-durable, exclusive, autoDelete, or maxPriority
+    // Quorum queues do not support non-durable, exclusive, autoDelete, or maxPriority.
+    // The default type is quorum, so the remedy must say so: an author who never
+    // wrote `type` does not know which type rejected the option.
+    const quorumRejects = (option: string, why: string): Error =>
+      new Error(
+        `Queue "${name}": ${option} is not supported on quorum queues (the default type)${why}. ` +
+          `Set \`type: "classic"\` on this queue.`,
+      );
     if (opts.durable === false) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-      throw new Error("Non-durable queues are not supported with quorum type.");
+      throw quorumRejects("durable: false", " — quorum queues are always durable");
     }
     if (opts.exclusive !== undefined) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-      throw new Error("Exclusive queues are not supported with quorum type.");
+      throw quorumRejects("exclusive", "");
     }
     if (opts.autoDelete !== undefined) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-      throw new Error("Auto-deleting queues are not supported with quorum type.");
+      throw quorumRejects("autoDelete", "");
     }
     if (opts.maxPriority !== undefined) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-      throw new Error("Priority queues are not supported with quorum type.");
+      throw quorumRejects("maxPriority", "");
     }
-  } else {
-    // Validate maxPriority
-    if (opts.maxPriority !== undefined) {
-      if (opts.maxPriority < 1 || opts.maxPriority > 255) {
-        // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
-        throw new Error(
-          `Invalid maxPriority: ${opts.maxPriority}. Must be between 1 and 255. Recommended range: 1-10.`,
-        );
-      }
-    }
+  } else if (
+    opts.maxPriority !== undefined &&
+    (!Number.isInteger(opts.maxPriority) || opts.maxPriority < 1 || opts.maxPriority > 255)
+  ) {
+    // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
+    throw new Error(
+      `Queue "${name}": maxPriority must be an integer between 1 and 255 (got ${opts.maxPriority}). ` +
+        `Use 1-10: each level costs broker memory and CPU.`,
+    );
   }
 
   const inputRetry = opts.retry ?? { mode: "none" as const };
@@ -213,7 +219,8 @@ export function defineQueue(name: string, options?: DefineQueueOptions): QueueDe
       if (inputRetry.maxRetries < 1 || !Number.isInteger(inputRetry.maxRetries)) {
         // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
         throw new Error(
-          `Queue "${name}" uses ${inputRetry.mode} retry mode with invalid maxRetries: ${inputRetry.maxRetries}. Must be a positive integer.`,
+          `Queue "${name}" uses ${inputRetry.mode} retry mode with invalid maxRetries: ${inputRetry.maxRetries}. ` +
+            `Must be a positive integer — omit maxRetries for the default (3), or use \`mode: "none"\` to disable retries.`,
         );
       }
     }

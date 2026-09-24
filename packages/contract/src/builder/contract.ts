@@ -156,7 +156,9 @@ export function defineContract<TContract extends ContractDefinitionInput>(
     if (collisions.length > 0) {
       // oxlint-disable-next-line unthrown/no-throw -- fail-fast declaration-time config error
       throw new Error(
-        `defineContract: name collision between consumers and rpcs — keys must be disjoint. Conflicting names: ${collisions.join(", ")}`,
+        `defineContract: name collision between consumers and rpcs — keys must be disjoint. ` +
+          `Conflicting names: ${collisions.join(", ")}. Rename the consumer or the rpc key: the ` +
+          `worker's handlers object is keyed by both, so one name cannot address two handlers.`,
       );
     }
   }

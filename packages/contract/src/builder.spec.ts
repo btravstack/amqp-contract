@@ -247,14 +247,37 @@ describe("builder", () => {
     it("should throw error for maxPriority less than 1", () => {
       // WHEN/THEN
       expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 0 })).toThrow(
-        "Invalid maxPriority: 0. Must be between 1 and 255. Recommended range: 1-10.",
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 0). Use 1-10',
       );
     });
+
+    it("should throw error for a non-integer maxPriority", () => {
+      expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 2.5 })).toThrow(
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 2.5)',
+      );
+    });
+
+    it.each([
+      ["durable: false", { durable: false }],
+      ["exclusive", { exclusive: true }],
+      ["autoDelete", { autoDelete: true }],
+      ["maxPriority", { maxPriority: 10 }],
+    ])(
+      "should name the queue and the classic-type remedy when %s is set on the default quorum type",
+      (option, options) => {
+        // Cast: the types already reject these on a quorum queue; this is the
+        // JavaScript-caller path, where the runtime message is all there is.
+        expect(() => defineQueue("orders", options as never)).toThrow(
+          `Queue "orders": ${option} is not supported on quorum queues (the default type)`,
+        );
+        expect(() => defineQueue("orders", options as never)).toThrow('Set `type: "classic"`');
+      },
+    );
 
     it("should throw error for maxPriority greater than 255", () => {
       // WHEN/THEN
       expect(() => defineQueue("priority-queue", { type: "classic", maxPriority: 256 })).toThrow(
-        "Invalid maxPriority: 256. Must be between 1 and 255. Recommended range: 1-10.",
+        'Queue "priority-queue": maxPriority must be an integer between 1 and 255 (got 256). Use 1-10',
       );
     });
 
@@ -356,7 +379,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 0 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 0. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 0. Must be a positive integer',
       );
     });
 
@@ -367,7 +390,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
@@ -467,7 +490,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
@@ -479,7 +502,7 @@ describe("builder", () => {
           retry: { mode: "immediate-requeue", maxRetries: -1 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: -1. Must be a positive integer.',
+        'Queue "retry-queue" uses immediate-requeue retry mode with invalid maxRetries: -1. Must be a positive integer',
       );
     });
   });
@@ -571,7 +594,7 @@ describe("builder", () => {
           retry: { mode: "ttl-backoff", maxRetries: 0 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 0. Must be a positive integer.',
+        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 0. Must be a positive integer',
       );
     });
 
@@ -582,7 +605,7 @@ describe("builder", () => {
           retry: { mode: "ttl-backoff", maxRetries: 2.5 },
         }),
       ).toThrow(
-        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 2.5. Must be a positive integer.',
+        'Queue "retry-queue" uses ttl-backoff retry mode with invalid maxRetries: 2.5. Must be a positive integer',
       );
     });
 
