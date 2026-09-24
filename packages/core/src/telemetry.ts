@@ -89,6 +89,14 @@ export type TelemetryProvider = {
    * OpenTelemetry is not available.
    */
   getLateRpcReplyCounter: () => Counter | undefined;
+
+  /**
+   * Get a histogram for RPC round-trip duration (request publish → validated
+   * reply), kept apart from the publish histogram so a slow handler does not
+   * read as a slow broker. Optional so an existing custom provider keeps
+   * compiling; omitted means "not recorded".
+   */
+  getRpcCallLatencyHistogram?: () => Histogram | undefined;
 };
 
 /**
@@ -121,6 +129,7 @@ let cachedConsumeCounter: Counter | undefined;
 let cachedPublishLatencyHistogram: Histogram | undefined;
 let cachedConsumeLatencyHistogram: Histogram | undefined;
 let cachedLateRpcReplyCounter: Counter | undefined;
+let cachedRpcCallLatencyHistogram: Histogram | undefined;
 
 /**
  * Try to load the OpenTelemetry API module.
@@ -164,6 +173,7 @@ function getMeterInstruments(): {
   publishLatencyHistogram: Histogram | undefined;
   consumeLatencyHistogram: Histogram | undefined;
   lateRpcReplyCounter: Counter | undefined;
+  rpcCallLatencyHistogram: Histogram | undefined;
 } {
   if (cachedPublishCounter !== undefined) {
     return {
@@ -172,6 +182,7 @@ function getMeterInstruments(): {
       publishLatencyHistogram: cachedPublishLatencyHistogram,
       consumeLatencyHistogram: cachedConsumeLatencyHistogram,
       lateRpcReplyCounter: cachedLateRpcReplyCounter,
+      rpcCallLatencyHistogram: cachedRpcCallLatencyHistogram,
     };
   }
 
@@ -183,6 +194,7 @@ function getMeterInstruments(): {
       publishLatencyHistogram: undefined,
       consumeLatencyHistogram: undefined,
       lateRpcReplyCounter: undefined,
+      rpcCallLatencyHistogram: undefined,
     };
   }
 
@@ -214,12 +226,18 @@ function getMeterInstruments(): {
     unit: "{message}",
   });
 
+  cachedRpcCallLatencyHistogram = meter.createHistogram("amqp.client.rpc.duration", {
+    description: "Duration of RPC calls, from request publish to validated reply (or failure)",
+    unit: "ms",
+  });
+
   return {
     publishCounter: cachedPublishCounter,
     consumeCounter: cachedConsumeCounter,
     publishLatencyHistogram: cachedPublishLatencyHistogram,
     consumeLatencyHistogram: cachedConsumeLatencyHistogram,
     lateRpcReplyCounter: cachedLateRpcReplyCounter,
+    rpcCallLatencyHistogram: cachedRpcCallLatencyHistogram,
   };
 }
 
@@ -233,6 +251,7 @@ export const defaultTelemetryProvider: TelemetryProvider = {
   getPublishLatencyHistogram: () => getMeterInstruments().publishLatencyHistogram,
   getConsumeLatencyHistogram: () => getMeterInstruments().consumeLatencyHistogram,
   getLateRpcReplyCounter: () => getMeterInstruments().lateRpcReplyCounter,
+  getRpcCallLatencyHistogram: () => getMeterInstruments().rpcCallLatencyHistogram,
 };
 
 /**
@@ -435,6 +454,28 @@ export function recordConsumeMetric(
 }
 
 /**
+ * Record an RPC round trip on its own histogram (`amqp.client.rpc.duration`).
+ * Never throws.
+ */
+export function recordRpcCallMetric(
+  provider: TelemetryProvider,
+  queueName: string,
+  rpcName: string,
+  success: boolean,
+  durationMs: number,
+): void {
+  swallowTelemetryThrow(() => {
+    provider.getRpcCallLatencyHistogram?.()?.record(durationMs, {
+      [MessagingSemanticConventions.MESSAGING_SYSTEM]:
+        MessagingSemanticConventions.MESSAGING_SYSTEM_RABBITMQ,
+      [MessagingSemanticConventions.MESSAGING_DESTINATION]: queueName,
+      [MessagingSemanticConventions.AMQP_PUBLISHER_NAME]: rpcName,
+      success,
+    });
+  });
+}
+
+/**
  * Record an RPC reply that arrived after the caller stopped waiting.
  *
  * @param reason - Why the reply was orphaned. `"unknown-correlation-id"` is
@@ -472,4 +513,5 @@ export function _internal_resetTelemetryCache(): void {
   cachedPublishLatencyHistogram = undefined;
   cachedConsumeLatencyHistogram = undefined;
   cachedLateRpcReplyCounter = undefined;
+  cachedRpcCallLatencyHistogram = undefined;
 }
