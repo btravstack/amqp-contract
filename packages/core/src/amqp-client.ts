@@ -29,6 +29,7 @@ import {
 } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { setupAmqpTopology } from "./setup.js";
+import { injectTraceContext, runWithTraceContext } from "./telemetry.js";
 
 /**
  * Invoke a SetupFunc, handling both callback-based and promise-based signatures.
@@ -553,8 +554,8 @@ export class AmqpClient {
   ): AsyncResult<void, PublishError> {
     const { exchange, routingKey } = target;
     const description = `exchange "${exchange}" (routing key "${routingKey}")`;
-    return this.send(description, content, (encoded) =>
-      this.channelWrapper.publish(exchange, routingKey, encoded, options),
+    return this.send(description, content, options, (encoded, traced) =>
+      this.channelWrapper.publish(exchange, routingKey, encoded, traced),
     );
   }
 
@@ -569,22 +570,29 @@ export class AmqpClient {
     content: Buffer | unknown,
     options?: AmqpPublishOptions,
   ): AsyncResult<void, PublishError> {
-    return this.send(`queue "${queue}"`, content, (encoded) =>
-      this.channelWrapper.sendToQueue(queue, encoded, options),
+    return this.send(`queue "${queue}"`, content, options, (encoded, traced) =>
+      this.channelWrapper.sendToQueue(queue, encoded, traced),
     );
   }
 
-  /** Encode, hand to the channel wrapper, and triage its outcome. */
+  /**
+   * Stamp the trace context, encode, hand to the channel wrapper, and triage
+   * its outcome. The context is injected synchronously, on entry: the caller's
+   * active span (e.g. the client's producer span) is the one to propagate.
+   */
   private send(
     description: string,
     content: Buffer | unknown,
-    write: (encoded: Buffer) => Promise<boolean>,
+    options: AmqpPublishOptions | undefined,
+    write: (encoded: Buffer, options: AmqpPublishOptions | undefined) => Promise<boolean>,
   ): AsyncResult<void, PublishError> {
+    const headers = injectTraceContext(options?.headers);
+    const traced = headers === options?.headers ? options : { ...options, headers };
     return fromSafeThrowable(() => encodeBody(content))()
       .toAsync()
       .flatMap((encoded) =>
         fromPromise(
-          write(encoded),
+          write(encoded, traced),
           (error: unknown, defect) =>
             classifyPublishRejection(error, description) ??
             defect(new TechnicalError(`Failed to publish message to ${description}`, error)),
@@ -633,7 +641,13 @@ export class AmqpClient {
     }
 
     return fromPromise(
-      this.channelWrapper.consume(queue, callback, { ...options, prefetch }),
+      this.channelWrapper.consume(
+        queue,
+        // Each delivery runs inside the trace context its publisher stamped,
+        // so a span the consumer opens is parented on the producer's.
+        (msg) => runWithTraceContext(msg?.properties.headers, undefined, () => callback(msg)),
+        { ...options, prefetch },
+      ),
       (error: unknown, defect) =>
         defect(new TechnicalError("Failed to start consuming messages", error)),
     ).map((reply: { consumerTag: string }) => reply.consumerTag);
