@@ -1,6 +1,6 @@
 ---
 title: Upgrade - amqp-contract
-description: Migration notes for each major version, including the 3.0 safe defaults (prefetch, publish timeout, dead-letter exchanges), the defect-channel change and the unthrown v5 matcher renames.
+description: Migration notes for each major version, including the 3.0 safe defaults (prefetch, publish timeout, dead-letter exchanges, a 16 MiB message cap), role-scoped topology, the modeled PublishError, the defect-channel change and the unthrown v5 matcher renames.
 ---
 
 # Upgrade
@@ -9,10 +9,16 @@ All six `@amqp-contract/*` packages version together, so upgrade them in lockste
 
 ## 2.4.x → 3.0
 
-Two independent breaking changes land together — `unthrown` v5 and the defect-channel move — plus a handler-signature swap and three **safe defaults** that change runtime behaviour. Expect to touch every site that inspects a result, and every handler leaf.
+Two independent breaking changes land together — `unthrown` v5 and the defect-channel move — plus a handler-signature swap, three **safe defaults** that change runtime behaviour, and a runtime hardening pass: a publish the broker does not take is a modeled `PublishError`, the client and the worker each declare only their own slice of the topology over separate connections, inbound messages are capped at 16 MiB, and RPC servers answer only allowed addresses and never retry. Expect to touch every site that inspects a result, and every handler leaf.
 
-::: danger Read this first: prefetch changed and nothing will tell you
-Of everything on this page, [consumers prefetch 10 by default](#consumers-prefetch-10-by-default) is the only change with **no compile error and no startup failure**. Your build stays green, your tests stay green, and your throughput profile changes. If you read one section, read that one.
+::: danger Read this first: four changes will not tell you
+Most of this page is a compile error or a startup failure. These are neither — your build and your tests stay green while behaviour changes:
+
+- [Consumers prefetch 10 by default](#consumers-prefetch-10-by-default) — your throughput profile changes. If you read one section, read this one.
+- [The client and the worker each declare only their own topology](#the-client-and-the-worker-each-declare-only-their-own-topology) — a standalone queue or exchange neither role reaches is no longer declared by anyone.
+- [Inbound messages are capped at 16 MiB](#inbound-messages-are-capped-at-16-mib) — a larger message is dead-lettered instead of handled.
+- [RPC servers reply only to allowed addresses and never retry](#rpc-servers-reply-only-to-allowed-addresses-and-never-retry) — a request with a custom `replyTo`, or whose handler returns `RetryableError`, is dead-lettered.
+
 :::
 
 ### Consumers prefetch 10 by default
@@ -167,7 +173,7 @@ const legacyQueue = defineQueue("legacy-processing", {
 
 **Why it was unsafe:** an unsettled promise is invisible. Requests pile up behind it with no error, no metric, and no timeout of their own.
 
-**The timeout arrives as a `Defect`, not a modelled error.** `TypedAmqpClient.publish` models only `MessageValidationError`; every transport failure, the new timeout included, is routed to the **defect** channel. So it does **not** appear in `errCases`, and a `defect` arm you believed unreachable now fires during any outage longer than 30s. `.get()` and `.getOrThrow()` both panic on it. If you want publish failures observed rather than thrown, the `defect` branch is where they arrive:
+**The timeout arrives as a modeled `PublishError`** with `reason: "timeout"`, in `errCases` — see [a publish the broker does not take is a `PublishError`](#a-publish-the-broker-does-not-take-is-a-publisherror). `.getOrThrow()` throws it; an exhaustive matcher has to handle it:
 
 ```typescript
 import { P } from "unthrown";
@@ -177,12 +183,16 @@ const result = await client.publish("sendEmail", payload);
 result.match({
   ok: () => {},
   errCases: (matcher) =>
-    matcher.with(P.tag("@amqp-contract/MessageValidationError"), (error) => {
-      log.error({ error }, "invalid payload, never sent");
-    }),
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) => {
+        log.error({ error }, "invalid payload, never sent");
+      })
+      .with(P.tag("@amqp-contract/PublishError"), (error) => {
+        // Reachable since 3.0: the 30s publish timeout lands here.
+        log.error({ reason: error.reason }, "publish failed");
+      }),
   defect: (cause) => {
-    // Reachable since 3.0: the 30s publish timeout lands here.
-    log.error({ cause }, "publish failed");
+    log.error({ cause }, "bug while publishing");
   },
 });
 ```
@@ -208,7 +218,7 @@ result.match({
   }).getOrThrow();
 ```
 
-`TypedAmqpWorker` takes the same option for its retry republishes and RPC replies. `publishTimeoutMs` wins over `channelOptions.publishTimeout` if you set both.
+`TypedAmqpWorker` takes the same option for its retry republishes and RPC replies: a retry republish that times out requeues the original, a reply that times out dead-letters the request. `publishTimeoutMs` wins over `channelOptions.publishTimeout` if you set both.
 
 ### `unthrown` v5: error handling takes a matcher
 
@@ -251,9 +261,9 @@ The matcher and its patterns are built into `unthrown` — `match`, `P` and `P.t
 
 ### `TechnicalError` moved to the defect channel
 
-Infrastructure and transport failures — publish, consume, cancel, close, compression, JSON parse, and thrown or rejected schema validators — are unexpected, so they now surface as a **defect** whose `cause` is a `TechnicalError`, never as a modeled `Err`.
+Infrastructure and transport failures — consume, cancel, close, compression, JSON parse, a publish failure core cannot classify, and thrown or rejected schema validators — are unexpected, so they now surface as a **defect** whose `cause` is a `TechnicalError`, never as a modeled `Err`.
 
-Only anticipated domain failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, the worker's `RetryableError` / `NonRetryableError` — and `ConnectionError`, the one connection failure that IS anticipated, covered in [the broker is a modeled failure](#the-broker-is-a-modeled-failure) below. A connection **lost** after start-up is still a defect; a broker that never answered `create()` is not.
+Only anticipated failures remain in `E`: `MessageValidationError`, `RpcError`, `RpcTimeoutError`, `RpcCancelledError`, the worker's `RetryableError` / `NonRetryableError` — and the two broker failures a caller is expected to handle: `ConnectionError` when `create()` cannot reach it ([the broker is a modeled failure](#the-broker-is-a-modeled-failure)) and `PublishError` when it does not take a publish ([below](#a-publish-the-broker-does-not-take-is-a-publisherror)). A connection **lost** while consuming is still a defect.
 
 Matching `P.tag("@amqp-contract/TechnicalError")` in an error matcher no longer typechecks. Move it to the `defect` arm:
 
@@ -276,7 +286,7 @@ Matching `P.tag("@amqp-contract/TechnicalError")` in an error matcher no longer 
 
 `.recoverDefect(…)` and `.tapDefect(…)` are the combinator equivalents.
 
-Error channels narrow accordingly. `client.publish(...)` is now `AsyncResult<void, MessageValidationError>`, and `client.call(...)` drops `TechnicalError` from its union.
+Error channels change accordingly: `client.publish(...)` is `AsyncResult<void, MessageValidationError | PublishError>`, and `client.call(...)` swaps `TechnicalError` for `PublishError` in its union.
 
 ### `close()` needs `.get()`, and `create()` keeps `.getOrThrow()`
 
@@ -334,9 +344,14 @@ For JS callers, `definePublisher`, `defineQueueBinding`, and `defineExchangeBind
 | `ConsumerOptions` (core)                    | `AmqpConsumeOptions`                               |
 | `PublishOptions` (core)                     | `AmqpPublishOptions`                               |
 | `_internal_*` on the core root              | `@amqp-contract/core/internal`                     |
+| Core implementation helpers (list below)    | `@amqp-contract/core/internal`                     |
 | `defineEventPublisher`'s `arguments` option | `bindingArguments` (it always configured bindings) |
 
-The worker's and client's own `ConsumerOptions` / `PublishOptions` (the ones you use with `Typed*`) are unchanged. Builder-result brands are now `unique symbol`s — invisible in hovers and no longer forgeable; code that referenced `__brand` structurally must stop.
+The core implementation helpers are `setupAmqpTopology`, `safeJsonParse`, `technicalDefect`, `startPublishSpan`, `startConsumeSpan`, `endSpanSuccess`, `endSpanError`, `recordPublishMetric`, `recordConsumeMetric`, `recordLateRpcReply` and the `ConnectionLease` type. Nothing was removed, but `/internal` carries no semver guarantee.
+
+The worker's and client's own `ConsumerOptions` / `PublishOptions` (the ones you use with `Typed*`) are unchanged. `TopologyMode`, `ConnectionSource`, `PublishError`, `DEFAULT_MAX_MESSAGE_BYTES` and the telemetry types stay on the core root. Builder-result brands are now `unique symbol`s — invisible in hovers and no longer forgeable; code that referenced `__brand` structurally must stop.
+
+The contract package moves its cross-package runtime helpers the same way: `extractConsumer`, `isBridgedPublisherConfig`, `isCommandConsumerConfig`, `isEventConsumerResult`, `isEventPublisherConfig`, `deriveTtlBackoffInfrastructure`, `ttlBackoffBaseDelay` and `ttlBackoffWaitQueueName` are exported from `@amqp-contract/contract/internal`, and their root exports are deprecated aliases.
 
 ### Core signatures follow the options-object convention
 
@@ -353,7 +368,7 @@ Exported functions across the btravstack family now take at most two positional 
 + publishMessage({ exchange: "orders-x", routingKey: "order.created" }, payload);
 ```
 
-`AmqpClient.publish` / `sendToQueue` also now return `AsyncResult<void, never>` instead of `AsyncResult<boolean, never>`: a full channel write buffer is triaged once, inside core, as a defect — downstream code no longer checks a boolean.
+`AmqpClient.publish` / `sendToQueue` also now return `AsyncResult<void, PublishError>` instead of `AsyncResult<boolean, never>`: the channel's outcome is classified once, inside core, and downstream code no longer checks a boolean. A `false` from the channel — the write buffer is full, reported only after the broker confirmed the message — is success, logged at `debug`.
 
 ### Handlers take helpers first, message second
 
@@ -456,6 +471,133 @@ during start-up.
 A blanket `.recoverDefect(...)` that existed only to move this failure onto the
 `Err` channel can go — that is what this change is for.
 
+### A publish the broker does not take is a `PublishError`
+
+**What breaks:** every exhaustive matcher over a `publish()` or `call()` result — it fails to compile until it handles the new case.
+
+`client.publish(...)`, `client.call(...)` and core's `AmqpClient.publish` / `sendToQueue` report a broker-side failure as a modeled `PublishError` on the `E` channel, with a `reason`:
+
+- `"timeout"` — the message sat buffered past `publishTimeoutMs` (the broker was unreachable);
+- `"nacked"` — the broker refused it (`basic.nack`);
+- `"channel-closed"` — the channel closed before the message was confirmed.
+
+**Why:** a broker that is down, overloaded or refusing a message is an operating condition a publisher is expected to handle — buffer, retry, shed load, answer 503 — not a bug. A failure core cannot classify (an unencodable payload, an unknown rejection) stays a defect with a `TechnicalError` cause. A full write buffer is **not** a failure: on the confirm channel it is only reported after the broker confirmed the message, so the publish answers `Ok` instead of inviting a duplicate republish.
+
+**The exact edit** — add the case, or group it with the others:
+
+```diff
+  errCases: (matcher) =>
+    matcher
+      .with(P.tag("@amqp-contract/MessageValidationError"), (error) => {/* … */})
++     .with(P.tag(PublishError.tag), (error) => {/* error.reason */}),
+```
+
+In a handler that publishes, map it to `RetryableError` so a broker hiccup goes through the retry pipeline, and drop any `.recoverDefect(...)` that existed to catch a failed publish — see [share connections](/how-to/share-connections#publish-from-inside-a-handler). `PublishError` is exported from core and re-exported by client and worker.
+
+::: tip Tracking the 3.0 betas?
+The client's interceptor error union exported as `PublishError` (a type alias, `MessageValidationError`) is renamed **`ClientPublishError`** (`MessageValidationError | PublishError`), freeing the name for the error class. `CallError` gains `PublishError`.
+:::
+
+### RPC requests expire, and are metered on their own
+
+`client.call(...)` publishes its request with `expiration` set to the call's `timeoutMs`, so a request no worker picked up before the caller gave up is dropped by the broker instead of being answered for nobody. A `publishOptions.expiration` you pass still wins.
+
+The round trip is recorded on its own histogram, **`amqp.client.rpc.duration`**, instead of `amqp.client.publish.duration`, and RPC calls no longer increment `amqp.client.messages.published` — a slow handler no longer reads as a slow broker. Move RPC latency dashboards and alerts to the new metric. A custom `TelemetryProvider` records it by implementing the optional `getRpcCallLatencyHistogram`.
+
+### RPC servers reply only to allowed addresses and never retry
+
+**What breaks:** nothing at compile time. Two kinds of RPC request that used to be served are now dead-lettered, with the reason logged:
+
+- **A `replyTo` other than direct reply-to.** By default the worker replies only to `amq.rabbitmq.reply-to…`, which is what `client.call()` uses, so a forged request cannot make it publish into an arbitrary queue. If your callers use their own reply queues, allow them:
+
+  ```diff
+    const worker = await TypedAmqpWorker.create({
+      contract,
+      handlers,
+      urls,
+  +   rpc: { allowReplyTo: (replyTo) => replyTo.startsWith("replies.") },
+    }).getOrThrow();
+  ```
+
+- **A `RetryableError` from an RPC handler**, even on a queue with a `retry` config. The caller waits on a `timeoutMs` far shorter than most backoffs, so a retry re-ran the handler for nobody. Return a declared `RpcError` for a failure the caller should see.
+
+### The client and the worker each declare only their own topology
+
+**What breaks:** nothing visibly, unless a contract carries standalone `queues` or `exchanges` that no publisher and no consumer reaches. Before, the client and the worker both declared the entire contract on connect. Now each declares its role's slice:
+
+- **The client** declares its publishers' exchanges, everything they route to (exchange-to-exchange bindings, transitively), every queue reachable that way with its binding, and the RPC request queues. So a message published before any worker started is retained, not confirmed and dropped. Those queues get the worker's exact arguments, but none of its infrastructure: no dead-letter exchange, no retry wait queues. Exclusive queues are never declared by the client.
+- **The worker** declares the queues it consumes with their bindings and retry wait queues, the exchanges those bind to, and their dead-letter exchanges with whatever those route to (the DLQs).
+
+A queue or exchange that neither slice reaches — an audit queue bound to an exchange this service never publishes to, say — is declared by nobody. Declare it where it is owned, or run the low-level setup yourself; `setupAmqpTopology` now lives on `@amqp-contract/core/internal`:
+
+```typescript
+import { setupAmqpTopology } from "@amqp-contract/core/internal";
+import { connect } from "amqplib";
+
+const connection = await connect("amqp://localhost");
+const channel = await connection.createChannel();
+await setupAmqpTopology(channel, contract); // declares every resource of the contract
+await connection.close();
+```
+
+**New: `topology`** on `TypedAmqpClient.create` and `TypedAmqpWorker.create` (and core's `AmqpClient`) says what to do with the slice on every (re)connect: `"assert"` (the default, as before) declares it, `"passive"` only checks it exists and fails `create()` if something is missing — for credentials without configure permission — and `"none"` touches nothing, for topology provisioned elsewhere.
+
+### Clients and workers no longer share a connection
+
+**What breaks:** nothing at compile time; a process that runs a client and a worker against the same URLs now opens **two** TCP connections where it opened one. The process-wide pool is partitioned — clients share among themselves, workers among themselves. RabbitMQ blocks a publishing connection under a memory or disk alarm, and a consumer sharing it would stop acking with it. Check the broker's connection limits if you run many processes.
+
+To share one connection deliberately, own it and pass it as **`connection`** instead of `urls` (exactly one of the two). It is borrowed, never closed by the client or worker:
+
+```typescript
+import amqp from "amqp-connection-manager";
+
+const connection = amqp.connect(["amqp://localhost"]);
+const client = await TypedAmqpClient.create({ contract, connection }).getOrThrow();
+const worker = await TypedAmqpWorker.create({ contract, handlers, connection }).getOrThrow();
+```
+
+See [share connections](/how-to/share-connections).
+
+### Inbound messages are capped at 16 MiB
+
+**What breaks:** nothing at compile time. The worker now refuses any inbound body over **16 MiB** (`DEFAULT_MAX_MESSAGE_BYTES`, RabbitMQ 4's own default `max_message_size`) — a plain body as it arrives, a compressed one while it inflates, so a few-KB "zip bomb" never materialises. An over-cap message is dead-lettered on first delivery, like any other unparseable payload. If you legitimately send larger messages, raise it:
+
+```diff
+  const worker = await TypedAmqpWorker.create({
+    contract,
+    handlers,
+    urls,
++   maxMessageBytes: 64 * 1024 * 1024,
+  }).getOrThrow();
+```
+
+The client decodes RPC replies through the same codec, so a reply carrying a `contentEncoding` is decompressed rather than failing to parse.
+
+::: tip Tracking the 3.0 betas?
+The betas capped only decompressed output, at 64 MiB, under the option `maxDecompressedBytes`. That name still works as a deprecated alias of `maxMessageBytes`.
+:::
+
+### The retry path is stricter
+
+Behaviour changes in the worker's retry handling, none of which needs an edit:
+
+- **A retry publish the broker does not take requeues the original.** When the retry copy fails with `PublishError`, the original is `nack`ed with `requeue: true`, its retry headers unchanged — never dead-lettered (or dropped, on an `onPoison: "drop"` queue) for a broker hiccup. The log line is `Publish for retry failed; requeueing the original for redelivery`.
+- **Malformed retry headers count as 0.** An `x-retry-count` or `x-delivery-count` that is not a non-negative integer no longer bypasses the retry budget; a malformed `x-first-failure-timestamp` or `x-original-routing-key` is replaced; and a retry is only published to a declared wait queue — anything else is dead-lettered with the reason logged.
+- **`x-last-error` is truncated to 1024 characters**, so an error carrying a stack or a payload dump can no longer exceed the broker's `frame_max` on every retry.
+- **An inbound payload that fails its schema is a modeled `MessageValidationError`** on the worker as on the client: the consume span records it as its exception and the consume metric counts a failure. It is still dead-lettered on first delivery and never retried.
+- Retry routing logs one decision line — `Retrying message (requeue)`, `Retrying message (republish)` or `Sending to DLQ: <reason>`. Update log-based alerts that matched the old per-mode wording.
+
+### Trace context propagates by itself
+
+Publish injects the active OpenTelemetry context into the message headers, through the propagator your SDK registered, and the consumer runs each delivery inside the context extracted from them — with the consume span active in `createContext`, middleware and the handler. One trace spans producer, broker and consumer with no code of yours. If you followed the old recipe — a publish interceptor stamping `traceparent` and a worker middleware resuming it — delete both; a hand-stamped `traceparent` is overwritten by the injected one anyway. See [instrument with OpenTelemetry](/how-to/instrument-with-opentelemetry).
+
+### Smaller additions
+
+- **`isConnected()`** on `TypedAmqpClient`, `TypedAmqpWorker` and core's `AmqpClient`: whether the broker connection is up right now, for a readiness probe ([run in production](/how-to/run-in-production#wire-health-checks)).
+- **Static `.tag` on every error class** — `P.tag(PublishError.tag)`, `P.tag(RetryableError.tag)` — instead of the raw `"@amqp-contract/…"` string. Each class's stack now starts with its own `Name: message`.
+- **Named handler types**: `ConsumerHandler<TPayload, THeaders?, TContext?>`, `RpcHandler<TRequest, TResponse, TErrors?, THeaders?, TContext?>` and their `…Entry` forms (with the `[handler, options]` tuple). Handler type errors now name the resolved message instead of the whole contract type, and you can type a handler by its payload directly.
+- **Diagnosable `ConnectionError`**: its `cause` is the last failed dial (`ECONNREFUSED`, `ACCESS_REFUSED`), and the first failed dial is logged at `warn`.
+
 ### Quorum queues with immediate-requeue retry declare `x-delivery-limit`
 
 **What breaks:** workers and clients fail at startup against a quorum queue that **already exists on the broker** and has `retry: { mode: "immediate-requeue" }`. `defineQueue` now adds the queue argument `x-delivery-limit: maxRetries + 1`, and RabbitMQ refuses to redeclare a queue with arguments that differ from the live one:
@@ -511,17 +653,21 @@ The generator also takes a new `vhost` option for the channel bindings, defaulti
 ### Suggested order
 
 1. Bump `unthrown` and the six packages together.
-2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, signature changes).
+2. Run `pnpm typecheck` and work through the errors — nearly all of this is compiler-visible (`extractQueue` deletions, renamed types, `declare*` renames, helpers moved to `/internal`, signature changes).
 3. Fix `create()` / `close()` extraction first; it is mechanical.
-4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go — except at `create()`, where the connection failure moved the other way, into `errCases` as `ConnectionError`.
-5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange and nothing on a direct one.
+4. Then convert each `match` / `*Err` site, moving `TechnicalError` handling into `defect` as you go — except at `create()` and around `publish()` / `call()`, where broker failures moved the other way, into `errCases` as `ConnectionError` and `PublishError`. Replace any `recoverDefect` that existed to catch a failed publish with a `PublishError` case.
+5. Resolve the `defineContract` dead-letter throws — both of them: the missing `deadLetter` pointer, and the exchange it names having nothing bound. Decide the broker route (new queue, policy, or accepted loss) _before_ editing the contract, since a live queue cannot take a `deadLetter`. Check each DLX's type on the broker before binding: `#` routes everything on a topic exchange, and on a direct one it is rejected at define time — bind the real key there.
 6. Unwrap `create()` with `.getOrThrow()`, or triage its `ConnectionError` —
    and delete any blanket defect-recovery that existed to reach it.
 7. Swap every handler leaf to `(helpers, message)` — the compiler names the
    ones that read their payload; grep for the rest.
-8. Decide prefetch deliberately for every worker. It is the one change the compiler will not raise, so make it a review item rather than a discovery in production.
+8. Decide prefetch deliberately for every worker. The compiler will not raise it, and of the [silent changes](#_2-4-x-→-3-0) it is the one every worker meets, so make it a review item rather than a discovery in production.
 9. Deploy workers before deleting the old `{queue}-wait` queue and `wait-exchange`/`retry-exchange` from the broker.
 10. Plan a recreate for every existing quorum queue with `immediate-requeue` retry: it now [declares `x-delivery-limit`](#quorum-queues-with-immediate-requeue-retry-declare-x-delivery-limit) and fails to redeclare against the old one.
+11. List the standalone `queues` / `exchanges` in each contract that no publisher or consumer reaches, and [declare them yourself](#the-client-and-the-worker-each-declare-only-their-own-topology) before relying on them.
+12. Check the largest message each worker receives against the [16 MiB cap](#inbound-messages-are-capped-at-16-mib), and every RPC caller that sets its own `replyTo` against the [allowlist](#rpc-servers-reply-only-to-allowed-addresses-and-never-retry).
+13. Delete the trace-propagation interceptor and middleware, if you wrote them: [propagation is built in](#trace-context-propagates-by-itself).
+14. Expect roughly twice the broker connections from a process that runs both a client and a worker ([separate pools](#clients-and-workers-no-longer-share-a-connection)); check the broker's connection limits.
 
 ## 2.3.x → 2.4.x
 
