@@ -62,7 +62,7 @@ All carry `messaging.system`, `messaging.destination.name` and a `success` boole
 
 ## Connect traces across the broker
 
-This is automatic. On publish, the active trace context is injected into the message headers through the propagator your SDK registered (`traceparent` / `tracestate` with the default W3C setup); `publish()` and `call()` run that injection with their producer span active, so the header carries the producer span. On consume, each delivery runs inside the context extracted from its headers, so the consume span is parented on the producer span and one trace spans producer, broker hop and consumer.
+This is automatic. On publish, the active trace context is injected into the message headers through the propagator your SDK registered (`traceparent` / `tracestate` with the default W3C setup); `publish()` and `call()` run that injection with their producer span active, so the header carries the producer span. On consume, each delivery runs inside the context extracted from its headers, so the consume span is parented on the producer span and one trace spans producer, broker hop and consumer. The handler (with `createContext` and the middleware) runs with the consume span active, so a message it publishes continues the same trace.
 
 Without an SDK (or without `@opentelemetry/api`) nothing is injected and headers are left untouched. A misbehaving propagator degrades to "no propagation" — it never fails a publish or a delivery.
 
@@ -108,7 +108,7 @@ processOrder: ({ input: { payload } }) =>
   ).map(() => undefined),
 ```
 
-It nests under the consume span automatically.
+It nests under the consume span automatically: the worker runs the handler with the consume span active.
 
 ## Supply a custom telemetry provider
 

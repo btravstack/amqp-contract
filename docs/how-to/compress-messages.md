@@ -39,7 +39,7 @@ const worker = await TypedAmqpWorker.create({
   contract,
   handlers,
   urls: ["amqp://localhost"],
-  maxDecompressedBytes: 64 * 1024 * 1024,
+  maxMessageBytes: 64 * 1024 * 1024,
 }).getOrThrow();
 ```
 

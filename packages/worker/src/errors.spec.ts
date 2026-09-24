@@ -79,3 +79,18 @@ describe("Factory Functions", () => {
     });
   });
 });
+
+describe("handler error classes", () => {
+  it.for([
+    [RetryableError, "RetryableError"],
+    [NonRetryableError, "NonRetryableError"],
+  ] as const)("%o exposes its tag and a stack headed by its name and message", ([Class, name]) => {
+    const error = new Class("db down");
+
+    expect([Class.tag, error._tag, error.stack?.split("\n")[0]]).toEqual([
+      `@amqp-contract/${name}`,
+      `@amqp-contract/${name}`,
+      `${name}: db down`,
+    ]);
+  });
+});
