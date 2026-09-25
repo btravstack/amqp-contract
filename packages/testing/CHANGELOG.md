@@ -1,5 +1,11 @@
 # @amqp-contract/testing
 
+## 3.0.0-beta.8
+
+### Patch Changes
+
+- aab360d: Publish runtime dependencies (`amqplib`, `amqp-connection-manager`, `@standard-schema/spec`, `@unthrown/standard-schema`, `testcontainers`) with caret ranges instead of exact versions, so consumers can pick up upstream patch and security releases without waiting for an amqp-contract release.
+
 ## 3.0.0-beta.7
 
 ### Patch Changes
