@@ -36,7 +36,7 @@ catalog:
   arktype: 2.2.3
   fast-check: 4.10.1
   knip: 6.35.1
-  lefthook: 2.1.10
+  lefthook: 2.1.14
   mermaid: 11.17.1
   oxfmt: 0.68.0
   oxlint: 1.83.0
