@@ -9,7 +9,8 @@ import {
   type RpcErrorMap,
 } from "@amqp-contract/contract";
 import {
-  AmqpClient,
+  type AmqpClient,
+  type AmqpTransport,
   type ConnectionError,
   type AmqpPublishOptions,
   type Logger,
@@ -23,6 +24,7 @@ import {
   endSpanSuccess,
   recordLateRpcReply,
   recordPublishMetric,
+  resolveTransport,
   safeJsonParse,
   startPublishSpan,
   technicalDefect,
@@ -110,7 +112,25 @@ export type PublishOptions = AmqpPublishOptions & {
  */
 export type CreateClientOptions<TContract extends ContractDefinition> = {
   contract: TContract;
-  urls: ConnectionUrl[];
+  /**
+   * AMQP broker URL(s). Multiple URLs provide failover support.
+   *
+   * Exactly one connection source is required: `urls` **or** {@link transport}.
+   */
+  urls?: ConnectionUrl[] | undefined;
+  /**
+   * A transport to use instead of dialling a broker — an
+   * {@link AmqpTransport}, which the real {@link AmqpClient} satisfies.
+   *
+   * The reason this exists is testing: `@amqp-contract/testing`'s
+   * `InMemoryAmqpBroker` hands back a transport that runs the whole contract
+   * pipeline — serialization, both validation passes, interceptors, RPC
+   * correlation, retry routing — with no Docker. Supplying one makes `urls`,
+   * `connectionOptions` and `connectTimeoutMs` meaningless, since nothing is
+   * being dialled, and passing both is refused rather than silently
+   * preferring one.
+   */
+  transport?: AmqpTransport | undefined;
   connectionOptions?: AmqpConnectionManagerOptions | undefined;
   logger?: Logger | undefined;
   /**
@@ -195,7 +215,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
 
   private constructor(
     private readonly contract: TContract,
-    private readonly amqpClient: AmqpClient,
+    private readonly amqpClient: AmqpTransport,
     private readonly defaultPublishOptions: PublishOptions,
     private readonly logger?: Logger,
     private readonly telemetry: TelemetryProvider = defaultTelemetryProvider,
@@ -216,6 +236,7 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
   static create<TContract extends ContractDefinition>({
     contract,
     urls,
+    transport,
     connectionOptions,
     defaultPublishOptions,
     logger,
@@ -231,8 +252,9 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
     return OkAsync(undefined).flatMap(() => {
       const client = new TypedAmqpClient(
         contract,
-        new AmqpClient(contract, {
+        resolveTransport(contract, {
           urls,
+          transport,
           connectionOptions,
           connectTimeoutMs,
           publishTimeoutMs,

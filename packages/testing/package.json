@@ -43,15 +43,21 @@
       "types": "./dist/extension.d.mts",
       "import": "./dist/extension.mjs"
     },
+    "./in-memory": {
+      "types": "./dist/in-memory.d.mts",
+      "import": "./dist/in-memory.mjs"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsdown src/index.ts src/global-setup.ts src/extension.ts --format esm --dts --clean",
+    "build": "tsdown src/index.ts src/global-setup.ts src/extension.ts src/in-memory.ts --format esm --dts --clean",
     "build:docs": "typedoc",
     "typecheck": "tsc --noEmit",
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@amqp-contract/contract": "workspace:*",
+    "@amqp-contract/core": "workspace:*",
     "amqplib": "catalog:",
     "testcontainers": "catalog:"
   },
@@ -65,9 +71,11 @@
     "typedoc": "catalog:",
     "typedoc-plugin-markdown": "catalog:",
     "typescript": "catalog:",
+    "unthrown": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "unthrown": "^5.0.0",
     "vitest": "^4"
   },
   "engines": {

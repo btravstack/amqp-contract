@@ -3,7 +3,16 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node"]
+    "types": ["node"],
+    // `@amqp-contract/testing` is NOT a devDependency here, and cannot be:
+    // testing depends on this package for `AmqpTransport`, so declaring the
+    // edge back would be a package cycle turbo refuses. The integration specs
+    // still need its `it` extension, so the type checker is pointed at the
+    // built declarations and vitest at the source (see `vitest.config.ts`).
+    "paths": {
+      "@amqp-contract/testing/extension": ["../testing/dist/extension.d.mts"],
+      "@amqp-contract/testing/global-setup": ["../testing/dist/global-setup.d.mts"]
+    }
   },
   "include": ["src/**/*"]
 }

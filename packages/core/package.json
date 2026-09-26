@@ -82,7 +82,6 @@
     "amqplib": "catalog:"
   },
   "devDependencies": {
-    "@amqp-contract/testing": "workspace:*",
     "@arethetypeswrong/cli": "catalog:",
     "@btravstack/tsconfig": "catalog:",
     "@btravstack/typedoc": "catalog:",

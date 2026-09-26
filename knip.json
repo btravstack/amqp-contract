@@ -5,6 +5,10 @@
     "packages/*": {
       "project": ["src/**/*.ts"]
     },
+    "packages/core": {
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@amqp-contract/testing"]
+    },
     "examples/basic-order-processing-contract": {
       "entry": ["src/index.ts", "scripts/*.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]

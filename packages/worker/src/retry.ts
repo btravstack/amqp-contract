@@ -6,18 +6,18 @@ import {
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract";
 import { _internal_queueHasDeadLetterExchange } from "@amqp-contract/contract/internal";
-import type { AmqpClient, Logger } from "@amqp-contract/core";
+import type { AmqpTransport, Logger } from "@amqp-contract/core";
 import type { ConsumeMessage } from "amqplib";
 import { OkAsync, type AsyncResult } from "unthrown";
 
 import { NonRetryableError } from "./errors.js";
 
 type RetryContext = {
-  amqpClient: AmqpClient;
+  amqpClient: AmqpTransport;
   logger?: Logger | undefined;
   /**
    * Channel epoch captured when the message was delivered
-   * ({@link AmqpClient.currentChannelEpoch}). Stamped onto every ack/nack so
+   * ({@link AmqpTransport.currentChannelEpoch}). Stamped onto every ack/nack so
    * a settle that lands after a reconnect is skipped instead of targeting a
    * foreign delivery tag on the new channel.
    */
