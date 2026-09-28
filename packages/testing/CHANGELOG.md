@@ -1,5 +1,9 @@
 # @amqp-contract/testing
 
+## 3.0.0-beta.9
+
+No changes in this release.
+
 ## 3.0.0-beta.8
 
 ### Patch Changes

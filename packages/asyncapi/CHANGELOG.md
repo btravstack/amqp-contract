@@ -1,5 +1,11 @@
 # @amqp-contract/asyncapi
 
+## 3.0.0-beta.9
+
+### Patch Changes
+
+- @amqp-contract/contract@3.0.0-beta.9
+
 ## 3.0.0-beta.8
 
 ### Major Changes

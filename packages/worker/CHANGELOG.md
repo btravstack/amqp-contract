@@ -1,5 +1,193 @@
 # @amqp-contract/worker
 
+## 3.0.0-beta.9
+
+### Major Changes
+
+- eddd1b0: One message codec, in core. JSON encoding, compression, decompression and the
+  inbound size guard now live in a single module that the client (publish and
+  RPC replies) and the worker (consume) share, instead of three copies that could
+  drift apart.
+
+  Breaking: the inbound size cap drops from 64 MiB to **16 MiB**
+  (`DEFAULT_MAX_MESSAGE_BYTES`, exported from core — RabbitMQ 4's own default
+  `max_message_size`), and it now applies to **uncompressed** bodies too, not
+  only to what a compressed body inflates to. An over-cap message is a defect and
+  follows the poison-message DLQ path. Raise it with the worker's
+  `maxMessageBytes` option if you publish larger messages (`maxDecompressedBytes`
+  still works as a deprecated alias).
+
+  RPC replies are decoded through the same codec, so a reply carrying a
+  `contentEncoding` is now decompressed rather than failing to parse.
+
+- 770811e: A broker-side publish failure is now a modeled `Err` — the new `PublishError` —
+  where it used to arrive as a `Defect` carrying a `TechnicalError`.
+
+  `AmqpClient.publish` / `sendToQueue`, `TypedAmqpClient.publish` and
+  `TypedAmqpClient.call` report `PublishError` on the `E` channel, with a
+  `reason` discriminant naming what core observed:
+
+  - `"timeout"` — the message sat buffered past `publishTimeoutMs`;
+  - `"nacked"` — the broker refused it (`basic.nack`);
+  - `"channel-closed"` — the channel closed before the message was confirmed.
+
+  A full write buffer is **not** a failure: amqp-connection-manager resolves a
+  confirm-channel publish with `false` only after the broker confirmed the
+  message, so `publish` answers `Ok` (and logs the backpressure at `debug`)
+  instead of inviting a duplicate republish. The worker acks the original after
+  a confirmed retry publish, and acks an RPC request after a confirmed reply, in
+  that case too.
+
+  A broker that is down or overloaded is an operational condition a publisher is
+  expected to handle, not a bug. Genuine bugs (an unencodable payload, a
+  rejection core cannot classify) stay on the defect channel.
+
+  Migration: every exhaustive matcher over `publish()` / `call()` errors gains a
+  case — `P.tag(PublishError.tag)` — and `.get()` on core's `AmqpClient.publish`
+  / `sendToQueue` result no longer compiles (its `E` is no longer `never`; use
+  `.getOrThrow()` or handle the error). The client's interceptor error union formerly exported as
+  `PublishError` (then just `MessageValidationError`) is renamed
+  `ClientPublishError` (`MessageValidationError | PublishError`); `CallError`
+  gains `PublishError`. `PublishError` and `PublishFailureReason` are exported
+  from core and re-exported by the client.
+
+- 0c5b3c6: RPC servers only reply to allowed addresses, and never retry a request.
+
+  - **`replyTo` allowlist.** By default the worker publishes a reply only to
+    RabbitMQ direct reply-to (`amq.rabbitmq.reply-to`, delivered as
+    `amq.rabbitmq.reply-to.<token>`) — what `client.call()` uses. A request with
+    any other `replyTo` is dead-lettered with the reason logged instead of being
+    answered, so a forged request can no longer make the worker publish into an
+    arbitrary queue through the default exchange. Allow other reply queues with
+    `TypedAmqpWorker.create({ rpc: { allowReplyTo: (replyTo) => boolean } })`.
+  - **No retry for RPC requests.** A `RetryableError` from an RPC handler now
+    dead-letters the request even when its queue has a `retry` config: the
+    caller waits on a `timeoutMs` shorter than most backoffs, so a retry re-ran
+    the handler for nobody.
+
+- afc5ddc: A client and a worker no longer share a TCP connection by default.
+
+  The process-wide connection pool is now partitioned: `TypedAmqpClient` draws
+  from a `"client"` pool and `TypedAmqpWorker` from a `"worker"` pool, so the
+  same URLs give a publisher and a consumer two connections. RabbitMQ blocks a
+  publishing connection under a memory or disk alarm; a consumer sharing it
+  would stop acking along with it. Clients still share among themselves, and
+  workers among themselves.
+
+  - `AmqpClient` gains `connectionPool` (the pool partition, default
+    `"default"`) and `connection` — an `AmqpConnectionManager` you own, which
+    the client only opens a channel on and never closes. `urls` becomes
+    optional: pass exactly one of `urls` or `connection`.
+  - `TypedAmqpClient.create` accepts `connection` too (the new
+    `ConnectionSource` type, exported from core and client). Hand the same
+    connection to a client and a worker to share one explicitly.
+
+- 55a66e3: The worker adopts the core client's options and lifecycle.
+
+  - **Role-scoped topology.** The worker declares only what its consumers need —
+    the queues it consumes (with their retry wait queues, the bindings into them
+    and the exchanges those bind to) plus their dead-letter exchanges and DLQs —
+    instead of the whole contract (core's new `workerTopology`, from
+    `@amqp-contract/core/internal`). A `topology` option takes the same
+    `TopologyMode` as the client: `"assert"` (default), `"passive"` or `"none"`.
+  - **`connection`** — pass a caller-owned `AmqpConnectionManager` instead of
+    `urls` (`ConnectionSource`, like the client). It is borrowed, never closed.
+  - **`worker.isConnected()`** for readiness probes.
+  - **`maxMessageBytes`** replaces `maxDecompressedBytes` (it caps plain bodies
+    too); the old name still works and is deprecated.
+  - **Trace context.** Handlers (and `createContext`, middleware) run with the
+    consume span active, so their own spans and any message they publish nest
+    under it.
+  - `RetryableError` / `NonRetryableError` expose a static `tag`
+    (`P.tag(RetryableError.tag)`) and a stack headed by their name and message.
+  - The worker re-exports `PublishError`, `PublishFailureReason`,
+    `TopologyMode` and `ConnectionSource`.
+
+- 2a79b8a: Every delivery now ends in one modeled outcome — acked, retried, requeued or
+  dead-lettered — settled exactly once and read by telemetry, instead of routing
+  failures through the defect channel.
+
+  - An inbound message that fails its schema is the modeled
+    `MessageValidationError` (as on the client), no longer a defect wrapping it
+    in a `TechnicalError`: the consume span records `MessageValidationError` as
+    its exception. It is still dead-lettered on first delivery, never retried.
+  - A handler failure that was routed (retried or dead-lettered) records a
+    failed consume with the handler's own error class, without a defect.
+  - Defects are reserved for genuine bugs (a handler or middleware that throws)
+    and are still dead-lettered.
+  - Retry routing logs one decision line — `Retrying message (requeue)`,
+    `Retrying message (republish)` or `Sending to DLQ: <reason>` — replacing the
+    per-mode wording.
+
+### Minor Changes
+
+- a5ab97c: Error diagnostics:
+
+  - A connect timeout's `ConnectionError` now carries the last `connectFailed`
+    error from amqp-connection-manager as its `cause` (and names it in the
+    message) — `ECONNREFUSED` or `ACCESS_REFUSED` instead of only "timed out".
+    The first failed dial is also logged at `warn`, so a wrong URL shows up
+    immediately rather than when the connect timeout expires.
+  - Every amqp-contract error class (`TechnicalError`, `ConnectionError`,
+    `MessageValidationError`, `RpcError`, `RpcTimeoutError`,
+    `RpcCancelledError`) now prints its own `Name: message` at the top of its
+    stack instead of a bare `Error`.
+  - Each of those classes exposes its `_tag` as a static, so a matcher can write
+    `P.tag(ConnectionError.tag)` instead of the raw `"@amqp-contract/…"` string.
+
+- 92a1445: Handler type errors are short. A handler is checked against a small named
+  alias over its resolved message — `ConsumerHandler<{ to: string; }, …>` or
+  `RpcHandler<TRequest, TResponse, …>` — so an async handler, a missing return
+  or a wrong payload field reports a few lines instead of the whole contract
+  type (`WorkerInferConsumerHandlerEntry<ContractOutput<{ publishers: … }>>`).
+  `ConsumerHandler`, `ConsumerHandlerEntry`, `RpcHandler` and `RpcHandlerEntry`
+  are exported for typing a handler by its payload directly.
+
+### Patch Changes
+
+- 02a37eb: The `x-last-error` header stamped on a retry copy is truncated to 1024
+  characters. A handler error carrying a stack or payload dump could exceed the
+  broker's `frame_max` — a connection error on every retry attempt, a poison
+  loop.
+- e076f98: Retry headers read from the wire are validated. A malformed `x-retry-count` /
+  `x-delivery-count` (a string, NaN, a negative, a fraction, a table) counts as 0
+  instead of bypassing the retry budget (`"abc" >= 3` is never true) or
+  computing an undeclared ttl-backoff wait-queue name — which silently lost the
+  retry copy, published via the default exchange without `mandatory`. A retry is
+  only ever published to a declared wait-queue tier; anything else is
+  dead-lettered with the reason logged. A malformed `x-first-failure-timestamp`
+  or `x-original-routing-key` is replaced instead of propagated.
+- d233062: A retry publish that times out or loses its channel (`PublishError` `timeout`
+  / `channel-closed`) now requeues the original delivery (`nack(requeue: true)`)
+  instead of flowing on as a defect that dead-lettered it — or dropped it on an
+  `onPoison: "drop"` queue. The retry headers are unchanged, so the retry budget
+  is intact. The log line is now `Publish for retry failed; requeueing the
+original for redelivery`.
+
+  A retry copy the broker **nacks** (e.g. a wait queue at `x-max-length` with
+  `x-overflow: reject-publish`) still dead-letters the original: the broker would
+  refuse every copy, and a requeued classic-queue original is never counted, so
+  requeueing would re-run the handler in an unbounded loop. The log line is
+  `Publish for retry was nacked by the broker; dead-lettering the original`.
+
+- 0d15886: The `unthrown` peer range is now `^5.3.0` on core, client and worker alike.
+  Client already required 5.3 (`fromExecutor`), and the three packages are
+  installed together, so the looser `^5.0.0` on core and worker advertised a
+  combination that could not run.
+- Updated dependencies [498daa7]
+- Updated dependencies [a5ab97c]
+- Updated dependencies [52ae0fb]
+- Updated dependencies [eddd1b0]
+- Updated dependencies [770811e]
+- Updated dependencies [132b2a1]
+- Updated dependencies [afc5ddc]
+- Updated dependencies [0874596]
+- Updated dependencies [578f958]
+- Updated dependencies [0d15886]
+- Updated dependencies [55a66e3]
+  - @amqp-contract/core@3.0.0-beta.9
+  - @amqp-contract/contract@3.0.0-beta.9
+
 ## 3.0.0-beta.8
 
 ### Patch Changes
