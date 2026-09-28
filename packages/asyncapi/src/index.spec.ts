@@ -15,12 +15,21 @@ import { experimental_ValibotToJsonSchemaConverter } from "@orpc/valibot";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { type } from "arktype";
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { AsyncAPIGenerator } from "./index.js";
 
 describe("AsyncAPIGenerator", () => {
+  // The parser's first parse loads and compiles its rulesets (module-level,
+  // cached afterwards), which takes seconds on a cold CI runner. Pay it once
+  // here with its own budget instead of inside whichever test runs first.
+  beforeAll(async () => {
+    await new Parser().parse(
+      JSON.stringify({ asyncapi: "3.0.0", info: { title: "warm-up", version: "1.0.0" } }),
+    );
+  }, 30_000);
+
   describe("with Zod schemas", () => {
     it("should generate valid AsyncAPI 3.0 document with Zod schemas", async () => {
       // GIVEN
