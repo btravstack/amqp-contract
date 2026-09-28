@@ -4,6 +4,7 @@ import { deflate, gunzip, gzip, inflate } from "node:zlib";
 import type { CompressionAlgorithm } from "@amqp-contract/contract";
 import { fromPromise, fromSafeThrowable, OkAsync, type AsyncResult } from "unthrown";
 
+import { technicalDefect } from "./defect.js";
 import { TechnicalError } from "./errors.js";
 import { safeJsonParse } from "./parsing.js";
 
@@ -90,19 +91,14 @@ export function decompressBuffer(
   options?: DecodeOptions,
 ): AsyncResult<Buffer, never> {
   const maxBytes = options?.maxBytes ?? DEFAULT_MAX_MESSAGE_BYTES;
-  const fail = (error: TechnicalError): AsyncResult<Buffer, never> =>
-    fromSafeThrowable((): Buffer => {
-      // oxlint-disable-next-line unthrown/no-throw -- deliberate defect-channel routing inside the fromSafeThrowable thunk
-      throw error;
-    })().toAsync();
 
   if (!contentEncoding) {
     return buffer.length > maxBytes
-      ? fail(
+      ? technicalDefect(
           new TechnicalError(
             `Message body of ${buffer.length} bytes exceeds the ${maxBytes}-byte limit`,
           ),
-        )
+        ).toAsync()
       : OkAsync(buffer);
   }
 
@@ -111,13 +107,13 @@ export function decompressBuffer(
     ? CODECS[encoding as CompressionAlgorithm]
     : undefined;
   if (!codec) {
-    return fail(
+    return technicalDefect(
       new TechnicalError(
         `Unsupported content-encoding: "${contentEncoding}". ` +
           `Supported encodings are: ${Object.keys(CODECS).join(", ")}. ` +
           `Please check your publisher configuration.`,
       ),
-    );
+    ).toAsync();
   }
 
   // zlib enforces the cap while inflating, so a bomb never materialises.
