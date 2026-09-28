@@ -71,4 +71,30 @@ describe("AmqpClient connect diagnostics", () => {
     await client.close();
     expect(connection().listenerCount("connectFailed")).toBe(0);
   });
+
+  it("forgets a failure once a connect succeeds: a later outage warns again and never reports the stale cause", async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const client = new AmqpClient(contract, {
+      urls: ["amqp://localhost"],
+      connectTimeoutMs: 20,
+      logger,
+    });
+    const stale = new Error("connect ECONNREFUSED (yesterday)");
+    connection().emit("connectFailed", { err: stale, url: "amqp://x" });
+    connection().emit("connect", { url: "amqp://x" });
+
+    // A later wait that times out without any new dial failure.
+    const result = await client.waitForConnect();
+    connection().emit("connectFailed", { err: new Error("second outage"), url: "amqp://x" });
+
+    expect(result).toBeErrWith(expect.objectContaining({ constructor: ConnectionError }));
+    if (result.isErr()) expect(result.error.cause).not.toBe(stale);
+    expect(logger.warn.mock.calls.map((call) => (call[1] as { error: string }).error)).toEqual([
+      stale.message,
+      "second outage",
+    ]);
+
+    await client.close();
+    expect(connection().listenerCount("connect")).toBe(0);
+  });
 });

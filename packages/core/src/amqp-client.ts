@@ -355,12 +355,17 @@ export class AmqpClient {
   private hasConnected = false;
 
   /**
-   * The most recent `connectFailed` error from amqp-connection-manager. A
-   * connect timeout reports THIS as its cause — "ECONNREFUSED" or "403
-   * ACCESS_REFUSED" is the diagnosis, "timed out" is only the symptom.
+   * The most recent `connectFailed` error from amqp-connection-manager since
+   * the last successful connect (cleared by it, so a later outage warns
+   * again and never reports a stale cause). A connect timeout reports THIS as
+   * its cause — "ECONNREFUSED" or "403 ACCESS_REFUSED" is the diagnosis,
+   * "timed out" is only the symptom.
    */
   private lastConnectError: unknown = undefined;
   private readonly onConnectFailed: (event: { err: Error }) => void;
+  private readonly onConnect = (): void => {
+    this.lastConnectError = undefined;
+  };
 
   /**
    * Create a new AMQP client instance.
@@ -469,6 +474,7 @@ export class AmqpClient {
       this.lastConnectError = err;
     };
     this.connection.on("connectFailed", this.onConnectFailed);
+    this.connection.on("connect", this.onConnect);
 
     this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
       // Before the first 'connect', the only thing that has run is `setup` —
@@ -862,6 +868,7 @@ export class AmqpClient {
 
     // The connection may be pooled and outlive this client.
     this.connection.removeListener("connectFailed", this.onConnectFailed);
+    this.connection.removeListener("connect", this.onConnect);
 
     const inner = (async () => {
       const channelResult = await fromPromise(
