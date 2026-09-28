@@ -690,8 +690,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
       const publishOptions: AmqpPublishOptions = {
         ...defaultsWithoutCompression,
         // A request nobody consumed before the caller gave up is dead weight:
-        // let the broker drop it rather than have a worker answer a caller
-        // that is gone. Per-call `publishOptions.expiration` still wins.
+        // let it expire rather than have a worker answer a caller that is
+        // gone. The broker dead-letters it (x-death reason `expired`) — every
+        // consumed queue has a DLX unless it is `onPoison: "drop"`. Per-call
+        // `publishOptions.expiration` still wins.
         // AMQP wants an integer string: a fractional one gets the channel
         // closed with 406. Rounded up so the request never expires before
         // the caller gives up.
