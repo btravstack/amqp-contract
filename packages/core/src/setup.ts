@@ -47,11 +47,18 @@ function routeClosure(
   return reached;
 }
 
+/** A queue's dead-letter exchange, from its `deadLetter` or its raw arguments. */
+function deadLetterExchangeOf(queue: QueueDefinition): string[] {
+  const dlx = queue.deadLetter?.exchange.name ?? queue.arguments?.["x-dead-letter-exchange"];
+  return typeof dlx === "string" && dlx !== "" ? [dlx] : [];
+}
+
 /**
  * A queue as a role that does not CONSUME it declares it: the same broker-side
  * arguments (a mismatch would be refused), but its dead-lettering inlined as
- * raw arguments — the DLX need not exist for the queue to retain messages —
- * and no retry config, so none of the consumer's wait queues are derived.
+ * raw arguments — so setup does not demand its DLX in the slice (a slice
+ * declares retained queues' DLXs one level deep, not a DLQ's own DLX) — and no
+ * retry config, so none of the consumer's wait queues are derived.
  */
 function retainOnly(queue: QueueDefinition): QueueDefinition {
   const { deadLetter, ...rest } = queue;
@@ -94,22 +101,36 @@ function sliceContract(
  * the queues closes the start-up window in which a message published before
  * the worker declared its queue would be confirmed and silently dropped.
  *
- * Those queues are declared with the worker's exact arguments but without its
- * consumer-side infrastructure: no retry wait queues, and the dead-letter
- * exchange is referenced, not declared. Unrelated queues are never touched,
- * nor exclusive ones (declaring one would lock its consumer out).
+ * Those queues are declared with the worker's exact arguments, and so is their
+ * dead-lettering: each one's DLX, whatever that routes to (the DLQs) and those
+ * bindings — a message the broker dead-letters before any worker starts (a
+ * `x-message-ttl` expiry, an `x-max-length` overflow, an expired RPC request)
+ * would otherwise go to a missing exchange and be discarded. None of the
+ * consumer's retry wait queues are declared. Unrelated queues are never
+ * touched, nor exclusive ones (declaring one would lock its consumer out).
  */
 export function publisherTopology(contract: ContractDefinition): ContractDefinition {
+  const queues = Object.values(contract.queues ?? {});
+  // An exclusive queue belongs to the connection that declares it: declared
+  // here, it would lock the worker out of its own queue.
+  const exclusive = new Set(
+    queues.filter((queue) => queue.type === "classic" && queue.exclusive).map((q) => q.name),
+  );
   const keep = routeClosure(
     contract,
     Object.values(contract.publishers ?? {}).map((p) => p.exchange.name),
   );
   for (const rpc of Object.values(contract.rpcs ?? {})) keep.queues.add(rpc.queue.name);
-  // An exclusive queue belongs to the connection that declares it: declared
-  // here, it would lock the worker out of its own queue.
-  for (const queue of Object.values(contract.queues ?? {})) {
-    if (queue.type === "classic" && queue.exclusive) keep.queues.delete(queue.name);
+  const deadLetters = routeClosure(
+    contract,
+    queues
+      .filter((queue) => keep.queues.has(queue.name) && !exclusive.has(queue.name))
+      .flatMap(deadLetterExchangeOf),
+  );
+  for (const kind of ["exchanges", "queues", "bindings"] as const) {
+    for (const name of deadLetters[kind]) keep[kind].add(name);
   }
+  for (const name of exclusive) keep.queues.delete(name);
   for (const [key, binding] of Object.entries(contract.bindings ?? {})) {
     if (binding.type === "queue" && !keep.queues.has(binding.queue.name)) keep.bindings.delete(key);
   }
@@ -130,11 +151,7 @@ export function workerTopology(contract: ContractDefinition): ContractDefinition
     ...Object.values(contract.consumers ?? {}).map((entry) => extractConsumer(entry).queue),
     ...Object.values(contract.rpcs ?? {}).map((rpc) => rpc.queue),
   ]);
-  const deadLetterExchanges = [...consumed].flatMap((queue) => {
-    const dlx = queue.deadLetter?.exchange.name ?? queue.arguments?.["x-dead-letter-exchange"];
-    return typeof dlx === "string" && dlx !== "" ? [dlx] : [];
-  });
-  const keep = routeClosure(contract, deadLetterExchanges);
+  const keep = routeClosure(contract, [...consumed].flatMap(deadLetterExchangeOf));
   const consumedNames = new Set([...consumed].map((queue) => queue.name));
   for (const name of consumedNames) keep.queues.add(name);
   for (const [key, binding] of Object.entries(contract.bindings ?? {})) {

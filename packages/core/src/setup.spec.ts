@@ -109,7 +109,7 @@ describe("setupAmqpTopology modes", () => {
 });
 
 describe("publisherTopology", () => {
-  it("INVARIANT: declares every queue a publish can reach (no start-up loss window) — without the consumer's DLX, wait queues or unrelated queues", async () => {
+  it("INVARIANT: declares every queue a publish can reach (no start-up loss window) and its dead-letter path — without the consumer's wait queues or unrelated queues", async () => {
     const channel = fakeChannel();
 
     await setupAmqpTopology(channel as unknown as Channel, publisherTopology(contract));
@@ -117,11 +117,14 @@ describe("publisherTopology", () => {
     expect([
       calledNames(channel.assertExchange),
       channel.assertQueue.mock.calls,
-      channel.bindQueue.mock.calls.map((call) => [call[0], call[1]]),
+      channel.bindQueue.mock.calls.map((call) => [call[0], call[1]]).sort(),
       channel.bindExchange.mock.calls.map((call) => [call[0], call[1]]),
     ]).toEqual([
-      ["audit", "orders"],
+      // The DLX too: a message dead-lettered before any worker starts (a TTL
+      // expiry, an overflow) must not go to a missing exchange.
+      ["audit", "orders", "orders-dlx"],
       [
+        ["orders-dlq", { durable: true, arguments: { "x-queue-type": "quorum" } }],
         [
           "order-processing",
           {
@@ -131,9 +134,27 @@ describe("publisherTopology", () => {
           },
         ],
       ],
-      [["order-processing", "orders"]],
+      [
+        ["order-processing", "orders"],
+        ["orders-dlq", "orders-dlx"],
+      ],
       [["audit", "orders"]],
     ]);
+  });
+
+  it("declares the dead-letter path exactly as the worker does, so neither role hits PRECONDITION_FAILED", async () => {
+    const client = fakeChannel();
+    const worker = fakeChannel();
+
+    await setupAmqpTopology(client as unknown as Channel, publisherTopology(contract));
+    await setupAmqpTopology(worker as unknown as Channel, workerTopology(contract));
+
+    const declared = (channel: ReturnType<typeof fakeChannel>, name: string) => [
+      channel.assertExchange.mock.calls.find((call) => call[0] === "orders-dlx"),
+      channel.assertQueue.mock.calls.find((call) => call[0] === name),
+    ];
+    expect(declared(client, "orders-dlq")).toEqual(declared(worker, "orders-dlq"));
+    expect(declared(client, "order-processing")).toEqual(declared(worker, "order-processing"));
   });
 
   it("never declares an exclusive queue (it would lock the consumer out)", async () => {

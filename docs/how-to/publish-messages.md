@@ -42,7 +42,7 @@ Pass several URLs for failover — the client tries them in order:
 urls: ["amqp://primary:5672", "amqp://secondary:5672"];
 ```
 
-The client declares what its publishes need to be routed and retained: its publishers' exchanges, the queues they route to (with their bindings) and the RPC request queues — so a message published before the worker starts waits in its queue. It leaves the consumer's own infrastructure (dead-letter exchanges, retry wait queues) to the worker. Set `topology: "passive"` to only check that they exist (for credentials that may not configure the broker), or `topology: "none"` when topology is provisioned elsewhere.
+The client declares what its publishes need to be routed and retained: its publishers' exchanges, the queues they route to (with their bindings) and the RPC request queues — so a message published before the worker starts waits in its queue. It declares their dead-letter exchanges and DLQs too, so a message that expires or overflows before any worker runs is dead-lettered rather than discarded, and leaves the retry wait queues to the worker. Set `topology: "passive"` to only check that they exist (for credentials that may not configure the broker), or `topology: "none"` when topology is provisioned elsewhere.
 
 For a readiness probe, `client.isConnected()` reports whether the broker connection is up; it reads `false` while the client is reconnecting.
 

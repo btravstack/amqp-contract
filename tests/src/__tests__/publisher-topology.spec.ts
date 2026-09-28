@@ -49,12 +49,14 @@ describe("publisher topology", () => {
     await client.publish("created", { id: "early" }).getOrThrow();
     await client.close().get();
 
-    // The client declared the consumer's queue, and nothing of the consumer's
-    // own infrastructure (DLX, DLQ, retry wait queues).
+    // The client declared the consumer's queue and its dead-letter path, but
+    // none of the consumer's retry wait queues.
     expect((await amqpChannel.checkQueue("order-processing")).messageCount).toBe(1);
+    await amqpChannel.checkExchange("orders-dlx");
+    await amqpChannel.checkQueue("orders-dlq");
     const probe = await amqpConnection.createChannel();
     probe.on("error", () => {});
-    await expect(probe.checkExchange("orders-dlx")).rejects.toThrow(/NOT_FOUND/);
+    await expect(probe.checkQueue("order-processing-wait-1000ms")).rejects.toThrow(/NOT_FOUND/);
 
     // WHEN the worker starts, THEN it receives the early message.
     const received: string[] = [];
@@ -126,5 +128,55 @@ describe("publisher topology", () => {
     } finally {
       await worker.close().get();
     }
+  });
+
+  it("INVARIANT: a message the broker dead-letters before any worker exists reaches the DLQ, not a missing exchange", async ({
+    amqpConnectionUrl,
+    amqpConnection,
+    amqpChannel,
+  }) => {
+    // A queue-level TTL expires the message long before a worker starts; the
+    // broker dead-letters it to the queue's DLX — which only the worker used
+    // to declare, so the expired message was discarded.
+    const orders = defineExchange("ttl-orders");
+    const dlx = defineExchange("ttl-orders-dlx");
+    const dlq = defineQueue("ttl-orders-dlq");
+    const processing = defineQueue("ttl-order-processing", {
+      deadLetter: { exchange: dlx },
+      arguments: { "x-message-ttl": 50 },
+    });
+    const created = defineEventPublisher(orders, defineMessage(z.object({ id: z.string() })), {
+      routingKey: "order.created",
+    });
+    const contract = defineContract({
+      publishers: { created },
+      consumers: { process: defineEventConsumer(created, processing) },
+      queues: { dlq },
+      bindings: { dlqBinding: defineQueueBinding(dlq, dlx, { routingKey: "#" }) },
+    });
+
+    // GIVEN only a client, WHEN its message expires unconsumed,
+    const client = await TypedAmqpClient.create({
+      contract,
+      urls: [amqpConnectionUrl],
+    }).getOrThrow();
+    await client.publish("created", { id: "early" }).getOrThrow();
+    await client.close().get();
+
+    // THEN the broker dead-letters it into the DLQ, with reason "expired".
+    // (A throwaway channel per probe: a missing DLQ answers 404, which closes
+    // the channel it was asked on.)
+    const dlqDepth = async () => {
+      const probe = await amqpConnection.createChannel();
+      probe.on("error", () => {});
+      const { messageCount } = await probe.checkQueue("ttl-orders-dlq");
+      await probe.close();
+      return messageCount;
+    };
+    await vi.waitFor(async () => expect(await dlqDepth()).toBe(1), { timeout: 5_000 });
+    const deadLetter = await amqpChannel.get("ttl-orders-dlq", { noAck: true });
+    expect(deadLetter && deadLetter.properties.headers?.["x-death"]).toEqual([
+      expect.objectContaining({ reason: "expired", queue: "ttl-order-processing" }),
+    ]);
   });
 });
