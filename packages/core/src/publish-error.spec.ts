@@ -111,6 +111,30 @@ describe("AmqpClient publish failures", () => {
     void client.close();
   });
 
+  it.for([1500.5, "1500.5", -1, "soon"])(
+    "refuses a non-integer expiration (%s) before it reaches the broker, which would close the channel",
+    async (expiration) => {
+      const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
+
+      const result = await client.publish(target, { id: "1" }, { expiration });
+
+      expect([result.isDefect(), wrapper().publish.mock.calls.length]).toEqual([true, 0]);
+      expect(result).toBeDefectWith(expect.objectContaining({ constructor: TechnicalError }));
+
+      void client.close();
+    },
+  );
+
+  it("passes an integer expiration through", async () => {
+    wrapper().publish.mockResolvedValue(true);
+    const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });
+
+    expect(await client.publish(target, { id: "1" }, { expiration: 1500 })).toBeOkWith(undefined);
+    expect(await client.publish(target, { id: "1" }, { expiration: "0" })).toBeOkWith(undefined);
+
+    void client.close();
+  });
+
   it("INVARIANT: sendToQueue treats a confirmed send with a full write buffer as Ok", async () => {
     wrapper().sendToQueue.mockResolvedValue(false);
     const client = new AmqpClient(contract, { urls: ["amqp://localhost"] });

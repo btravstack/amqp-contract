@@ -229,6 +229,22 @@ describe("RPC request publish failures", () => {
     await pending;
   });
 
+  it("rounds a fractional timeoutMs up to an integer expiration (the broker closes the channel over a fractional one)", async () => {
+    const client = await TypedAmqpClient.create({
+      contract: makeContract(z.object({ sum: z.number() })),
+      urls: ["amqp://localhost"],
+    }).getOrThrow();
+
+    const pending = client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 1_500.5 });
+    await vi.waitFor(() => expect(wrapper().publish).toHaveBeenCalledTimes(1));
+
+    const options = (wrapper().publish.mock.calls[0] as unknown[])[3];
+    expect(options).toMatchObject({ expiration: "1501" });
+
+    await client.close().get();
+    await pending;
+  });
+
   it("records the round trip on the RPC histogram, not the publish histogram", async () => {
     const publishHistogram = { record: vi.fn() };
     const rpcHistogram = { record: vi.fn() };

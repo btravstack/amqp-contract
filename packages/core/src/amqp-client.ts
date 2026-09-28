@@ -637,6 +637,17 @@ export class AmqpClient {
     options: AmqpPublishOptions | undefined,
     write: (encoded: Buffer, options: AmqpPublishOptions | undefined) => Promise<boolean>,
   ): AsyncResult<void, PublishError> {
+    // The broker closes the channel (406) over an `expiration` that is not an
+    // integer string, and amqp-connection-manager only reopens a channel on
+    // reconnect — one bad value would leave this client unable to publish.
+    const expiration = options?.expiration;
+    if (expiration !== undefined && !/^\d+$/.test(String(expiration))) {
+      return technicalDefect(
+        new TechnicalError(
+          `Invalid expiration for a publish to ${description}: expected a non-negative integer number of milliseconds, got ${String(expiration)}`,
+        ),
+      ).toAsync();
+    }
     const headers = injectTraceContext(options?.headers);
     const traced = headers === options?.headers ? options : { ...options, headers };
     return fromSafeThrowable(() => encodeBody(content))()
