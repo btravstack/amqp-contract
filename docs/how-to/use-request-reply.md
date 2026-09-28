@@ -84,7 +84,9 @@ result.match({
 
 Always set `timeoutMs`. A call with no reply is otherwise bounded only by the server-side default, and a caller holding a request open is holding memory.
 
-The request is published with `expiration` set to `timeoutMs`, so a request no worker picked up before the caller gave up is dropped by the broker rather than answered for nobody. Pass `publishOptions: { expiration }` to override it.
+The request is published with `expiration` set to `timeoutMs` (rounded up to whole milliseconds), so a request no worker picked up before the caller gave up is never answered for nobody: the broker expires it out of the RPC queue. Every consumed queue has a dead-letter exchange (unless it is `onPoison: "drop"`, where the request is discarded), so an expired request lands in the dead-letter queue with an `x-death` reason of `expired`. Pass `publishOptions: { expiration }` to override it.
+
+Do not replay those dead letters. The caller already got `RpcTimeoutError` and its reply consumer is gone, so a replayed request runs the handler — side effects included — for nobody. A dead-letter consumer or replay tool that shares the DLQ with other messages should skip requests whose `x-death` reason is `expired` (or that carry a `replyTo`); see [replay a dead-lettered message](/how-to/route-dead-letters#replay-a-dead-lettered-message).
 
 The round trip is recorded on its own histogram, `amqp.client.rpc.duration` — not on the publish histogram — so a slow handler does not read as a slow broker.
 
@@ -141,7 +143,7 @@ A declared error is a _business outcome_, not a processing failure: the worker v
 await client.call("calculate", { a: 1, b: 2 }, { timeoutMs: 30_000 });
 ```
 
-Size it to the work, not to a house default. When it expires the pending call is cleared and you get `RpcTimeoutError` — but note the request may still be processed by the server: the request's `expiration` only drops it if it is still _queued_. A timeout tells you no reply arrived, not that nothing happened.
+Size it to the work, not to a house default. When it expires the pending call is cleared and you get `RpcTimeoutError` — but note the request may still be processed by the server: the request's `expiration` only dead-letters it if it is still _queued_. A timeout tells you no reply arrived, not that nothing happened.
 
 ## Retry a timed-out call
 

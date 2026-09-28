@@ -210,6 +210,8 @@ handleFailedOrders: ({ input: { payload } }) =>
 
 Do this deliberately, not automatically. A replay loop that re-dead-letters is an infinite loop with extra steps — gate it on a fix having shipped, or on an attempt counter you control.
 
+Never replay an RPC request. `client.call()` publishes it with `expiration = timeoutMs`, so one no worker picked up in time is dead-lettered with an `x-death` reason of `expired` — and by then the caller has its `RpcTimeoutError` and no reply consumer. A replayed request would run the handler for nobody. Filter them out of any replay by the `x-death` reason `expired` or by a `replyTo` on the message ([use request/reply](/how-to/use-request-reply#call-it)).
+
 ## Find out why a message died
 
 What you get depends on how it arrived, and this catches people out.

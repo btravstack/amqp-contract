@@ -500,7 +500,7 @@ The client's interceptor error union exported as `PublishError` (a type alias, `
 
 ### RPC requests expire, and are metered on their own
 
-`client.call(...)` publishes its request with `expiration` set to the call's `timeoutMs`, so a request no worker picked up before the caller gave up is dropped by the broker instead of being answered for nobody. A `publishOptions.expiration` you pass still wins.
+`client.call(...)` publishes its request with `expiration` set to the call's `timeoutMs`, so a request no worker picked up before the caller gave up is dead-lettered by the broker (an `x-death` reason of `expired`) instead of being answered for nobody — do not replay those. A `publishOptions.expiration` you pass still wins.
 
 The round trip is recorded on its own histogram, **`amqp.client.rpc.duration`**, instead of `amqp.client.publish.duration`, and RPC calls no longer increment `amqp.client.messages.published` — a slow handler no longer reads as a slow broker. Move RPC latency dashboards and alerts to the new metric. A custom `TelemetryProvider` records it by implementing the optional `getRpcCallLatencyHistogram`.
 

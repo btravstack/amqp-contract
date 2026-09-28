@@ -265,7 +265,7 @@ Success replies are unchanged. An error reply is marked by the `x-amqp-contract-
 
 ### `RpcTimeoutError`
 
-No reply within `timeoutMs` (or the server-side default). The pending call is cleared. Also what you observe when a reply was dropped for failing its schema. The request itself was published with `expiration = timeoutMs`, so if no worker picked it up in time the broker drops it rather than letting it be answered for nobody.
+No reply within `timeoutMs` (or the server-side default). The pending call is cleared. Also what you observe when a reply was dropped for failing its schema. The request itself was published with `expiration = timeoutMs`, so if no worker picked it up in time the broker dead-letters it (an `x-death` reason of `expired`; discarded on an `onPoison: "drop"` queue) rather than letting it be answered for nobody. Do not replay such a dead letter: the caller is gone.
 
 ### `RpcCancelledError`
 

@@ -127,7 +127,7 @@ export function decideRetry(
  * An RPC request is never retried, whatever its queue's retry config: the
  * caller is waiting on a `timeoutMs` shorter than most backoffs, so a retry
  * would re-run the handler for nobody (and the request's own `expiration`
- * would drop the copy anyway). A failed RPC request is dead-lettered.
+ * would dead-letter the copy anyway). A failed RPC request is dead-lettered.
  */
 export function handleError(
   ctx: RetryContext,

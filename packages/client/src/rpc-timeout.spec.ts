@@ -213,7 +213,7 @@ describe("RPC request publish failures", () => {
     await client.close().get();
   });
 
-  it("INVARIANT: the request expires at the caller's timeoutMs, so an unconsumed request is dropped by the broker", async () => {
+  it("INVARIANT: the request expires at the caller's timeoutMs, so an unconsumed request is dead-lettered by the broker, never answered for nobody", async () => {
     const client = await TypedAmqpClient.create({
       contract: makeContract(z.object({ sum: z.number() })),
       urls: ["amqp://localhost"],

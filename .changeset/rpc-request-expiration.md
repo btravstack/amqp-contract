@@ -5,7 +5,10 @@
 
 `client.call()` publishes its request with `expiration` set to the call's
 `timeoutMs`, so a request no worker consumed before the caller gave up is
-dropped by the broker instead of being answered for nobody. A per-call
+expired by the broker instead of being answered for nobody. It is
+dead-lettered to the RPC queue's dead-letter exchange with an `x-death` reason
+of `expired` (discarded only on an `onPoison: "drop"` queue); don't replay
+those dead letters — the caller is gone. A per-call
 `publishOptions.expiration` still wins. A fractional `timeoutMs` is rounded up,
 since AMQP only accepts an integer `expiration`.
 
