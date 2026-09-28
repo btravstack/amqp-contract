@@ -87,8 +87,11 @@ export class ConnectionError extends TaggedError("@amqp-contract/ConnectionError
  * Why the broker side of a publish failed — each one something core can
  * actually observe on amqp-connection-manager's confirm channel:
  *
- * - `"timeout"` — the message sat buffered past `publishTimeoutMs` (the broker
- *   was unreachable for that long).
+ * - `"timeout"` — no confirm arrived within `publishTimeoutMs`. **Ambiguous**:
+ *   the message may have been written and be confirmed late, so republishing
+ *   it can produce a duplicate. The worker's retry path accepts that
+ *   (at-least-once): it requeues the original, and if the late copy did land
+ *   in the wait queue, the handler runs twice.
  * - `"nacked"` — the broker refused the message (`basic.nack`).
  * - `"channel-closed"` — the channel closed before the message was confirmed.
  */

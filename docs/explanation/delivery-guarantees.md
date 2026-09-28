@@ -36,6 +36,8 @@ So a publish error is not proof of non-delivery, and the natural response — se
 
 A connection drop mid-confirm does not quietly dodge this either: when the channel under a pending publish closes, amqplib rejects every unconfirmed publish on that channel immediately, and the client surfaces that rejection as `PublishError` with `reason: "channel-closed"`, not a silent retry. Nothing here republishes the message on your behalf. If a duplicate happens, it is because you saw that failure and sent the message again — which is exactly why the ambiguity above is the one to design around.
 
+The worker lives with the same ambiguity on its retry path, and resolves it toward at-least-once. When a retry copy's publish times out, the worker cannot tell whether the copy reached the wait queue, so it requeues the original rather than risk losing both. If the copy did land, two deliveries of the message are now in flight — the requeued original and, once its delay expires, the copy — and the handler runs for each.
+
 Nothing closes this gap within core AMQP 0-9-1: an acknowledgement can always be lost after the work it acknowledges is done, and no message in the protocol lets the broker recognise a repeat on its own. Deduplication does exist outside core AMQP — RabbitMQ's `rabbitmq-message-deduplication` plugin keys off a header you supply, RabbitMQ Streams do it natively, Kafka ships an idempotent producer — but amqp-contract ships none of it.
 
 Two honest responses:

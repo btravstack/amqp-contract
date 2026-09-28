@@ -133,11 +133,13 @@ Validated: publisher payloads, consumer payloads, consumer headers, RPC requests
 
 The broker side of a publish failed. Returned as a modeled `Err` from `publish()` and `call()` (and from core's `AmqpClient.publish` / `sendToQueue`), with a `reason`:
 
-| `reason`           | What core observed                                                             |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `"timeout"`        | The message sat buffered past `publishTimeoutMs` — the broker was unreachable. |
-| `"nacked"`         | The broker refused the message (`basic.nack`).                                 |
-| `"channel-closed"` | The channel closed before the message was confirmed.                           |
+| `reason`           | What core observed                                                           |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `"timeout"`        | No confirm within `publishTimeoutMs`. Ambiguous: the message may still land. |
+| `"nacked"`         | The broker refused the message (`basic.nack`).                               |
+| `"channel-closed"` | The channel closed before the message was confirmed.                         |
+
+A `"timeout"` does not mean the broker lacks the message: it may have been written and confirmed after the client stopped waiting, so republishing it can deliver it twice. The worker's retry path accepts this rather than lose a message — it requeues the original after a timed-out retry publish, and if the copy did reach the wait queue, the handler runs twice. Handlers must be idempotent ([delivery guarantees](/explanation/delivery-guarantees#a-failed-publish-is-ambiguous)). `"nacked"` is the only definitive refusal.
 
 A full write buffer is **not** one of them: on the confirm channel it is only reported after the broker confirmed the message, so the publish answers `Ok` (logged at `debug`) rather than invite a duplicate republish.
 
