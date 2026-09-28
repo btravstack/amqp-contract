@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 /**
  * What a user reads when a handler is wrong. The handler type is a small
@@ -12,10 +12,14 @@ import { describe, expect, it } from "vitest";
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const fixture = join(here, "__handler-diagnostics-fixture__.ts");
 
-function diagnose(handlers: string): string[] {
-  const source = `
+const CASES = [
+  ["an async handler", "sendEmail: async () => OkAsync(undefined)"],
+  ["a handler returning void", "sendEmail: () => {}"],
+  ["a handler reading a missing field", "sendEmail: ({ input }) => OkAsync(input.payload.from)"],
+] as const;
+
+const fixtureSource = (handlers: string): string => `
 import { defineConsumer, defineContract, defineMessage, defineQueue } from "@amqp-contract/contract";
 import { TypedAmqpWorker } from "./index.js";
 import { OkAsync } from "unthrown";
@@ -33,6 +37,19 @@ const contract = defineContract({
 TypedAmqpWorker.create({ contract, urls: [], handlers: { ${handlers} } });
 void OkAsync;
 `;
+
+/**
+ * Every case compiled as its own virtual file in ONE program, so the
+ * TypeScript lib and dependency types load once (seconds on a cold CI runner)
+ * instead of once per case.
+ */
+function diagnoseAll(): Map<string, string[]> {
+  const fixtures = new Map(
+    CASES.map(([name, handlers], i) => [
+      join(here, `__handler-diagnostics-fixture-${i}__.ts`),
+      { name, source: fixtureSource(handlers) },
+    ]),
+  );
   const config = ts.getParsedCommandLineOfConfigFile(
     join(here, "..", "tsconfig.json"),
     {},
@@ -40,23 +57,32 @@ void OkAsync;
   )!;
   const host = ts.createCompilerHost(config.options);
   const getSourceFile = host.getSourceFile.bind(host);
-  host.getSourceFile = (fileName, language) =>
-    fileName === fixture
-      ? ts.createSourceFile(fileName, source, language)
+  host.getSourceFile = (fileName, language) => {
+    const fixture = fixtures.get(fileName);
+    return fixture
+      ? ts.createSourceFile(fileName, fixture.source, language)
       : getSourceFile(fileName, language);
-  const program = ts.createProgram([fixture], { ...config.options, noEmit: true }, host);
-  return ts
-    .getPreEmitDiagnostics(program, program.getSourceFile(fixture))
-    .map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+  };
+  const program = ts.createProgram([...fixtures.keys()], { ...config.options, noEmit: true }, host);
+  return new Map(
+    [...fixtures].map(([fileName, { name }]) => [
+      name,
+      ts
+        .getPreEmitDiagnostics(program, program.getSourceFile(fileName))
+        .map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")),
+    ]),
+  );
 }
 
 describe("handler type errors are readable", () => {
-  it.for([
-    ["an async handler", "sendEmail: async () => OkAsync(undefined)"],
-    ["a handler returning void", "sendEmail: () => {}"],
-    ["a handler reading a missing field", "sendEmail: ({ input }) => OkAsync(input.payload.from)"],
-  ] as const)("%s: the error names the resolved message, not the contract", ([, handlers]) => {
-    const errors = diagnose(handlers);
+  let diagnostics: Map<string, string[]>;
+
+  beforeAll(() => {
+    diagnostics = diagnoseAll();
+  }, 60_000);
+
+  it.for(CASES)("%s: the error names the resolved message, not the contract", ([name]) => {
+    const errors = diagnostics.get(name) ?? [];
 
     expect(errors.length).toBeGreaterThan(0);
     for (const error of errors) {
