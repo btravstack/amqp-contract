@@ -22,7 +22,7 @@ A message can arrive a second time with no retry configuration at all.
 Two more appear once you do configure retries:
 
 - **`immediate-requeue`** returns the message to its own queue for another attempt.
-- **`ttl-backoff`** republishes it through a wait queue. If that republish fails (`PublishError`), the worker requeues the original with its retry headers unchanged rather than dead-letter it — and a timed-out copy may still have reached the broker, so both can arrive.
+- **`ttl-backoff`** republishes it through a wait queue. If that republish times out or loses its channel (`PublishError`), the worker requeues the original with its retry headers unchanged rather than dead-letter it — and a timed-out copy may still have reached the broker, so both can arrive. (A copy the broker nacks dead-letters the original instead: the broker would refuse every copy.)
 
 The first three are properties of running a consumer against a broker, and you did not choose them. Two of the three you cannot switch off. The third you can: pass `drainTimeoutMs: null` to `worker.close()` and it waits for every in-flight handler instead of cutting them off at a deadline ([consume messages](/how-to/consume-messages#shut-down-without-dropping-messages)). The last two are choices. All five produce the same thing at your handler: a message it has seen before.
 

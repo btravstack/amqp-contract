@@ -172,7 +172,7 @@ describe("dispatch outcomes", () => {
 
   // "channel closed" (lowercase) is amqplib's rejection on a real channel or
   // connection drop — the common case, and the one a case-sensitive match missed.
-  it.for(["timeout", "message nacked", "Channel closed", "channel closed"])(
+  it.for(["timeout", "Channel closed", "channel closed"])(
     "INVARIANT: a retry publish that fails with '%s' requeues the original (nack requeue=true), never dead-letters it",
     async (rejection) => {
       wrapper().publish.mockRejectedValue(new Error(rejection));
@@ -185,6 +185,17 @@ describe("dispatch outcomes", () => {
       expect(wrapper().ack).not.toHaveBeenCalled();
     },
   );
+
+  it("INVARIANT: a retry publish the broker nacks dead-letters the original (nack requeue=false), never requeues it into a loop", async () => {
+    // e.g. the wait queue at x-max-length with x-overflow: reject-publish. The
+    // broker would refuse every copy, and a requeued classic-queue original
+    // comes back with the same retry count — an unbounded handler loop.
+    wrapper().publish.mockRejectedValue(new Error("message nacked"));
+
+    await deliverFailingMessage();
+
+    expect(settles()).toEqual([0, [[false, false]]]);
+  });
 
   it("INVARIANT: the original is acked only AFTER the retry copy's publish is confirmed", async () => {
     const order: string[] = [];

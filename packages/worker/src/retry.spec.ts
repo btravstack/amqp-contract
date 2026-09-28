@@ -209,18 +209,26 @@ describe("publishForRetry", () => {
     ]);
   });
 
-  it("answers `requeued` when the retry publish fails with a PublishError", async () => {
-    const { client } = createMockClient(() =>
-      ErrAsync(new PublishError({ reason: "timeout", target: 'queue "test-queue"' })),
-    );
+  it.for([
+    { reason: "timeout", kind: "requeued" },
+    { reason: "channel-closed", kind: "requeued" },
+    // The broker definitively refused the copy; requeueing would loop.
+    { reason: "nacked", kind: "dead-lettered" },
+  ] as const)(
+    "answers `$kind` when the retry publish fails with PublishError $reason",
+    async ({ reason, kind }) => {
+      const { client } = createMockClient(() =>
+        ErrAsync(new PublishError({ reason, target: 'queue "test-queue"' })),
+      );
 
-    const result = await publishForRetry(
-      { amqpClient: client as unknown as AmqpClient },
-      { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
-    );
+      const result = await publishForRetry(
+        { amqpClient: client as unknown as AmqpClient },
+        { msg: createMockConsumeMessage(), ...target, error: new Error("boom") },
+      );
 
-    expect(result).toBeOkWith(expect.objectContaining({ kind: "requeued" }));
-  });
+      expect(result).toBeOkWith(expect.objectContaining({ kind }));
+    },
+  );
 
   it("keeps an unclassifiable publish failure on the defect channel", async () => {
     const { client } = createMockClient(() =>
