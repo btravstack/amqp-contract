@@ -13,9 +13,11 @@ import type { ConsumeMessage } from "amqplib";
  *   typed error — was published).
  * - `retried` — a retry copy was published and confirmed; the original is acked.
  * - `requeued` — `nack(requeue: true)`: a quorum queue's native retry, or a
- *   retry publish the broker refused (the original comes back, budget intact).
+ *   retry publish that timed out or lost its channel (the original comes back,
+ *   budget intact).
  * - `dead-lettered` — `nack(requeue: false)`: the queue's DLX gets it (or, on an
- *   `onPoison: "drop"` queue, it is discarded).
+ *   `onPoison: "drop"` queue, it is discarded). Also a retry copy the broker
+ *   nacked — it would refuse every copy, so requeueing would loop.
  */
 export type Outcome =
   | { kind: "acked" }

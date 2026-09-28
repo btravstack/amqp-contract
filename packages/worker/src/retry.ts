@@ -244,9 +244,8 @@ function publishForRetry(
   // Acking before publishing would lose the message if the publish then fails:
   // the broker has already discarded the original delivery and the retry copy
   // never made it out. By publishing first and acking on success, we ensure the
-  // message is not lost on a publish failure — the original is requeued
-  // (`nack(requeue: true)`), so we either get the retry through or get another
-  // chance at the original. Never dead-lettered for an infrastructure fault.
+  // message is not lost on a publish failure — see the `PublishError` branch
+  // below for what happens to the original instead.
   return ctx.amqpClient
     .publish({ exchange, routingKey }, msg.content, {
       ...msg.properties,
@@ -279,16 +278,33 @@ function publishForRetry(
     })
     .recoverErrCases((matcher) =>
       matcher.with(P.tag(PublishError.tag), (publishError): Outcome => {
-        // The broker did not take the retry copy (timeout, nack, channel
-        // closed). Requeue the ORIGINAL: it is redelivered with its retry
-        // headers unchanged, so the retry budget is intact and nothing is
-        // lost or dead-lettered for an infrastructure hiccup.
-        ctx.logger?.error("Publish for retry failed; requeueing the original for redelivery", {
+        const fields = {
           queueName,
           retryCount: newRetryCount,
           ...(delayMs !== undefined ? { delayMs } : {}),
           error: publishError,
-        });
+        };
+        // A nack is the broker's definitive refusal of the copy (e.g. the
+        // target at `x-max-length` with `x-overflow: reject-publish`), and it
+        // would refuse the next one too. Requeueing would loop: the original
+        // comes back with its retry headers unchanged, and on a classic queue
+        // nothing counts those redeliveries. Dead-letter it instead.
+        if (publishError.reason === "nacked") {
+          ctx.logger?.error(
+            "Publish for retry was nacked by the broker; dead-lettering the original",
+            fields,
+          );
+          return { kind: "dead-lettered", error, reason: "retry publish nacked by the broker" };
+        }
+        // A timeout or a closed channel is transient. Requeue the ORIGINAL:
+        // it is redelivered with its retry headers unchanged, so the retry
+        // budget is intact and nothing is lost or dead-lettered for an
+        // infrastructure hiccup. (After a timeout the copy may still have
+        // landed late, so the handler can run twice — at-least-once.)
+        ctx.logger?.error(
+          "Publish for retry failed; requeueing the original for redelivery",
+          fields,
+        );
         return { kind: "requeued", error, reason: "retry publish failed" };
       }),
     );
