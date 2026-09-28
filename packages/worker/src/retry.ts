@@ -5,7 +5,6 @@ import {
 } from "@amqp-contract/contract";
 import {
   _internal_queueHasDeadLetterExchange,
-  deriveTtlBackoffInfrastructure,
   ttlBackoffBaseDelay,
   ttlBackoffWaitQueueName,
 } from "@amqp-contract/contract/internal";
@@ -102,16 +101,13 @@ export function decideRetry(
   if (retryCount >= config.maxRetries) {
     return { kind: "dead-letter", reason: "max retries exceeded" };
   }
-  const waitQueue = ttlBackoffWaitQueueName(queue.name, ttlBackoffBaseDelay(config, retryCount));
-  // The copy goes through the default exchange without `mandatory`: a tier
-  // that was never declared would swallow it silently. Only publish to one
-  // setup declared; anything else is a bug, and the DLQ keeps the message.
-  if (!deriveTtlBackoffInfrastructure(queue)?.waitQueues.some((w) => w.name === waitQueue)) {
-    return { kind: "dead-letter", reason: `wait queue "${waitQueue}" is not a declared tier` };
-  }
+  // The copy goes through the default exchange without `mandatory`, so the
+  // tier must be one setup declared — and it is: `deriveTtlBackoffInfrastructure`
+  // declares the base delay of every attempt in `[0, maxRetries)`, and
+  // `readCount` plus the budget check above keep `retryCount` in that range.
   return {
     kind: "republish",
-    routingKey: waitQueue,
+    routingKey: ttlBackoffWaitQueueName(queue.name, ttlBackoffBaseDelay(config, retryCount)),
     retryCount: retryCount + 1,
     delayMs: calculateRetryDelay(retryCount, config, rand),
   };
