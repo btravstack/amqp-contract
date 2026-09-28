@@ -10,7 +10,7 @@ import {
   defineQueueBinding,
 } from "@amqp-contract/contract";
 import { it } from "@amqp-contract/testing/extension";
-import { beforeEach, describe, expect } from "vitest";
+import { beforeEach, describe, expect, vi } from "vitest";
 import { z } from "zod";
 
 import { AmqpClient } from "../amqp-client.js";
@@ -416,5 +416,27 @@ describe("AmqpClient Integration", () => {
     // THEN - Client should have been properly closed
     // Note: We can't easily verify connection closure in isolation due to singleton
     expect(client.getConnection()).toBeDefined();
+  });
+
+  it("isConnected reads false after the broker closes the channel, and true again once the client recovers", async ({
+    amqpConnectionUrl,
+  }) => {
+    // amqp-connection-manager announces no channel-level close, so a channel
+    // the broker closed while the connection stayed up would leave a dead
+    // client reporting ready. It cannot happen with amqplib 2: nothing listens
+    // for the channel's 'error', so amqplib's emit throws, its frame loop
+    // treats that as a socket error, and the whole connection is torn down —
+    // then re-established, channel included. If an upgrade ever keeps the
+    // connection up, this fails and isConnected() must track the channel.
+    const client = new AmqpClient({}, { urls: [amqpConnectionUrl] });
+    await client.waitForConnect().getOrThrow();
+
+    // A publish to a missing exchange: the broker closes the channel with 404.
+    const result = await client.publish({ exchange: "no-such-exchange", routingKey: "k" }, {});
+    const whileDown = client.isConnected();
+    await vi.waitFor(() => expect(client.isConnected()).toBe(true), { timeout: 15_000 });
+
+    expect([result.isErr(), whileDown]).toEqual([true, false]);
+    await client.close().get();
   });
 });
