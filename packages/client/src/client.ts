@@ -692,7 +692,10 @@ export class TypedAmqpClient<TContract extends ContractDefinition> {
         // A request nobody consumed before the caller gave up is dead weight:
         // let the broker drop it rather than have a worker answer a caller
         // that is gone. Per-call `publishOptions.expiration` still wins.
-        expiration: String(options.timeoutMs),
+        // AMQP wants an integer string: a fractional one gets the channel
+        // closed with 406. Rounded up so the request never expires before
+        // the caller gives up.
+        expiration: String(Math.ceil(options.timeoutMs)),
         ...options.publishOptions,
         replyTo: DIRECT_REPLY_TO,
         correlationId,
