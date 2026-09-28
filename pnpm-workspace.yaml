@@ -26,7 +26,7 @@ catalog:
   "@orpc/valibot": 1.14.8
   "@orpc/zod": 1.14.8
   "@standard-schema/spec": ^1.1.0
-  "@types/node": 26.2.0
+  "@types/node": 26.6.2
   "@unthrown/oxlint": 5.9.0
   "@unthrown/standard-schema": ^5.9.0
   "@unthrown/vitest": 5.9.0
