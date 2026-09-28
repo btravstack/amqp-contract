@@ -1,5 +1,189 @@
 # @amqp-contract/core
 
+## 3.0.0-beta.9
+
+### Major Changes
+
+- 52ae0fb: Implementation helpers moved off the `@amqp-contract/core` root to
+  `@amqp-contract/core/internal` (no semver guarantee): `safeJsonParse`,
+  `technicalDefect`, `setupAmqpTopology`, `startPublishSpan`,
+  `startConsumeSpan`, `endSpanSuccess`, `endSpanError`, `recordPublishMetric`,
+  `recordConsumeMetric`, `recordLateRpcReply`, `recordRpcCallMetric` and the
+  `ConnectionLease` type. Nothing was removed — import them from
+  `@amqp-contract/core/internal` instead. `TopologyMode` stays public.
+- eddd1b0: One message codec, in core. JSON encoding, compression, decompression and the
+  inbound size guard now live in a single module that the client (publish and
+  RPC replies) and the worker (consume) share, instead of three copies that could
+  drift apart.
+
+  Breaking: the inbound size cap drops from 64 MiB to **16 MiB**
+  (`DEFAULT_MAX_MESSAGE_BYTES`, exported from core — RabbitMQ 4's own default
+  `max_message_size`), and it now applies to **uncompressed** bodies too, not
+  only to what a compressed body inflates to. An over-cap message is a defect and
+  follows the poison-message DLQ path. Raise it with the worker's
+  `maxMessageBytes` option if you publish larger messages (`maxDecompressedBytes`
+  still works as a deprecated alias).
+
+  RPC replies are decoded through the same codec, so a reply carrying a
+  `contentEncoding` is now decompressed rather than failing to parse.
+
+- 770811e: A broker-side publish failure is now a modeled `Err` — the new `PublishError` —
+  where it used to arrive as a `Defect` carrying a `TechnicalError`.
+
+  `AmqpClient.publish` / `sendToQueue`, `TypedAmqpClient.publish` and
+  `TypedAmqpClient.call` report `PublishError` on the `E` channel, with a
+  `reason` discriminant naming what core observed:
+
+  - `"timeout"` — the message sat buffered past `publishTimeoutMs`;
+  - `"nacked"` — the broker refused it (`basic.nack`);
+  - `"channel-closed"` — the channel closed before the message was confirmed.
+
+  A full write buffer is **not** a failure: amqp-connection-manager resolves a
+  confirm-channel publish with `false` only after the broker confirmed the
+  message, so `publish` answers `Ok` (and logs the backpressure at `debug`)
+  instead of inviting a duplicate republish. The worker acks the original after
+  a confirmed retry publish, and acks an RPC request after a confirmed reply, in
+  that case too.
+
+  A broker that is down or overloaded is an operational condition a publisher is
+  expected to handle, not a bug. Genuine bugs (an unencodable payload, a
+  rejection core cannot classify) stay on the defect channel.
+
+  Migration: every exhaustive matcher over `publish()` / `call()` errors gains a
+  case — `P.tag(PublishError.tag)` — and `.get()` on core's `AmqpClient.publish`
+  / `sendToQueue` result no longer compiles (its `E` is no longer `never`; use
+  `.getOrThrow()` or handle the error). The client's interceptor error union formerly exported as
+  `PublishError` (then just `MessageValidationError`) is renamed
+  `ClientPublishError` (`MessageValidationError | PublishError`); `CallError`
+  gains `PublishError`. `PublishError` and `PublishFailureReason` are exported
+  from core and re-exported by the client.
+
+- afc5ddc: A client and a worker no longer share a TCP connection by default.
+
+  The process-wide connection pool is now partitioned: `TypedAmqpClient` draws
+  from a `"client"` pool and `TypedAmqpWorker` from a `"worker"` pool, so the
+  same URLs give a publisher and a consumer two connections. RabbitMQ blocks a
+  publishing connection under a memory or disk alarm; a consumer sharing it
+  would stop acking along with it. Clients still share among themselves, and
+  workers among themselves.
+
+  - `AmqpClient` gains `connectionPool` (the pool partition, default
+    `"default"`) and `connection` — an `AmqpConnectionManager` you own, which
+    the client only opens a channel on and never closes. `urls` becomes
+    optional: pass exactly one of `urls` or `connection`.
+  - `TypedAmqpClient.create` accepts `connection` too (the new
+    `ConnectionSource` type, exported from core and client). Hand the same
+    connection to a client and a worker to share one explicitly.
+
+- 0874596: Topology setup is now role-scoped and has a mode.
+
+  - **The client only declares what its publishes need to be routed and
+    retained**: its publishers' exchanges, everything they route to
+    (exchange-to-exchange bindings, transitively), every queue reachable that
+    way with its binding, and the RPC request queues — so a message published
+    before any worker started is kept, never confirmed-and-dropped. Those queues
+    are declared with the worker's exact arguments, together with their
+    dead-letter path (each one's dead-letter exchange, the queues bound to it
+    and those bindings), so a message the broker dead-letters before any worker
+    starts — a TTL expiry, an overflow — reaches the DLQ. The client no longer
+    declares the consumer's retry wait queues, unrelated queues, or exclusive
+    queues.
+  - **New `topology` option** on `TypedAmqpClient.create` and `AmqpClient`
+    (`TopologyMode`, exported from core and client):
+    - `"assert"` (default) — declare, as before;
+    - `"passive"` — only `checkExchange` / `checkQueue`, declaring nothing, for
+      credentials that may not configure the broker; a missing resource fails
+      `create()`;
+    - `"none"` — touch nothing (topology provisioned elsewhere).
+  - `setupAmqpTopology(channel, contract, { mode })` takes the mode too (it now
+    lives on `@amqp-contract/core/internal`, with `publisherTopology` /
+    `workerTopology`, the slices the client and worker pass it).
+
+  The worker is scoped the same way (see the worker changeset for its slice).
+  **Migration:** a standalone queue or exchange that neither a publisher nor a
+  consumer reaches is no longer declared by anyone. Declare it where it is owned,
+  or run `setupAmqpTopology` on a channel of your own.
+
+### Minor Changes
+
+- 498daa7: `TypedAmqpClient.isConnected()` (and `AmqpClient.isConnected()` in core) tell a
+  readiness probe whether the broker connection is up and the client is not
+  closed. It reads `false` while amqp-connection-manager is reconnecting.
+- a5ab97c: Error diagnostics:
+
+  - A connect timeout's `ConnectionError` now carries the last `connectFailed`
+    error from amqp-connection-manager as its `cause` (and names it in the
+    message) — `ECONNREFUSED` or `ACCESS_REFUSED` instead of only "timed out".
+    The first failed dial is also logged at `warn`, so a wrong URL shows up
+    immediately rather than when the connect timeout expires.
+  - Every amqp-contract error class (`TechnicalError`, `ConnectionError`,
+    `MessageValidationError`, `RpcError`, `RpcTimeoutError`,
+    `RpcCancelledError`) now prints its own `Name: message` at the top of its
+    stack instead of a bare `Error`.
+  - Each of those classes exposes its `_tag` as a static, so a matcher can write
+    `P.tag(ConnectionError.tag)` instead of the raw `"@amqp-contract/…"` string.
+
+- 132b2a1: `client.call()` publishes its request with `expiration` set to the call's
+  `timeoutMs`, so a request no worker consumed before the caller gave up is
+  expired by the broker instead of being answered for nobody. It is
+  dead-lettered to the RPC queue's dead-letter exchange with an `x-death` reason
+  of `expired` (discarded only on an `onPoison: "drop"` queue); don't replay
+  those dead letters — the caller is gone. A per-call
+  `publishOptions.expiration` still wins. A fractional `timeoutMs` is rounded up,
+  since AMQP only accepts an integer `expiration`.
+
+  `AmqpClient.publish` / `sendToQueue` (and so every client and worker publish)
+  refuse an `expiration` that is not a non-negative integer (`1500.5`, `-1`,
+  `"soon"`) as a defect with a `TechnicalError` cause, before it reaches the
+  broker — which would close the channel with 406, leaving the client unable to
+  publish until the connection is re-established.
+
+  The RPC round trip is now recorded on its own histogram,
+  `amqp.client.rpc.duration` (new optional `TelemetryProvider.getRpcCallLatencyHistogram`),
+  instead of `amqp.client.publish.duration` — a slow handler no longer reads as a
+  slow broker. RPC calls no longer increment `amqp.client.messages.published`.
+
+- 578f958: Trace context now crosses the broker. On publish, core injects the active
+  OpenTelemetry context into the message headers (through whatever propagator
+  the application registered — W3C `traceparent` with the standard SDK setup),
+  and the client publishes and sends RPC requests with its producer span active,
+  so that context is the producer span's. On consume, core runs each delivery
+  inside the context extracted from those headers, so a consumer span continues
+  the publisher's trace.
+
+  Without `@opentelemetry/api` or a registered SDK every step is a no-op and the
+  headers are left untouched; a throwing propagator or context manager degrades
+  to "no propagation" and never reaches the data path.
+
+- 55a66e3: The worker adopts the core client's options and lifecycle.
+
+  - **Role-scoped topology.** The worker declares only what its consumers need —
+    the queues it consumes (with their retry wait queues, the bindings into them
+    and the exchanges those bind to) plus their dead-letter exchanges and DLQs —
+    instead of the whole contract (core's new `workerTopology`, from
+    `@amqp-contract/core/internal`). A `topology` option takes the same
+    `TopologyMode` as the client: `"assert"` (default), `"passive"` or `"none"`.
+  - **`connection`** — pass a caller-owned `AmqpConnectionManager` instead of
+    `urls` (`ConnectionSource`, like the client). It is borrowed, never closed.
+  - **`worker.isConnected()`** for readiness probes.
+  - **`maxMessageBytes`** replaces `maxDecompressedBytes` (it caps plain bodies
+    too); the old name still works and is deprecated.
+  - **Trace context.** Handlers (and `createContext`, middleware) run with the
+    consume span active, so their own spans and any message they publish nest
+    under it.
+  - `RetryableError` / `NonRetryableError` expose a static `tag`
+    (`P.tag(RetryableError.tag)`) and a stack headed by their name and message.
+  - The worker re-exports `PublishError`, `PublishFailureReason`,
+    `TopologyMode` and `ConnectionSource`.
+
+### Patch Changes
+
+- 0d15886: The `unthrown` peer range is now `^5.3.0` on core, client and worker alike.
+  Client already required 5.3 (`fromExecutor`), and the three packages are
+  installed together, so the looser `^5.0.0` on core and worker advertised a
+  combination that could not run.
+- @amqp-contract/contract@3.0.0-beta.9
+
 ## 3.0.0-beta.8
 
 ### Patch Changes
