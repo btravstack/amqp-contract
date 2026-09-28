@@ -170,7 +170,9 @@ describe("dispatch outcomes", () => {
     expect(wrapper().nack).not.toHaveBeenCalled();
   });
 
-  it.for(["timeout", "message nacked", "Channel closed"])(
+  // "channel closed" (lowercase) is amqplib's rejection on a real channel or
+  // connection drop — the common case, and the one a case-sensitive match missed.
+  it.for(["timeout", "message nacked", "Channel closed", "channel closed"])(
     "INVARIANT: a retry publish that fails with '%s' requeues the original (nack requeue=true), never dead-letters it",
     async (rejection) => {
       wrapper().publish.mockRejectedValue(new Error(rejection));

@@ -56,15 +56,23 @@ function callSetupFunc(
  * The rejections amqp-connection-manager / amqplib settle a confirm-channel
  * publish with, keyed by their (stable, library-owned) messages. Anything else
  * is not a broker-side condition core can name, so it stays a defect.
+ *
+ * A channel close has three spellings, matched case-insensitively by prefix:
+ * the wrapper's own `Channel closed` (its `close()`), amqplib's `channel
+ * closed` (its `close` listener rejects every unconfirmed publish — and it
+ * runs BEFORE the wrapper learns the channel is gone, so the wrapper passes
+ * it through) and amqplib's `Channel closed by server: …`.
  */
 const PUBLISH_REJECTIONS = new Map<string, PublishFailureReason>([
   ["timeout", "timeout"],
-  ["Channel closed", "channel-closed"],
   ["message nacked", "nacked"],
 ]);
 
 function classifyPublishRejection(error: unknown, target: string): PublishError | undefined {
-  const reason = error instanceof Error ? PUBLISH_REJECTIONS.get(error.message) : undefined;
+  if (!(error instanceof Error)) return undefined;
+  const reason = error.message.toLowerCase().startsWith("channel closed")
+    ? "channel-closed"
+    : PUBLISH_REJECTIONS.get(error.message);
   return reason === undefined ? undefined : new PublishError({ reason, target, cause: error });
 }
 

@@ -78,7 +78,11 @@ describe("AmqpClient publish failures", () => {
   it.for([
     { rejection: "timeout", reason: "timeout" },
     { rejection: "message nacked", reason: "nacked" },
+    // The wrapper's own close(), amqplib's close listener (a real channel or
+    // connection drop) and amqplib's server-initiated close.
     { rejection: "Channel closed", reason: "channel-closed" },
+    { rejection: "channel closed", reason: "channel-closed" },
+    { rejection: "Channel closed by server: 406 (PRECONDITION-FAILED)", reason: "channel-closed" },
   ] as const)(
     "INVARIANT: a '$rejection' rejection is Err(PublishError $reason), never a defect",
     async ({ rejection, reason }) => {
