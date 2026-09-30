@@ -63,7 +63,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "vitest": "^4"
+    "vitest": "^4 || ^5"
   },
   "engines": {
     "node": ">=22.22"
