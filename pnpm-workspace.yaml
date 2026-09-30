@@ -27,9 +27,9 @@ catalog:
   "@orpc/zod": 1.15.3
   "@standard-schema/spec": ^1.1.0
   "@types/node": 26.6.2
-  "@unthrown/oxlint": 5.10.0
+  "@unthrown/oxlint": 5.11.0
   "@unthrown/standard-schema": ^5.9.0
-  "@unthrown/vitest": 5.10.0
+  "@unthrown/vitest": 5.11.0
   "@vitest/coverage-v8": 5.0.1
   amqp-connection-manager: ^5.0.0
   amqplib: ^2.0.1
@@ -50,7 +50,7 @@ catalog:
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.13.1
   typescript: 7.0.2
-  unthrown: 5.10.0
+  unthrown: 5.11.0
   valibot: 1.5.0
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
@@ -68,9 +68,6 @@ catalogs:
 
 peerDependencyRules:
   allowedVersions:
-    # @unthrown/vitest 5.10 still peers vitest ^4; its matchers run unchanged on
-    # vitest 5. Drop this once @unthrown/vitest widens its peer range.
-    "@unthrown/vitest>vitest": "5"
     # vitepress-plugin-mermaid 2.0.17 (latest) still peers mermaid 10 || 11. It
     # calls only initialize / render / registerExternalDiagrams, which 12 keeps.
     # Drop this once the plugin widens its peer range.
