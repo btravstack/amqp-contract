@@ -94,12 +94,17 @@ overrides:
   # Floor raised to 3.1.6 for GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc,
   # GHSA-fph4-wmhf-6fwf and GHSA-jqff-g426-hqxp (all High), which widened the
   # range past 3.1.5. The floor moves rather than a second entry being added.
-  "fast-uri@<3.1.6": "3.1.6"
+  #
+  # Raised to 3.1.7 for GHSA-qw65-cvwx-89v3 and GHSA-58mr-gqgx-xq4g (both High),
+  # the latter affecting 3.1.6 itself.
+  "fast-uri@<3.1.7": "3.1.7"
   # GHSA-4cwx-7wf7-3272 (High): undici cross-user information disclosure.
   # Reaches us only through packages/testing > testcontainers, i.e. the
   # integration-test harness, never a published package's runtime. 8.9.0 is the
   # first patched release.
-  "undici@<8.9.0": "8.9.0"
+  #
+  # Raised to 8.10.2 for GHSA-rfgv-xxqx-mfg5 and GHSA-w293-vg96-wgc3 (both High).
+  "undici@<8.10.2": "8.10.2"
   # GHSA-3jxr-9vmj-r5cp (High, ReDoS) + GHSA-mh99-v99m-4gvg (High, DoS via
   # unbounded expansion length) + GHSA-rgw5-rvv9-x895 (High, DoS via unbounded
   # intermediate arrays, bypassing the CVE-2026-14257 mitigation):
@@ -109,9 +114,12 @@ overrides:
   # release. GHSA-mh99 still has no patched 1.x/2.x release (its vulnerable
   # range is <=5.0.7), so that advisory remains ignored via
   # auditConfig.ignoreGhsas below rather than force-upgrading across majors.
-  "brace-expansion@1": "1.1.18"
-  "brace-expansion@2": "2.1.4"
-  "brace-expansion@5": "5.0.9"
+  #
+  # All three lines raised again for GHSA-6j4f-fj2g-mc7p and GHSA-qhr7-859c-m2p7
+  # (both High), to the first release patched for both on each line.
+  "brace-expansion@1": "1.1.20"
+  "brace-expansion@2": "2.1.6"
+  "brace-expansion@5": "5.0.11"
   # GHSA-52cp-r559-cp3m (High) + GHSA-h67p-54hq-rp68 (moderate): js-yaml
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
@@ -143,6 +151,9 @@ overrides:
   # afterSanitizeElements bypass, via docs > mermaid > dompurify.
   # 3.4.13 is the first release patched for GHSA-55q2.
   dompurify: 3.4.13
+  # GHSA-r5fr-rjxr-66jc (High): lodash-es, via docs > vitepress-plugin-mermaid >
+  # mermaid > chevrotain (docs build only). 4.18.1 is the first fixed release.
+  "lodash-es@<4.18.1": "4.18.1"
   # GHSA-j3f2-48v5-ccww (moderate): protobufjs prototype pollution, via
   # packages/testing > testcontainers > dockerode > @grpc/proto-loader. 7.6.5 is
   # the first fixed release.
