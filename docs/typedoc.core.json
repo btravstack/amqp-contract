@@ -1,7 +1,9 @@
 {
   "extends": "@btravstack/typedoc/base.json",
-  "entryPoints": ["src/index.ts"],
-  "out": "docs",
+  "name": "@amqp-contract/core",
+  "entryPoints": ["../packages/core/src/index.ts"],
+  "tsconfig": "../packages/core/tsconfig.json",
+  "out": "api/core",
   "externalSymbolLinkMappings": {
     "unthrown": {
       "TaggedError": "https://github.com/btravstack/unthrown"

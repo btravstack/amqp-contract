@@ -28,8 +28,7 @@
     "directory": "packages/asyncapi"
   },
   "files": [
-    "dist",
-    "docs"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -51,7 +50,6 @@
   },
   "scripts": {
     "build": "tsdown src/index.ts --format cjs,esm --dts --clean",
-    "build:docs": "typedoc",
     "dev": "tsdown src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -65,7 +63,6 @@
     "@arethetypeswrong/cli": "catalog:",
     "@asyncapi/parser": "catalog:",
     "@btravstack/tsconfig": "catalog:",
-    "@btravstack/typedoc": "catalog:",
     "@orpc/arktype": "catalog:",
     "@orpc/valibot": "catalog:",
     "@orpc/zod": "catalog:",
@@ -74,8 +71,6 @@
     "arktype": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
-    "typedoc": "catalog:",
-    "typedoc-plugin-markdown": "catalog:",
     "typescript": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",

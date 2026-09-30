@@ -19,6 +19,7 @@
   },
   "ignore": [".github/scripts/inject-docs-version-nav.ts"],
   "ignoreDependencies": [
+    "typedoc",
     "typedoc-plugin-markdown",
     "@btravstack/typedoc",
     "@btravstack/oxlint",

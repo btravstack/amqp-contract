@@ -1,7 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
-import ts from "typescript";
 import { afterAll, describe, expect, it } from "vitest";
 
 /**
@@ -16,6 +17,16 @@ import { afterAll, describe, expect, it } from "vitest";
  * The project is materialised under `tests/` so its imports resolve through
  * this workspace's dependencies — the packages a reader would install.
  */
+
+// TypeScript 7 ships no JS compiler API, so this runs the `tsc` binary — the
+// command the tutorial itself prints. Its JS entry is resolved via
+// `package.json` (the only subpath its `exports` map allows) and run under
+// `process.execPath`, not the `.bin` shim (`tsc.cmd` on Windows).
+const TSC = join(
+  dirname(createRequire(import.meta.url).resolve("typescript/package.json")),
+  "bin",
+  "tsc",
+);
 
 const repoRoot = join(import.meta.dirname, "..", "..", "..");
 const tutorialPath = join(repoRoot, "docs", "tutorial", "getting-started.md");
@@ -68,20 +79,25 @@ describe("getting-started tutorial", () => {
     writeFileSync(join(projectDir, "package.json"), '{ "type": "module" }\n');
     for (const { name, code } of files) writeFileSync(join(projectDir, name), code);
 
-    const config = ts.parseJsonConfigFileContent(
-      JSON.parse(tsconfigBlock?.code ?? "{}"),
-      ts.sys,
-      projectDir,
-    );
-    const program = ts.createProgram(config.fileNames, { ...config.options, noEmit: true });
-    const diagnostics = ts.getPreEmitDiagnostics(program);
+    writeFileSync(join(projectDir, "tsconfig.json"), tsconfigBlock?.code ?? "{}");
 
-    expect(
-      ts.formatDiagnostics(diagnostics, {
-        getCanonicalFileName: (fileName) => fileName,
-        getCurrentDirectory: () => projectDir,
-        getNewLine: () => "\n",
-      }),
-    ).toBe("");
+    let output = "";
+    try {
+      execFileSync(process.execPath, [TSC, "--noEmit", "--pretty", "false"], {
+        cwd: projectDir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      // stderr too: a `tsc` that crashes prints nothing to stdout.
+      const { stdout, stderr, message } = error as {
+        stdout?: string;
+        stderr?: string;
+        message: string;
+      };
+      output = `${stdout ?? ""}${stderr ?? ""}` || message;
+    }
+
+    expect(output).toBe("");
   });
 });

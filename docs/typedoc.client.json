@@ -1,7 +1,9 @@
 {
   "extends": "@btravstack/typedoc/base.json",
-  "entryPoints": ["src/index.ts"],
-  "out": "docs",
+  "name": "@amqp-contract/client",
+  "entryPoints": ["../packages/client/src/index.ts"],
+  "tsconfig": "../packages/client/tsconfig.json",
+  "out": "api/client",
   "externalSymbolLinkMappings": {
     "@amqp-contract/core": {
       "AmqpClient": "https://btravstack.github.io/amqp-contract/api/core#amqpclient"

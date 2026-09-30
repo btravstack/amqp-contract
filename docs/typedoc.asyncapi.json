@@ -1,0 +1,7 @@
+{
+  "extends": "@btravstack/typedoc/base.json",
+  "name": "@amqp-contract/asyncapi",
+  "entryPoints": ["../packages/asyncapi/src/index.ts"],
+  "tsconfig": "../packages/asyncapi/tsconfig.json",
+  "out": "api/asyncapi"
+}
