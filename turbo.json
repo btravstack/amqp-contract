@@ -24,10 +24,6 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "build:docs": {
-      "dependsOn": ["^build"],
-      "outputs": ["docs/**"]
-    },
     "generate:asyncapi:json": {
       "dependsOn": ["^build"],
       "outputs": ["asyncapi.json"]
@@ -37,7 +33,14 @@
       "outputs": ["asyncapi.yaml"]
     },
     "@amqp-contract/docs#build": {
-      "dependsOn": ["^build", "^build:docs"],
+      "dependsOn": [
+        "@amqp-contract/asyncapi#build",
+        "@amqp-contract/client#build",
+        "@amqp-contract/contract#build",
+        "@amqp-contract/core#build",
+        "@amqp-contract/testing#build",
+        "@amqp-contract/worker#build"
+      ],
       "outputs": [".vitepress/dist/**"],
       "env": ["DOCS_BASE", "DOCS_VERSIONS"]
     },

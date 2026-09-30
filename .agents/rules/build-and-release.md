@@ -11,6 +11,15 @@ Builds use `tsdown`, but the wiring varies — always confirm with the package's
 - **`inlineOnly: false`** is set in every `tsdown.config.ts` so tsdown doesn't warn about deps bundled into the declaration files.
 - Build via `pnpm build` (root; `turbo run build` over every workspace except the docs site) or `pnpm --filter <pkg> build`. The docs site (TypeDoc API pages + VitePress) builds separately with `pnpm build:docs`.
 
+### Two TypeScripts, deliberately
+
+The default catalog is TypeScript **7** (the native port), and every package, example and `tests` builds, typechecks and tests on it. TypeDoc cannot follow: 7's npm package ships no `typescript.js`, so the JS compiler API TypeDoc is written against is gone, and `typedoc@0.28`'s peer range stops at `6.0.x`. A named catalog (`catalogs.typedoc` in `pnpm-workspace.yaml`) pins **6.0.3** and only `docs` resolves it. TypeDoc takes its TypeScript from the importing package, so TypeDoc runs from `docs`, not from the packages: one `docs/typedoc.<name>.json` per package points back at its sources and writes into `docs/api/<name>/`, and `docs/scripts/build-api.ts` runs them. The package list is repeated in the configs, `build-api.ts`, the `@amqp-contract/docs#build` edges in `turbo.json`, and the `/api/` sidebar in `docs/.vitepress/config.ts`. Raise the TypeDoc pin only once TypeDoc supports 7.
+
+Consequences on the TypeScript 7 side:
+
+- `import ts from "typescript"` no longer exists. The compiler-diagnostics specs (`event-command-diagnostics`, `handler-diagnostics`, `tutorial-typecheck`) run the `tsc` binary on probe files instead, resolving it through the `typescript` package's own `package.json`, the only subpath its `exports` map allows.
+- `tsdown` prints a "TypeScript 7.0 does not yet have a stable API" warning per build. Emit is unaffected: the declaration files match TypeScript 6's output apart from member order in inferred types.
+
 When typechecking package B that depends on workspace package A, package A must be **built** first — `tsc` resolves workspace deps against their `dist/` output, not source. After editing a public type in A, run `pnpm --filter @amqp-contract/<a> build` before `pnpm --filter @amqp-contract/<b> typecheck` or you'll see stale errors.
 
 ## Versioning and changesets

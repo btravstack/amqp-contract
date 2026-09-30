@@ -30,7 +30,6 @@ coverage
 # TypeDoc generated API documentation
 docs/api/*
 !docs/api/index.md
-packages/*/docs/
 
 # Vite logs files
 vite.config.js.timestamp-*
@@ -54,6 +53,9 @@ vite.config.ts.timestamp-*
 
 # Snippets materialised from the docs by tests/src/snippets/snippet-execution.spec.ts
 tests/.snippets/
+
+# Probe projects the compiler-diagnostics specs hand to `tsc` (removed after each run)
+.tsc-probe-*/
 
 # The getting-started tutorial's project, typechecked by tests/src/docs/tutorial-typecheck.spec.ts
 tests/.tutorial/

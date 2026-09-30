@@ -1,7 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
-import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
 
 /**
@@ -16,8 +19,17 @@ import { beforeAll, describe, expect, it } from "vitest";
  * mistake with the package's own tsconfig and pins the message it produces.
  */
 
-const here = dirname(fileURLToPath(import.meta.url));
-const probePath = join(here, "__diagnostics_probe__.ts");
+const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+
+// TypeScript 7 ships no JS compiler API, so this runs the `tsc` binary. Its JS
+// entry is resolved via `package.json` — the only subpath its `exports` map
+// allows — and run under `process.execPath`, not the `.bin` shim (`tsc.cmd` on
+// Windows).
+const TSC = join(
+  dirname(createRequire(import.meta.url).resolve("typescript/package.json")),
+  "bin",
+  "tsc",
+);
 
 const cases = {
   directPublisherWithoutOptions: "defineEventPublisher(direct, message);",
@@ -42,7 +54,7 @@ const preamble = [
   "  defineExchange,",
   "  defineMessage,",
   "  defineQueue,",
-  '} from "./index.js";',
+  '} from "../src/index.js";',
   'const direct = defineExchange("tasks", { type: "direct" });',
   'const topic = defineExchange("orders");',
   'const fanout = defineExchange("logs", { type: "fanout" });',
@@ -56,36 +68,48 @@ function compileCases(): Record<Case, string> {
   const names = Object.keys(cases) as Case[];
   const source = [...preamble, ...names.map((name) => cases[name])].join("\n");
 
-  const configPath = resolve(here, "../../tsconfig.json");
-  const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
-  const { options } = ts.parseJsonConfigFileContent(config, ts.sys, dirname(configPath));
-
-  const host = ts.createCompilerHost(options);
-  const { getSourceFile, fileExists, readFile } = host;
-  host.fileExists = (path) => path === probePath || fileExists.call(host, path);
-  host.readFile = (path) => (path === probePath ? source : readFile.call(host, path));
-  host.getSourceFile = (path, languageVersion, ...rest) =>
-    path === probePath
-      ? ts.createSourceFile(path, source, languageVersion)
-      : getSourceFile.call(host, path, languageVersion, ...rest);
-
-  const program = ts.createProgram([probePath], { ...options, noEmit: true }, host);
-  const probe = program.getSourceFile(probePath);
-  const byLine = new Map<number, string[]>();
-  for (const diagnostic of ts.getPreEmitDiagnostics(program, probe)) {
-    const line =
-      diagnostic.file && diagnostic.start !== undefined
-        ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start).line
-        : -1;
-    const related = (diagnostic.relatedInformation ?? []).map((info) =>
-      ts.flattenDiagnosticMessageText(info.messageText, "\n"),
+  // Inside the package, so the probe resolves `zod` and compiles with the
+  // package's own tsconfig.
+  const probeDir = mkdtempSync(join(packageDir, ".tsc-probe-"));
+  let output = "";
+  try {
+    writeFileSync(join(probeDir, "probe.ts"), source);
+    writeFileSync(
+      join(probeDir, "tsconfig.json"),
+      JSON.stringify({
+        extends: "../tsconfig.json",
+        compilerOptions: { noEmit: true, rootDir: ".." },
+        include: ["probe.ts"],
+      }),
     );
-    const text = [ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"), ...related];
-    byLine.set(line, [...(byLine.get(line) ?? []), ...text]);
+    // `--pretty`: the plain format drops related information ("Arguments for
+    // the rest parameter 'options' were not provided").
+    execFileSync(process.execPath, [TSC, "-p", "tsconfig.json", "--pretty", "true"], {
+      cwd: probeDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    output = stripVTControlCharacters(String((error as { stdout?: string }).stdout ?? ""));
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+
+  // One block per diagnostic, headed `probe.ts:<line>:<col> - error TS…`. Its
+  // message, chained lines and related information are kept; the code frames
+  // (`<n> source…` and `~~~` underlines) and the `Found N errors` trailer are not.
+  const byLine = new Map<number, string[]>();
+  for (const block of output.split(/^(?=\S+:\d+:\d+ - error TS)/m)) {
+    const line = /^probe\.ts:(\d+):\d+ - /.exec(block)?.[1];
+    if (line === undefined) continue;
+    const text = block
+      .split("\n")
+      .filter((row) => row.trim() !== "" && !/^\s*(\d+ |~+$)|^Found \d+ error/.test(row));
+    byLine.set(Number(line), [...(byLine.get(Number(line)) ?? []), ...text]);
   }
 
   return Object.fromEntries(
-    names.map((name, index) => [name, (byLine.get(preamble.length + index) ?? []).join("\n")]),
+    names.map((name, index) => [name, (byLine.get(preamble.length + index + 1) ?? []).join("\n")]),
   ) as Record<Case, string>;
 }
 

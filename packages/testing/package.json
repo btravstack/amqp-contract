@@ -25,8 +25,7 @@
     "directory": "packages/testing"
   },
   "files": [
-    "dist",
-    "docs"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -47,7 +46,6 @@
   },
   "scripts": {
     "build": "tsdown src/index.ts src/global-setup.ts src/extension.ts --format esm --dts --clean",
-    "build:docs": "typedoc",
     "typecheck": "tsc --noEmit",
     "check:package": "publint --strict && attw --pack . --profile esm-only"
   },
@@ -58,12 +56,9 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",
     "@btravstack/tsconfig": "catalog:",
-    "@btravstack/typedoc": "catalog:",
     "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
-    "typedoc": "catalog:",
-    "typedoc-plugin-markdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

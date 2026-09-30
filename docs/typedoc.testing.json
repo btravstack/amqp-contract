@@ -1,0 +1,10 @@
+{
+  "extends": "@btravstack/typedoc/base.json",
+  "name": "@amqp-contract/testing",
+  "entryPoints": [
+    "../packages/testing/src/global-setup.ts",
+    "../packages/testing/src/extension.ts"
+  ],
+  "tsconfig": "../packages/testing/tsconfig.json",
+  "out": "api/testing"
+}

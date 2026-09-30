@@ -49,7 +49,7 @@ catalog:
   turbo: 2.11.3
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.13.1
-  typescript: 6.0.3
+  typescript: 7.0.2
   unthrown: 5.10.0
   valibot: 1.5.0
   vitepress: 1.6.4
@@ -58,6 +58,13 @@ catalog:
   vue: 3.5.43
   yaml: 2.9.1
   zod: 4.6.5
+
+catalogs:
+  # TypeDoc's own TypeScript: 7.x is the native port and ships no `typescript.js`,
+  # so 6.0.3 is the last release carrying the JS API TypeDoc needs. Only `docs`
+  # resolves this catalog.
+  typedoc:
+    typescript: 6.0.3
 
 peerDependencyRules:
   ignoreMissing:
