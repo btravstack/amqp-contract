@@ -37,7 +37,7 @@ catalog:
   fast-check: 4.10.2
   knip: 6.37.0
   lefthook: 2.1.14
-  mermaid: 11.17.1
+  mermaid: 12.0.0
   oxfmt: 0.70.0
   oxlint: 1.85.0
   pino: 10.3.1
@@ -71,6 +71,10 @@ peerDependencyRules:
     # @unthrown/vitest 5.10 still peers vitest ^4; its matchers run unchanged on
     # vitest 5. Drop this once @unthrown/vitest widens its peer range.
     "@unthrown/vitest>vitest": "5"
+    # vitepress-plugin-mermaid 2.0.17 (latest) still peers mermaid 10 || 11. It
+    # calls only initialize / render / registerExternalDiagrams, which 12 keeps.
+    # Drop this once the plugin widens its peer range.
+    "vitepress-plugin-mermaid>mermaid": "12"
   ignoreMissing:
     # Optional analytics peer of VitePress's bundled Algolia DocSearch.
     - search-insights
