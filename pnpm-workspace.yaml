@@ -22,14 +22,14 @@ catalog:
   "@changesets/cli": 3.0.3
   "@commitlint/cli": 21.2.3
   "@opentelemetry/api": 1.9.1
-  "@orpc/arktype": 1.14.8
-  "@orpc/valibot": 1.14.8
-  "@orpc/zod": 1.14.8
+  "@orpc/arktype": 1.15.3
+  "@orpc/valibot": 1.15.3
+  "@orpc/zod": 1.15.3
   "@standard-schema/spec": ^1.1.0
   "@types/node": 26.6.2
-  "@unthrown/oxlint": 5.9.0
+  "@unthrown/oxlint": 5.10.0
   "@unthrown/standard-schema": ^5.9.0
-  "@unthrown/vitest": 5.9.0
+  "@unthrown/vitest": 5.10.0
   "@vitest/coverage-v8": 4.1.11
   amqp-connection-manager: ^5.0.0
   amqplib: ^2.0.1
@@ -46,11 +46,11 @@ catalog:
   testcontainers: ^12.1.0
   tsdown: 0.23.0
   tsx: 4.23.15
-  turbo: 2.11.2
+  turbo: 2.11.3
   typedoc: 0.28.20
   typedoc-plugin-markdown: 4.13.1
   typescript: 6.0.3
-  unthrown: 5.9.0
+  unthrown: 5.10.0
   valibot: 1.5.0
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
