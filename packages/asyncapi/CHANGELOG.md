@@ -1,5 +1,13 @@
 # @amqp-contract/asyncapi
 
+## 3.0.0-beta.10
+
+### Patch Changes
+
+- f59fc23: Update the AsyncAPI package for compatibility with zod 4.6.5's datetime schema
+  output.
+- @amqp-contract/contract@3.0.0-beta.10
+
 ## 3.0.0-beta.9
 
 ### Patch Changes

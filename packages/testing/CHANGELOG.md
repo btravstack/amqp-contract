@@ -1,5 +1,13 @@
 # @amqp-contract/testing
 
+## 3.0.0-beta.10
+
+### Patch Changes
+
+- c9c59b8: The `vitest` peer range is now `^4 || ^5`. Its fixtures and global setup run
+  unchanged on Vitest 5, so a project on Vitest 5 no longer fails to install
+  under strict peer dependencies.
+
 ## 3.0.0-beta.9
 
 No changes in this release.
