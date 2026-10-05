@@ -32,7 +32,7 @@ catalog:
   "@unthrown/vitest": 5.11.0
   "@vitest/coverage-v8": 5.0.1
   amqp-connection-manager: ^5.0.0
-  amqplib: ^2.2.0
+  amqplib: ^2.0.1
   arktype: 2.2.5
   fast-check: 4.10.2
   knip: 6.38.0

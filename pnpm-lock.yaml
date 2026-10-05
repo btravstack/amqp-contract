@@ -225,7 +225,7 @@ catalogs:
       specifier: ^5.0.0
       version: 5.0.0
     amqplib:
-      specifier: ^2.2.0
+      specifier: ^2.0.1
       version: 2.2.0
     arktype:
       specifier: 2.2.5
