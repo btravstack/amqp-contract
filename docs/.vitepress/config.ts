@@ -304,7 +304,7 @@ export default withMermaid(
     },
 
     head: [
-      ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}logo.svg` }],
+      ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
       // SEO keywords meta tags
       [
         "meta",
