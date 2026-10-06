@@ -125,6 +125,10 @@ overrides:
   # GHSA-jggr-w7fw-pc2j (moderate): stack exhaustion in fast-copy when copying
   # deeply nested values. Reaches us only through pino-pretty in the examples.
   "fast-copy@<4.1.0": "4.1.0"
+  # GHSA-68fv-2mgg-jv7q (High): source-map-js DoS via indexed source-map
+  # offsets. This is only reached by the docs toolchain via VitePress/Vue, never
+  # a published runtime package.
+  "source-map-js@<1.2.2": "1.2.2"
   # GHSA-52cp-r559-cp3m (High) + GHSA-h67p-54hq-rp68 (moderate): js-yaml
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
@@ -182,6 +186,7 @@ minimumReleaseAgeExclude:
   - "@btravstack/theme"
   - "@btravstack/tsconfig"
   - "@btravstack/typedoc"
+  - source-map-js
   - unthrown
   - "@unthrown/oxlint"
   - "@unthrown/standard-schema"
