@@ -1,5 +1,11 @@
 # @amqp-contract/testing
 
+## 3.0.0-beta.11
+
+### Patch Changes
+
+- 502156c: Pin runtime dependencies to exact versions and bump `amqplib` to 2.2.0.
+
 ## 3.0.0-beta.10
 
 ### Patch Changes
