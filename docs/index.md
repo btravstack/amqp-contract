@@ -10,7 +10,7 @@ hero:
   image:
     light: /logo-light.svg
     dark: /logo-dark.svg
-    alt: amqp-contract
+    alt: amqp-contract logo
   actions:
     - theme: brand
       text: Get Started
