@@ -113,10 +113,18 @@ overrides:
   # auditConfig.ignoreGhsas below rather than force-upgrading across majors.
   #
   # All three lines raised again for GHSA-6j4f-fj2g-mc7p and GHSA-qhr7-859c-m2p7
-  # (both High), to the first release patched for both on each line.
+  # (both High), to the first release patched for both on each line, and again for
+  # GHSA-q2hr-2g5m-vwhr (moderate): brace-expansion 2.1.7 is the first patched 2.x
+  # release.
   "brace-expansion@1": "1.1.20"
-  "brace-expansion@2": "2.1.6"
+  "brace-expansion@2": "2.1.7"
   "brace-expansion@5": "5.0.11"
+  # GHSA-m9gg-hp2v-232j (High): @grpc/grpc-js certificate validation bypass in
+  # certain auth-context configurations. testcontainers > dockerode is the sole path.
+  "@grpc/grpc-js@<1.14.5": "1.14.5"
+  # GHSA-jggr-w7fw-pc2j (moderate): stack exhaustion in fast-copy when copying
+  # deeply nested values. Reaches us only through pino-pretty in the examples.
+  "fast-copy@<4.1.0": "4.1.0"
   # GHSA-52cp-r559-cp3m (High) + GHSA-h67p-54hq-rp68 (moderate): js-yaml
   # quadratic-CPU / merge-key issues. The legacy 3.x line arrives via
   # @changesets/cli > read-yaml-file; the 4.x line via @changesets/cli >
