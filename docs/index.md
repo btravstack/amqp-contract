@@ -10,7 +10,7 @@ hero:
   image:
     light: /logo-light.svg
     dark: /logo-dark.svg
-    alt: amqp-contract logo
+    alt: "amqp-contract mascot: a pink beet emerging from an orange envelope"
   actions:
     - theme: brand
       text: Get Started

@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/public/logo-dark.svg" />
   <source media="(prefers-color-scheme: light)" srcset="docs/public/logo-light.svg" />
-  <img src="docs/public/logo.svg" alt="amqp-contract logo" width="128" height="128" />
+  <img src="docs/public/logo.svg" alt="amqp-contract mascot: a pink beet emerging from an orange envelope" width="128" height="128" />
 </picture>
 
 # amqp-contract
