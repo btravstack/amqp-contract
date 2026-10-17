@@ -81,10 +81,11 @@ export const contract = defineContract({
 Any service that needs to charge a customer publishes via the contract. The shape of the payload is enforced at compile time.
 
 ```ts
+import { randomUUID } from "node:crypto";
+
 // orders-service/src/charge.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { contract } from "@org/payment-contract";
-import { randomUUID } from "node:crypto";
 
 const client = await TypedAmqpClient.create({
   contract,
@@ -115,8 +116,8 @@ import {
   RetryableError,
   NonRetryableError,
 } from "@amqp-contract/worker";
-import { fromPromise } from "unthrown";
 import { contract } from "@org/payment-contract";
+import { fromPromise } from "unthrown";
 
 const chargeHandler = declareHandler(contract, "chargeCustomer", ({ input: { payload } }) =>
   fromPromise(

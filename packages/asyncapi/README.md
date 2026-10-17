@@ -19,8 +19,9 @@ pnpm add @amqp-contract/asyncapi
 ## Usage
 
 ```typescript
-import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
 import { writeFileSync } from "node:fs";
+
+import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
 
 import { contract } from "./contract.js";
 

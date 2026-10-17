@@ -44,8 +44,8 @@ type Logger = {
 Pino takes the object first and the message second, so the arguments swap:
 
 ```typescript
-import pino from "pino";
 import type { Logger } from "@amqp-contract/core";
+import pino from "pino";
 
 const base = pino();
 
@@ -62,8 +62,8 @@ const logger: Logger = {
 Winston's signature matches directly:
 
 ```typescript
-import winston from "winston";
 import type { Logger } from "@amqp-contract/core";
+import winston from "winston";
 
 const base = winston.createLogger({ transports: [new winston.transports.Console()] });
 

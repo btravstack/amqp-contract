@@ -13,7 +13,9 @@ Use an `amqps://` URL. The TLS options — a private CA, or a client certificate
 
 ```typescript
 import { readFileSync } from "node:fs";
+
 import { TypedAmqpWorker } from "@amqp-contract/worker";
+
 import { contract } from "./contract.js";
 import { handlers } from "./handlers.js";
 

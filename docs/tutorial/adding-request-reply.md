@@ -152,6 +152,7 @@ Replace the body of `publisher.ts` with:
 // publisher.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { P } from "unthrown";
+
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({

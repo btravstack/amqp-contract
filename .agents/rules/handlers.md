@@ -7,8 +7,8 @@ This project uses [unthrown](https://github.com/btravstack/unthrown) for explici
 A consumer handler receives one record — `{ input, context, errors, raw, retryable, nonRetryable }`, where `input` is the validated `{ payload, headers }` — and returns `AsyncResult<void, HandlerError>`. The message is repeated as a second positional parameter, oRPC's shape, for a caller who prefers it:
 
 ```typescript
-import { fromPromise, OkAsync } from "unthrown";
 import { RetryableError, NonRetryableError } from "@amqp-contract/worker";
+import { fromPromise, OkAsync } from "unthrown";
 
 // Sync OK case — OkAsync(value) builds an already-settled AsyncResult
 const handler = ({ raw, input: { payload } }) => {
@@ -50,8 +50,8 @@ When the RPC declares an `errors` map (`defineRpc(queue, { request, response, er
 You can define RPC handlers either with `declareHandler` / `declareHandlers` (overloaded against `InferRpcNames<TContract>`, and `validateHandlerTargetExists` checks both `contract.consumers` and `contract.rpcs`) or inline inside `TypedAmqpWorker.create({ handlers: { … } })`. The inline `handlers` parameter is typed against `WorkerInferHandlers<TContract>`, so each name (consumer or RPC) gets the correct signature inferred:
 
 ```typescript
-import { fromPromise, OkAsync } from "unthrown";
 import { TypedAmqpWorker, RetryableError } from "@amqp-contract/worker";
+import { fromPromise, OkAsync } from "unthrown";
 
 const result = await TypedAmqpWorker.create({
   contract,

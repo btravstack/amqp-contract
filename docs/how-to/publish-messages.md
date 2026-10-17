@@ -11,6 +11,7 @@ Recipes for the publishing side. For the concepts behind the result type, see [e
 
 ```typescript
 import { TypedAmqpClient } from "@amqp-contract/client";
+
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({

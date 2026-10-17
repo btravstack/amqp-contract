@@ -52,7 +52,7 @@
   - `defineEventPublisher`, `defineEventConsumer`, `defineCommandConsumer` and
     `defineCommandPublisher` are single generic signatures instead of overload sets,
     so a mistake is reported against the options (`Property 'routingKey' is
-missing`, `'routingKey' does not exist in type …`) instead of "DirectExchangeDefinition
+    missing`, `'routingKey' does not exist in type …`) instead of "DirectExchangeDefinition
     is not assignable to FanoutExchangeDefinition | HeadersExchangeDefinition".
     Every valid call keeps its inferred type. Explicit type arguments, if you passed
     any, follow the new parameter order.

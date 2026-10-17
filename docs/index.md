@@ -94,6 +94,7 @@ export const contract = defineContract({
 
 ```typescript [2. Publish]
 import { TypedAmqpClient } from "@amqp-contract/client";
+
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({
@@ -112,6 +113,7 @@ await client
 ```typescript [3. Consume]
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
+
 import { contract } from "./contract.js";
 
 const worker = await TypedAmqpWorker.create({
