@@ -15,6 +15,7 @@ pnpm add @amqp-contract/asyncapi
 
 ```typescript
 import { AsyncAPIGenerator } from "@amqp-contract/asyncapi";
+
 import { contract } from "./contract.js";
 
 // Zod 4 and ArkType schemas convert themselves — no converter to configure.
@@ -77,6 +78,7 @@ const generator = new AsyncAPIGenerator({ vhost: "orders" });
 ```typescript
 // scripts/generate-asyncapi-json.ts
 import { writeFileSync } from "node:fs";
+
 import { spec } from "./generate-spec.js";
 
 writeFileSync("asyncapi.json", JSON.stringify(spec, null, 2));
@@ -87,7 +89,9 @@ For YAML:
 ```typescript
 // scripts/generate-asyncapi-yaml.ts
 import { writeFileSync } from "node:fs";
+
 import YAML from "yaml";
+
 import { spec } from "./generate-spec.js";
 
 writeFileSync("asyncapi.yaml", YAML.stringify(spec));

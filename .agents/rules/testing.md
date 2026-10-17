@@ -43,8 +43,8 @@ Import `it` from `@amqp-contract/testing/extension` for fixtures. Available fixt
 - `initConsumer(exchange, routingKey)` — returns a `(opts?) => Promise<ConsumeMessage[]>` waiter that you call to await N messages
 
 ```typescript
-import { describe, expect } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
+import { describe, expect } from "vitest";
 
 describe("Order Processing", () => {
   it("should consume order messages", async ({ initConsumer, publishMessage, vhost }) => {

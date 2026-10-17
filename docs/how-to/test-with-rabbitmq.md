@@ -48,6 +48,7 @@ import { it } from "@amqp-contract/testing/extension";
 import { TypedAmqpWorker, declareHandlers } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
 import { describe, expect, vi } from "vitest";
+
 import { contract } from "./contract.js";
 
 describe("order worker", () => {

@@ -12,6 +12,7 @@ Recipes for the consuming side. For why handlers return results instead of throw
 ```typescript
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
+
 import { contract } from "./contract.js";
 
 const worker = await TypedAmqpWorker.create({
@@ -128,6 +129,7 @@ Inline handlers are fine for a single file. Beyond that, `declareHandler` gives 
 // handlers/process-order.ts
 import { declareHandler, qualifyRetryable } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
+
 import { contract } from "../contract.js";
 
 export const processOrder = declareHandler(contract, "processOrder", ({ input: { payload } }) =>

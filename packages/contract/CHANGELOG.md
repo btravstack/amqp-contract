@@ -44,7 +44,7 @@ No changes in this release.
   - `defineEventPublisher`, `defineEventConsumer`, `defineCommandConsumer` and
     `defineCommandPublisher` are single generic signatures instead of overload sets,
     so a mistake is reported against the options (`Property 'routingKey' is
-missing`, `'routingKey' does not exist in type …`) instead of "DirectExchangeDefinition
+    missing`, `'routingKey' does not exist in type …`) instead of "DirectExchangeDefinition
     is not assignable to FanoutExchangeDefinition | HeadersExchangeDefinition".
     Every valid call keeps its inferred type. Explicit type arguments, if you passed
     any, follow the new parameter order.
@@ -237,7 +237,7 @@ missing`, `'routingKey' does not exist in type …`) instead of "DirectExchangeD
 - 9729fa6: Add the `RoutableRoutingKey<Key, Patterns>` type. It resolves to `Key` when the
   routing key matches at least one of the declared binding patterns and to a
   readable `` `Error: routing key '…' matches none of the declared binding
-patterns; …` `` string type otherwise — the same convention as
+  patterns; …` `` string type otherwise — the same convention as
   `MatchingBindingPattern`. The check runs only when both the key and the
   patterns are fully known at compile time. Plain `string`, template-literal
   types such as `` `order.${string}` ``, unions containing either, and an empty
@@ -271,7 +271,7 @@ patterns; …` `` string type otherwise — the same convention as
   anywhere in the type, a union containing one, or a type carrying extra
   structure such as a brand — the check is skipped, even when the known side
   alone already proves no match is possible. ``MatchingBindingPattern<"user.x",
-`${string}.created`>`` is one such case: `"user.x"` can never equal any
+  `${string}.created`>`` is one such case: `"user.x"` can never equal any
   string ending in `.created`, and this used to fail the build; it is accepted
   now, unchecked, because the key side is not fully known. The same happens
   when the pattern side is the undecidable one — a pattern with a hole and a

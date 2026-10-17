@@ -31,6 +31,7 @@ pnpm add @amqp-contract/worker
 ```typescript
 import { TypedAmqpWorker, RetryableError, type Logger } from "@amqp-contract/worker";
 import { fromPromise } from "unthrown";
+
 import { contract } from "./contract.js";
 
 // Optional: Create a logger implementation

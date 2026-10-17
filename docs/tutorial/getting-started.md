@@ -136,6 +136,7 @@ Create `publisher.ts`:
 // publisher.ts
 import { TypedAmqpClient } from "@amqp-contract/client";
 import { P } from "unthrown";
+
 import { contract } from "./contract.js";
 
 const client = await TypedAmqpClient.create({
@@ -186,6 +187,7 @@ Create `consumer.ts`:
 // consumer.ts
 import { TypedAmqpWorker } from "@amqp-contract/worker";
 import { OkAsync } from "unthrown";
+
 import { contract } from "./contract.js";
 
 const worker = await TypedAmqpWorker.create({

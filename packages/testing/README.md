@@ -58,8 +58,8 @@ const port = inject("__TESTCONTAINERS_RABBITMQ_PORT_5672__");
 The package provides a Vitest extension that automatically manages RabbitMQ connections:
 
 ```typescript
-import { describe, expect } from "vitest";
 import { it } from "@amqp-contract/testing/extension";
+import { describe, expect } from "vitest";
 
 describe("Order Processing", () => {
   it("should publish and consume messages", async ({ amqpConnection }) => {
