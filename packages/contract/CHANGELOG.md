@@ -1,5 +1,11 @@
 # @amqp-contract/contract
 
+## 3.0.0-beta.12
+
+### Minor Changes
+
+- 5a43c93: Add explicit immutable contract resource bindings for versioned deployments, preserving operation keys and schemas while materializing topology, RPC and retry destinations.
+
 ## 3.0.0-beta.11
 
 ### Patch Changes
