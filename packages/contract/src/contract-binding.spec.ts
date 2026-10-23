@@ -28,21 +28,20 @@ describe("defineContractBinding", () => {
     });
     const message = defineMessage(z.object({ id: z.string() }));
     const event = defineEventPublisher(source, message, { routingKey: "event.v1" });
+    const handle = defineEventConsumer(event, queue);
+    const parkedBinding = defineQueueBinding(parked, dlx, { routingKey: "#" });
+    const bridge = defineExchangeBinding(privateExchange, source, { routingKey: "event.#" });
+    const rpcQueue = defineQueue("rpc", { onPoison: "drop" });
+    const request = defineMessage(z.string());
+    const response = defineMessage(z.string());
+    const ask = defineRpc(rpcQueue, { request, response });
     const contract = defineContract({
       publishers: { event },
-      consumers: { handle: defineEventConsumer(event, queue) },
+      consumers: { handle },
       queues: { parked },
       exchanges: { privateExchange },
-      bindings: {
-        parked: defineQueueBinding(parked, dlx, { routingKey: "#" }),
-        bridge: defineExchangeBinding(privateExchange, source, { routingKey: "event.#" }),
-      },
-      rpcs: {
-        ask: defineRpc(defineQueue("rpc", { onPoison: "drop" }), {
-          request: defineMessage(z.string()),
-          response: defineMessage(z.string()),
-        }),
-      },
+      bindings: { parked: parkedBinding, bridge },
+      rpcs: { ask },
     });
     // WHEN
     const bound = defineContractBinding(contract, {
@@ -89,23 +88,20 @@ describe("defineContractBinding", () => {
     { first: "é".repeat(128) },
   ])("should reject invalid queue mappings %j", (queues) => {
     // GIVEN
-    const contract = defineContract({
-      queues: { first: defineQueue("first"), second: defineQueue("second") },
-    });
+    const first = defineQueue("first");
+    const second = defineQueue("second");
+    const contract = defineContract({ queues: { first, second } });
     // WHEN / THEN
     expect(() => defineContractBinding(contract, { queues })).toThrow("defineContractBinding");
   });
 
   it("should reject collisions with derived retry resources", () => {
     // GIVEN
-    const contract = defineContract({
-      queues: {
-        first: defineQueue("first", {
-          retry: { mode: "ttl-backoff", maxRetries: 1, initialDelayMs: 100 },
-        }),
-        second: defineQueue("second"),
-      },
+    const first = defineQueue("first", {
+      retry: { mode: "ttl-backoff", maxRetries: 1, initialDelayMs: 100 },
     });
+    const second = defineQueue("second");
+    const contract = defineContract({ queues: { first, second } });
     // WHEN / THEN
     expect(() =>
       defineContractBinding(contract, { queues: { first: "bound", second: "bound-wait-100ms" } }),
@@ -114,23 +110,21 @@ describe("defineContractBinding", () => {
 
   it("should rewrite only resource-bearing arguments", () => {
     // GIVEN
+    const firstExchange = defineExchange("first", {
+      arguments: { "alternate-exchange": "second", business: "second" },
+    });
+    const secondExchange = defineExchange("second");
+    const firstQueue = defineQueue("first", {
+      arguments: {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "second",
+        business: "second",
+      },
+    });
+    const secondQueue = defineQueue("second");
     const contract = defineContract({
-      exchanges: {
-        first: defineExchange("first", {
-          arguments: { "alternate-exchange": "second", business: "second" },
-        }),
-        second: defineExchange("second"),
-      },
-      queues: {
-        first: defineQueue("first", {
-          arguments: {
-            "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": "second",
-            business: "second",
-          },
-        }),
-        second: defineQueue("second"),
-      },
+      exchanges: { first: firstExchange, second: secondExchange },
+      queues: { first: firstQueue, second: secondQueue },
     });
     // WHEN
     const bound = defineContractBinding(contract, {
