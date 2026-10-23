@@ -27,6 +27,7 @@ describe("runtime resource bindings", () => {
     const parked = defineQueue("parked");
     const queue = defineQueue("inbox", {
       deadLetter: { exchange: dlx },
+      arguments: { "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "parked" },
       retry: { mode: "ttl-backoff", maxRetries: 1, initialDelayMs: 100, jitter: false },
     });
     const message = defineMessage(z.string());
@@ -34,7 +35,7 @@ describe("runtime resource bindings", () => {
       routingKey: "event.v1",
     });
     const handle = defineEventConsumer(event, queue);
-    const parkedBinding = defineQueueBinding(parked, dlx, { routingKey: "#" });
+    const parkedBinding = defineQueueBinding(parked, dlx, { routingKey: "parked" });
     const rpcQueue = defineQueue("rpc", { onPoison: "drop" });
     const request = defineMessage(z.string());
     const response = defineMessage(z.string());

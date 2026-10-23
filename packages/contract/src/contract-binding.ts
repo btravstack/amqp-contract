@@ -96,14 +96,17 @@ export function defineContractBinding(
   const queueName = (name: string) =>
     (binding.queues && Object.hasOwn(binding.queues, name) ? binding.queues[name] : undefined) ??
     name;
-  const args = (value: Record<string, unknown>): Record<string, unknown> => {
+  const args = (
+    value: Record<string, unknown>,
+    typedDeadLetterExchange: string | undefined,
+  ): Record<string, unknown> => {
     const result = { ...value };
     for (const key of ["alternate-exchange", "x-dead-letter-exchange"]) {
       const name = result[key];
       if (typeof name === "string") result[key] = exchangeName(name);
     }
     if (
-      value["x-dead-letter-exchange"] === "" &&
+      (typedDeadLetterExchange ?? value["x-dead-letter-exchange"]) === "" &&
       typeof value["x-dead-letter-routing-key"] === "string"
     ) {
       result["x-dead-letter-routing-key"] = queueName(value["x-dead-letter-routing-key"]);
@@ -115,12 +118,14 @@ export function defineContractBinding(
   ): Omit<T, "name"> & { name: string } => ({
     ...value,
     name: exchangeName(value.name),
-    ...(value.arguments ? { arguments: args(value.arguments) } : {}),
+    ...(value.arguments ? { arguments: args(value.arguments, undefined) } : {}),
   });
   const queue = (value: QueueDefinition): QueueDefinition => ({
     ...value,
     name: queueName(value.name),
-    ...(value.arguments ? { arguments: args(value.arguments) } : {}),
+    ...(value.arguments
+      ? { arguments: args(value.arguments, value.deadLetter?.exchange.name) }
+      : {}),
     ...(value.deadLetter
       ? {
           deadLetter: {

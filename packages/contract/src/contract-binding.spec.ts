@@ -108,6 +108,35 @@ describe("defineContractBinding", () => {
     ).toThrow("collision");
   });
 
+  it("should preserve a raw business dead-letter key when the typed exchange takes precedence", () => {
+    // GIVEN
+    const dlx = defineExchange("dead-letters");
+    const parked = defineQueue("parked");
+    const inbox = defineQueue("inbox", {
+      deadLetter: { exchange: dlx },
+      arguments: { "x-dead-letter-exchange": "", "x-dead-letter-routing-key": "parked" },
+    });
+    const parkedBinding = defineQueueBinding(parked, dlx, { routingKey: "parked" });
+    const contract = defineContract({ queues: { inbox, parked }, bindings: { parkedBinding } });
+    // WHEN
+    const bound = defineContractBinding(contract, {
+      queues: { parked: "release.parked" },
+      exchanges: { "dead-letters": "release.dead-letters" },
+    });
+    // THEN
+    expect({
+      exchange: bound.queues.inbox.deadLetter?.exchange.name,
+      routingKey: bound.queues.inbox.arguments?.["x-dead-letter-routing-key"],
+      bindingKey: bound.bindings.parkedBinding.routingKey,
+      parkedQueue: bound.bindings.parkedBinding.queue.name,
+    }).toEqual({
+      exchange: "release.dead-letters",
+      routingKey: "parked",
+      bindingKey: "parked",
+      parkedQueue: "release.parked",
+    });
+  });
+
   it("should rewrite only resource-bearing arguments", () => {
     // GIVEN
     const firstExchange = defineExchange("first", {
