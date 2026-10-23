@@ -313,4 +313,4 @@ This is what makes a rename break both sides at once. A contract copied into two
 - [Topology options](/reference/topology-options) — the full option tables.
 
 For compatible implementations deployed side by side, see
-[Bind runtime resources](bind-runtime-resources.md).
+[Bind runtime resources](/how-to/bind-runtime-resources).

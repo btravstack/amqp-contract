@@ -145,13 +145,15 @@ export function defineContractBinding(
   };
   const bind = (value: BindingDefinition): BindingDefinition => {
     if (value.type === "queue") {
-      if (value.routingKey !== undefined)
-        return { ...value, queue: queue(value.queue), exchange: exchange(value.exchange) };
-      return { ...value, queue: queue(value.queue), exchange: exchange(value.exchange) };
+      return Object.assign({}, value, {
+        queue: queue(value.queue),
+        exchange: exchange(value.exchange),
+      });
     }
-    if (value.routingKey !== undefined)
-      return { ...value, source: exchange(value.source), destination: exchange(value.destination) };
-    return { ...value, source: exchange(value.source), destination: exchange(value.destination) };
+    return Object.assign({}, value, {
+      source: exchange(value.source),
+      destination: exchange(value.destination),
+    });
   };
   const queues = map(contract.queues, queue);
   const occupied = new Set(Object.values(queues).map((value) => value.name));

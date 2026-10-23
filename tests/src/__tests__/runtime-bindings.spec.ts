@@ -29,20 +29,22 @@ describe("runtime resource bindings", () => {
       deadLetter: { exchange: dlx },
       retry: { mode: "ttl-backoff", maxRetries: 1, initialDelayMs: 100, jitter: false },
     });
-    const event = defineEventPublisher(exchange, defineMessage(z.string()), {
+    const message = defineMessage(z.string());
+    const event = defineEventPublisher(exchange, message, {
       routingKey: "event.v1",
     });
+    const handle = defineEventConsumer(event, queue);
+    const parkedBinding = defineQueueBinding(parked, dlx, { routingKey: "#" });
+    const rpcQueue = defineQueue("rpc", { onPoison: "drop" });
+    const request = defineMessage(z.string());
+    const response = defineMessage(z.string());
+    const identify = defineRpc(rpcQueue, { request, response });
     const protocol = defineContract({
       publishers: { emit: event },
-      consumers: { handle: defineEventConsumer(event, queue) },
+      consumers: { handle },
       queues: { parked },
-      bindings: { parked: defineQueueBinding(parked, dlx, { routingKey: "#" }) },
-      rpcs: {
-        identify: defineRpc(defineQueue("rpc", { onPoison: "drop" }), {
-          request: defineMessage(z.string()),
-          response: defineMessage(z.string()),
-        }),
-      },
+      bindings: { parked: parkedBinding },
+      rpcs: { identify },
     });
     const first = defineContractBinding(protocol, {
       exchanges: { events: "a.events", parked: "a.parked" },
