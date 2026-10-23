@@ -311,3 +311,6 @@ This is what makes a rename break both sides at once. A contract copied into two
 - [Retry failed messages](/how-to/retry-failed-messages) — queue-level retry configuration.
 - [Bridge domains](/how-to/bridge-domains) — routing across service boundaries.
 - [Topology options](/reference/topology-options) — the full option tables.
+
+For compatible implementations deployed side by side, see
+[Bind runtime resources](bind-runtime-resources.md).

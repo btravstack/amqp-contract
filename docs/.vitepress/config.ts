@@ -91,6 +91,7 @@ const GUIDE_SIDEBAR = [
       { text: "Tune performance", link: "/how-to/tune-performance" },
       { text: "Run in production", link: "/how-to/run-in-production" },
       { text: "Evolve a contract", link: "/how-to/evolve-a-contract" },
+      { text: "Bind runtime resources", link: "/how-to/bind-runtime-resources" },
       { text: "Upgrade", link: "/how-to/upgrade" },
       { text: "Troubleshoot", link: "/how-to/troubleshoot" },
     ],

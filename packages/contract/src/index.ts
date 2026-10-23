@@ -1,3 +1,6 @@
+export { defineContractBinding } from "./contract-binding.js";
+export type { BoundContract, ContractBinding } from "./contract-binding.js";
+
 export {
   defineCommandConsumer,
   defineCommandPublisher,
