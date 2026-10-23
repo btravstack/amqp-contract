@@ -81,6 +81,9 @@ peerDependencyRules:
 # without disturbing unrelated lines. All of these reach us only through
 # dev/build/test tooling.
 overrides:
+  # GHSA-r7fv-28h4-cvq7 and GHSA-gfr2-rv44-r23c (High): markdown-it
+  # quadratic rendering paths via the VitePress/TypeDoc documentation tooling.
+  "markdown-it@>=14.0.0 <14.3.3": "14.3.3"
   # GHSA-v2hh-gcrm-f6hx (High): fast-uri host confusion via literal backslash
   # authority delimiter, and GHSA-7p8r-x3mc-p8w7 (High): the same class of host
   # confusion via backslash, which 3.1.4 did not fully close. Only the
@@ -141,13 +144,18 @@ overrides:
   # patched 5.x, so lift any pre-6.4.3 vite to 6.4.3 (first fixed release) — this
   # also drags esbuild up to a patched 0.25.x. The `vitepress build` is verified
   # against it.
-  "vite@<6.4.3": "6.4.3"
+  # Raised to 6.4.4 for GHSA-587h-7wmj-h5pm (High), the launch-editor bypass.
+  "vite@<6.4.4": "6.4.4"
+  # The same advisory affects @changesets/cli's independent launch-editor copy.
+  "launch-editor@<2.14.2": "2.14.2"
   # GHSA-cmwh-pvxp-8882 (moderate) + GHSA-vxr8-fq34-vvx9 (low) +
   # GHSA-c2j3-45gr-mqc4 (low, CUSTOM_ELEMENT_HANDLING bypass) +
   # GHSA-55q2-fjhq-7xh7 (moderate): dompurify XSS / mXSS /
   # afterSanitizeElements bypass, via docs > mermaid > dompurify.
   # 3.4.13 is the first release patched for GHSA-55q2.
-  dompurify: 3.4.13
+  # GHSA-cg2g-xh64-v4q7 (Critical) and GHSA-mrv2-3pqr-j5jr (High):
+  # sanitization bypasses through shadow roots and detached subtrees.
+  "dompurify@<3.4.17": "3.4.17"
   # GHSA-r5fr-rjxr-66jc (High): lodash-es, via docs > vitepress-plugin-mermaid >
   # mermaid > chevrotain (docs build only). 4.18.1 is the first fixed release.
   "lodash-es@<4.18.1": "4.18.1"
