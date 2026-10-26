@@ -216,8 +216,8 @@ catalogs:
       specifier: 5.11.0
       version: 5.11.0
     '@unthrown/vitest':
-      specifier: 5.11.0
-      version: 5.11.0
+      specifier: 5.12.1
+      version: 5.12.1
     '@vitest/coverage-v8':
       specifier: 5.0.2
       version: 5.0.2
@@ -601,7 +601,7 @@ importers:
         version: 26.6.5
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.11.0(unthrown@5.12.1)(vitest@5.0.2)
+        version: 5.12.1(unthrown@5.12.1)(vitest@5.0.2)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.2(vitest@5.0.2)
@@ -696,7 +696,7 @@ importers:
         version: 26.6.5
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.11.0(unthrown@5.12.1)(vitest@5.0.2)
+        version: 5.12.1(unthrown@5.12.1)(vitest@5.0.2)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.2(vitest@5.0.2)
@@ -782,7 +782,7 @@ importers:
         version: 26.6.5
       '@unthrown/vitest':
         specifier: 'catalog:'
-        version: 5.11.0(unthrown@5.12.1)(vitest@5.0.2)
+        version: 5.12.1(unthrown@5.12.1)(vitest@5.0.2)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.2(vitest@5.0.2)
@@ -2956,11 +2956,11 @@ packages:
     peerDependencies:
       unthrown: ^5.11.0
 
-  '@unthrown/vitest@5.11.0':
-    resolution: {integrity: sha512-TAUj/WDV0jwBeVzgWbnYPbxe86CXZ3x9AnghfC+qU6dH5uhekcvH0OtYxJHBxeweBJHDjXtPbjccG0LjW4J8Rw==}
+  '@unthrown/vitest@5.12.1':
+    resolution: {integrity: sha512-04AMYrcg14I5HaKuLvm3G8/2GYeq9Yyy2fLPahLEGeZ/yx77GL7plsfClZFtRvYWzQgIdEoN58dGILp98KDi2Q==}
     engines: {node: '>=20'}
     peerDependencies:
-      unthrown: ^5.11.0
+      unthrown: ^5.12.1
       vitest: ^5
 
   '@upsetjs/venn.js@2.0.0':
@@ -7492,7 +7492,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       unthrown: 5.12.1
 
-  '@unthrown/vitest@5.11.0(unthrown@5.12.1)(vitest@5.0.2)':
+  '@unthrown/vitest@5.12.1(unthrown@5.12.1)(vitest@5.0.2)':
     dependencies:
       unthrown: 5.12.1
       vitest: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.2)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
