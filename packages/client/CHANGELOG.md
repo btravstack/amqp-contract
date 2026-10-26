@@ -1,5 +1,13 @@
 # @amqp-contract/client
 
+## 3.0.0-beta.13
+
+### Patch Changes
+
+- 26f383c: Update dependencies, including the unthrown adapters and Testcontainers, and patch vulnerable Zod and Undici resolutions in the workspace. Preserve the channel event listener API with the connection manager's stricter event types.
+- @amqp-contract/contract@3.0.0-beta.13
+  - @amqp-contract/core@3.0.0-beta.13
+
 ## 3.0.0-beta.12
 
 ### Patch Changes

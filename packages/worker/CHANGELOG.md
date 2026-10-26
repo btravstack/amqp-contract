@@ -1,5 +1,12 @@
 # @amqp-contract/worker
 
+## 3.0.0-beta.13
+
+### Patch Changes
+
+- @amqp-contract/contract@3.0.0-beta.13
+  - @amqp-contract/core@3.0.0-beta.13
+
 ## 3.0.0-beta.12
 
 ### Patch Changes
