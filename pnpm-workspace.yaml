@@ -57,7 +57,7 @@ catalog:
   vitest: 5.0.2
   vue: 3.5.43
   yaml: 2.9.1
-  zod: 4.6.5
+  zod: 4.6.7
 
 catalogs:
   # TypeDoc's own TypeScript: 7.x is the native port and ships no `typescript.js`,
