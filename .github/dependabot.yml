@@ -7,22 +7,13 @@ updates:
       interval: "weekly"
       day: "monday"
     groups:
-      amqp:
+      dependencies:
         patterns:
-          - "amqplib"
-          - "@types/amqplib"
-      orpc:
+          - "*"
+      security-dependencies:
+        applies-to: security-updates
         patterns:
-          - "@orpc/*"
-      commitlint:
-        patterns:
-          - "@commitlint/*"
-      vitest:
-        patterns:
-          - "@vitest/*"
-          - "vitest"
-      dev-dependencies:
-        dependency-type: "development"
+          - "*"
     ignore:
       # Only allow @types/node patch/minor updates (block major version bumps)
       - dependency-name: "@types/node"
@@ -31,7 +22,7 @@ updates:
     # Note: Dependabot can't express pnpm's minimumReleaseAgeExclude list; this applies to all updates.
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -43,6 +34,10 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    groups:
+      actions:
+        patterns:
+          - "*"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1

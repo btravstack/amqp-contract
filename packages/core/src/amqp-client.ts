@@ -1,3 +1,5 @@
+import type { EventEmitter } from "node:events";
+
 import type { ContractDefinition } from "@amqp-contract/contract";
 import type {
   AmqpConnectionManager,
@@ -476,7 +478,7 @@ export class AmqpClient {
     this.connection.on("connectFailed", this.onConnectFailed);
     this.connection.on("connect", this.onConnect);
 
-    this.channelWrapper.on("error", (error: unknown, info?: { name?: string }) => {
+    this.channelWrapper.on("error", (error, info) => {
       // Before the first 'connect', the only thing that has run is `setup` —
       // so this is the topology failing, and somebody is still waiting on
       // `waitForConnect()`. Keep the first one; after that the caller has its
@@ -846,7 +848,8 @@ export class AmqpClient {
    * @param listener - The event listener
    */
   on(event: string, listener: (...args: unknown[]) => void): void {
-    this.channelWrapper.on(event, listener);
+    // Preserve the public string-event API across the manager's typed event map.
+    (this.channelWrapper as EventEmitter).on(event, listener);
   }
 
   /**
