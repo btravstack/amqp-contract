@@ -12,7 +12,7 @@ packages:
 
 catalog:
   "@arethetypeswrong/cli": 0.18.5
-  "@asyncapi/parser": 3.6.3
+  "@asyncapi/parser": 3.6.6
   "@btravstack/commitlint": 0.1.0
   "@btravstack/lefthook": 0.1.1
   "@btravstack/oxlint": 0.2.1
@@ -20,44 +20,44 @@ catalog:
   "@btravstack/tsconfig": 0.4.0
   "@btravstack/typedoc": 0.1.0
   "@changesets/cli": 3.0.3
-  "@commitlint/cli": 21.2.3
+  "@commitlint/cli": 21.2.4
   "@opentelemetry/api": 1.9.1
-  "@orpc/arktype": 1.15.4
-  "@orpc/valibot": 1.15.4
-  "@orpc/zod": 1.15.4
+  "@orpc/arktype": 1.15.7
+  "@orpc/valibot": 1.15.7
+  "@orpc/zod": 1.15.7
   "@standard-schema/spec": 1.1.0
   "@types/node": 26.6.5
   "@unthrown/oxlint": 5.12.1
-  "@unthrown/standard-schema": 5.11.0
-  "@unthrown/vitest": 5.11.0
-  "@vitest/coverage-v8": 5.0.2
-  amqp-connection-manager: 5.0.0
+  "@unthrown/standard-schema": 5.12.1
+  "@unthrown/vitest": 5.12.1
+  "@vitest/coverage-v8": 5.0.5
+  amqp-connection-manager: 5.0.1
   amqplib: 2.2.0
   arktype: 2.2.8
   fast-check: 4.10.2
-  knip: 6.40.0
-  lefthook: 2.2.1
-  mermaid: 12.1.0
-  oxfmt: 0.72.0
-  oxlint: 1.87.0
+  knip: 6.42.1
+  lefthook: 2.2.2
+  mermaid: 12.2.0
+  oxfmt: 0.74.0
+  oxlint: 1.89.0
   pino: 10.4.0
   pino-pretty: 13.2.0
   publint: 0.3.25
-  testcontainers: 12.2.0
+  testcontainers: 12.2.1
   tsdown: 0.23.1
   tsx: 4.23.15
-  turbo: 2.11.7
+  turbo: 2.11.9
   typedoc: 0.28.20
-  typedoc-plugin-markdown: 4.13.1
+  typedoc-plugin-markdown: 4.14.1
   typescript: 7.0.2
   unthrown: 5.12.1
   valibot: 1.5.0
   vitepress: 1.6.4
   vitepress-plugin-mermaid: 2.0.17
-  vitest: 5.0.2
-  vue: 3.5.43
+  vitest: 5.0.5
+  vue: 3.5.44
   yaml: 2.9.1
-  zod: 4.6.5
+  zod: 4.6.7
 
 catalogs:
   # TypeDoc's own TypeScript: 7.x is the native port and ships no `typescript.js`,
@@ -81,6 +81,9 @@ peerDependencyRules:
 # without disturbing unrelated lines. All of these reach us only through
 # dev/build/test tooling.
 overrides:
+  # GHSA-mrhx-c7xc-m3w5 (High): oversized constrained collections exhaust
+  # memory. Knip pins a vulnerable Zod 4 release; align it with our catalog.
+  "zod@>=4.0.0 <4.6.6": "catalog:"
   # GHSA-r7fv-28h4-cvq7 and GHSA-gfr2-rv44-r23c (High): markdown-it
   # quadratic rendering paths via the VitePress/TypeDoc documentation tooling.
   "markdown-it@>=14.0.0 <14.3.3": "14.3.3"
@@ -104,7 +107,9 @@ overrides:
   # first patched release.
   #
   # Raised to 8.10.2 for GHSA-rfgv-xxqx-mfg5 and GHSA-w293-vg96-wgc3 (both High).
-  "undici@<8.10.2": "8.10.2"
+  # Raised to 8.12.2 for GHSA-xjj6-f33q-929c (High): unhandled errors on
+  # excessive content-encodings can crash the process.
+  "undici@<8.12.2": "8.12.2"
   # GHSA-3jxr-9vmj-r5cp (High, ReDoS) + GHSA-mh99-v99m-4gvg (High, DoS via
   # unbounded expansion length) + GHSA-rgw5-rvv9-x895 (High, DoS via unbounded
   # intermediate arrays, bypassing the CVE-2026-14257 mitigation):
@@ -211,6 +216,7 @@ auditConfig:
     - GHSA-mh99-v99m-4gvg
 
 allowBuilds:
+  "@scarf/scarf": false
   cpu-features: true
   esbuild: true
   lefthook: true
