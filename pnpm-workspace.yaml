@@ -43,7 +43,7 @@ catalog:
   pino: 10.4.0
   pino-pretty: 13.2.0
   publint: 0.3.25
-  testcontainers: 12.2.0
+  testcontainers: 12.2.1
   tsdown: 0.23.1
   tsx: 4.23.15
   turbo: 2.11.7
