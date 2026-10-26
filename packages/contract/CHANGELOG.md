@@ -1,5 +1,9 @@
 # @amqp-contract/contract
 
+## 3.0.0-beta.13
+
+No changes in this release.
+
 ## 3.0.0-beta.12
 
 ### Minor Changes
