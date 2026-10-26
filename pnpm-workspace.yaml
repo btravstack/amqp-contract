@@ -31,7 +31,7 @@ catalog:
   "@unthrown/standard-schema": 5.11.0
   "@unthrown/vitest": 5.11.0
   "@vitest/coverage-v8": 5.0.2
-  amqp-connection-manager: 5.0.0
+  amqp-connection-manager: 5.0.1
   amqplib: 2.2.0
   arktype: 2.2.8
   fast-check: 4.10.2
