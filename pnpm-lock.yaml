@@ -195,8 +195,8 @@ catalogs:
       specifier: 21.2.4
       version: 21.2.4
     '@opentelemetry/api':
-      specifier: 1.9.1
-      version: 1.9.1
+      specifier: 1.10.0
+      version: 1.10.0
     '@orpc/arktype':
       specifier: 1.15.7
       version: 1.15.7
@@ -369,7 +369,7 @@ importers:
     devDependencies:
       '@btravstack/theme':
         specifier: 'catalog:'
-        version: 2.0.1(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))(vue@3.5.44(typescript@6.0.3))
+        version: 2.0.1(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))(vue@3.5.44(typescript@6.0.3))
       '@btravstack/typedoc':
         specifier: 'catalog:'
         version: 0.1.0(typedoc-plugin-markdown@4.14.1(typedoc@0.28.20(typescript@6.0.3)))(typedoc@0.28.20(typescript@6.0.3))
@@ -393,10 +393,10 @@ importers:
         version: 6.0.3
       vitepress:
         specifier: 'catalog:'
-        version: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
+        version: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
       vitepress-plugin-mermaid:
         specifier: 'catalog:'
-        version: 2.0.17(mermaid@12.2.0)(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))
+        version: 2.0.17(mermaid@12.2.0)(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))
       vue:
         specifier: 'catalog:'
         version: 3.5.44(typescript@6.0.3)
@@ -442,7 +442,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
   examples/basic-order-processing-contract:
     dependencies:
@@ -464,7 +464,7 @@ importers:
         version: 26.6.5
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.24)(tsx@4.23.15)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
@@ -516,7 +516,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
   packages/asyncapi:
     dependencies:
@@ -538,13 +538,13 @@ importers:
         version: 0.4.0
       '@orpc/arktype':
         specifier: 'catalog:'
-        version: 1.15.7(@ark/schema@0.56.7)(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(arktype@2.2.8)
+        version: 1.15.7(@ark/schema@0.56.7)(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(arktype@2.2.8)
       '@orpc/valibot':
         specifier: 'catalog:'
-        version: 1.15.7(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(@orpc/server@1.15.7(@opentelemetry/api@1.9.1))(valibot@1.5.0(typescript@7.0.2))
+        version: 1.15.7(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(@orpc/server@1.15.7(@opentelemetry/api@1.10.0))(valibot@1.5.0(typescript@7.0.2))
       '@orpc/zod':
         specifier: 'catalog:'
-        version: 1.15.7(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(@orpc/server@1.15.7(@opentelemetry/api@1.9.1))(zod@4.6.7)
+        version: 1.15.7(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(@orpc/server@1.15.7(@opentelemetry/api@1.10.0))(zod@4.6.7)
       '@types/node':
         specifier: 26.6.5
         version: 26.6.5
@@ -559,7 +559,7 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -568,7 +568,7 @@ importers:
         version: 1.5.0(typescript@7.0.2)
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -617,7 +617,7 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -626,7 +626,7 @@ importers:
         version: 5.12.1
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -657,13 +657,13 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -691,7 +691,7 @@ importers:
         version: 0.4.0
       '@opentelemetry/api':
         specifier: 'catalog:'
-        version: 1.9.1
+        version: 1.10.0
       '@types/node':
         specifier: 26.6.5
         version: 26.6.5
@@ -706,7 +706,7 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -715,7 +715,7 @@ importers:
         version: 5.12.1
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -743,13 +743,13 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
   packages/worker:
     dependencies:
@@ -777,7 +777,7 @@ importers:
         version: 0.4.0
       '@opentelemetry/api':
         specifier: 'catalog:'
-        version: 1.9.1
+        version: 1.10.0
       '@types/node':
         specifier: 26.6.5
         version: 26.6.5
@@ -798,7 +798,7 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2)
+        version: 0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -807,7 +807,7 @@ importers:
         version: 5.12.1
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -847,7 +847,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
-        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1669,8 +1669,8 @@ packages:
   '@openapi-contrib/openapi-schema-to-json-schema@3.2.0':
     resolution: {integrity: sha512-Gj6C0JwCr8arj0sYuslWXUBSP/KnUlEGnPW4qxlXvAl543oaNQgMgIgkQUA6vs5BCCvwTEiL8m/wdWzfl4UvSw==}
 
-  '@opentelemetry/api@1.9.1':
-    resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
+  '@opentelemetry/api@1.10.0':
+    resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
     engines: {node: '>=8.0.0'}
 
   '@orpc/arktype@1.15.7':
@@ -4750,10 +4750,6 @@ packages:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
 
-  postcss@8.5.26:
-    resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
-    engines: {node: ^10 || ^12 || >=14}
-
   postcss@8.5.28:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -4791,11 +4787,6 @@ packages:
   protobufjs@7.6.5:
     resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
-
-  publint@0.3.24:
-    resolution: {integrity: sha512-9zS56KrKBoqi5Qt8h92uMP8TTM9AYZSgnmCo4u2priMqkOZvQnTsziZ2p5LJ2ywbYkAjoCDp2jda9u4cgFefIw==}
-    engines: {node: '>=18'}
-    hasBin: true
 
   publint@0.3.25:
     resolution: {integrity: sha512-WMMbn/d7JqRlfXQL/JUI4n5skC8cJ5WVr8/wT5mmiYWkUdENkZr1I5rgs2+dQPVRgoJd+JRYtB46MTsuDylw9g==}
@@ -5257,11 +5248,6 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
-
-  tsx@4.23.12:
-    resolution: {integrity: sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q==}
-    engines: {node: '>=18.0.0'}
-    hasBin: true
 
   tsx@4.23.15:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
@@ -5852,9 +5838,9 @@ snapshots:
     dependencies:
       oxlint: 1.89.0
 
-  '@btravstack/theme@2.0.1(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))(vue@3.5.44(typescript@6.0.3))':
+  '@btravstack/theme@2.0.1(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0))(vue@3.5.44(typescript@6.0.3))':
     dependencies:
-      vitepress: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
+      vitepress: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
     optionalDependencies:
       vue: 3.5.44(typescript@6.0.3)
 
@@ -6447,13 +6433,13 @@ snapshots:
     dependencies:
       fast-deep-equal: 3.1.3
 
-  '@opentelemetry/api@1.9.1': {}
+  '@opentelemetry/api@1.10.0': {}
 
-  '@orpc/arktype@1.15.7(@ark/schema@0.56.7)(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(arktype@2.2.8)':
+  '@orpc/arktype@1.15.7(@ark/schema@0.56.7)(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(arktype@2.2.8)':
     dependencies:
       '@ark/schema': 0.56.7
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.10.0)
       arktype: 2.2.8
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -6461,19 +6447,19 @@ snapshots:
       - fastify
       - ws
 
-  '@orpc/client@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/client@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-peer': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/contract@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/contract@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/client': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
       '@standard-schema/spec': 1.1.0
       openapi-types: 12.1.3
     transitivePeerDependencies:
@@ -6481,13 +6467,13 @@ snapshots:
 
   '@orpc/interop@1.15.7': {}
 
-  '@orpc/json-schema@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/json-schema@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
       '@orpc/interop': 1.15.7
-      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
       json-schema-typed: 8.0.2
     transitivePeerDependencies:
       - '@opentelemetry/api'
@@ -6495,24 +6481,24 @@ snapshots:
       - fastify
       - ws
 
-  '@orpc/openapi-client@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/openapi-client@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/client': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/openapi@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/openapi@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/client': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
       '@orpc/interop': 1.15.7
-      '@orpc/openapi-client': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/openapi-client': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
       json-schema-typed: 8.0.2
       rou3: 0.7.12
     transitivePeerDependencies:
@@ -6521,80 +6507,80 @@ snapshots:
       - fastify
       - ws
 
-  '@orpc/server@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/server@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/client': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/client': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
       '@orpc/interop': 1.15.7
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-aws-lambda': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fastify': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-aws-lambda': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-fastify': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-peer': 1.15.7(@opentelemetry/api@1.10.0)
       cookie: 1.1.1
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - fastify
 
-  '@orpc/shared@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/shared@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
       radash: 12.1.1
       type-fest: 5.8.0
     optionalDependencies:
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
 
-  '@orpc/standard-server-aws-lambda@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-aws-lambda@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-fastify@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-fastify@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-node': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-fetch@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-fetch@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-node@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-node@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server-fetch': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-peer@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-peer@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/standard-server': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server@1.15.7(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server@1.15.7(@opentelemetry/api@1.10.0)':
     dependencies:
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/valibot@1.15.7(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(@orpc/server@1.15.7(@opentelemetry/api@1.9.1))(valibot@1.5.0(typescript@7.0.2))':
+  '@orpc/valibot@1.15.7(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(@orpc/server@1.15.7(@opentelemetry/api@1.10.0))(valibot@1.5.0(typescript@7.0.2))':
     dependencies:
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/server': 1.15.7(@opentelemetry/api@1.10.0)
       '@valibot/to-json-schema': 1.7.1(valibot@1.5.0(typescript@7.0.2))
       valibot: 1.5.0(typescript@7.0.2)
     transitivePeerDependencies:
@@ -6603,13 +6589,13 @@ snapshots:
       - fastify
       - ws
 
-  '@orpc/zod@1.15.7(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.7(@opentelemetry/api@1.9.1))(@orpc/server@1.15.7(@opentelemetry/api@1.9.1))(zod@4.6.7)':
+  '@orpc/zod@1.15.7(@opentelemetry/api@1.10.0)(@orpc/contract@1.15.7(@opentelemetry/api@1.10.0))(@orpc/server@1.15.7(@opentelemetry/api@1.10.0))(zod@4.6.7)':
     dependencies:
-      '@orpc/contract': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/json-schema': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/server': 1.15.7(@opentelemetry/api@1.9.1)
-      '@orpc/shared': 1.15.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/json-schema': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/openapi': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/server': 1.15.7(@opentelemetry/api@1.10.0)
+      '@orpc/shared': 1.15.7(@opentelemetry/api@1.10.0)
       escape-string-regexp: 5.0.0
       wildcard-match: 5.1.4
       zod: 4.6.7
@@ -7545,7 +7531,7 @@ snapshots:
   '@unthrown/vitest@5.12.1(unthrown@5.12.1)(vitest@5.0.5)':
     dependencies:
       unthrown: 5.12.1
-      vitest: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
+      vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
   '@upsetjs/venn.js@2.0.0':
     optionalDependencies:
@@ -7571,22 +7557,13 @@ snapshots:
       obug: 3.0.0
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+      vitest: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
   '@vitest/istanbul-lib-coverage@1.0.2': {}
 
   '@vitest/istanbul-lib-report@1.0.2':
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
-
-  '@vitest/mocker@5.0.5(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.0.5
-      estree-walker: 3.0.3
-      magic-string: 1.4.3
-    optionalDependencies:
-      vite: 6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
   '@vitest/mocker@5.0.5(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))':
     dependencies:
@@ -9490,13 +9467,6 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss@8.5.26:
-    dependencies:
-      nanoid: 3.3.18
-      picocolors: 1.1.1
-      source-map-js: 1.2.2
-    optional: true
-
   postcss@8.5.28:
     dependencies:
       nanoid: 3.3.18
@@ -9547,14 +9517,6 @@ snapshots:
       '@protobufjs/utf8': 1.1.1
       '@types/node': 26.6.5
       long: 5.3.2
-
-  publint@0.3.24:
-    dependencies:
-      '@publint/pack': 0.1.7
-      package-manager-detector: 1.8.0
-      picocolors: 1.1.1
-      sade: 1.8.1
-    optional: true
 
   publint@0.3.25:
     dependencies:
@@ -10102,35 +10064,7 @@ snapshots:
 
   ts-dedent@2.2.0: {}
 
-  tsdown@0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.24)(tsx@4.23.15)(typescript@7.0.2):
-    dependencies:
-      cac: 7.1.0
-      defu: 6.1.7
-      empathic: 2.1.0
-      hookable: 6.1.2
-      import-without-cache: 0.4.1
-      obug: 3.0.0
-      picomatch: 4.0.7
-      rolldown: 1.2.13
-      rolldown-plugin-dts: 0.28.8(oxc-resolver@11.24.2)(rolldown@1.2.13)(typescript@7.0.2)
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      tree-kill: 1.2.2
-      unconfig-core: 7.5.0
-      verkit: 0.5.0
-    optionalDependencies:
-      '@arethetypeswrong/core': 0.18.5
-      publint: 0.3.24
-      tsx: 4.23.15
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - '@typescript/native-preview'
-      - '@volar/typescript'
-      - '@vue/language-core'
-      - oxc-resolver
-      - vue-tsc
-
-  tsdown@0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.12)(typescript@7.0.2):
+  tsdown@0.23.1(@arethetypeswrong/core@0.18.5)(oxc-resolver@11.24.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2):
     dependencies:
       cac: 7.1.0
       defu: 6.1.7
@@ -10149,7 +10083,7 @@ snapshots:
     optionalDependencies:
       '@arethetypeswrong/core': 0.18.5
       publint: 0.3.25
-      tsx: 4.23.12
+      tsx: 4.23.15
       typescript: 7.0.2
     transitivePeerDependencies:
       - '@typescript/native-preview'
@@ -10161,13 +10095,6 @@ snapshots:
   tslib@1.14.1: {}
 
   tslib@2.8.1: {}
-
-  tsx@4.23.12:
-    dependencies:
-      esbuild: 0.28.2
-    optionalDependencies:
-      fsevents: 2.3.3
-    optional: true
 
   tsx@4.23.15:
     dependencies:
@@ -10340,21 +10267,6 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0):
-    dependencies:
-      esbuild: 0.25.12
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
-      postcss: 8.5.28
-      rollup: 4.62.4
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 26.6.5
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      tsx: 4.23.12
-      yaml: 2.9.0
-
   vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0):
     dependencies:
       esbuild: 0.25.12
@@ -10370,14 +10282,14 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.0
 
-  vitepress-plugin-mermaid@2.0.17(mermaid@12.2.0)(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)):
+  vitepress-plugin-mermaid@2.0.17(mermaid@12.2.0)(vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)):
     dependencies:
       mermaid: 12.2.0
-      vitepress: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
+      vitepress: 1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0)
     optionalDependencies:
       '@mermaid-js/mermaid-mindmap': 9.3.0
 
-  vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0):
+  vitepress@1.6.4(@algolia/client-search@5.53.0)(@types/node@26.6.5)(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.0):
     dependencies:
       '@docsearch/css': 3.8.2
       '@docsearch/js': 3.8.2(@algolia/client-search@5.53.0)
@@ -10398,7 +10310,7 @@ snapshots:
       vite: 6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
       vue: 3.5.44(typescript@6.0.3)
     optionalDependencies:
-      postcss: 8.5.26
+      postcss: 8.5.31
     transitivePeerDependencies:
       - '@algolia/client-search'
       - '@types/node'
@@ -10429,30 +10341,7 @@ snapshots:
       - universal-cookie
       - yaml
 
-  vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)):
-    dependencies:
-      '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.5(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
-      chai: 6.3.0
-      es-module-lexer: 2.3.2
-      expect-type: 1.4.0
-      magic-string: 1.4.3
-      obug: 3.0.0
-      picomatch: 4.0.7
-      std-env: 4.3.0
-      tinybench: 6.2.2
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      vite: 6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
-      why-is-node-running: 3.2.1
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@types/node': 26.6.5
-      '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
-    transitivePeerDependencies:
-      - msw
-
-  vitest@5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)):
+  vitest@5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.0.5(vite@6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
@@ -10469,7 +10358,7 @@ snapshots:
       vite: 6.4.4(@types/node@26.6.5)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
       '@types/node': 26.6.5
       '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
     transitivePeerDependencies:
