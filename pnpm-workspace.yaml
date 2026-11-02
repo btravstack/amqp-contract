@@ -33,7 +33,7 @@ catalog:
   "@vitest/coverage-v8": 5.0.5
   amqp-connection-manager: 5.0.1
   amqplib: 2.2.0
-  arktype: 2.2.8
+  arktype: 2.2.9
   fast-check: 4.10.2
   knip: 6.42.1
   lefthook: 2.2.2
