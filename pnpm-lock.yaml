@@ -234,8 +234,8 @@ catalogs:
       specifier: 4.10.2
       version: 4.10.2
     knip:
-      specifier: 6.43.0
-      version: 6.43.0
+      specifier: 6.44.1
+      version: 6.44.1
     lefthook:
       specifier: 2.2.2
       version: 2.2.2
@@ -351,7 +351,7 @@ importers:
         version: 5.12.2(oxlint@1.89.0)
       knip:
         specifier: 'catalog:'
-        version: 6.43.0
+        version: 6.44.1
       lefthook:
         specifier: 'catalog:'
         version: 2.2.2
@@ -4336,8 +4336,8 @@ packages:
   khroma@2.1.0:
     resolution: {integrity: sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw==}
 
-  knip@6.43.0:
-    resolution: {integrity: sha512-8l3cCOg/EXoILO0qcSoMra49yQM91+lEIR4fu5Ko8rrArGX8xKdKZiGI9psPiY6rhLmfLERcMfFEByF0wli5CA==}
+  knip@6.44.1:
+    resolution: {integrity: sha512-Hbd8nvkIsNgFfXgC7Jsb5LHv7jj6VwA3tmfHd53XPX2z9Vc9RnAZqV0BIiP4OrtYqKwCoLseFHQZerb1bNlbSw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
@@ -8977,7 +8977,7 @@ snapshots:
 
   khroma@2.1.0: {}
 
-  knip@6.43.0:
+  knip@6.44.1:
     dependencies:
       formatly: 0.11.4
       get-tsconfig: 4.14.3
