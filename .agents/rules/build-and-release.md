@@ -51,7 +51,7 @@ To ship the stable release, open a PR that runs `pnpm changeset pre exit` and co
 
 Implications when changing CI:
 
-- The reusable CI and release workflows (in `btravstack/tools`) install Node from [`.node-version`](../../.node-version); the repo's own jobs (`package-check` in `ci.yml`, `deploy-docs.yml`) go through the `./.github/actions/setup` composite, which reads the same file. **Node 24** is required for Trusted Publishing (older npm doesn't recognise OIDC env vars), so don't pin `.node-version` or a workflow lower.
+- The reusable CI and release workflows (in `btravstack/tools`) install Node from [`.node-version`](../../.node-version); the repo's own jobs (`package-check` in `ci.yml`, `deploy-docs.yml`) go through the `./.github/actions/setup` composite, which reads the same file. **Node 24+** (currently 26 LTS) is required for Trusted Publishing (older npm doesn't recognise OIDC env vars), so don't pin `.node-version` or a workflow lower.
 - Every publishable package must have these `package.json` fields filled with the canonical GitHub URL — `repository.url`, `homepage`, `bugs`, `author`, `license`. Provenance attestations include the GitHub repo URL, and npm rejects mismatches with a 422. `packages/testing/package.json` was the package that bit us last time.
 - When adding a new publishable package: add it to the `fixed` group in `.changeset/config.json`, mirror the `package.json` metadata fields from `packages/contract/package.json`, and decide on a build shape — `tsdown.config.ts` (most packages, with `external: ["unthrown", …]` for any deps surfaced in public types) or CLI-flag tsdown like `contract` / `testing`. Multi-entry / ESM-only is fine if it matches the package's exports map (see `testing` for the canonical example).
 
