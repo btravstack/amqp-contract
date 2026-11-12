@@ -1,5 +1,104 @@
 # @amqp-contract/testing
 
+## 3.0.0
+
+### Major Changes
+
+- 9222c06: Adopt unthrown v5 (beta): error combinators and `match`'s `err` handler now take a ts-pattern matcher callback; peer bumped to `^5.0.0-beta.3`.
+- 7f406c6: Pre-3.0 API review: breaking changes taken while the major window is open.
+
+  - **`defineHandler` / `defineHandlers` / `defineMiddleware` → `declareHandler` / `declareHandlers` / `declareMiddleware`.** The family convention (shared with temporal-contract) is `define*` for contract authoring and `declare*` for implementation-side APIs, making the contract boundary visible in the name.
+  - **`defineRpc` error map entries are now `{ data: schema, message? }`** instead of `defineMessage(schema)`. `data` is the raw Standard Schema for the error payload; the optional `message` is a default human-readable message used when the handler constructs the error without one (and as the client-side fallback when a reply carries none).
+  - **`defineContract` accepts standalone topology**: top-level `exchanges`, `queues`, and `bindings` entries declare resources with no publisher/consumer attached (a DLQ bound to the auto-extracted DLX, audit queues). Dead-letter exchanges are auto-extracted for standalone queues exactly as for consumer queues.
+  - **Worker `middleware` accepts an array** (first = outermost), composed like `composeMiddleware(...)`. Pre-compose with `composeMiddleware` when you want stepwise context types inferred.
+  - **`worker.close()` now drains in-flight handlers** before closing the channel (their acks land; completed work is not redelivered), bounded by a new `drainTimeoutMs` option (default `DEFAULT_DRAIN_TIMEOUT_MS` = 30 s; `null` waits forever).
+  - **Worker `ConsumerOptions` is now a curated subset** (`prefetch`, `priority`, `arguments`, `consumerTag`, `exclusive`). `noAck` is gone — it silently broke the ack-exactly-once and retry/DLQ invariants.
+  - **RPC handler response types use the schema's _input_** (defaults optional, transforms not yet applied) — the worker validates before replying, matching the existing RPC error-data convention.
+  - **Invalid `connectTimeoutMs`** (NaN, 0, negative, Infinity) now surfaces as a Defect from `create()` instead of silently disabling the timeout. Pass `null` to disable.
+  - **Testing fixture wait options renamed**: `{ nbEvents, timeout }` → `{ count, timeoutMs }`, aligning with the library-wide `timeoutMs` convention. The fixture record is exported as `AmqpTestFixtures`, the wait options as `WaitForMessagesOptions`; the package now exposes `./package.json`.
+  - **`@amqp-contract/asyncapi`: `failOnMissingConverter` defaults to `true`** — a spec that silently degrades schemas to `{ type: "object" }` placeholders lies to its consumers. It generates AsyncAPI 3.1 (docs previously claimed 3.0).
+  - **Deprecated `_*ForTesting` aliases removed** from `@amqp-contract/core` (`_resetConnectionsForTesting`, `_getConnectionCountForTesting`, `_resetTelemetryCacheForTesting`) — use the `_internal_*` forms.
+  - **Export hygiene**: `RetryOptions`, `NoneRetryOptions`, `DefineQueueOptionsWithDeadLetterExchange`, `QueueDefinitionWithDeadLetterExchange`, `RpcErrorDefinition`, `InferSchemaInput`, `InferSchemaOutput` (contract); `PublishError`, `CallError`, `ClientInferCallError` (client); `AnyWorkerMiddleware`, `DEFAULT_DRAIN_TIMEOUT_MS` (worker); `isTechnicalError`, `isMessageValidationError` guards (core). Client and worker re-export `Logger`, `LoggerContext`, `TelemetryProvider`, and `TechnicalError` so naming an option type never forces a direct dependency on core. `defineCommandPublisher` now preserves literal routing-key types. All packages declare `sideEffects: false`.
+
+- 8b50784: Pre-3.0 audit: one decision point for a full write buffer, and Deno-style exported signatures.
+
+  - **`AmqpClient.publish` / `sendToQueue` return `AsyncResult<void, never>`** (was `AsyncResult<boolean, never>`). The channel wrapper's boolean `false` (write buffer full) used to be re-triaged four different ways downstream; it is now absorbed inside core and surfaces as a Defect with a `TechnicalError` cause ("channel write buffer full"), like every other publish-side infrastructure failure. The worker's RPC reply publish is the one site that still needs a modeled error: it recovers the defect into a `NonRetryableError`, so a failed reply publish keeps routing the request to the DLQ.
+  - **Exported signatures follow the [Deno style rule](https://docs.deno.com/runtime/contributing/style_guide/)** — max two positional arguments, trailing options object, no positional booleans:
+    - `client.ack(msg, allUpTo?, options?)` → `client.ack(msg, { allUpTo?, deliveryEpoch? })`
+    - `client.nack(msg, allUpTo?, requeue?, options?)` → `client.nack(msg, { allUpTo?, requeue?, deliveryEpoch? })` (requeue still defaults to true)
+    - `client.publish(exchange, routingKey, content, options?)` → `client.publish({ exchange, routingKey }, content, options?)`
+    - `@amqp-contract/testing`'s `publishMessage(exchange, routingKey, content, options?)` fixture → `publishMessage({ exchange, routingKey }, content, options?)`
+
+    The typed client's `client.publish(name, message, options?)` is unaffected.
+
+  - **`defineExchangeBinding` requires a non-empty routing key for direct/topic source exchanges.** It was the last builder still defaulting a missing key to `""` (silently unroutable); it now throws the same actionable define-time error as `definePublisher` and `defineQueueBinding`. Fanout/headers sources remain exempt.
+
+- 6d8593b: Uniform `QueueDefinition` + per-delay-tier TTL-backoff wait queues: the `QueueEntry`/`extractQueue` split is gone and the retry schedule no longer degrades to the longest in-flight delay.
+
+  - **`defineQueue` always returns a single uniform `QueueDefinition`** — with TTL-backoff retry it no longer returns a branded wrapper carrying wait-queue/exchange infrastructure. Access `queue.name` / `queue.type` directly. Deleted exports: `extractQueue`, `isQueueWithTtlBackoffInfrastructure`, and the `QueueEntry`, `QueueWithTtlBackoffInfrastructure`, `QueueEntryWithDeadLetterExchange` (renamed to `QueueDefinitionWithDeadLetterExchange`), `TtlBackoffRetryInfrastructure` types, plus the `__brand` machinery on queues.
+  - **TTL-backoff topology is derived, never stored.** The new pure helpers `deriveTtlBackoffInfrastructure(queue)`, `ttlBackoffBaseDelay(retry, retryCount)`, and `ttlBackoffWaitQueueName(queueName, delayMs)` (with the `TtlBackoffInfrastructure` / `TtlBackoffWaitQueueDefinition` types) compute everything from `queue.retry`; `setupAmqpTopology` declares the wait queues at channel-setup time and the worker's retry pipeline publishes to them. `ContractOutput` now matches the runtime `defineContract` object exactly — no more runtime-injected `wait-exchange` / wait-queue entries that failed to typecheck.
+  - **One wait queue per distinct backoff delay** (`{queue}-wait-{delayMs}ms`) fixes head-of-line blocking: RabbitMQ only dead-letters expired messages at the head of a queue, so the old single shared wait queue let a parked 60s retry block a later 1s retry — the configured schedule silently degraded to the longest in-flight delay. Each tier queue is declared with a queue-level `x-message-ttl` backstop (the jitter ceiling, `ceil(base * 1.5)`) and dead-letters back to the main queue via the default exchange; the per-message `expiration` carries the jittered delay. Within a tier, head-of-line skew is bounded by the jitter spread and is zero with `jitter: false`.
+  - **The wait/retry headers exchanges are gone.** The retry copy is published straight to the tier queue via the default exchange, so the `x-wait-queue` / `x-retry-queue` routing headers are no longer stamped. Retried deliveries arrive with `fields.routingKey` set to the queue name; the original routing key is preserved in the new `x-original-routing-key` header (also stamped by classic-queue immediate-requeue republishes). The `x-retry-count` / `x-last-error` / `x-first-failure-timestamp` accounting is unchanged.
+  - **`TtlBackoffRetryOptions` lost `waitQueueName` / `waitExchangeName` / `retryExchangeName`** — tier wait-queue names are derived and no longer configurable.
+  - **Migration**: broker-side wait-queue names change. The old `{queue}-wait` queues and the `wait-exchange` / `retry-exchange` headers exchanges become unused after upgrading — drain them (any parked retries will still dead-letter back to their main queue when their TTL expires, as long as you leave the old topology in place until empty), then delete them.
+
+- e479a35: Pre-3.0 audit: routing-key safety and naming/export hygiene, taken while the major window is open.
+
+  - **`defineEventConsumer` topic routing-key overrides are now checked against the publisher's routing key at compile time.** A pattern that can never match — `defineEventConsumer(orderCreatedEvent, queue, { routingKey: "user.*" })` against a publisher on `order.created` — used to compile and silently receive nothing at runtime; it is now a type error whose message names both sides (`"Error: binding pattern 'user.*' can never match the publisher routing key 'order.created'"`). The new `MatchingBindingPattern<Pattern, PublisherKey>` type is exported; pattern matching also learned that a trailing `#` matches zero words (`order.created.#` now accepts `order.created`).
+  - **Direct/topic publishers and queue bindings require a non-empty routing key at define time.** `definePublisher` silently defaulted a missing routing key to `""` and `defineQueueBinding` left it `undefined` — both silently misroute. `definePublisher`, `defineQueueBinding`, `defineEventPublisher`, and `defineCommandConsumer` (via its binding) now throw an actionable error at define time for JavaScript callers and casts. Fanout/headers exchanges are exempt (they ignore routing keys).
+  - **`@amqp-contract/core`'s option types renamed**: `ConsumerOptions` → `AmqpConsumeOptions`, `PublishOptions` → `AmqpPublishOptions`. They collided with the user-facing `ConsumerOptions` (worker) and `PublishOptions` (client), which keep their names and shapes.
+  - **`_internal_*` helpers moved off `@amqp-contract/core`'s root** to a new `@amqp-contract/core/internal` subpath: `_internal_getConnectionCount`, `_internal_resetConnections`, `_internal_resetTelemetryCache`. They are test-lifecycle helpers with no semver guarantee and no longer clutter the public root.
+  - **`defineEventPublisher`'s `arguments` option renamed to `bindingArguments`.** It never was a publish argument — it is forwarded as the default AMQP binding arguments for that event's consumers' queue bindings (a consumer's own `arguments` option overrides it). The name now says so; `EventPublisherConfig`/`EventPublisherConfigBase` carry `bindingArguments` accordingly.
+  - **Builder-result brands are now a non-exported `unique symbol`** instead of `__brand: "EventConsumerResult"`-style string fields on `EventPublisherConfig`, `EventConsumerResult`, `CommandConsumerConfig`, and `BridgedPublisherConfig` (and their `*Base` types). The brand no longer shows up in IDE hovers and cannot be forged by user code; nominal separation and the `is*` type guards behave as before. Code that constructed these config objects by hand (rather than via `defineEvent*` / `defineCommand*`) no longer compiles — use the builders.
+
+### Minor Changes
+
+- 5493fdb: Remove redundant API surface and collapse duplicated definitions.
+
+  **Breaking — removed exports**
+
+  Each removal below has an exact, equal-effort replacement already in the public
+  API. Anything without one was kept, whether or not the library itself used it.
+
+  - `@amqp-contract/worker`: `isRetryableError` and `isNonRetryableError` were
+    1:1 with `error instanceof RetryableError` / `instanceof NonRetryableError`,
+    and both classes are exported. `retryable(message, cause)` and
+    `nonRetryable(message, cause)` were 1:1 with `new RetryableError(...)` /
+    `new NonRetryableError(...)`. `isHandlerError` is **kept** — `HandlerError` is
+    a union type with no runtime counterpart, so no `instanceof` can replace it.
+  - `@amqp-contract/core`: `AmqpClient._resetConnectionCacheForTesting()`, a
+    second path to `_internal_resetConnections` from `@amqp-contract/core/internal`.
+    Both are `@internal` with no semver guarantee.
+
+  **Non-breaking**
+
+  - `defineExchange` collapses four near-identical overloads into one generic
+    signature; the return type still narrows on `type`.
+  - `defineEventPublisher`, `defineEventConsumer`, `defineCommandConsumer` and
+    `defineCommandPublisher` merge their byte-identical fanout and headers
+    overloads into a single keyless-exchange signature. `defineCommandPublisher`
+    now returns the caller's exact exchange type rather than the widened union.
+  - `AmqpClient.waitForConnect` uses `Promise.race` with `AbortSignal.timeout`
+    instead of a hand-rolled `setTimeout` race, so a pending connect timer no
+    longer holds the event loop open.
+  - The AsyncAPI generator converts each message schema once per channel instead
+    of twice.
+  - Internal cleanups with no API impact: shared `settleAll` helper in
+    `setupAmqpTopology`, shared publish-instrumentation helper in the client,
+    encoding lookup table in the worker's decompressor, one shared vhost request
+    helper in the testing fixture, and removal of a redundant `try`/`catch` around
+    telemetry calls that already swallow internally.
+
+### Patch Changes
+
+- 519c670: Internal cleanup from enabling all `@unthrown/oxlint` rules (`no-throw` and `prefer-ensure` on top of the recommended set): redundant `Promise<Result<...>>` return annotations dropped in favor of inference, and every deliberate `throw` site now carries a targeted lint disable naming its reason. No runtime behavior change.
+- a7f8d54: Apply the formatter output required by `oxfmt` 0.65.0, keeping the generated mapped-type layout in sync with the updated toolchain and preventing CI drift.
+- 502156c: Pin runtime dependencies to exact versions and bump `amqplib` to 2.2.0.
+- aab360d: Publish runtime dependencies (`amqplib`, `amqp-connection-manager`, `@standard-schema/spec`, `@unthrown/standard-schema`, `testcontainers`) with caret ranges instead of exact versions, so consumers can pick up upstream patch and security releases without waiting for an amqp-contract release.
+- c9c59b8: The `vitest` peer range is now `^4 || ^5`. Its fixtures and global setup run
+  unchanged on Vitest 5, so a project on Vitest 5 no longer fails to install
+  under strict peer dependencies.
+
 ## 3.0.0-beta.13
 
 No changes in this release.
