@@ -45,9 +45,9 @@ Releases are not run from a developer's machine — never run `pnpm release` or 
 
 ### Prerelease mode
 
-The repo is currently in changesets **pre mode**: [`.changeset/pre.json`](../../.changeset/pre.json) sets `"mode": "pre"` and `"tag": "beta"`. While it is there, every release PR produces `x.y.z-beta.N` versions published under the `beta` dist-tag (npm `latest` does not move), consumed changesets are moved into `.changeset/pre/` rather than deleted, and the docs deploy builds main's docs under `/beta/` next to the latest stable tag's docs at the root.
+The repo is not in changesets pre mode: release PRs version to stable numbers published under `latest`.
 
-To ship the stable release, open a PR that runs `pnpm changeset pre exit` and commit the result. Review the entries in `.changeset/pre/` first — they become the changelog of the stable version, so drop any that only mattered between betas. The next release PR then versions to the stable number, and merging it publishes under `latest`. (`pnpm changeset pre enter <tag>` starts a new prerelease line.)
+To start a prerelease line, open a PR that runs `pnpm changeset pre enter <tag>` (e.g. `beta`) and commit the generated pre.json. While it is on main, every release PR produces `x.y.z-<tag>.N` versions published under the `<tag>` dist-tag (npm `latest` does not move), consumed changesets are kept in the pre directory under `.changeset/` rather than deleted, and the docs deploy builds main's docs under `/beta/` next to the latest stable tag's docs at the root. To ship the stable release, open a PR that runs `pnpm changeset pre exit`, reviewing the kept entries first — they become the stable changelog, so drop any that only mattered between prereleases. The next release PR then versions to the stable number and removes the pre-mode files.
 
 Implications when changing CI:
 
