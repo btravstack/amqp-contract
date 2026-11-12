@@ -139,7 +139,7 @@ Releases run in CI only — never run `pnpm release` or `npm publish` yourself.
 
 So releasing is: merge the `chore: release packages` PR.
 
-The repository is currently in changesets **pre mode** (`.changeset/pre.json`, tag `beta`), so releases publish as `3.0.0-beta.N` under the `beta` dist-tag. See [Build & Release](./.agents/rules/build-and-release.md#prerelease-mode) for how pre mode is exited.
+Releases publish stable versions under the `latest` dist-tag. See [Build & Release](./.agents/rules/build-and-release.md#prerelease-mode) for how to run a prerelease line.
 
 ### Versioning policy
 
