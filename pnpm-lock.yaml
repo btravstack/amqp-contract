@@ -213,8 +213,8 @@ catalogs:
       specifier: 5.12.2
       version: 5.12.2
     '@unthrown/standard-schema':
-      specifier: 5.12.1
-      version: 5.12.1
+      specifier: 5.12.2
+      version: 5.12.2
     '@unthrown/vitest':
       specifier: 5.12.2
       version: 5.12.2
@@ -586,7 +586,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.12.1(unthrown@5.12.2)
+        version: 5.12.2(unthrown@5.12.2)
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -764,7 +764,7 @@ importers:
         version: 1.1.0
       '@unthrown/standard-schema':
         specifier: 'catalog:'
-        version: 5.12.1(unthrown@5.12.2)
+        version: 5.12.2(unthrown@5.12.2)
     devDependencies:
       '@amqp-contract/testing':
         specifier: workspace:*
@@ -2992,11 +2992,11 @@ packages:
     peerDependencies:
       oxlint: ^1.69.0
 
-  '@unthrown/standard-schema@5.12.1':
-    resolution: {integrity: sha512-srIZKDVtq28+gjYV3xtB61Ljl0CRsgR2BuiK2cEruwG6EtNkuKcTuSlya+bjfulVkHJ4p1wIdiiugxsq8N0jJw==}
+  '@unthrown/standard-schema@5.12.2':
+    resolution: {integrity: sha512-4S24SdC35xwSWgbNJT+NjbxhYR0E0NXfbuzucbjxwkuLDCq+JA6f+f+itAwVsg4I7o42orflQbaAXpShAMpCbQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      unthrown: ^5.12.1
+      unthrown: ^5.12.2
 
   '@unthrown/vitest@5.12.2':
     resolution: {integrity: sha512-vl9f4/ujWON/rERkSORjU7/S3OzC4wnuaMQnmhQdUXOMOqok1gsNWcTYCDkeEtVQlQHujd/0US2CQfcaSW8EXA==}
@@ -7533,7 +7533,7 @@ snapshots:
       '@oxlint/plugins': 1.90.0
       oxlint: 1.93.0
 
-  '@unthrown/standard-schema@5.12.1(unthrown@5.12.2)':
+  '@unthrown/standard-schema@5.12.2(unthrown@5.12.2)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       unthrown: 5.12.2
