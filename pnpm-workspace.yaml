@@ -29,7 +29,7 @@ catalog:
   "@types/node": 26.6.6
   "@unthrown/oxlint": 5.12.2
   "@unthrown/standard-schema": 5.12.1
-  "@unthrown/vitest": 5.12.1
+  "@unthrown/vitest": 5.12.2
   "@vitest/coverage-v8": 5.0.5
   amqp-connection-manager: 5.0.1
   amqplib: 2.2.1
