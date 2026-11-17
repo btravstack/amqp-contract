@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
 
 The result is two connections — one for publishing, one for consuming — each carrying as many channels as there are clients or workers on it. There is nothing to opt into.
 
-Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one client and not another and you get two connections — so keep them identical, or omit them on both. The same goes for `connectTimeoutMs`, which sets each dial's socket timeout (see [Fail fast](#fail-fast-when-the-broker-is-unreachable)).
+Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one client and not another and you get two connections — so keep them identical, or omit them on both. The same goes for the socket timeout `connectTimeoutMs` derives for each dial: clients whose effective timeouts differ get separate connections, while values that derive the same one, or an explicit `connectionOptions.connectionOptions.timeout` overriding them, share one (see [Fail fast](#fail-fast-when-the-broker-is-unreachable)).
 
 ## Share one connection explicitly
 
