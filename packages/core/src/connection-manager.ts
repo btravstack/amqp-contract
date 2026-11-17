@@ -15,6 +15,10 @@ export type ConnectionLease = {
    * whose `close()` runs on both a `finally` and an error path) is a no-op,
    * so it can never underflow the pool's reference count and close a
    * connection out from under another live client.
+   *
+   * The last release closes the connection, and waits for that close only
+   * when the connection is up: one that is still dialing would hold the
+   * caller until the dial ends and the manager's reconnect delay passes.
    */
   release: () => Promise<void>;
 };
@@ -111,7 +115,17 @@ export class ConnectionManagerSingleton {
           // never poisoned by a failed close.
           this.connections.delete(key);
           this.refCounts.delete(key);
-          await leased.close();
+          // Not connected means a dial may be in flight: the manager's close()
+          // waits for it, then for the reconnect delay scheduled when it fails.
+          // Nothing is open to flush, so the caller does not wait for that; the
+          // dial ends on its socket timeout and the manager closes what it yields.
+          const connected = leased.isConnected();
+          const closing = leased.close();
+          if (connected) {
+            await closing;
+          } else {
+            closing.catch(() => undefined);
+          }
         } else {
           this.refCounts.set(key, refCount - 1);
         }

@@ -26,7 +26,7 @@ const worker = await TypedAmqpWorker.create({
 
 The result is two connections — one for publishing, one for consuming — each carrying as many channels as there are clients or workers on it. There is nothing to opt into.
 
-Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one client and not another and you get two connections — so keep them identical, or omit them on both.
+Connections are cached on URLs **and** connection options together. Pass `connectionOptions` to one client and not another and you get two connections — so keep them identical, or omit them on both. The same goes for `connectTimeoutMs`, which sets each dial's socket timeout (see [Fail fast](#fail-fast-when-the-broker-is-unreachable)).
 
 ## Share one connection explicitly
 
@@ -113,6 +113,8 @@ const client = await TypedAmqpClient.create({
 ```
 
 `create` answers `Err(ConnectionError)` if the connection is not ready in time; the default is 30 seconds. Pass `null` to wait indefinitely and let amqp-connection-manager keep retrying — appropriate for a worker that should tolerate the broker starting after it does.
+
+The deadline holds whatever the broker does, including a peer that accepts the TCP connection and never answers the AMQP handshake. With `urls`, each dial gets a socket timeout of half `connectTimeoutMs` (amqplib's `connectionOptions.connectionOptions.timeout`), so a silent peer fails with `connect ETIMEDOUT` before the deadline and that is the reported cause. A timeout you set there yourself is kept, and `connectTimeoutMs: null` sets none. amqplib clears it once the connection opens, so it never times out an idle connection.
 
 ## Separate connections further
 

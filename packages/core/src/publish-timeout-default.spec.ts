@@ -27,6 +27,7 @@ vi.mock("amqp-connection-manager", async () => {
         createChannel: cc,
         on: vi.fn(),
         removeListener: vi.fn(),
+        isConnected: () => true,
         close: vi.fn(() => Promise.resolve()),
       })),
     },

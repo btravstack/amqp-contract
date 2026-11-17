@@ -147,7 +147,7 @@ A full write buffer is **not** one of them: on the confirm channel it is only re
 
 ## `ConnectionError`
 
-The broker could not be reached when `create()` dialed it: refused, unresolvable, unauthorized, or still not ready when `connectTimeoutMs` elapsed. `cause` is the last failed dial reported by amqp-connection-manager (e.g. `ECONNREFUSED`, `ACCESS_REFUSED`), named in the message too; when no dial failed outright, it is the connect-timeout error. The first failed dial is also logged at `warn`, so a wrong URL shows up at once rather than when the timeout expires.
+The broker could not be reached when `create()` dialed it: refused, unresolvable, unauthorized, or still not ready when `connectTimeoutMs` elapsed. `cause` is the last failed dial reported by amqp-connection-manager (e.g. `ECONNREFUSED`, `ACCESS_REFUSED`, or `connect ETIMEDOUT` from a peer that never answered the handshake), named in the message too; when no dial failed outright, it is the connect-timeout error. The first failed dial is also logged at `warn`, so a wrong URL shows up at once rather than when the timeout expires.
 
 **Modeled, not a defect.** It is the anticipated failure of dialing a broker — a wrong URL, a rotated credential, a cluster that has not come up — every one an operator's business rather than a bug, and the one thing a start-up path most wants to branch on:
 
