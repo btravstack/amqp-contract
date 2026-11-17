@@ -7,6 +7,7 @@ import { ConnectionManagerSingleton } from "./connection-manager.js";
 vi.mock("amqp-connection-manager", () => ({
   default: {
     connect: vi.fn(() => ({
+      isConnected: vi.fn(() => true),
       close: vi.fn(() => Promise.resolve()),
     })),
   },
@@ -107,6 +108,26 @@ describe("ConnectionManagerSingleton pooling invariants", () => {
     const fresh = pool.acquire(["amqp://localhost"]);
     expect(fresh.connection).not.toBe(lease.connection);
     await fresh.release();
+  });
+
+  it("the last release of a connection that is not connected does not wait for its in-flight dial", async () => {
+    // GIVEN: the manager's close() waits for a pending dial, which a silent
+    // peer never ends.
+    const pool = ConnectionManagerSingleton.getInstance();
+    const lease = pool.acquire(["amqp://localhost"]);
+    (lease.connection.isConnected as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    const close = (lease.connection.close as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise<void>(() => {}),
+    );
+
+    // WHEN
+    await lease.release();
+
+    // THEN: closed, so the manager stops retrying, and evicted.
+    expect({
+      closeCalls: close.mock.calls.length,
+      pooled: pool._getConnectionCountForTesting(),
+    }).toEqual({ closeCalls: 1, pooled: 0 });
   });
 });
 

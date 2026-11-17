@@ -28,6 +28,7 @@ vi.mock("amqp-connection-manager", async () => {
         });
         const conn = Object.assign(new Emitter(), {
           createChannel: () => wrapper,
+          isConnected: () => false,
           close: () => Promise.resolve(),
         });
         fakes.connection = conn;

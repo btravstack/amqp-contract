@@ -148,7 +148,32 @@ export type ConnectionSource = {
   connection?: AmqpConnectionManager | undefined;
 };
 
-function leaseConnection(options: AmqpClientOptions): ConnectionLease {
+/**
+ * Bound each dial with amqplib's socket timeout, which it arms only when
+ * `connectionOptions.timeout` is set. Without one, a peer that accepts TCP
+ * but never answers the AMQP handshake holds the dial open for as long as it
+ * keeps the socket, and the manager neither fails it nor retries. Half the
+ * connect timeout, so a silent peer's `connect ETIMEDOUT` lands before
+ * `waitForConnect` gives up and is reported as its cause. amqplib clears the
+ * timeout once the connection opens. A caller's own timeout is kept.
+ */
+function withDialTimeout(
+  options: AmqpConnectionManagerOptions | undefined,
+  connectTimeoutMs: number | null,
+): AmqpConnectionManagerOptions | undefined {
+  if (connectTimeoutMs === null || options?.connectionOptions?.timeout !== undefined) {
+    return options;
+  }
+  return {
+    ...options,
+    connectionOptions: { ...options?.connectionOptions, timeout: Math.ceil(connectTimeoutMs / 2) },
+  };
+}
+
+function leaseConnection(
+  options: AmqpClientOptions,
+  connectTimeoutMs: number | null,
+): ConnectionLease {
   const { urls, connection } = options;
   if (connection !== undefined && urls === undefined) {
     // Borrowed, never released: the caller owns it.
@@ -156,7 +181,7 @@ function leaseConnection(options: AmqpClientOptions): ConnectionLease {
   }
   if (connection === undefined && urls !== undefined) {
     return ConnectionManagerSingleton.getInstance().acquire(urls, {
-      connectionOptions: options.connectionOptions,
+      connectionOptions: withDialTimeout(options.connectionOptions, connectTimeoutMs),
       pool: options.connectionPool,
     });
   }
@@ -173,7 +198,11 @@ function leaseConnection(options: AmqpClientOptions): ConnectionLease {
  * @property connectTimeoutMs - Maximum time in ms to wait for the channel to
  *   become ready in `waitForConnect`. Defaults to {@link DEFAULT_CONNECT_TIMEOUT_MS}.
  *   Pass `null` to disable the timeout entirely (amqp-connection-manager will
- *   retry indefinitely).
+ *   retry indefinitely). With `urls`, each dial also gets amqplib's socket
+ *   timeout of half this value, unless `connectionOptions.connectionOptions.timeout`
+ *   is set, so a peer that never answers the handshake fails before the
+ *   deadline. It is part of the pooled connection's options: clients share a
+ *   connection only with the same `connectTimeoutMs`.
  * @property publishTimeoutMs - Maximum time in ms a publish may sit buffered
  *   waiting for the broker before its promise settles with a failure.
  *   Defaults to {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable,
@@ -390,7 +419,7 @@ export class AmqpClient {
     // throws (routed to the defect channel by the typed create() factories).
     this.connectTimeoutMs = resolveConnectTimeoutMs(options.connectTimeoutMs);
 
-    this.connectionLease = leaseConnection(options);
+    this.connectionLease = leaseConnection(options, this.connectTimeoutMs);
     this.connection = this.connectionLease.connection;
 
     // Create default setup function that calls setupAmqpTopology

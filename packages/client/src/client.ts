@@ -140,6 +140,11 @@ export type CreateClientOptions<TContract extends ContractDefinition> = Connecti
    * `create()` answers `Err(ConnectionError)`. Defaults
    * to 30s (the {@link AmqpClient}'s `DEFAULT_CONNECT_TIMEOUT_MS`). Pass `null`
    * to disable the timeout and let amqp-connection-manager retry indefinitely.
+   *
+   * With `urls`, each dial is also bounded by amqplib's socket timeout, half
+   * this value unless `connectionOptions.connectionOptions.timeout` is set, so
+   * the deadline holds even against a peer that accepts TCP and never answers
+   * the AMQP handshake (the error's cause is then `connect ETIMEDOUT`).
    */
   connectTimeoutMs?: number | null | undefined;
   /**
