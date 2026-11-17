@@ -201,8 +201,9 @@ function leaseConnection(
  *   retry indefinitely). With `urls`, each dial also gets amqplib's socket
  *   timeout of half this value, unless `connectionOptions.connectionOptions.timeout`
  *   is set, so a peer that never answers the handshake fails before the
- *   deadline. It is part of the pooled connection's options: clients share a
- *   connection only with the same `connectTimeoutMs`.
+ *   deadline. The effective socket timeout is part of the connection options
+ *   a pooled connection is keyed on, so clients share a connection only when
+ *   theirs agree.
  * @property publishTimeoutMs - Maximum time in ms a publish may sit buffered
  *   waiting for the broker before its promise settles with a failure.
  *   Defaults to {@link DEFAULT_PUBLISH_TIMEOUT_MS}. Pass `null` to disable,
